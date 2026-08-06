@@ -1,6 +1,17 @@
 # XiaoHyperCleaner
 
-[![License: CC BY-NC 4.0](https://licensebuttons.net/l/by-nc/4.0/80x15.png)](https://creativecommons.org/licenses/by-nc/4.0/)
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-yellow.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
+[![Beta](https://img.shields.io/github/v/release/elthebestdevelopman-cyber/XiaoHyperCleaner?include_prereleases&label=beta&color=orange)](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/releases)
+
+## Скачать
+
+Последняя бета для тестирования — в разделе
+[Releases](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/releases).
+Стабильная версия появится в RuStore и GetApps после модерации.
+
+**Download:** the latest beta is in
+[Releases](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/releases).
+Stable version will be published in RuStore and GetApps after store review.
 
 Настройка Xiaomi, Redmi и Poco: отключение сервисов аналитики и применение
 параметров MIUI / HyperOS через локальный ADB. Без root-прав.
