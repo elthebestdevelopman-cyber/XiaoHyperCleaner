@@ -40,6 +40,11 @@
     <string name="restore_confirm">Yes, restore</string>
     <string name="restore_failed_text">Failed to revert changes. Make sure wireless debugging is enabled and try again.</string>
 
+    <string name="reboot_dialog_title">Reboot device</string>
+    <string name="reboot_dialog_text">The device will be rebooted via ADB. Unsaved data may be lost. Continue?</string>
+    <string name="reboot_confirm">Reboot</string>
+    <string name="reboot_failed_text">Failed to send the reboot command via ADB.</string>
+
     <string name="overlay_preparing">Preparing…</string>
     <string name="overlay_connecting">Connecting to ADB…</string>
     <string name="overlay_method1">Applying system parameters…</string>

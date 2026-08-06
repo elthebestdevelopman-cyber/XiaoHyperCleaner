@@ -6,10 +6,11 @@ import android.net.Uri
 import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
-import com.xiaohypercleaner.data.AdbClient
 import com.xiaohypercleaner.data.OptimizationEngine
+import com.xiaohypercleaner.util.waitFor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -24,7 +25,7 @@ class AdbEnablerService : AccessibilityService() {
     }
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private val engine = OptimizationEngine(AdbClient())
+    private val app get() = application as XiaoHyperApp
 
     private var overlayHandled = false
     private var optimizationStarted = false
@@ -36,7 +37,6 @@ class AdbEnablerService : AccessibilityService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_START_CHAIN) {
             scope.launch {
-                delay(400)
                 if (!Settings.canDrawOverlays(this@AdbEnablerService)) {
                     openOverlaySettings()
                 } else {
@@ -63,10 +63,13 @@ class AdbEnablerService : AccessibilityService() {
                     sw.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 }
                 scope.launch {
-                    delay(1000)
-                    clickAllow(rootInActiveWindow)
-                    delay(500)
-                    openDevSettings()
+                    val granted = waitFor(AppConstants.OVERLAY_WAIT_TIMEOUT_MS) {
+                        Settings.canDrawOverlays(this@AdbEnablerService)
+                    }
+                    if (granted) {
+                        clickAllow(rootInActiveWindow)
+                        openDevSettings()
+                    }
                 }
                 return
             }
@@ -79,9 +82,12 @@ class AdbEnablerService : AccessibilityService() {
                     toggle.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 }
                 scope.launch {
-                    delay(1500)
+                    waitFor(AppConstants.UI_WAIT_TIMEOUT_MS) {
+                        val r = rootInActiveWindow ?: return@waitFor false
+                        val t = findCheckable(r, "Беспроводная отладка", "Wireless debugging")
+                        t?.isChecked == true
+                    }
                     clickAllow(rootInActiveWindow)
-                    delay(1000)
                     startOptimization()
                 }
             }
@@ -142,8 +148,8 @@ class AdbEnablerService : AccessibilityService() {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
         scope.launch {
-            delay(8000)
-            startOptimization()
+            waitFor(AppConstants.DEV_SETTINGS_FALLBACK_MS) { optimizationStarted }
+            if (!optimizationStarted) startOptimization()
         }
     }
 
@@ -151,19 +157,24 @@ class AdbEnablerService : AccessibilityService() {
         if (optimizationStarted) return
         optimizationStarted = true
         scope.launch {
-            val result = engine.optimize { stage ->
-                val text = when (stage) {
-                    "connecting" -> getString(R.string.overlay_connecting)
-                    "method1" -> getString(R.string.overlay_method1)
-                    "method2" -> getString(R.string.overlay_method2)
-                    "method3" -> getString(R.string.overlay_method3)
-                    "verifying" -> getString(R.string.overlay_verifying)
-                    else -> ""
-                }
-                if (text.isNotEmpty()) overlay(text)
-            }
+            val engine = app.deps.newEngine()
+            val result = engine.optimize(
+                OptimizationEngine.Callbacks(
+                    onStage = { stage: String ->
+                        val text = when (stage) {
+                            "connecting" -> getString(R.string.overlay_connecting)
+                            "method1" -> getString(R.string.overlay_method1)
+                            "method2" -> getString(R.string.overlay_method2)
+                            "method3" -> getString(R.string.overlay_method3)
+                            "verifying" -> getString(R.string.overlay_verifying)
+                            else -> ""
+                        }
+                        if (text.isNotEmpty()) overlay(text)
+                    },
+                    onError = { overlay(getString(R.string.overlay_connect_failed)) }
+                )
+            )
 
-            val app = application as XiaoHyperApp
             if (result) {
                 app.preferencesManager.setHiddenSettingsApplied(true)
                 overlay(getString(R.string.overlay_done))

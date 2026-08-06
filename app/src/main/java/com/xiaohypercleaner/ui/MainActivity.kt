@@ -160,6 +160,17 @@ private fun MainContent(
         )
     }
 
+    if (state.showRebootDialog) {
+        RebootConfirmDialog(
+            onConfirm = vm::confirmReboot,
+            onCancel = vm::dismissRebootDialog
+        )
+    }
+
+    if (state.rebootFailed) {
+        RebootFailedDialog(onClose = vm::dismissRebootFailed)
+    }
+
     if (state.restoreFailed) {
         RestoreFailedDialog(onClose = vm::dismissRestoreFailed)
     }
@@ -226,7 +237,7 @@ private fun MainContent(
                         vm.startFlow()
                     },
                     onRestore = { confirmRestore = true },
-                    onReboot = vm::rebootDevice
+                    onReboot = vm::requestReboot
                 )
             }
 
@@ -345,7 +356,7 @@ private fun OptimizationCard(
                 label = "stage"
             ) { stage ->
                 when (stage) {
-                    "working" -> WorkingView()
+                    "working" -> WorkingView(state.progress)
                     "done" -> DoneView(onRestore, onReboot)
                     else -> ReadyView(onOptimize)
                 }
@@ -373,23 +384,30 @@ private fun ReadyView(onClick: () -> Unit) {
 }
 
 @Composable
-private fun WorkingView() {
+private fun WorkingView(progress: Float) {
     Text(
-        "⏳ " + stringResource(R.string.status_working),
+        stringResource(R.string.status_working),
         style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onSurface
     )
     Spacer(Modifier.height(16.dp))
     LinearProgressIndicator(
+        progress = { progress },
         modifier = Modifier.fillMaxWidth(),
         color = Blue500
+    )
+    Spacer(Modifier.height(8.dp))
+    Text(
+        "${(progress * 100).toInt()}%",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
     )
 }
 
 @Composable
 private fun DoneView(onRestore: () -> Unit, onReboot: () -> Unit) {
     Text(
-        "✅ " + stringResource(R.string.status_done),
+        stringResource(R.string.status_done),
         modifier = Modifier.fillMaxWidth(),
         style = MaterialTheme.typography.titleLarge,
         fontWeight = FontWeight.Bold,
@@ -458,6 +476,43 @@ private fun RestoreFailedDialog(onClose: () -> Unit) {
                 )
             },
             text = { Text(stringResource(R.string.restore_failed_text)) },
+            confirmButton = {
+                TextButton(onClick = onClose) { Text(stringResource(R.string.close)) }
+            }
+        )
+    }
+}
+
+@Composable
+private fun RebootConfirmDialog(onConfirm: () -> Unit, onCancel: () -> Unit) {
+    Dialog(onDismissRequest = onCancel) {
+        AlertDialog(
+            onDismissRequest = onCancel,
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Text(stringResource(R.string.reboot_dialog_title), fontWeight = FontWeight.SemiBold)
+            },
+            text = { Text(stringResource(R.string.reboot_dialog_text)) },
+            confirmButton = {
+                TextButton(onClick = onConfirm) { Text(stringResource(R.string.reboot_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
+}
+
+@Composable
+private fun RebootFailedDialog(onClose: () -> Unit) {
+    Dialog(onDismissRequest = onClose) {
+        AlertDialog(
+            onDismissRequest = onClose,
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Text(stringResource(R.string.reboot_dialog_title), fontWeight = FontWeight.SemiBold)
+            },
+            text = { Text(stringResource(R.string.reboot_failed_text)) },
             confirmButton = {
                 TextButton(onClick = onClose) { Text(stringResource(R.string.close)) }
             }

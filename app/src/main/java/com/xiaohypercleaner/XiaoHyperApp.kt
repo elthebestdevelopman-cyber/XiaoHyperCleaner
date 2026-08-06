@@ -1,14 +1,16 @@
 package com.xiaohypercleaner
 
 import android.app.Application
-import com.xiaohypercleaner.data.PreferencesManager
 
 class XiaoHyperApp : Application() {
-    lateinit var preferencesManager: PreferencesManager
+
+    lateinit var deps: AppDependencies
         private set
+
+    val preferencesManager get() = deps.preferencesManager
 
     override fun onCreate() {
         super.onCreate()
-        preferencesManager = PreferencesManager(this)
+        deps = AppDependencies(this)
     }
 }

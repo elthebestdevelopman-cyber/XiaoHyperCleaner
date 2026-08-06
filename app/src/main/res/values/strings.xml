@@ -40,6 +40,11 @@
     <string name="restore_confirm">Да, восстановить</string>
     <string name="restore_failed_text">Не удалось откатить изменения. Убедитесь, что включена беспроводная отладка, и попробуйте ещё раз.</string>
 
+    <string name="reboot_dialog_title">Перезагрузка устройства</string>
+    <string name="reboot_dialog_text">Устройство будет перезагружено через ADB. Несохранённые данные могут быть потеряны. Продолжить?</string>
+    <string name="reboot_confirm">Перезагрузить</string>
+    <string name="reboot_failed_text">Не удалось отправить команду перезагрузки через ADB.</string>
+
     <string name="overlay_preparing">Подготовка…</string>
     <string name="overlay_connecting">Подключение к ADB…</string>
     <string name="overlay_method1">Применение системных параметров…</string>

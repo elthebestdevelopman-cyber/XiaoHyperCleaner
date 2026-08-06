@@ -7,7 +7,6 @@ import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.xiaohypercleaner.XiaoHyperApp
-import com.xiaohypercleaner.data.AdbClient
 import com.xiaohypercleaner.data.OptimizationEngine
 import com.xiaohypercleaner.service.AdbEnablerService
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,17 +18,19 @@ import kotlinx.coroutines.launch
 data class MainUiState(
     val isOptimized: Boolean = false,
     val isWorking: Boolean = false,
+    val progress: Float = 0f,
     val isAccessibilityEnabled: Boolean = false,
     val isOverlayGranted: Boolean = false,
     val showAccessibilityDialog: Boolean = false,
     val showOverlayDialog: Boolean = false,
+    val showRebootDialog: Boolean = false,
+    val rebootFailed: Boolean = false,
     val restoreFailed: Boolean = false
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as XiaoHyperApp
     private val prefs = app.preferencesManager
-    private val engine = OptimizationEngine(AdbClient())
     private var flowActive = false
 
     private val _state = MutableStateFlow(MainUiState())
@@ -98,6 +99,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(restoreFailed = false) }
     }
 
+    fun requestReboot() {
+        _state.update { it.copy(showRebootDialog = true) }
+    }
+
+    fun dismissRebootDialog() {
+        _state.update { it.copy(showRebootDialog = false) }
+    }
+
+    fun dismissRebootFailed() {
+        _state.update { it.copy(rebootFailed = false) }
+    }
+
+    fun confirmReboot() {
+        _state.update { it.copy(showRebootDialog = false, isWorking = true) }
+        viewModelScope.launch {
+            val ok = app.deps.newEngine().reboot()
+            _state.update { it.copy(isWorking = false, rebootFailed = !ok) }
+        }
+    }
+
     private fun startChain() {
         val intent = Intent(app, AdbEnablerService::class.java)
         intent.action = AdbEnablerService.ACTION_START_CHAIN
@@ -110,8 +131,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun runLocal() {
         viewModelScope.launch {
-            _state.update { it.copy(isWorking = true) }
-            val ok = engine.optimize()
+            _state.update { it.copy(isWorking = true, progress = 0f) }
+            val engine = app.deps.newEngine()
+            val ok = engine.optimize(callbacks())
             if (ok) prefs.setHiddenSettingsApplied(true)
             _state.update { it.copy(isWorking = false, isOptimized = ok) }
         }
@@ -120,8 +142,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun restoreOptimization() {
         if (_state.value.isWorking) return
         viewModelScope.launch {
-            _state.update { it.copy(isWorking = true) }
-            val ok = engine.restore()
+            _state.update { it.copy(isWorking = true, progress = 0f) }
+            val ok = app.deps.newEngine().restore(callbacks())
             if (ok) {
                 prefs.setHiddenSettingsApplied(false)
                 _state.update { it.copy(isWorking = false, isOptimized = false) }
@@ -131,10 +153,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun rebootDevice() {
-        try {
-            Runtime.getRuntime().exec(arrayOf("su", "-c", "reboot"))
-        } catch (_: Exception) {
-        }
-    }
+    private fun callbacks() = OptimizationEngine.Callbacks(
+        onProgress = { p -> _state.update { it.copy(progress = p) } }
+    )
 }

@@ -11,6 +11,7 @@ import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.view.setPadding
+import com.xiaohypercleaner.R
 
 class OverlayService : Service() {
 
@@ -29,7 +30,7 @@ class OverlayService : Service() {
             setBackgroundColor(Color.parseColor("#B0000000"))
             setPadding(64)
             addView(TextView(context).apply {
-                text = "Выполняется…"
+                text = getString(R.string.status_working)
                 textSize = 18f
                 setTextColor(Color.WHITE)
             })
