@@ -1,0 +1,6 @@
+<resources>
+    <string name="accessibility_service_description">
+        XiaoHyperCleaner helper to automatically enable Wireless Debugging.
+        This service helps to enable debugging once and then disables itself.
+    </string>
+</resources>
