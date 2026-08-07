@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.HapticFeedbackConstants
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
@@ -90,6 +91,11 @@ import com.xiaohypercleaner.ui.theme.XiaoHyperCleanerTheme
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        private const val TAG = "MainActivity"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -596,8 +602,10 @@ private fun MenuDialog(
 
 private fun openUrl(context: Context, url: String) {
     try {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-    } catch (_: Exception) {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        Log.w(MainActivity.TAG, "Failed to open URL: $url, error: ${e.message}")
     }
 }
 
@@ -626,12 +634,14 @@ private fun openAccessibilitySettings(context: Context) {
     try {
         context.startActivity(deep)
         return
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        Log.w(TAG, "Deep link to accessibility settings failed: ${e.message}")
     }
 
     try {
         context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        Log.w(TAG, "Fallback to accessibility settings failed: ${e.message}")
     }
 }
 
@@ -646,7 +656,8 @@ private fun openRateApp(context: Context) {
         try {
             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s)))
             return
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.d(TAG, "Store scheme $s failed: ${e.message}")
         }
     }
     openUrl(context, "https://play.google.com/store/apps/details?id=$pkg")

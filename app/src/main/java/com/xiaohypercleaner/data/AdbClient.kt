@@ -11,11 +11,17 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketTimeoutException
 
+/**
+ * Исключение ADB-клиента.
+ * @param message сообщение об ошибке
+ * @param cause причина (опционально)
+ */
 class AdbException(message: String, cause: Throwable? = null) : IOException(message, cause)
 
 /**
  * Клиент локального ADB-демона: подключение по TCP и выполнение shell-команд.
  * При обрыве соединения выполняет одно автоматическое переподключение.
+ * Реализует санитизацию команд для предотвращения инъекций.
  */
 class AdbClient(
     private val host: String = AppConstants.ADB_HOST,
@@ -25,13 +31,21 @@ class AdbClient(
     companion object {
         private const val TAG = "AdbClient"
         private const val MAX_PAYLOAD = 0xFFFF
+        // Регулярное выражение для санитизации команд - удаляет опасные символы
+        private val COMMAND_SANITIZER_REGEX = Regex("[;&|`$(){}\\[\\]<>\\\\]")
     }
 
     private var socket: Socket? = null
     private var input: BufferedInputStream? = null
     private var output: OutputStream? = null
+    private var reconnectAttempts = 0
 
+    /**
+     * Подключается к ADB-демонy по одному из портов.
+     * @return true если подключение успешно
+     */
     override suspend fun connect(): Boolean = withContext(Dispatchers.IO) {
+        reconnectAttempts = 0
         for (port in ports) {
             if (tryConnect(port)) return@withContext true
         }
@@ -55,14 +69,37 @@ class AdbClient(
         }
     }
 
+    /**
+     * Выполняет ADB-команду после санитизации.
+     * @param command команда для выполнения
+     * @return результат выполнения команды
+     * @throws AdbException при ошибке подключения или выполнения
+     */
     override suspend fun executeCommand(command: String): String = withContext(Dispatchers.IO) {
+        val sanitizedCommand = sanitizeCommand(command)
         try {
-            runShell(command)
+            runShell(sanitizedCommand)
         } catch (e: AdbException) {
             Log.w(TAG, "connection lost, reconnecting once")
+            reconnectAttempts++
+            if (reconnectAttempts > AppConstants.MAX_RECONNECT_ATTEMPTS) {
+                throw AdbException("Max reconnect attempts exceeded")
+            }
             if (!connect()) throw e
-            runShell(command)
+            runShell(sanitizedCommand)
         }
+    }
+
+    /**
+     * Санитизирует команду, удаляя потенциально опасные символы.
+     * Предотвращает инъекции shell-команд.
+     */
+    private fun sanitizeCommand(command: String): String {
+        val sanitized = command.replace(COMMAND_SANITIZER_REGEX, "")
+        if (sanitized != command) {
+            Log.w(TAG, "Command sanitized: original length=${command.length}, sanitized length=${sanitized.length}")
+        }
+        return sanitized
     }
 
     private fun runShell(command: String): String {
@@ -73,6 +110,9 @@ class AdbClient(
         return readUntilEof()
     }
 
+    /**
+     * Отключается от ADB-демона и освобождает ресурсы.
+     */
     override fun disconnect() {
         runCatching { input?.close() }
         runCatching { output?.close() }
@@ -80,6 +120,7 @@ class AdbClient(
         input = null
         output = null
         socket = null
+        reconnectAttempts = 0
     }
 
     private fun sendMessage(message: String) {

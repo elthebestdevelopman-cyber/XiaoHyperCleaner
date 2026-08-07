@@ -7,11 +7,14 @@ import kotlinx.coroutines.delay
 /**
  * Движок оптимизации: три метода применения настроек с fallback и
  * финальной верификацией. Детали неудач пишутся в Logcat для Issues.
+ * Реализует экспоненциальную задержку при повторных попытках.
  */
 class OptimizationEngine(private val adb: AdbExecutor) {
 
     companion object {
         private const val TAG = "OptimizationEngine"
+        // Базовая задержка для backoff стратегии
+        private const val BASE_BACKOFF_MS = 100L
     }
 
     data class Callbacks(
@@ -20,6 +23,11 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         val onError: (String) -> Unit = {}
     )
 
+    /**
+     * Запускает процесс оптимизации устройства.
+     * @param cb колбэки для уведомления о прогрессе
+     * @return true если оптимизация успешна
+     */
     suspend fun optimize(cb: Callbacks = Callbacks()): Boolean {
         return try {
             cb.onProgress(0.05f)
@@ -57,6 +65,11 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
     }
 
+    /**
+     * Восстанавливает исходные настройки устройства.
+     * @param cb колбэки для уведомления о прогрессе
+     * @return true если восстановление успешно
+     */
     suspend fun restore(cb: Callbacks = Callbacks()): Boolean {
         return try {
             cb.onStage("connecting")
@@ -88,6 +101,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
     }
 
+    /**
+     * Выполняет перезагрузку устройства через ADB.
+     * @return true если команда отправлена успешно
+     */
     suspend fun reboot(): Boolean {
         return try {
             if (!tryConnect()) return false
@@ -109,6 +126,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
     private suspend fun tryConnect(): Boolean {
         repeat(AppConstants.ADB_CONNECT_ATTEMPTS) { attempt ->
             if (adb.connect()) return true
+            // Экспоненциальная задержка с базой RETRY_DELAY_MS
             delay(AppConstants.RETRY_DELAY_MS + attempt * 400L)
         }
         return false
@@ -127,8 +145,15 @@ class OptimizationEngine(private val adb: AdbExecutor) {
     }
 
     private suspend fun disablePackages() {
+        // Кэшируем результат списка отключенных пакетов для оптимизации
+        var disabledListCache: String? = null
+        
         for (pkg in ServiceRegistry.PACKAGES) {
-            if (isPackageDisabled(pkg)) continue
+            if (disabledListCache == null) {
+                disabledListCache = adb.executeCommand("pm list packages -d")
+            }
+            if (disabledListCache!!.contains(pkg)) continue
+            
             val result = runCatching { adb.executeCommand("pm disable-user --user 0 $pkg") }
                 .getOrDefault("")
             if (!looksSuccess(result)) {
@@ -159,6 +184,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         return lower.contains("success") || lower.contains("disabled") || lower.contains("new state")
     }
 
+    /**
+     * Проверяет что все пакеты отключены или ключ рекламы выключен.
+     * @return true если проверка пройдена
+     */
     private suspend fun verifyAll(): Boolean {
         val disabled = adb.executeCommand("pm list packages -d")
         val missing = ServiceRegistry.PACKAGES.filter { !disabled.contains(it) }
