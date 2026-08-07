@@ -1,15 +1,46 @@
-*.iml
-.gradle/
+```
+# Compiled and build artifacts
+*.class
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.exe
+*.out
 build/
-app/build/
-local.properties
+dist/
+
+# Dependencies
+.gradle/
+target/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+node_modules/
+venv/
+.venv/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
 .idea/
+
+# System files
 .DS_Store
-captures/
-.externalNativeBuild/
-.cxx/
-*.apk
-*.aab
-*.jks
-*.keystore
-keystore.properties
+Thumbs.db
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+```
