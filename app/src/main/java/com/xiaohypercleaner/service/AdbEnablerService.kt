@@ -69,7 +69,7 @@ class AdbEnablerService : AccessibilityService() {
             val sw = findOurOverlaySwitch(root)
             if (sw != null) {
                 overlayHandled = true
-                if (sw.isCheckable && !isCheckedNode(sw)) {
+                if (sw.isCheckable && !sw.isChecked) {
                     sw.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 }
                 scope.launch {
@@ -95,14 +95,14 @@ class AdbEnablerService : AccessibilityService() {
                 getString(R.string.status_working),
                 getString(R.string.overlay_searching_toggle)
             )
-            if (toggle.isCheckable && !isCheckedNode(toggle)) {
+            if (toggle.isCheckable && !toggle.isChecked) {
                 toggle.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             }
             scope.launch {
                 waitFor(AppConstants.UI_WAIT_TIMEOUT_MS) {
                     val r = rootInActiveWindow ?: return@waitFor false
                     val t = findCheckable(r, *toggleTexts)
-                    t != null && isCheckedNode(t)
+                    t != null && t.isChecked
                 }
                 overlaySafe(
                     getString(R.string.status_working),
@@ -121,9 +121,6 @@ class AdbEnablerService : AccessibilityService() {
         disableSelf()
         stopSelf()
     }
-
-    @Suppress("DEPRECATION")
-    private fun isCheckedNode(node: AccessibilityNodeInfo): Boolean = node.isChecked
 
     private fun clickAllow(root: AccessibilityNodeInfo?): Boolean {
         if (root == null) return false
@@ -237,7 +234,9 @@ class AdbEnablerService : AccessibilityService() {
         val pct = (p * 100).toInt()
         if (pct == lastProgress) return
         lastProgress = pct
-        startService(Intent(this, OverlayService::class.java).putExtra("progress", p))
+        startService(
+            Intent(this, OverlayService::class.java).putExtra("progress", p)
+        )
     }
 
     private fun stopOverlay() {
