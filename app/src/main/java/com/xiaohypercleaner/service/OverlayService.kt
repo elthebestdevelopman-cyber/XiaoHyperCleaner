@@ -6,7 +6,6 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
-import android.os.Build
 import android.os.IBinder
 import android.util.TypedValue
 import android.view.Gravity
@@ -29,6 +28,7 @@ class OverlayService : Service() {
     private lateinit var progressBar: ProgressBar
     private lateinit var percentView: TextView
     private var bounce: ObjectAnimator? = null
+    private var lastPercent = -1
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -36,17 +36,10 @@ class OverlayService : Service() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         buildUi()
-
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
-
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            type,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
@@ -54,7 +47,6 @@ class OverlayService : Service() {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             y = dp(32)
         }
-
         windowManager.addView(root, params)
         startBounce()
     }
@@ -69,8 +61,11 @@ class OverlayService : Service() {
             val p = it.getFloatExtra("progress", -1f)
             if (p >= 0f) {
                 val pct = (p * 100).toInt().coerceIn(0, 100)
-                progressBar.progress = pct
-                percentView.text = "$pct%"
+                if (pct != lastPercent) {
+                    lastPercent = pct
+                    progressBar.progress = pct
+                    percentView.text = "$pct%"
+                }
             }
         }
         return START_NOT_STICKY
@@ -78,8 +73,9 @@ class OverlayService : Service() {
 
     override fun onDestroy() {
         bounce?.cancel()
+        bounce = null
         if (::root.isInitialized && root.isAttachedToWindow) {
-            windowManager.removeView(root)
+            runCatching { windowManager.removeView(root) }
         }
         super.onDestroy()
     }
@@ -106,10 +102,7 @@ class OverlayService : Service() {
             textSize = 16f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(8) }
+            layoutParams = matchWrap(dp(8))
         }
         root.addView(titleView)
 
@@ -118,6 +111,7 @@ class OverlayService : Service() {
             setTextColor(Color.parseColor("#B3FFFFFF"))
             gravity = Gravity.CENTER
             visibility = View.GONE
+            layoutParams = matchWrap(dp(4))
         }
         root.addView(detailView)
 
@@ -130,9 +124,11 @@ class OverlayService : Service() {
         root.addView(progressBar)
 
         percentView = TextView(this).apply {
+            text = "0%"
             textSize = 12f
             setTextColor(Color.parseColor("#B3FFFFFF"))
             gravity = Gravity.CENTER
+            layoutParams = matchWrap(dp(4))
         }
         root.addView(percentView)
 
@@ -146,10 +142,7 @@ class OverlayService : Service() {
                 setColor(Color.parseColor("#E57373"))
                 cornerRadius = dp(24).toFloat()
             }
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(16) }
+            layoutParams = matchWrap(dp(16))
             setOnClickListener { OverlayController.onCancel?.invoke() }
         }
         root.addView(cancel)
@@ -157,18 +150,20 @@ class OverlayService : Service() {
 
     private fun startBounce() {
         bounce = ObjectAnimator.ofFloat(robot, "translationY", 0f, -dp(6).toFloat(), 0f).apply {
-            duration = 800
+            duration = 900
             repeatCount = ObjectAnimator.INFINITE
             interpolator = AccelerateDecelerateInterpolator()
             start()
         }
     }
 
-    private fun dp(value: Int): Int {
-        return TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_DIP,
-            value.toFloat(),
-            resources.displayMetrics
+    private fun matchWrap(topMargin: Int) = LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.MATCH_PARENT,
+        LinearLayout.LayoutParams.WRAP_CONTENT
+    ).apply { this.topMargin = topMargin }
+
+    private fun dp(value: Int): Int =
+        TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics
         ).toInt()
-    }
 }

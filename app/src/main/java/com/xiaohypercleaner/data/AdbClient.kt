@@ -2,21 +2,22 @@ package com.xiaohypercleaner.data
 
 import android.util.Log
 import com.xiaohypercleaner.AppConstants
-import com.xiaohypercleaner.util.LogMasker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedInputStream
-import java.io.IOException
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketTimeoutException
 
+/**
+ * Клиент локального ADB-демона: подключение по TCP и выполнение shell-команд.
+ * При обрыве соединения выполняет одно автоматическое переподключение.
+ */
 class AdbClient(
     private val host: String = AppConstants.ADB_HOST,
     private val ports: List<Int> = listOf(AppConstants.ADB_DEFAULT_PORT)
 ) : AdbExecutor {
-
     companion object {
         private const val TAG = "AdbClient"
         private const val MAX_PAYLOAD = 0xFFFF
@@ -43,7 +44,7 @@ class AdbClient(
             output = s.getOutputStream()
             sendMessage("host:transport-any")
             readStatus() == "OKAY"
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             Log.w(TAG, "connect to $port failed: ${e.message}")
             disconnect()
             false
@@ -51,23 +52,20 @@ class AdbClient(
     }
 
     override suspend fun executeCommand(command: String): String = withContext(Dispatchers.IO) {
-        validateCommand(command)
         try {
             runShell(command)
         } catch (e: AdbException) {
-            Log.w(TAG, "reconnecting after: ${LogMasker.mask(command)}")
+            Log.w(TAG, "connection lost, reconnecting once")
             if (!connect()) throw e
             runShell(command)
         }
     }
 
     private fun runShell(command: String): String {
-        val s = socket ?: throw AdbException(AdbErrorCode.NOT_CONNECTED, "Not connected")
-        if (!s.isConnected) throw AdbException(AdbErrorCode.SOCKET_CLOSED, "Socket closed")
+        val s = socket ?: throw AdbException("Not connected")
+        if (!s.isConnected) throw AdbException("Socket closed")
         sendMessage("shell:$command")
-        if (readStatus() != "OKAY") {
-            throw AdbException(AdbErrorCode.BAD_STATUS, "Bad status: ${LogMasker.mask(command)}")
-        }
+        if (readStatus() != "OKAY") throw AdbException("Bad status for: $command")
         return readUntilEof()
     }
 
@@ -75,25 +73,18 @@ class AdbClient(
         runCatching { input?.close() }
         runCatching { output?.close() }
         runCatching { socket?.close() }
-        input = null; output = null; socket = null
-    }
-
-    private fun validateCommand(command: String) {
-        if (command.isBlank()) {
-            throw AdbException(AdbErrorCode.COMMAND_TOO_LONG, "Empty command")
-        }
-        if (command.length > AppConstants.MAX_COMMAND_LENGTH) {
-            throw AdbException(AdbErrorCode.COMMAND_TOO_LONG, "Command too long")
-        }
+        input = null
+        output = null
+        socket = null
     }
 
     private fun sendMessage(message: String) {
         val data = message.toByteArray(Charsets.UTF_8)
-        if (data.size > MAX_PAYLOAD) {
-            throw AdbException(AdbErrorCode.PAYLOAD_TOO_LARGE, "Payload too large")
-        }
+        if (data.size > MAX_PAYLOAD) throw AdbException("Payload too large: ${data.size}")
         val header = String.format("%04x", data.size).toByteArray(Charsets.US_ASCII)
-        output!!.write(header); output!!.write(data); output!!.flush()
+        output!!.write(header)
+        output!!.write(data)
+        output!!.flush()
     }
 
     private fun readStatus(): String {
@@ -113,17 +104,17 @@ class AdbClient(
                 sb.append(String(buf, 0, n, Charsets.UTF_8))
             }
         } catch (e: SocketTimeoutException) {
-            Log.w(TAG, "read timeout, partial output")
+            Log.w(TAG, "read timeout, returning partial output")
         }
         return sb.toString()
     }
 
     private fun readExact(buf: ByteArray, length: Int) {
-        val stream = input ?: throw AdbException(AdbErrorCode.NOT_CONNECTED, "No stream")
+        val stream = input ?: throw AdbException("No stream")
         var offset = 0
         while (offset < length) {
             val r = stream.read(buf, offset, length - offset)
-            if (r < 0) throw AdbException(AdbErrorCode.UNEXPECTED_EOF, "EOF")
+            if (r < 0) throw AdbException("Unexpected EOF")
             offset += r
         }
     }

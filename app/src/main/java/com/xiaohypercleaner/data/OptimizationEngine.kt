@@ -18,24 +18,32 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
     suspend fun optimize(cb: Callbacks = Callbacks()): Boolean {
         return try {
-            cb.onProgress(0.05f); cb.onStage("connecting")
+            cb.onProgress(0.05f)
+            cb.onStage("connecting")
             if (!tryConnect()) {
-                cb.onError("connect"); return false
+                cb.onError("connect")
+                return false
             }
-            val targets = targetPackages()
-            cb.onProgress(0.15f); cb.onStage("method1")
+
+            cb.onProgress(0.15f)
+            cb.onStage("method1")
             applyHiddenKeys()
-            if (verifyAll(targets)) return finish(cb, true)
-            cb.onProgress(0.45f); cb.onStage("method2")
-            disablePackages(targets)
-            if (verifyAll(targets)) return finish(cb, true)
-            cb.onProgress(0.7f); cb.onStage("method3")
+            if (verifyAll()) return finish(cb, true)
+
+            cb.onProgress(0.45f)
+            cb.onStage("method2")
+            disablePackages()
+            if (verifyAll()) return finish(cb, true)
+
+            cb.onProgress(0.7f)
+            cb.onStage("method3")
             applyHiddenKeys()
-            disablePackages(targets)
-            if (verifyAll(targets)) return finish(cb, true)
+            disablePackages()
+            if (verifyAll()) return finish(cb, true)
+
             cb.onStage("verifying")
-            disablePackagesFallback(targets)
-            finish(cb, verifyAll(targets))
+            disablePackagesFallback()
+            finish(cb, verifyAll())
         } catch (e: AdbException) {
             Log.w(TAG, "optimize failed: ${e.message}")
             cb.onError(e.message ?: "adb error")
@@ -49,17 +57,18 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         return try {
             cb.onStage("connecting")
             if (!tryConnect()) {
-                cb.onError("connect"); return false
+                cb.onError("connect")
+                return false
             }
-            cb.onStage("restoring_keys"); cb.onProgress(0.3f)
+            cb.onStage("restoring_keys")
+            cb.onProgress(0.3f)
             for (cmd in ServiceRegistry.HIDDEN_KEYS_RESTORE) {
                 adb.executeCommand(cmd)
                 delay(AppConstants.COMMAND_DELAY_MS)
             }
-            cb.onStage("restoring_packages"); cb.onProgress(0.6f)
-            val installed = installedPackages()
+            cb.onStage("restoring_packages")
+            cb.onProgress(0.6f)
             for (pkg in ServiceRegistry.PACKAGES) {
-                if (installed.isNotEmpty() && !installed.contains(pkg)) continue
                 adb.executeCommand("pm enable $pkg")
                 delay(AppConstants.COMMAND_DELAY_MS)
             }
@@ -92,29 +101,11 @@ class OptimizationEngine(private val adb: AdbExecutor) {
     }
 
     private suspend fun tryConnect(): Boolean {
-        var delayMs = AppConstants.RETRY_DELAY_MS
         repeat(AppConstants.ADB_CONNECT_ATTEMPTS) { attempt ->
             if (adb.connect()) return true
-            if (attempt < AppConstants.ADB_CONNECT_ATTEMPTS - 1) {
-                delay(delayMs)
-                delayMs = (delayMs * 2).coerceAtMost(AppConstants.RETRY_DELAY_MS * 8)
-            }
+            delay(AppConstants.RETRY_DELAY_MS + attempt * 400L)
         }
         return false
-    }
-
-    private suspend fun targetPackages(): List<String> {
-        val installed = installedPackages()
-        return if (installed.isEmpty()) ServiceRegistry.PACKAGES
-        else ServiceRegistry.PACKAGES.filter { installed.contains(it) }
-    }
-
-    private suspend fun installedPackages(): Set<String> {
-        val raw = runCatching { adb.executeCommand("pm list packages") }.getOrDefault("")
-        return raw.lineSequence()
-            .map { it.trim().removePrefix("package:") }
-            .filter { it.isNotEmpty() }
-            .toSet()
     }
 
     private suspend fun applyHiddenKeys() {
@@ -129,10 +120,9 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
     }
 
-    private suspend fun disablePackages(targets: List<String>) {
-        val disabled = runCatching { adb.executeCommand("pm list packages -d") }.getOrDefault("")
-        for (pkg in targets) {
-            if (disabled.contains(pkg)) continue
+    private suspend fun disablePackages() {
+        for (pkg in ServiceRegistry.PACKAGES) {
+            if (isPackageDisabled(pkg)) continue
             val result = runCatching { adb.executeCommand("pm disable-user --user 0 $pkg") }
                 .getOrDefault("")
             if (!looksSuccess(result)) {
@@ -143,10 +133,9 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
     }
 
-    private suspend fun disablePackagesFallback(targets: List<String>) {
-        val disabled = runCatching { adb.executeCommand("pm list packages -d") }.getOrDefault("")
-        for (pkg in targets) {
-            if (disabled.contains(pkg)) continue
+    private suspend fun disablePackagesFallback() {
+        for (pkg in ServiceRegistry.PACKAGES) {
+            if (isPackageDisabled(pkg)) continue
             runCatching { adb.executeCommand("pm clear $pkg") }
             delay(AppConstants.COMMAND_DELAY_MS)
             runCatching { adb.executeCommand("pm disable-user --user 0 $pkg") }
@@ -154,22 +143,24 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
     }
 
-    private fun looksSuccess(result: String): Boolean {
-        val lower = result.lowercase()
-        return lower.contains("success") || lower.contains("disabled") || lower.contains("new state")
+    private suspend fun isPackageDisabled(pkg: String): Boolean {
+        val list = adb.executeCommand("pm list packages -d")
+        return list.contains(pkg)
     }
 
-    private suspend fun verifyAll(targets: List<String>): Boolean {
-        return try {
-            val disabled = adb.executeCommand("pm list packages -d")
-            val missing = targets.filter { !disabled.contains(it) }
-            val keyOff = adb.executeCommand("settings get secure miui_ad_filtering_enabled")
-                .trim() == "0"
-            if (missing.isNotEmpty()) Log.w(TAG, "still enabled: $missing")
-            missing.isEmpty() || keyOff
-        } catch (e: AdbException) {
-            Log.w(TAG, "verify failed: ${e.message}")
-            false
-        }
+    private fun looksSuccess(result: String): Boolean {
+        val lower = result.lowercase()
+        return lower.contains("success") ||
+                lower.contains("disabled") ||
+                lower.contains("new state")
+    }
+
+    private suspend fun verifyAll(): Boolean {
+        val disabled = adb.executeCommand("pm list packages -d")
+        val missing = ServiceRegistry.PACKAGES.filter { !disabled.contains(it) }
+        val keyOff = adb.executeCommand("settings get secure miui_ad_filtering_enabled")
+            .trim() == "0"
+        if (missing.isNotEmpty()) Log.w(TAG, "still enabled: $missing")
+        return missing.isEmpty() || keyOff
     }
 }

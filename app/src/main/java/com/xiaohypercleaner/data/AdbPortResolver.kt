@@ -5,10 +5,13 @@ import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.util.Log
 import com.xiaohypercleaner.AppConstants
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withTimeout
-import kotlin.coroutines.resume
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
+/**
+ * Динамическое определение порта ADB через mDNS с фолбэком на стандартный порт.
+ * Обнаружение прерывается досрочно после первого найденного сервиса.
+ */
 class AdbPortResolver(private val context: Context) {
 
     companion object {
@@ -19,54 +22,51 @@ class AdbPortResolver(private val context: Context) {
             (discovered + fallback).distinct()
     }
 
-    suspend fun resolve(): List<Int> {
-        val discovered = try {
-            withTimeout(AppConstants.PORT_DISCOVERY_TIMEOUT_MS) { discoverMdns() }
-        } catch (e: Exception) {
-            Log.w(TAG, "discovery failed or timeout: ${e.message}")
-            emptyList()
-        }
-        return mergePorts(discovered, AppConstants.ADB_DEFAULT_PORT)
-    }
+    fun resolve(): List<Int> = mergePorts(discoverMdns(), AppConstants.ADB_DEFAULT_PORT)
 
-    private suspend fun discoverMdns(): List<Int> = suspendCancellableCoroutine { cont ->
+    private fun discoverMdns(): List<Int> {
+        val found = mutableListOf<Int>()
+        val latch = CountDownLatch(1)
         val nsd = context.getSystemService(Context.NSD_SERVICE) as? NsdManager
-        if (nsd == null) {
-            cont.resume(emptyList()); return@suspendCancellableCoroutine
-        }
+            ?: return emptyList()
 
         lateinit var listener: NsdManager.DiscoveryListener
         listener = object : NsdManager.DiscoveryListener {
             override fun onDiscoveryStarted(regType: String) {}
+
             override fun onServiceFound(service: NsdServiceInfo) {
                 nsd.resolveService(service, object : NsdManager.ResolveListener {
                     override fun onResolveFailed(s: NsdServiceInfo, error: Int) {}
                     override fun onServiceResolved(s: NsdServiceInfo) {
-                        if (cont.isActive) runCatching { cont.resume(listOf(s.port)) }
+                        synchronized(found) { found.add(s.port) }
                         runCatching { nsd.stopServiceDiscovery(listener) }
+                        latch.countDown()
                     }
                 })
             }
 
             override fun onServiceLost(service: NsdServiceInfo) {}
             override fun onDiscoveryStopped(regType: String) {
-                if (cont.isActive) runCatching { cont.resume(emptyList()) }
+                latch.countDown()
             }
 
             override fun onStartDiscoveryFailed(regType: String, error: Int) {
-                if (cont.isActive) runCatching { cont.resume(emptyList()) }
+                latch.countDown()
             }
 
-            override fun onStopDiscoveryFailed(regType: String, error: Int) {}
+            override fun onStopDiscoveryFailed(regType: String, error: Int) {
+                latch.countDown()
+            }
         }
 
-        cont.invokeOnCancellation { runCatching { nsd.stopServiceDiscovery(listener) } }
-
-        try {
+        return try {
             nsd.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
+            latch.await(AppConstants.PORT_DISCOVERY_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            runCatching { nsd.stopServiceDiscovery(listener) }
+            found
         } catch (e: Exception) {
-            Log.w(TAG, "discoverServices failed: ${e.message}")
-            if (cont.isActive) runCatching { cont.resume(emptyList()) }
+            Log.w(TAG, "mDNS discovery failed: ${e.message}")
+            emptyList()
         }
     }
 }

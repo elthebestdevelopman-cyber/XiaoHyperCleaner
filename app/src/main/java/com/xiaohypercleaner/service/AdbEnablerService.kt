@@ -26,7 +26,9 @@ class AdbEnablerService : AccessibilityService() {
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val app get() = application as XiaoHyperApp
-    private val toggleTexts by lazy { resources.getStringArray(R.array.wireless_debugging_texts) }
+    private val toggleTexts by lazy {
+        resources.getStringArray(R.array.wireless_debugging_texts)
+    }
 
     private var overlayHandled = false
     private var optimizationStarted = false
@@ -67,7 +69,9 @@ class AdbEnablerService : AccessibilityService() {
             val sw = findOurOverlaySwitch(root)
             if (sw != null) {
                 overlayHandled = true
-                if (sw.isCheckable && !sw.isChecked) sw.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                if (sw.isCheckable && !isCheckedNode(sw)) {
+                    sw.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                }
                 scope.launch {
                     val granted = waitFor(AppConstants.OVERLAY_WAIT_TIMEOUT_MS) {
                         Settings.canDrawOverlays(this@AdbEnablerService)
@@ -91,11 +95,14 @@ class AdbEnablerService : AccessibilityService() {
                 getString(R.string.status_working),
                 getString(R.string.overlay_searching_toggle)
             )
-            if (toggle.isCheckable && !toggle.isChecked) toggle.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            if (toggle.isCheckable && !isCheckedNode(toggle)) {
+                toggle.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            }
             scope.launch {
                 waitFor(AppConstants.UI_WAIT_TIMEOUT_MS) {
                     val r = rootInActiveWindow ?: return@waitFor false
-                    findCheckable(r, *toggleTexts)?.isChecked == true
+                    val t = findCheckable(r, *toggleTexts)
+                    t != null && isCheckedNode(t)
                 }
                 overlaySafe(
                     getString(R.string.status_working),
@@ -114,6 +121,9 @@ class AdbEnablerService : AccessibilityService() {
         disableSelf()
         stopSelf()
     }
+
+    @Suppress("DEPRECATION")
+    private fun isCheckedNode(node: AccessibilityNodeInfo): Boolean = node.isChecked
 
     private fun clickAllow(root: AccessibilityNodeInfo?): Boolean {
         if (root == null) return false
@@ -195,22 +205,14 @@ class AdbEnablerService : AccessibilityService() {
                         if (text.isNotEmpty()) overlaySafe(text, "")
                     },
                     onProgress = { p -> overlayProgress(p) },
-                    onError = {
-                        overlaySafe(
-                            getString(R.string.overlay_failed),
-                            getString(R.string.overlay_error_hint)
-                        )
-                    }
+                    onError = { overlaySafe(getString(R.string.overlay_connect_failed), "") }
                 )
             )
             if (result) {
                 app.preferencesManager.setHiddenSettingsApplied(true)
                 overlaySafe(getString(R.string.overlay_done), "")
             } else {
-                overlaySafe(
-                    getString(R.string.overlay_failed),
-                    getString(R.string.overlay_error_hint)
-                )
+                overlaySafe(getString(R.string.overlay_failed), "")
             }
             delay(2500)
             OverlayController.onCancel = null

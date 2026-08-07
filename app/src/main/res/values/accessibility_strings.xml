@@ -1,6 +1,0 @@
-<resources>
-    <string name="accessibility_service_description">
-        Помощник XiaoHyperCleaner для автоматического включения беспроводной отладки.
-        Эта служба помогает один раз включить отладку, после чего отключается.
-    </string>
-</resources>

@@ -1,48 +1,57 @@
 <resources>
     <string name="app_name">XiaoHyperCleaner</string>
+
+    <!-- Главная -->
     <string name="btn_optimize">Оптимизировать</string>
     <string name="btn_restore">Отменить оптимизацию</string>
     <string name="reboot_now">Перезагрузить</string>
-    <string name="menu_about">О программе</string>
-    <string name="menu_dark_theme">Тёмная тема</string>
-    <string name="close">Закрыть</string>
-    <string name="about_title">О программе</string>
-    <string name="about_version">Версия 1.0</string>
-    <string name="about_author">Автор: ElthebestDevelopman</string>
-    <string name="about_text">Инструмент для настройки устройств Xiaomi, Redmi и Poco. Отключает системные сервисы аналитики и применяет параметры MIUI / HyperOS через локальный ADB. Все изменения обратимы. Результат зависит от модели и версии прошивки.</string>
-    <string name="support_title">Поддержите разработку:</string>
-    <string name="support_yoomoney">Поддержать (ЮMoney)</string>
-    <string name="support_cloudtips">Поддержать (CloudTips)</string>
-    <string name="rate_app">Оценить приложение</string>
     <string name="app_description_short">Безопасная настройка для Xiaomi, Redmi, Poco. Отключает ненужные фоновые процессы и системную аналитику.</string>
+
+    <!-- Фичи -->
     <string name="features_title">Что делает приложение</string>
     <string name="feature_processes">Отключает системные сервисы аналитики</string>
     <string name="feature_speed">Настраивает системные параметры MIUI / HyperOS</string>
     <string name="feature_battery">Работает без root-прав</string>
+
+    <!-- Статусы -->
+    <string name="status_working">Выполняется…</string>
+    <string name="status_done">Оптимизация завершена!</string>
+    <string name="status_done_description">Ненужные фоновые процессы отключены.</string>
+
+    <!-- Разрешения -->
     <string name="accessibility_explanation_title">Служба специальных возможностей</string>
     <string name="accessibility_explanation_text">Для автоматической настройки приложению нужна служба специальных возможностей. Она один раз включит беспроводную отладку и выполнит настройку. Данные не собираются.</string>
     <string name="agree_and_open">Включить</string>
     <string name="overlay_permission_title">Показ поверх других окон</string>
     <string name="overlay_permission_text">Разрешение нужно, чтобы показывать прогресс выполнения. Переключатель включится автоматически — просто подтвердите действие.</string>
     <string name="allow">Продолжить</string>
+    <string name="allow_button_ru">Разрешить</string>
+    <string name="allow_button_en">Allow</string>
     <string name="cancel">Отмена</string>
-    <string name="status_working">Выполняется…</string>
-    <string name="status_done">Оптимизация завершена!</string>
-    <string name="status_done_description">Ненужные фоновые процессы отключены.</string>
+    <string name="close">Закрыть</string>
+
+    <!-- Диалоги -->
     <string name="restore_dialog_title">Отменить оптимизацию</string>
     <string name="restore_dialog_text">Все параметры и сервисы вернутся к исходному состоянию, устройство снова будет работать как раньше. Восстановить?</string>
     <string name="restore_confirm">Да, восстановить</string>
     <string name="restore_failed_text">Не удалось откатить изменения. Убедитесь, что включена беспроводная отладка, и попробуйте ещё раз.</string>
+
     <string name="reboot_dialog_title">Перезагрузка устройства</string>
     <string name="reboot_dialog_text">Устройство будет перезагружено через ADB. Несохранённые данные могут быть потеряны. Продолжить?</string>
     <string name="reboot_confirm">Перезагрузить</string>
     <string name="reboot_failed_text">Не удалось отправить команду перезагрузки через ADB.</string>
-    <string name="allow_button_ru">Разрешить</string>
-    <string name="allow_button_en">Allow</string>
-    <string-array name="wireless_debugging_texts">
-        <item>Беспроводная отладка</item>
-        <item>Wireless debugging</item>
-    </string-array>
+
+    <!-- Ошибки оптимизации -->
+    <string name="optimization_failed_title">Не удалось завершить оптимизацию</string>
+    <string name="optimization_failed_text">Приложению не удалось применить все изменения. Это может быть связано с особенностями прошивки вашего устройства. Попробуйте перезагрузить устройство и повторить, либо выполните настройку вручную.</string>
+    <string name="optimization_failed_retry">Попробовать снова</string>
+    <string name="optimization_failed_manual">Инструкция вручную</string>
+
+    <!-- Инструкция вручную -->
+    <string name="manual_instructions_title">Ручная настройка</string>
+    <string name="manual_instructions_text">Если автоматическая оптимизация не сработала, вы можете выполнить её вручную через настройки разработчика:\n\n1. Откройте «Настройки» → «О телефоне»\n2. Нажмите 7 раз на «Версия MIUI / OS»\n3. Вернитесь в «Настройки» → «Расширенные настройки» → «Для разработчиков»\n4. Включите «Беспроводная отладка»\n5. Подключите устройство к компьютеру по USB и выполните ADB-команды из README проекта на GitHub</string>
+
+    <!-- Оверлей -->
     <string name="overlay_preparing">Подготовка…</string>
     <string name="overlay_connecting">Подключение к ADB…</string>
     <string name="overlay_method1">Применение системных параметров…</string>
@@ -52,12 +61,28 @@
     <string name="overlay_done">Настройка завершена</string>
     <string name="overlay_failed">Не удалось применить изменения</string>
     <string name="overlay_connect_failed">Не удалось подключиться к ADB</string>
-    <string name="overlay_searching_overlay_switch">Ищем тумблер показа поверх окон…</string>
+    <string name="overlay_searching_overlay_switch">Ищем тумблер оверлея…</string>
     <string name="overlay_searching_toggle">Ищем тумблер беспроводной отладки…</string>
     <string name="overlay_clicking_allow">Нажимаем «Разрешить»…</string>
-    <string name="overlay_error_hint">Проверьте, что беспроводная отладка включена, и повторите попытку.</string>
-    <string name="optimization_failed_title">Не удалось завершить настройку</string>
-    <string name="optimization_failed_text">Приложение не смогло применить изменения. Проверьте, что беспроводная отладка включена, и нажмите «Оптимизировать» ещё раз.</string>
-    <string name="manual_instructions_title">Ручная настройка</string>
-    <string name="manual_instructions_text">Если автоматическая настройка не сработала:\n1. Откройте Настройки → Для разработчиков\n2. Включите «Беспроводная отладка»\n3. Вернитесь в приложение и нажмите «Оптимизировать»</string>
+
+    <!-- Меню -->
+    <string name="menu_about">О программе</string>
+    <string name="menu_dark_theme">Тёмная тема</string>
+    <string name="about_title">О программе</string>
+    <string name="about_version">Версия 1.0</string>
+    <string name="about_author">Автор: ElthebestDevelopman</string>
+    <string name="about_text">Инструмент для настройки устройств Xiaomi, Redmi и Poco. Отключает системные сервисы аналитики и применяет параметры MIUI / HyperOS через локальный ADB. Все изменения обратимы. Результат зависит от модели и версии прошивки.</string>
+    <string name="support_title">Поддержите разработку:</string>
+    <string name="support_yoomoney">Поддержать (ЮMoney)</string>
+    <string name="support_cloudtips">Поддержать (CloudTips)</string>
+    <string name="rate_app">Оценить приложение</string>
+
+    <!-- Accessibility -->
+    <string name="accessibility_service_description">Помощник XiaoHyperCleaner для автоматического включения беспроводной отладки.</string>
+
+    <!-- Массивы -->
+    <string-array name="wireless_debugging_texts">
+        <item>Беспроводная отладка</item>
+        <item>Wireless debugging</item>
+    </string-array>
 </resources>

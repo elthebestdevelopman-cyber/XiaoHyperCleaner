@@ -1,7 +1,6 @@
 package com.xiaohypercleaner.data
 
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -18,6 +17,7 @@ private open class FakeAdb : AdbExecutor {
         commands.add(command)
         return when {
             command.startsWith("settings get secure miui_ad_filtering_enabled") -> keyValue
+
             command.startsWith("pm list packages -d") ->
                 disabledPackages.joinToString("\n") { "package:$it" }
 
@@ -55,7 +55,8 @@ class OptimizationEngineTest {
         assertTrue("Оптимизация должна была завершиться успехом", ok)
         assertTrue(
             "Должны были примениться системные ключи",
-            fake.commands.any { it.contains("miui_ad_filtering_enabled 0") })
+            fake.commands.any { it.contains("miui_ad_filtering_enabled 0") }
+        )
     }
 
     @Test
@@ -68,7 +69,8 @@ class OptimizationEngineTest {
         assertTrue("Fallback на пакеты должен был сработать", ok)
         assertTrue(
             "Должны были быть вызовы pm disable-user",
-            fake.commands.any { it.startsWith("pm disable-user") })
+            fake.commands.any { it.startsWith("pm disable-user") }
+        )
     }
 
     @Test
@@ -132,7 +134,8 @@ class OptimizationEngineTest {
         )
         assertTrue(
             "Должны были примениться ключи восстановления",
-            fake.commands.any { it.contains("miui_region RU") })
+            fake.commands.any { it.contains("miui_region RU") }
+        )
     }
 
     @Test
