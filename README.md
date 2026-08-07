@@ -21,10 +21,12 @@ Stable version will be published in RuStore and GetApps after store review.
 
 ## Что делает
 
-- Отключает системные сервисы аналитики
+- Отключает системные сервисы аналитики (7 пакетов)
 - Применяет системные параметры MIUI / HyperOS
+- Динамическое обнаружение порта ADB через mDNS
 - Работает без root
 - Откат изменений одной кнопкой, с подтверждением
+- Перезагрузка через ADB с подтверждением
 
 ## Как начать
 
@@ -33,33 +35,17 @@ Stable version will be published in RuStore and GetApps after store review.
 3. Разрешите показ поверх других окон — переключатель включится автоматически.
 4. Дождитесь завершения.
 
-## Приватность
+## Архитектура
 
-Никаких данных не собирается. Все команды выполняются локально на устройстве.
+- **AdbPortResolver** — mDNS-обнаружение порта ADB (`_adb-tls._tcp.`) с фолбэком на 5555
+- **AdbClient** — собственная реализация протокола ADB поверх TCP-сокета с обработкой ошибок сети
+- **OptimizationEngine** — трёхэтапная оптимизация с fallback-методами и финальной проверкой
+- **AdbEnablerService** — AccessibilityService для автоматического включения беспроводной отладки и выполнения настроек
+- **AppDependencies** — ручная Dependency Injection для тестируемости
 
-## Для разработчиков
+## Тестирование
 
-Kotlin · Jetpack Compose · Material 3 · собственная реализация ADB поверх TCP
-Gradle 9.5.0 · AGP 9.3.1 · Kotlin 2.2.10 · JDK 17
+Unit-тесты в `app/src/test/java/`:
 
-## Поддержать проект
-
-- ЮMoney: https://yoomoney.ru/to/410011379195150
-- CloudTips: https://pay.cloudtips.ru/p/90614cff
-
-## Лицензия
-
-CC BY-NC 4.0 — бесплатно использовать, изменять и делиться
-в некоммерческих целях с указанием авторства (ElthebestDevelopman).
-Любое коммерческое использование запрещено без письменного разрешения автора.
-
-## Автор
-
-ElthebestDevelopman
-
----
-
-**English:** Configuration tool for Xiaomi / Redmi / Poco. Disables analytics
-services and applies MIUI / HyperOS parameters via local ADB, no root.
-All changes reversible. No data collection. Noncommercial license CC BY-NC 4.0.
-Not affiliated with Xiaomi.
+```bash
+./gradlew test
