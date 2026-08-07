@@ -13,6 +13,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.view.animation.AccelerateDecelerateInterpolator
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -24,11 +25,12 @@ class OverlayService : Service() {
     private lateinit var windowManager: WindowManager
     private lateinit var root: LinearLayout
     private lateinit var robot: ImageView
+    private lateinit var yarn: ImageView
     private lateinit var titleView: TextView
     private lateinit var detailView: TextView
     private lateinit var progressBar: ProgressBar
     private lateinit var percentView: TextView
-    private var bounce: ObjectAnimator? = null
+    private val animators = mutableListOf<ObjectAnimator>()
     private var lastPercent = -1
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -49,10 +51,11 @@ class OverlayService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            horizontalMargin = 0.06f
             y = dp(32)
         }
         windowManager.addView(root, params)
-        startBounce()
+        startPlay()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -76,8 +79,8 @@ class OverlayService : Service() {
     }
 
     override fun onDestroy() {
-        bounce?.cancel()
-        bounce = null
+        animators.forEach { it.cancel() }
+        animators.clear()
         if (::root.isInitialized && root.isAttachedToWindow) {
             runCatching { windowManager.removeView(root) }
         }
@@ -94,12 +97,24 @@ class OverlayService : Service() {
                 cornerRadius = dp(24).toFloat()
             }
         }
-
+        val stage = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(150), dp(120))
+        }
         robot = ImageView(this).apply {
             setImageResource(R.drawable.ic_robot_companion)
-            layoutParams = LinearLayout.LayoutParams(dp(110), dp(110))
+            layoutParams = FrameLayout.LayoutParams(dp(110), dp(110)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL or Gravity.TOP
+            }
         }
-        root.addView(robot)
+        yarn = ImageView(this).apply {
+            setImageResource(R.drawable.ic_yarn_ball)
+            layoutParams = FrameLayout.LayoutParams(dp(40), dp(40)).apply {
+                gravity = Gravity.BOTTOM or Gravity.START
+            }
+        }
+        stage.addView(robot)
+        stage.addView(yarn)
+        root.addView(stage)
 
         titleView = TextView(this).apply {
             text = getString(R.string.status_working)
@@ -152,11 +167,28 @@ class OverlayService : Service() {
         root.addView(cancel)
     }
 
-    private fun startBounce() {
-        bounce = ObjectAnimator.ofFloat(robot, "translationY", 0f, -dp(6).toFloat(), 0f).apply {
+    private fun startPlay() {
+        animators += ObjectAnimator.ofFloat(robot, "translationY", 0f, -dp(6).toFloat(), 0f).apply {
             duration = 900
             repeatCount = ObjectAnimator.INFINITE
             interpolator = AccelerateDecelerateInterpolator()
+            start()
+        }
+        animators += ObjectAnimator.ofFloat(
+            yarn,
+            "translationX",
+            dp(4).toFloat(),
+            dp(106).toFloat()
+        ).apply {
+            duration = 900
+            repeatCount = ObjectAnimator.INFINITE
+            repeatMode = ObjectAnimator.REVERSE
+            interpolator = AccelerateDecelerateInterpolator()
+            start()
+        }
+        animators += ObjectAnimator.ofFloat(yarn, "rotation", 0f, 360f).apply {
+            duration = 1800
+            repeatCount = ObjectAnimator.INFINITE
             start()
         }
     }

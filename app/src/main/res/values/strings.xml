@@ -1,5 +1,6 @@
 <resources>
     <string name="app_name">XiaoHyperCleaner</string>
+    <string name="splash_tagline">Настройка MIUI / HyperOS без root</string>
     <string name="btn_optimize">Оптимизировать</string>
     <string name="btn_restore">Отменить оптимизацию</string>
     <string name="reboot_now">Перезагрузить</string>
@@ -38,9 +39,9 @@
     <string name="reboot_confirm">Перезагрузить</string>
     <string name="reboot_failed_text">Не удалось отправить команду перезагрузки через ADB.</string>
     <string name="optimization_failed_title">Не удалось завершить настройку</string>
-    <string name="optimization_failed_text">Приложение не смогло применить все изменения. Проверьте, что включена беспроводная отладка, и попробуйте ещё раз — или выполните настройку вручную.</string>
+    <string name="optimization_failed_text">Приложение не смогло применить все изменения. Проверьте, что включена беспроводная отладка, и попробуйте ещё раз — или откройте инструкцию.</string>
     <string name="manual_instructions_title">Ручная настройка</string>
-    <string name="manual_instructions_text">1. Откройте «Настройки» → «О телефоне» и нажмите 7 раз на «Версия MIUI», чтобы включить режим разработчика.\n2. Перейдите в «Настройки» → «Расширенные настройки» → «Для разработчиков».\n3. Включите «Беспроводная отладка» и подтвердите разрешение.\n4. Вернитесь в приложение и нажмите «Оптимизировать».</string>
+    <string name="manual_instructions_text">1. Откройте «Настройки» → «О телефоне» и нажмите 7 раз на «Версия MIUI».\n2. Перейдите в «Расширенные настройки» → «Для разработчиков».\n3. Включите «Беспроводная отладка» и подтвердите.\n4. Вернитесь в приложение и нажмите «Оптимизировать».</string>
     <string name="allow_button_ru">Разрешить</string>
     <string name="allow_button_en">Allow</string>
     <string-array name="wireless_debugging_texts">

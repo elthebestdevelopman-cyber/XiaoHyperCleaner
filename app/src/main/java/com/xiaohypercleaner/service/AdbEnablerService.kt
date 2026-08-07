@@ -101,8 +101,7 @@ class AdbEnablerService : AccessibilityService() {
             scope.launch {
                 waitFor(AppConstants.UI_WAIT_TIMEOUT_MS) {
                     val r = rootInActiveWindow ?: return@waitFor false
-                    val t = findCheckable(r, *toggleTexts)
-                    t != null && t.isChecked
+                    findCheckable(r, *toggleTexts)?.isChecked == true
                 }
                 overlaySafe(
                     getString(R.string.status_working),
@@ -234,9 +233,7 @@ class AdbEnablerService : AccessibilityService() {
         val pct = (p * 100).toInt()
         if (pct == lastProgress) return
         lastProgress = pct
-        startService(
-            Intent(this, OverlayService::class.java).putExtra("progress", p)
-        )
+        startService(Intent(this, OverlayService::class.java).putExtra("progress", p))
     }
 
     private fun stopOverlay() {

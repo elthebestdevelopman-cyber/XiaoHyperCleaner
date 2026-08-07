@@ -56,7 +56,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -101,7 +100,9 @@ class MainActivity : ComponentActivity() {
             val state by vm.state.collectAsState()
             val lifecycle = LocalLifecycleOwner.current.lifecycle
             LaunchedEffect(lifecycle) {
-                lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { vm.refreshStatuses() }
+                lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                    vm.refreshStatuses()
+                }
             }
             XiaoHyperCleanerTheme(darkTheme = isDark) {
                 MainContent(
@@ -132,7 +133,10 @@ private fun MainContent(
             title = stringResource(R.string.accessibility_explanation_title),
             text = stringResource(R.string.accessibility_explanation_text),
             confirmText = stringResource(R.string.agree_and_open),
-            onConfirm = { vm.dialogAgreed(); openAccessibilitySettings(context) },
+            onConfirm = {
+                vm.dialogAgreed()
+                openAccessibilitySettings(context)
+            },
             onDismiss = { vm.dialogCancelled() }
         )
     }
@@ -141,7 +145,10 @@ private fun MainContent(
             title = stringResource(R.string.overlay_permission_title),
             text = stringResource(R.string.overlay_permission_text),
             confirmText = stringResource(R.string.allow),
-            onConfirm = { vm.dialogAgreed(); openOverlaySettings(context) },
+            onConfirm = {
+                vm.dialogAgreed()
+                openOverlaySettings(context)
+            },
             onDismiss = { vm.dialogCancelled() }
         )
     }
@@ -150,7 +157,10 @@ private fun MainContent(
             title = stringResource(R.string.restore_dialog_title),
             text = stringResource(R.string.restore_dialog_text),
             confirmText = stringResource(R.string.restore_confirm),
-            onConfirm = { confirmRestore = false; vm.restoreOptimization() },
+            onConfirm = {
+                confirmRestore = false
+                vm.restoreOptimization()
+            },
             onDismiss = { confirmRestore = false }
         )
     }
@@ -175,22 +185,6 @@ private fun MainContent(
             title = stringResource(R.string.restore_dialog_title),
             text = stringResource(R.string.restore_failed_text),
             onDismiss = vm::dismissRestoreFailed
-        )
-    }
-    if (state.optimizationFailed) {
-        InfoDialog(
-            title = stringResource(R.string.optimization_failed_title),
-            text = stringResource(R.string.optimization_failed_text),
-            confirmText = stringResource(R.string.manual_instructions_title),
-            onConfirm = { vm.showManualInstructions() },
-            onDismiss = { vm.dismissOptimizationFailed() }
-        )
-    }
-    if (state.showManualInstructions) {
-        InfoDialog(
-            title = stringResource(R.string.manual_instructions_title),
-            text = stringResource(R.string.manual_instructions_text),
-            onDismiss = { vm.dismissManualInstructions() }
         )
     }
     if (menuOpen) {
@@ -230,14 +224,18 @@ private fun MainContent(
             AnimatedVisibility(
                 visible = true,
                 enter = fadeIn(tween(600)) + slideInVertically(
-                    initialOffsetY = { it / 4 }, animationSpec = tween(600)
+                    initialOffsetY = { it / 4 },
+                    animationSpec = tween(600)
                 )
-            ) { InfoCard() }
+            ) {
+                InfoCard()
+            }
             Spacer(Modifier.height(24.dp))
             AnimatedVisibility(
                 visible = true,
                 enter = fadeIn(tween(600, delayMillis = 150)) + slideInVertically(
-                    initialOffsetY = { it / 4 }, animationSpec = tween(600, delayMillis = 150)
+                    initialOffsetY = { it / 4 },
+                    animationSpec = tween(600, delayMillis = 150)
                 )
             ) {
                 OptimizationCard(
@@ -260,7 +258,9 @@ private fun InfoCard() {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        )
     ) {
         Column(
             modifier = Modifier
@@ -273,14 +273,16 @@ private fun InfoCard() {
                 modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center, fontWeight = FontWeight.Bold
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Bold
             )
             Spacer(Modifier.height(8.dp))
             Text(
                 stringResource(R.string.app_description_short),
                 modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center, softWrap = true
+                textAlign = TextAlign.Center,
+                softWrap = true
             )
             Spacer(Modifier.height(20.dp))
             HorizontalDivider()
@@ -289,7 +291,8 @@ private fun InfoCard() {
                 stringResource(R.string.features_title),
                 modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Start
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Start
             )
             Spacer(Modifier.height(12.dp))
             FeatureRow(Icons.Filled.PrivacyTip, stringResource(R.string.feature_processes))
@@ -303,10 +306,15 @@ private fun InfoCard() {
 
 @Composable
 private fun FeatureRow(icon: ImageVector, text: String) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Icon(
-            imageVector = icon, contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp)
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(22.dp)
         )
         Spacer(Modifier.width(12.dp))
         Text(
@@ -327,7 +335,9 @@ private fun OptimizationCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        )
     ) {
         Column(
             modifier = Modifier
@@ -378,7 +388,6 @@ private fun ReadyView(onClick: () -> Unit) {
 
 @Composable
 private fun WorkingView(progress: Float) {
-    val percent by remember(progress) { derivedStateOf { (progress * 100).toInt() } }
     Text(
         stringResource(R.string.status_working),
         style = MaterialTheme.typography.titleMedium,
@@ -392,7 +401,7 @@ private fun WorkingView(progress: Float) {
     )
     Spacer(Modifier.height(8.dp))
     Text(
-        "$percent%",
+        "${(progress * 100).toInt()}%",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -413,7 +422,8 @@ private fun DoneView(onRestore: () -> Unit, onReboot: () -> Unit) {
         stringResource(R.string.status_done_description),
         modifier = Modifier.fillMaxWidth(),
         style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center
     )
     Spacer(Modifier.height(24.dp))
     Button(
@@ -523,7 +533,10 @@ private fun MenuDialog(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(stringResource(R.string.menu_dark_theme), modifier = Modifier.weight(1f))
+                    Text(
+                        stringResource(R.string.menu_dark_theme),
+                        modifier = Modifier.weight(1f)
+                    )
                     Switch(
                         checked = isDark,
                         onCheckedChange = onDarkChange,
@@ -552,9 +565,7 @@ private fun MenuDialog(
                 ) { Text(stringResource(R.string.support_cloudtips)) }
                 Spacer(Modifier.height(12.dp))
                 TextButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        stringResource(R.string.close)
-                    )
+                    Text(stringResource(R.string.close))
                 }
             }
         }
@@ -570,27 +581,28 @@ private fun openUrl(context: Context, url: String) {
 
 private fun openOverlaySettings(context: Context) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        context.startActivity(
-            Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:${context.packageName}")
-            )
+        val intent = Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.parse("package:${context.packageName}")
         )
+        context.startActivity(intent)
     }
 }
 
 private fun openAccessibilitySettings(context: Context) {
     val component = ComponentName(context, AdbEnablerService::class.java)
+    val flattened = component.flattenToString()
     val deep = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
     val args = Bundle()
-    args.putString("componentName", component.flattenToString())
+    args.putString("componentName", flattened)
     deep.putExtra(
         ":settings:show_fragment",
         "com.android.settings.accessibility.ToggleAccessibilityServicePreferenceFragment"
     )
     deep.putExtra(":settings:show_fragment_args", args)
     try {
-        context.startActivity(deep); return
+        context.startActivity(deep)
+        return
     } catch (_: Exception) {
     }
     try {
@@ -608,7 +620,8 @@ private fun openRateApp(context: Context) {
     )
     for (s in schemes) {
         try {
-            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s))); return
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s)))
+            return
         } catch (_: Exception) {
         }
     }

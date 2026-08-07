@@ -1,5 +1,6 @@
 <resources>
     <string name="app_name">XiaoHyperCleaner</string>
+    <string name="splash_tagline">MIUI / HyperOS setup without root</string>
     <string name="btn_optimize">Optimize</string>
     <string name="btn_restore">Undo optimization</string>
     <string name="reboot_now">Reboot</string>
@@ -38,9 +39,9 @@
     <string name="reboot_confirm">Reboot</string>
     <string name="reboot_failed_text">Failed to send the reboot command via ADB.</string>
     <string name="optimization_failed_title">Setup could not be completed</string>
-    <string name="optimization_failed_text">The app could not apply all changes. Make sure wireless debugging is enabled and try again — or set it up manually.</string>
+    <string name="optimization_failed_text">The app could not apply all changes. Make sure wireless debugging is enabled and try again — or open the manual guide.</string>
     <string name="manual_instructions_title">Manual setup</string>
-    <string name="manual_instructions_text">1. Open Settings → About phone and tap MIUI version 7 times to enable Developer mode.\n2. Go to Settings → Additional settings → Developer options.\n3. Enable Wireless debugging and confirm the permission.\n4. Return to the app and tap Optimize.</string>
+    <string name="manual_instructions_text">1. Open Settings → About phone and tap "MIUI version" 7 times.\n2. Go to Additional settings → Developer options.\n3. Enable Wireless debugging and confirm.\n4. Return to the app and tap Optimize.</string>
     <string name="allow_button_ru">Разрешить</string>
     <string name="allow_button_en">Allow</string>
     <string-array name="wireless_debugging_texts">
