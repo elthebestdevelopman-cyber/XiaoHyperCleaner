@@ -13,10 +13,12 @@ private open class FakeAdb : AdbExecutor {
     var failAfterCommands = -1
 
     override suspend fun connect(): Boolean = true
-
     override suspend fun executeCommand(command: String): String {
         commands.add(command)
-        if (failAfterCommands in 0 until commands.size) throw AdbException("timeout")
+        if (failAfterCommands in 0 until commands.size) throw AdbException(
+            AdbErrorCode.READ_TIMEOUT,
+            "timeout"
+        )
         return when {
             command.startsWith("settings get secure miui_ad_filtering_enabled") -> keyValue
             command.startsWith("pm list packages -d") ->
@@ -24,14 +26,12 @@ private open class FakeAdb : AdbExecutor {
 
             command.startsWith("pm disable-user") -> {
                 if (failDisable) "Failure" else {
-                    disabledPackages.add(command.substringAfterLast(' '))
-                    "Success"
+                    disabledPackages.add(command.substringAfterLast(' ')); "Success"
                 }
             }
 
             command.startsWith("pm enable") -> {
-                disabledPackages.remove(command.substringAfterLast(' '))
-                "Success"
+                disabledPackages.remove(command.substringAfterLast(' ')); "Success"
             }
 
             else -> ""
@@ -42,50 +42,50 @@ private open class FakeAdb : AdbExecutor {
 }
 
 class OptimizationEngineTest {
-
     @Test
     fun optimizeSucceedsWhenKeysApplied() = runBlocking {
         val fake = FakeAdb()
-        val engine = OptimizationEngine(fake)
-        assertTrue(engine.optimize())
+        assertTrue(OptimizationEngine(fake).optimize())
         assertTrue(fake.commands.any { it.contains("miui_ad_filtering_enabled 0") })
     }
 
     @Test
     fun optimizeFallsBackToPackagesWhenKeysFail() = runBlocking {
         val fake = FakeAdb().apply { keyValue = "1" }
-        val engine = OptimizationEngine(fake)
-        assertTrue(engine.optimize())
+        assertTrue(OptimizationEngine(fake).optimize())
         assertTrue(fake.disabledPackages.isNotEmpty())
     }
 
     @Test
     fun optimizeFailsWhenNothingApplied() = runBlocking {
         val fake = FakeAdb().apply { failDisable = true }
-        val engine = OptimizationEngine(fake)
-        assertFalse(engine.optimize())
+        assertFalse(OptimizationEngine(fake).optimize())
     }
 
     @Test
     fun partialApplicationContinuesToNextMethod() = runBlocking {
         val fake = FakeAdb().apply { keyValue = "1" }
-        val engine = OptimizationEngine(fake)
-        assertTrue(engine.optimize())
+        assertTrue(OptimizationEngine(fake).optimize())
         assertTrue(fake.commands.count { it.startsWith("pm disable-user") } > 0)
     }
 
     @Test
     fun optimizeSurvivesSingleConnectionDrop() = runBlocking {
         val fake = FakeAdb().apply { failAfterCommands = 3 }
-        val engine = OptimizationEngine(fake)
-        assertTrue(engine.optimize())
+        assertTrue(OptimizationEngine(fake).optimize())
+    }
+
+    @Test
+    fun customConfigIsRespected() = runBlocking {
+        val fake = FakeAdb()
+        val config = OptimizationEngineConfig(connectAttempts = 1, commandDelayMs = 0)
+        assertTrue(OptimizationEngine(fake, config).optimize())
     }
 
     @Test
     fun restoreEnablesAllPackagesAndKeys() = runBlocking {
         val fake = FakeAdb().apply { disabledPackages.addAll(ServiceRegistry.PACKAGES) }
-        val engine = OptimizationEngine(fake)
-        assertTrue(engine.restore())
+        assertTrue(OptimizationEngine(fake).restore())
         ServiceRegistry.PACKAGES.forEach { pkg ->
             assertTrue(fake.commands.contains("pm enable $pkg"))
         }

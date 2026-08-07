@@ -1,7 +1,6 @@
 package com.xiaohypercleaner.service
 
 import android.animation.ObjectAnimator
-import android.animation.ValueAnimator
 import android.app.Service
 import android.content.Intent
 import android.graphics.Color
@@ -9,6 +8,7 @@ import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -19,10 +19,6 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import com.xiaohypercleaner.R
 
-/**
- * Оверлей прогресса: персонаж, описание текущего действия,
- * прогресс-бар и кнопка отмены.
- */
 class OverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
@@ -41,24 +37,51 @@ class OverlayService : Service() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         buildUi()
 
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else
-                WindowManager.LayoutParams.TYPE_PHONE,
+            type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             y = dp(32)
-            horizontalMargin = 0.06f
         }
 
         windowManager.addView(root, params)
         startBounce()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        intent?.let {
+            it.getStringExtra("status")?.let { t -> titleView.text = t }
+            it.getStringExtra("detail")?.let { d ->
+                detailView.text = d
+                detailView.visibility = if (d.isEmpty()) View.GONE else View.VISIBLE
+            }
+            val p = it.getFloatExtra("progress", -1f)
+            if (p >= 0f) {
+                val pct = (p * 100).toInt().coerceIn(0, 100)
+                progressBar.progress = pct
+                percentView.text = "$pct%"
+            }
+        }
+        return START_NOT_STICKY
+    }
+
+    override fun onDestroy() {
+        bounce?.cancel()
+        if (::root.isInitialized && root.isAttachedToWindow) {
+            windowManager.removeView(root)
+        }
+        super.onDestroy()
     }
 
     private fun buildUi() {
@@ -98,9 +121,7 @@ class OverlayService : Service() {
         }
         root.addView(detailView)
 
-        progressBar = ProgressBar(
-            this, null, android.R.attr.progressBarStyleHorizontal
-        ).apply {
+        progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(8)
@@ -135,4 +156,19 @@ class OverlayService : Service() {
     }
 
     private fun startBounce() {
-        bounce = ObjectAnimator.ofFloat(robot, "translationY", 0f, -dp(6).toFloat(), 0f).apply
+        bounce = ObjectAnimator.ofFloat(robot, "translationY", 0f, -dp(6).toFloat(), 0f).apply {
+            duration = 800
+            repeatCount = ObjectAnimator.INFINITE
+            interpolator = AccelerateDecelerateInterpolator()
+            start()
+        }
+    }
+
+    private fun dp(value: Int): Int {
+        return TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            value.toFloat(),
+            resources.displayMetrics
+        ).toInt()
+    }
+}

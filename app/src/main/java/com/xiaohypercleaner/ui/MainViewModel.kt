@@ -25,14 +25,15 @@ data class MainUiState(
     val showOverlayDialog: Boolean = false,
     val showRebootDialog: Boolean = false,
     val rebootFailed: Boolean = false,
-    val restoreFailed: Boolean = false
+    val restoreFailed: Boolean = false,
+    val optimizationFailed: Boolean = false,
+    val showManualInstructions: Boolean = false
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as XiaoHyperApp
     private val prefs = app.preferencesManager
     private var flowActive = false
-
     private val _state = MutableStateFlow(MainUiState())
     val state: StateFlow<MainUiState> = _state.asStateFlow()
 
@@ -47,13 +48,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshStatuses() {
         val component = ComponentName(app, AdbEnablerService::class.java).flattenToString()
         val acc = Settings.Secure.getString(
-            app.contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            app.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         )?.contains(component) == true
-
         val overlay = android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M ||
                 Settings.canDrawOverlays(app)
-
         _state.update { it.copy(isAccessibilityEnabled = acc, isOverlayGranted = overlay) }
         if (flowActive) advance()
     }
@@ -99,6 +97,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(restoreFailed = false) }
     }
 
+    fun dismissOptimizationFailed() {
+        _state.update { it.copy(optimizationFailed = false) }
+    }
+
+    fun showManualInstructions() {
+        _state.update { it.copy(showManualInstructions = true, optimizationFailed = false) }
+    }
+
+    fun dismissManualInstructions() {
+        _state.update { it.copy(showManualInstructions = false) }
+    }
+
     fun requestReboot() {
         _state.update { it.copy(showRebootDialog = true) }
     }
@@ -131,11 +141,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun runLocal() {
         viewModelScope.launch {
-            _state.update { it.copy(isWorking = true, progress = 0f) }
+            _state.update { it.copy(isWorking = true, progress = 0f, optimizationFailed = false) }
             val engine = app.deps.newEngine()
             val ok = engine.optimize(callbacks())
-            if (ok) prefs.setHiddenSettingsApplied(true)
-            _state.update { it.copy(isWorking = false, isOptimized = ok) }
+            if (ok) {
+                prefs.setHiddenSettingsApplied(true)
+                _state.update { it.copy(isWorking = false, isOptimized = true) }
+            } else {
+                _state.update { it.copy(isWorking = false, optimizationFailed = true) }
+            }
         }
     }
 

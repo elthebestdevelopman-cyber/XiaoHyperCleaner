@@ -14,37 +14,35 @@
     <string name="support_yoomoney">Support (YooMoney)</string>
     <string name="support_cloudtips">Support (CloudTips)</string>
     <string name="rate_app">Rate the app</string>
-
     <string name="app_description_short">Safe configuration for Xiaomi, Redmi, Poco. Disables unnecessary background processes and system analytics.</string>
-
     <string name="features_title">What the app does</string>
     <string name="feature_processes">Disables system analytics services</string>
     <string name="feature_speed">Configures MIUI / HyperOS system parameters</string>
     <string name="feature_battery">Works without root access</string>
-
     <string name="accessibility_explanation_title">Accessibility service</string>
     <string name="accessibility_explanation_text">The app needs the accessibility service for automatic setup. It enables wireless debugging once and performs the configuration. No data is collected.</string>
     <string name="agree_and_open">Enable</string>
-
     <string name="overlay_permission_title">Display over other apps</string>
     <string name="overlay_permission_text">This permission is needed to show progress. The switch will be enabled automatically — just confirm the action.</string>
     <string name="allow">Continue</string>
     <string name="cancel">Cancel</string>
-
     <string name="status_working">Working…</string>
     <string name="status_done">Optimization complete!</string>
     <string name="status_done_description">Unnecessary background processes are disabled.</string>
-
     <string name="restore_dialog_title">Undo optimization</string>
     <string name="restore_dialog_text">All parameters and services will be returned to their original state and the device will behave as before. Restore?</string>
     <string name="restore_confirm">Yes, restore</string>
     <string name="restore_failed_text">Failed to revert changes. Make sure wireless debugging is enabled and try again.</string>
-
     <string name="reboot_dialog_title">Reboot device</string>
     <string name="reboot_dialog_text">The device will be rebooted via ADB. Unsaved data may be lost. Continue?</string>
     <string name="reboot_confirm">Reboot</string>
     <string name="reboot_failed_text">Failed to send the reboot command via ADB.</string>
-
+    <string name="allow_button_ru">Разрешить</string>
+    <string name="allow_button_en">Allow</string>
+    <string-array name="wireless_debugging_texts">
+        <item>Wireless debugging</item>
+        <item>Беспроводная отладка</item>
+    </string-array>
     <string name="overlay_preparing">Preparing…</string>
     <string name="overlay_connecting">Connecting to ADB…</string>
     <string name="overlay_method1">Applying system parameters…</string>
@@ -54,11 +52,12 @@
     <string name="overlay_done">Configuration complete</string>
     <string name="overlay_failed">Failed to apply changes</string>
     <string name="overlay_connect_failed">Failed to connect to ADB</string>
-    <string name="allow_button_ru">Разрешить</string>
-    <string name="allow_button_en">Allow</string>
-
-    <string-array name="wireless_debugging_texts">
-        <item>Wireless debugging</item>
-        <item>Беспроводная отладка</item>
-    </string-array>
+    <string name="overlay_searching_overlay_switch">Looking for the overlay switch…</string>
+    <string name="overlay_searching_toggle">Looking for the wireless debugging toggle…</string>
+    <string name="overlay_clicking_allow">Tapping "Allow"…</string>
+    <string name="overlay_error_hint">Check that wireless debugging is enabled and try again.</string>
+    <string name="optimization_failed_title">Configuration failed</string>
+    <string name="optimization_failed_text">The app could not apply changes. Make sure wireless debugging is enabled and tap Optimize again.</string>
+    <string name="manual_instructions_title">Manual setup</string>
+    <string name="manual_instructions_text">If automatic setup failed:\n1. Open Settings → Developer options\n2. Enable Wireless debugging\n3. Return to the app and tap Optimize</string>
 </resources>
