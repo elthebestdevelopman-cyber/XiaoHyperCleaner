@@ -136,7 +136,7 @@ Unit tests in `app/src/test/java/`. Run with `./gradlew test`.
 
 Kotlin · Jetpack Compose · Material 3 · custom ADB over TCP
 
-Gradle 9.5.0 · AGP 9.3.1 · Kotlin 2.4.10 · Compose BOM 2026.06.01 · JDK 17
+Gradle 9.5.0 · AGP 9.3.1 · Kotlin 2.4.10 · Compose BOM 2026.06.01 · JDK 21
 
 Built-in Kotlin from AGP 9 (no separate `kotlin-android` plugin).
 
