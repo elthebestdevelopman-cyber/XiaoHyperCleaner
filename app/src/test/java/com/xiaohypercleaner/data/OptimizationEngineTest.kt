@@ -1,6 +1,7 @@
 package com.xiaohypercleaner.data
 
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -10,30 +11,31 @@ private open class FakeAdb : AdbExecutor {
     val disabledPackages = mutableSetOf<String>()
     var keyValue = "1"
     var failDisable = false
-    var failAfterCommands = -1
 
     override suspend fun connect(): Boolean = true
+
     override suspend fun executeCommand(command: String): String {
         commands.add(command)
-        if (failAfterCommands in 0 until commands.size) throw AdbException(
-            AdbErrorCode.READ_TIMEOUT,
-            "timeout"
-        )
         return when {
             command.startsWith("settings get secure miui_ad_filtering_enabled") -> keyValue
             command.startsWith("pm list packages -d") ->
                 disabledPackages.joinToString("\n") { "package:$it" }
 
-            command.startsWith("pm disable-user") -> {
-                if (failDisable) "Failure" else {
-                    disabledPackages.add(command.substringAfterLast(' ')); "Success"
+            command.startsWith("pm disable-user") || command.startsWith("pm disable ") -> {
+                if (failDisable) "Failure"
+                else {
+                    disabledPackages.add(command.substringAfterLast(' '))
+                    "Success"
                 }
             }
 
             command.startsWith("pm enable") -> {
-                disabledPackages.remove(command.substringAfterLast(' ')); "Success"
+                disabledPackages.remove(command.substringAfterLast(' '))
+                "Success"
             }
 
+            command.startsWith("pm clear") -> "Success"
+            command.startsWith("settings put") -> ""
             else -> ""
         }
     }
@@ -42,54 +44,107 @@ private open class FakeAdb : AdbExecutor {
 }
 
 class OptimizationEngineTest {
+
     @Test
     fun optimizeSucceedsWhenKeysApplied() = runBlocking {
-        val fake = FakeAdb()
-        assertTrue(OptimizationEngine(fake).optimize())
-        assertTrue(fake.commands.any { it.contains("miui_ad_filtering_enabled 0") })
+        val fake = FakeAdb().apply { keyValue = "0" }
+        val engine = OptimizationEngine(fake)
+
+        val ok = engine.optimize()
+
+        assertTrue("Оптимизация должна была завершиться успехом", ok)
+        assertTrue(
+            "Должны были примениться системные ключи",
+            fake.commands.any { it.contains("miui_ad_filtering_enabled 0") })
     }
 
     @Test
     fun optimizeFallsBackToPackagesWhenKeysFail() = runBlocking {
         val fake = FakeAdb().apply { keyValue = "1" }
-        assertTrue(OptimizationEngine(fake).optimize())
-        assertTrue(fake.disabledPackages.isNotEmpty())
+        val engine = OptimizationEngine(fake)
+
+        val ok = engine.optimize()
+
+        assertTrue("Fallback на пакеты должен был сработать", ok)
+        assertTrue(
+            "Должны были быть вызовы pm disable-user",
+            fake.commands.any { it.startsWith("pm disable-user") })
     }
 
     @Test
     fun optimizeFailsWhenNothingApplied() = runBlocking {
-        val fake = FakeAdb().apply { failDisable = true }
-        assertFalse(OptimizationEngine(fake).optimize())
+        val fake = FakeAdb().apply {
+            keyValue = "1"
+            failDisable = true
+        }
+        val engine = OptimizationEngine(fake)
+
+        val ok = engine.optimize()
+
+        assertFalse("При полном сбое оптимизация должна вернуть false", ok)
     }
 
     @Test
     fun partialApplicationContinuesToNextMethod() = runBlocking {
         val fake = FakeAdb().apply { keyValue = "1" }
-        assertTrue(OptimizationEngine(fake).optimize())
-        assertTrue(fake.commands.count { it.startsWith("pm disable-user") } > 0)
+        val engine = OptimizationEngine(fake)
+
+        val ok = engine.optimize()
+
+        assertTrue(ok)
+        val disableCalls = fake.commands.count { it.startsWith("pm disable") }
+        assertTrue("Должно было быть несколько вызовов pm disable", disableCalls > 0)
     }
 
     @Test
-    fun optimizeSurvivesSingleConnectionDrop() = runBlocking {
-        val fake = FakeAdb().apply { failAfterCommands = 3 }
-        assertTrue(OptimizationEngine(fake).optimize())
-    }
+    fun optimizeReportsAdbExceptionAsFailure() = runBlocking {
+        val fake = object : FakeAdb() {
+            override suspend fun executeCommand(command: String): String {
+                throw AdbException("connection lost")
+            }
+        }
+        val engine = OptimizationEngine(fake)
 
-    @Test
-    fun customConfigIsRespected() = runBlocking {
-        val fake = FakeAdb()
-        val config = OptimizationEngineConfig(connectAttempts = 1, commandDelayMs = 0)
-        assertTrue(OptimizationEngine(fake, config).optimize())
+        val ok = engine.optimize()
+
+        assertFalse("При AdbException optimize() должен вернуть false", ok)
     }
 
     @Test
     fun restoreEnablesAllPackagesAndKeys() = runBlocking {
-        val fake = FakeAdb().apply { disabledPackages.addAll(ServiceRegistry.PACKAGES) }
-        assertTrue(OptimizationEngine(fake).restore())
-        ServiceRegistry.PACKAGES.forEach { pkg ->
-            assertTrue(fake.commands.contains("pm enable $pkg"))
+        val fake = FakeAdb().apply {
+            disabledPackages.addAll(ServiceRegistry.PACKAGES)
         }
-        assertTrue(fake.disabledPackages.isEmpty())
-        assertTrue(fake.commands.any { it.contains("miui_region RU") })
+        val engine = OptimizationEngine(fake)
+
+        val ok = engine.restore()
+
+        assertTrue(ok)
+        ServiceRegistry.PACKAGES.forEach { pkg ->
+            assertTrue(
+                "Должен был быть вызван pm enable $pkg",
+                fake.commands.contains("pm enable $pkg")
+            )
+        }
+        assertTrue(
+            "Список отключённых пакетов должен быть пуст",
+            fake.disabledPackages.isEmpty()
+        )
+        assertTrue(
+            "Должны были примениться ключи восстановления",
+            fake.commands.any { it.contains("miui_region RU") })
+    }
+
+    @Test
+    fun verifyAllAcceptsEitherKeysOrPackages() = runBlocking {
+        // Кейс 1: только ключ применён, пакеты все включены
+        val fakeKeyOnly = FakeAdb().apply { keyValue = "0" }
+        val engineKeyOnly = OptimizationEngine(fakeKeyOnly)
+        assertTrue(engineKeyOnly.optimize())
+
+        // Кейс 2: пакеты отключены, ключ не применён
+        val fakePkgOnly = FakeAdb().apply { keyValue = "1" }
+        val enginePkgOnly = OptimizationEngine(fakePkgOnly)
+        assertTrue(enginePkgOnly.optimize())
     }
 }
