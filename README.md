@@ -65,7 +65,7 @@ Unit-тесты в `app/src/test/java/`:
 
 Kotlin · Jetpack Compose · Material 3 · собственная реализация ADB поверх TCP
 
-Gradle 9.5.0 · AGP 9.3.1 · Kotlin 2.4.10 · Compose BOM 2026.06.01 · JDK 17
+Gradle 9.5.0 · AGP 9.3.1 · Kotlin 2.4.10 · Compose BOM 2026.06.01 · JDK 21
 
 Встроенный Kotlin от AGP 9 (без отдельного плагина `kotlin-android`).
 
