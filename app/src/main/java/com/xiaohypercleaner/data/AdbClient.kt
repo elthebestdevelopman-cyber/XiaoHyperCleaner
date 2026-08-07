@@ -5,19 +5,17 @@ import com.xiaohypercleaner.AppConstants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedInputStream
+import java.io.IOException
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketTimeoutException
 
-/**
- * Клиент локального ADB-демона: подключение по TCP и выполнение shell-команд.
- * При обрыве соединения выполняет одно автоматическое переподключение.
- */
 class AdbClient(
     private val host: String = AppConstants.ADB_HOST,
     private val ports: List<Int> = listOf(AppConstants.ADB_DEFAULT_PORT)
 ) : AdbExecutor {
+
     companion object {
         private const val TAG = "AdbClient"
         private const val MAX_PAYLOAD = 0xFFFF
@@ -44,7 +42,7 @@ class AdbClient(
             output = s.getOutputStream()
             sendMessage("host:transport-any")
             readStatus() == "OKAY"
-        } catch (e: Exception) {
+        } catch (e: IOException) {
             Log.w(TAG, "connect to $port failed: ${e.message}")
             disconnect()
             false
