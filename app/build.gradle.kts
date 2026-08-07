@@ -7,6 +7,10 @@ android {
     namespace = "com.xiaohypercleaner"
     compileSdk = 37
 
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+
     defaultConfig {
         applicationId = "com.xiaohypercleaner"
         minSdk = 28
