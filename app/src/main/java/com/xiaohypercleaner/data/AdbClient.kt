@@ -13,6 +13,10 @@ import java.net.SocketTimeoutException
 
 class AdbException(message: String, cause: Throwable? = null) : IOException(message, cause)
 
+/**
+ * Клиент локального ADB-демона: подключение по TCP и выполнение shell-команд.
+ * При обрыве соединения выполняет одно автоматическое переподключение.
+ */
 class AdbClient(
     private val host: String = AppConstants.ADB_HOST,
     private val ports: List<Int> = listOf(AppConstants.ADB_DEFAULT_PORT)
@@ -20,6 +24,7 @@ class AdbClient(
 
     companion object {
         private const val TAG = "AdbClient"
+        private const val MAX_PAYLOAD = 0xFFFF
     }
 
     private var socket: Socket? = null
@@ -51,11 +56,21 @@ class AdbClient(
     }
 
     override suspend fun executeCommand(command: String): String = withContext(Dispatchers.IO) {
+        try {
+            runShell(command)
+        } catch (e: AdbException) {
+            Log.w(TAG, "connection lost, reconnecting once")
+            if (!connect()) throw e
+            runShell(command)
+        }
+    }
+
+    private fun runShell(command: String): String {
         val s = socket ?: throw AdbException("Not connected")
         if (!s.isConnected) throw AdbException("Socket closed")
         sendMessage("shell:$command")
         if (readStatus() != "OKAY") throw AdbException("Bad status for: $command")
-        readUntilEof()
+        return readUntilEof()
     }
 
     override fun disconnect() {
@@ -69,6 +84,7 @@ class AdbClient(
 
     private fun sendMessage(message: String) {
         val data = message.toByteArray(Charsets.UTF_8)
+        if (data.size > MAX_PAYLOAD) throw AdbException("Payload too large: ${data.size}")
         val header = String.format("%04x", data.size).toByteArray(Charsets.US_ASCII)
         output!!.write(header)
         output!!.write(data)

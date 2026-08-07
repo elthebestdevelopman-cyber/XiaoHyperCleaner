@@ -131,48 +131,68 @@ private fun MainContent(
     var confirmRestore by remember { mutableStateOf(false) }
 
     if (state.showAccessibilityDialog) {
-        AccessibilityDialog(
-            onAgree = {
+        InfoDialog(
+            title = stringResource(R.string.accessibility_explanation_title),
+            text = stringResource(R.string.accessibility_explanation_text),
+            confirmText = stringResource(R.string.agree_and_open),
+            onConfirm = {
                 vm.dialogAgreed()
                 openAccessibilitySettings(context)
             },
-            onClose = { vm.dialogCancelled() }
+            onDismiss = { vm.dialogCancelled() }
         )
     }
 
     if (state.showOverlayDialog) {
-        OverlayPermissionDialog(
-            onAllow = {
+        InfoDialog(
+            title = stringResource(R.string.overlay_permission_title),
+            text = stringResource(R.string.overlay_permission_text),
+            confirmText = stringResource(R.string.allow),
+            onConfirm = {
                 vm.dialogAgreed()
                 openOverlaySettings(context)
             },
-            onCancel = { vm.dialogCancelled() }
+            onDismiss = { vm.dialogCancelled() }
         )
     }
 
     if (confirmRestore) {
-        RestoreConfirmDialog(
+        InfoDialog(
+            title = stringResource(R.string.restore_dialog_title),
+            text = stringResource(R.string.restore_dialog_text),
+            confirmText = stringResource(R.string.restore_confirm),
             onConfirm = {
                 confirmRestore = false
                 vm.restoreOptimization()
             },
-            onCancel = { confirmRestore = false }
+            onDismiss = { confirmRestore = false }
         )
     }
 
     if (state.showRebootDialog) {
-        RebootConfirmDialog(
+        InfoDialog(
+            title = stringResource(R.string.reboot_dialog_title),
+            text = stringResource(R.string.reboot_dialog_text),
+            confirmText = stringResource(R.string.reboot_confirm),
             onConfirm = vm::confirmReboot,
-            onCancel = vm::dismissRebootDialog
+            onDismiss = vm::dismissRebootDialog
         )
     }
 
     if (state.rebootFailed) {
-        RebootFailedDialog(onClose = vm::dismissRebootFailed)
+        InfoDialog(
+            title = stringResource(R.string.reboot_dialog_title),
+            text = stringResource(R.string.reboot_failed_text),
+            onDismiss = vm::dismissRebootFailed
+        )
     }
 
     if (state.restoreFailed) {
-        RestoreFailedDialog(onClose = vm::dismissRestoreFailed)
+        InfoDialog(
+            title = stringResource(R.string.restore_dialog_title),
+            text = stringResource(R.string.restore_failed_text),
+            onDismiss = vm::dismissRestoreFailed
+        )
     }
 
     if (menuOpen) {
@@ -441,126 +461,30 @@ private fun DoneView(onRestore: () -> Unit, onReboot: () -> Unit) {
 }
 
 @Composable
-private fun RestoreConfirmDialog(onConfirm: () -> Unit, onCancel: () -> Unit) {
-    Dialog(onDismissRequest = onCancel) {
+private fun InfoDialog(
+    title: String,
+    text: String,
+    confirmText: String? = null,
+    onConfirm: (() -> Unit)? = null,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
         AlertDialog(
-            onDismissRequest = onCancel,
+            onDismissRequest = onDismiss,
             shape = RoundedCornerShape(20.dp),
-            title = {
-                Text(
-                    stringResource(R.string.restore_dialog_title),
-                    fontWeight = FontWeight.SemiBold
-                )
-            },
-            text = { Text(stringResource(R.string.restore_dialog_text)) },
+            title = { Text(title, fontWeight = FontWeight.SemiBold) },
+            text = { Text(text) },
             confirmButton = {
-                TextButton(onClick = onConfirm) { Text(stringResource(R.string.restore_confirm)) }
+                if (confirmText != null && onConfirm != null) {
+                    TextButton(onClick = onConfirm) { Text(confirmText) }
+                } else {
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+                }
             },
             dismissButton = {
-                TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
-            }
-        )
-    }
-}
-
-@Composable
-private fun RestoreFailedDialog(onClose: () -> Unit) {
-    Dialog(onDismissRequest = onClose) {
-        AlertDialog(
-            onDismissRequest = onClose,
-            shape = RoundedCornerShape(20.dp),
-            title = {
-                Text(
-                    stringResource(R.string.restore_dialog_title),
-                    fontWeight = FontWeight.SemiBold
-                )
-            },
-            text = { Text(stringResource(R.string.restore_failed_text)) },
-            confirmButton = {
-                TextButton(onClick = onClose) { Text(stringResource(R.string.close)) }
-            }
-        )
-    }
-}
-
-@Composable
-private fun RebootConfirmDialog(onConfirm: () -> Unit, onCancel: () -> Unit) {
-    Dialog(onDismissRequest = onCancel) {
-        AlertDialog(
-            onDismissRequest = onCancel,
-            shape = RoundedCornerShape(20.dp),
-            title = {
-                Text(stringResource(R.string.reboot_dialog_title), fontWeight = FontWeight.SemiBold)
-            },
-            text = { Text(stringResource(R.string.reboot_dialog_text)) },
-            confirmButton = {
-                TextButton(onClick = onConfirm) { Text(stringResource(R.string.reboot_confirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
-            }
-        )
-    }
-}
-
-@Composable
-private fun RebootFailedDialog(onClose: () -> Unit) {
-    Dialog(onDismissRequest = onClose) {
-        AlertDialog(
-            onDismissRequest = onClose,
-            shape = RoundedCornerShape(20.dp),
-            title = {
-                Text(stringResource(R.string.reboot_dialog_title), fontWeight = FontWeight.SemiBold)
-            },
-            text = { Text(stringResource(R.string.reboot_failed_text)) },
-            confirmButton = {
-                TextButton(onClick = onClose) { Text(stringResource(R.string.close)) }
-            }
-        )
-    }
-}
-
-@Composable
-private fun OverlayPermissionDialog(onAllow: () -> Unit, onCancel: () -> Unit) {
-    Dialog(onDismissRequest = onCancel) {
-        AlertDialog(
-            onDismissRequest = onCancel,
-            shape = RoundedCornerShape(20.dp),
-            title = {
-                Text(
-                    stringResource(R.string.overlay_permission_title),
-                    fontWeight = FontWeight.SemiBold
-                )
-            },
-            text = { Text(stringResource(R.string.overlay_permission_text)) },
-            confirmButton = {
-                TextButton(onClick = onAllow) { Text(stringResource(R.string.allow)) }
-            },
-            dismissButton = {
-                TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
-            }
-        )
-    }
-}
-
-@Composable
-private fun AccessibilityDialog(onAgree: () -> Unit, onClose: () -> Unit) {
-    Dialog(onDismissRequest = onClose) {
-        AlertDialog(
-            onDismissRequest = onClose,
-            shape = RoundedCornerShape(20.dp),
-            title = {
-                Text(
-                    stringResource(R.string.accessibility_explanation_title),
-                    fontWeight = FontWeight.SemiBold
-                )
-            },
-            text = { Text(stringResource(R.string.accessibility_explanation_text)) },
-            confirmButton = {
-                TextButton(onClick = onAgree) { Text(stringResource(R.string.agree_and_open)) }
-            },
-            dismissButton = {
-                TextButton(onClick = onClose) { Text(stringResource(R.string.close)) }
+                if (confirmText != null) {
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+                }
             }
         )
     }

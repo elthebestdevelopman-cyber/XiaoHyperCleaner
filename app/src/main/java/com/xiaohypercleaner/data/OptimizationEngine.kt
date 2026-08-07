@@ -4,6 +4,10 @@ import android.util.Log
 import com.xiaohypercleaner.AppConstants
 import kotlinx.coroutines.delay
 
+/**
+ * Движок оптимизации: три метода применения настроек с fallback и
+ * финальной верификацией. Детали неудач пишутся в Logcat для Issues.
+ */
 class OptimizationEngine(private val adb: AdbExecutor) {
 
     companion object {
@@ -157,9 +161,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
     private suspend fun verifyAll(): Boolean {
         val disabled = adb.executeCommand("pm list packages -d")
-        val anyPackageOff = ServiceRegistry.PACKAGES.any { disabled.contains(it) }
+        val missing = ServiceRegistry.PACKAGES.filter { !disabled.contains(it) }
         val keyOff = adb.executeCommand("settings get secure miui_ad_filtering_enabled")
             .trim() == "0"
-        return anyPackageOff || keyOff
+        if (missing.isNotEmpty()) Log.w(TAG, "still enabled: $missing")
+        return missing.isEmpty() || keyOff
     }
 }

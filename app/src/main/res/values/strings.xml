@@ -54,4 +54,11 @@
     <string name="overlay_done">Настройка завершена</string>
     <string name="overlay_failed">Не удалось применить изменения</string>
     <string name="overlay_connect_failed">Не удалось подключиться к ADB</string>
+    <string name="allow_button_ru">Разрешить</string>
+    <string name="allow_button_en">Allow</string>
+
+    <string-array name="wireless_debugging_texts">
+        <item>Беспроводная отладка</item>
+        <item>Wireless debugging</item>
+    </string-array>
 </resources>

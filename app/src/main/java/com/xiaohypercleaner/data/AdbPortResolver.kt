@@ -8,19 +8,21 @@ import com.xiaohypercleaner.AppConstants
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
+/**
+ * Динамическое определение порта ADB через mDNS с фолбэком на стандартный порт.
+ * Обнаружение прерывается досрочно после первого найденного сервиса.
+ */
 class AdbPortResolver(private val context: Context) {
 
     companion object {
         private const val TAG = "AdbPortResolver"
         private const val SERVICE_TYPE = "_adb-tls._tcp."
+
+        fun mergePorts(discovered: List<Int>, fallback: Int): List<Int> =
+            (discovered + fallback).distinct()
     }
 
-    fun resolve(): List<Int> {
-        val ports = linkedSetOf<Int>()
-        ports.addAll(discoverMdns())
-        ports.add(AppConstants.ADB_DEFAULT_PORT)
-        return ports.toList()
-    }
+    fun resolve(): List<Int> = mergePorts(discoverMdns(), AppConstants.ADB_DEFAULT_PORT)
 
     private fun discoverMdns(): List<Int> {
         val found = mutableListOf<Int>()
@@ -28,13 +30,17 @@ class AdbPortResolver(private val context: Context) {
         val nsd = context.getSystemService(Context.NSD_SERVICE) as? NsdManager
             ?: return emptyList()
 
-        val listener = object : NsdManager.DiscoveryListener {
+        lateinit var listener: NsdManager.DiscoveryListener
+
+        listener = object : NsdManager.DiscoveryListener {
             override fun onDiscoveryStarted(regType: String) {}
             override fun onServiceFound(service: NsdServiceInfo) {
                 nsd.resolveService(service, object : NsdManager.ResolveListener {
                     override fun onResolveFailed(s: NsdServiceInfo, error: Int) {}
                     override fun onServiceResolved(s: NsdServiceInfo) {
                         synchronized(found) { found.add(s.port) }
+                        runCatching { nsd.stopServiceDiscovery(listener) }
+                        latch.countDown()
                     }
                 })
             }

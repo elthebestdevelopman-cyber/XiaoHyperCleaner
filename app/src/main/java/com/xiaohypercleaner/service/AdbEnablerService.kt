@@ -18,6 +18,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/**
+ * Одноразовая служба: включает беспроводную отладку, запускает цепочку
+ * оптимизации и отключает сама себя после завершения.
+ */
 class AdbEnablerService : AccessibilityService() {
 
     companion object {
@@ -26,6 +30,9 @@ class AdbEnablerService : AccessibilityService() {
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val app get() = application as XiaoHyperApp
+    private val toggleTexts by lazy {
+        resources.getStringArray(R.array.wireless_debugging_texts)
+    }
 
     private var overlayHandled = false
     private var optimizationStarted = false
@@ -76,7 +83,7 @@ class AdbEnablerService : AccessibilityService() {
         }
 
         if (!optimizationStarted) {
-            val toggle = findCheckable(root, "Беспроводная отладка", "Wireless debugging")
+            val toggle = findCheckable(root, *toggleTexts)
             if (toggle != null) {
                 if (toggle.isCheckable && !toggle.isChecked) {
                     toggle.performAction(AccessibilityNodeInfo.ACTION_CLICK)
@@ -84,7 +91,7 @@ class AdbEnablerService : AccessibilityService() {
                 scope.launch {
                     waitFor(AppConstants.UI_WAIT_TIMEOUT_MS) {
                         val r = rootInActiveWindow ?: return@waitFor false
-                        val t = findCheckable(r, "Беспроводная отладка", "Wireless debugging")
+                        val t = findCheckable(r, *toggleTexts)
                         t?.isChecked == true
                     }
                     clickAllow(rootInActiveWindow)
@@ -96,7 +103,10 @@ class AdbEnablerService : AccessibilityService() {
 
     private fun clickAllow(root: AccessibilityNodeInfo?): Boolean {
         if (root == null) return false
-        for (text in arrayOf("Разрешить", "Allow")) {
+        for (text in arrayOf(
+            getString(R.string.allow_button_ru),
+            getString(R.string.allow_button_en)
+        )) {
             val nodes = root.findAccessibilityNodeInfosByText(text) ?: continue
             for (n in nodes) {
                 val cls = n.className?.toString() ?: continue
