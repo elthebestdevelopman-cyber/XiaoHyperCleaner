@@ -12,16 +12,4 @@ object AppConstants {
     const val DEV_SETTINGS_FALLBACK_MS = 8000L
     const val COMMAND_DELAY_MS = 80L
     const val RETRY_DELAY_MS = 800L
-
-    const val PROGRESS_START = 0.05f
-    const val PROGRESS_CONNECTED = 0.15f
-    const val PROGRESS_METHOD2 = 0.45f
-    const val PROGRESS_METHOD3 = 0.70f
-    const val PROGRESS_RESTORE_KEYS = 0.30f
-    const val PROGRESS_RESTORE_PKGS = 0.60f
-    const val PROGRESS_FAIL = 0.90f
-    const val PROGRESS_SUCCESS = 1.0f
-
-    const val KEY_APPLY_ATTEMPTS = 2
-    const val FALLBACK_DELAY_MS = 300L
 }

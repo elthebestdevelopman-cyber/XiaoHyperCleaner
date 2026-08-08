@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class AppDependencies(private val context: Context) {
+
     val preferencesManager: PreferencesManager by lazy { PreferencesManager(context) }
     val portResolver: AdbPortResolver by lazy { AdbPortResolver(context) }
 

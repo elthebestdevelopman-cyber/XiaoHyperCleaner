@@ -3,15 +3,11 @@ package com.xiaohypercleaner.data
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
-import android.util.Log
 import com.xiaohypercleaner.AppConstants
+import com.xiaohypercleaner.util.AppLog
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-/**
- * Динамическое определение порта ADB через mDNS с фолбэком на стандартный порт.
- * Обнаружение прерывается досрочно после первого найденного сервиса.
- */
 class AdbPortResolver(private val context: Context) {
 
     companion object {
@@ -33,7 +29,6 @@ class AdbPortResolver(private val context: Context) {
         lateinit var listener: NsdManager.DiscoveryListener
         listener = object : NsdManager.DiscoveryListener {
             override fun onDiscoveryStarted(regType: String) {}
-
             override fun onServiceFound(service: NsdServiceInfo) {
                 nsd.resolveService(service, object : NsdManager.ResolveListener {
                     override fun onResolveFailed(s: NsdServiceInfo, error: Int) {}
@@ -65,7 +60,7 @@ class AdbPortResolver(private val context: Context) {
             runCatching { nsd.stopServiceDiscovery(listener) }
             found
         } catch (e: Exception) {
-            Log.w(TAG, "mDNS discovery failed: ${e.message}")
+            AppLog.w(TAG, "mDNS discovery failed: ${e.message}")
             emptyList()
         }
     }

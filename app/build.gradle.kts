@@ -2,9 +2,11 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
 android {
     namespace = "com.xiaohypercleaner"
     compileSdk = 37
+
     defaultConfig {
         applicationId = "com.xiaohypercleaner"
         minSdk = 28
@@ -12,10 +14,8 @@ android {
         versionCode = 2
         versionName = "1.0-beta2"
         buildConfigField("boolean", "BETA", "true")
-        testOptions {
-            unitTests.isReturnDefaultValues = true
-        }
     }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -26,23 +26,32 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
+
     kotlin {
         compilerOptions {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
         }
     }
+
     buildFeatures {
         compose = true
         buildConfig = true
     }
+
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
+
 dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.androidx.core.ktx)

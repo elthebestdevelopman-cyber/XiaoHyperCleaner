@@ -12,8 +12,9 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.XiaoHyperCleaner">
+
         <activity
-            android:name=".ui.SplashActivity"
+            android:name=".ui.MainActivity"
             android:exported="true"
             android:theme="@style/Theme.XiaoHyperCleaner">
             <intent-filter>
@@ -21,10 +22,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".ui.MainActivity"
-            android:exported="false"
-            android:theme="@style/Theme.XiaoHyperCleaner" />
 
         <service
             android:name=".service.AdbEnablerService"
@@ -37,6 +34,7 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
+
         <service
             android:name=".service.OverlayService"
             android:exported="false" />

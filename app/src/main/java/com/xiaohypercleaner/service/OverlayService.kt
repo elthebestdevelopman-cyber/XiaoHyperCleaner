@@ -8,12 +8,10 @@ import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
-import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.view.animation.AccelerateDecelerateInterpolator
-import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -25,12 +23,11 @@ class OverlayService : Service() {
     private lateinit var windowManager: WindowManager
     private lateinit var root: LinearLayout
     private lateinit var robot: ImageView
-    private lateinit var yarn: ImageView
     private lateinit var titleView: TextView
     private lateinit var detailView: TextView
     private lateinit var progressBar: ProgressBar
     private lateinit var percentView: TextView
-    private val animators = mutableListOf<ObjectAnimator>()
+    private var bounce: ObjectAnimator? = null
     private var lastPercent = -1
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -51,11 +48,10 @@ class OverlayService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            horizontalMargin = 0.06f
             y = dp(32)
         }
         windowManager.addView(root, params)
-        startPlay()
+        startBounce()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -79,8 +75,8 @@ class OverlayService : Service() {
     }
 
     override fun onDestroy() {
-        animators.forEach { it.cancel() }
-        animators.clear()
+        bounce?.cancel()
+        bounce = null
         if (::root.isInitialized && root.isAttachedToWindow) {
             runCatching { windowManager.removeView(root) }
         }
@@ -97,25 +93,11 @@ class OverlayService : Service() {
                 cornerRadius = dp(24).toFloat()
             }
         }
-        val stage = FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(150), dp(120))
-        }
         robot = ImageView(this).apply {
             setImageResource(R.drawable.ic_robot_companion)
-            layoutParams = FrameLayout.LayoutParams(dp(110), dp(110)).apply {
-                gravity = Gravity.CENTER_HORIZONTAL or Gravity.TOP
-            }
+            layoutParams = LinearLayout.LayoutParams(dp(110), dp(110))
         }
-        yarn = ImageView(this).apply {
-            setImageResource(R.drawable.ic_yarn_ball)
-            layoutParams = FrameLayout.LayoutParams(dp(40), dp(40)).apply {
-                gravity = Gravity.BOTTOM or Gravity.START
-            }
-        }
-        stage.addView(robot)
-        stage.addView(yarn)
-        root.addView(stage)
-
+        root.addView(robot)
         titleView = TextView(this).apply {
             text = getString(R.string.status_working)
             textSize = 16f
@@ -124,7 +106,6 @@ class OverlayService : Service() {
             layoutParams = matchWrap(dp(8))
         }
         root.addView(titleView)
-
         detailView = TextView(this).apply {
             textSize = 13f
             setTextColor(Color.parseColor("#B3FFFFFF"))
@@ -133,7 +114,6 @@ class OverlayService : Service() {
             layoutParams = matchWrap(dp(4))
         }
         root.addView(detailView)
-
         progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
             layoutParams = LinearLayout.LayoutParams(
@@ -141,7 +121,6 @@ class OverlayService : Service() {
             ).apply { topMargin = dp(14) }
         }
         root.addView(progressBar)
-
         percentView = TextView(this).apply {
             text = "0%"
             textSize = 12f
@@ -150,7 +129,6 @@ class OverlayService : Service() {
             layoutParams = matchWrap(dp(4))
         }
         root.addView(percentView)
-
         val cancel = TextView(this).apply {
             text = getString(R.string.cancel)
             textSize = 15f
@@ -167,28 +145,11 @@ class OverlayService : Service() {
         root.addView(cancel)
     }
 
-    private fun startPlay() {
-        animators += ObjectAnimator.ofFloat(robot, "translationY", 0f, -dp(6).toFloat(), 0f).apply {
+    private fun startBounce() {
+        bounce = ObjectAnimator.ofFloat(robot, "translationY", 0f, -dp(6).toFloat(), 0f).apply {
             duration = 900
             repeatCount = ObjectAnimator.INFINITE
             interpolator = AccelerateDecelerateInterpolator()
-            start()
-        }
-        animators += ObjectAnimator.ofFloat(
-            yarn,
-            "translationX",
-            dp(4).toFloat(),
-            dp(106).toFloat()
-        ).apply {
-            duration = 900
-            repeatCount = ObjectAnimator.INFINITE
-            repeatMode = ObjectAnimator.REVERSE
-            interpolator = AccelerateDecelerateInterpolator()
-            start()
-        }
-        animators += ObjectAnimator.ofFloat(yarn, "rotation", 0f, 360f).apply {
-            duration = 1800
-            repeatCount = ObjectAnimator.INFINITE
             start()
         }
     }
@@ -199,7 +160,5 @@ class OverlayService : Service() {
     ).apply { this.topMargin = topMargin }
 
     private fun dp(value: Int): Int =
-        TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics
-        ).toInt()
+        (value * resources.displayMetrics.density).toInt()
 }

@@ -29,21 +29,20 @@ class AdbEnablerService : AccessibilityService() {
     private val toggleTexts by lazy {
         resources.getStringArray(R.array.wireless_debugging_texts)
     }
-
     private var overlayHandled = false
     private var optimizationStarted = false
     private var lastOverlayKey = ""
-    private var lastProgress = -1
+    private var lastPercent = -1
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_START_CHAIN) {
             OverlayController.onCancel = { cancelChain() }
             scope.launch {
                 if (!Settings.canDrawOverlays(this@AdbEnablerService)) {
-                    overlaySafe(
-                        getString(R.string.status_working),
-                        getString(R.string.overlay_searching_overlay_switch)
-                    )
                     openOverlaySettings()
                 } else {
                     openDevSettings()
@@ -85,38 +84,40 @@ class AdbEnablerService : AccessibilityService() {
                         openDevSettings()
                     }
                 }
+                return
             }
-            return
         }
 
-        val toggle = findCheckable(root, *toggleTexts)
-        if (toggle != null) {
-            overlaySafe(
-                getString(R.string.status_working),
-                getString(R.string.overlay_searching_toggle)
-            )
-            if (toggle.isCheckable && !toggle.isChecked) {
-                toggle.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            }
-            scope.launch {
-                waitFor(AppConstants.UI_WAIT_TIMEOUT_MS) {
-                    val r = rootInActiveWindow ?: return@waitFor false
-                    val t = findCheckable(r, *toggleTexts)
-                    t != null && t.isChecked
-                }
+        if (!optimizationStarted) {
+            val toggle = findCheckable(root, *toggleTexts)
+            if (toggle != null) {
                 overlaySafe(
                     getString(R.string.status_working),
-                    getString(R.string.overlay_clicking_allow)
+                    getString(R.string.overlay_searching_toggle)
                 )
-                clickAllow(rootInActiveWindow)
-                startOptimization()
+                if (toggle.isCheckable && !toggle.isChecked) {
+                    toggle.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                }
+                scope.launch {
+                    waitFor(AppConstants.UI_WAIT_TIMEOUT_MS) {
+                        val r = rootInActiveWindow ?: return@waitFor false
+                        val t = findCheckable(r, *toggleTexts)
+                        t != null && t.isChecked
+                    }
+                    overlaySafe(
+                        getString(R.string.status_working),
+                        getString(R.string.overlay_clicking_allow)
+                    )
+                    clickAllow(rootInActiveWindow)
+                    startOptimization()
+                }
             }
         }
     }
 
     private fun cancelChain() {
         optimizationStarted = true
-        OverlayController.clear()
+        OverlayController.onCancel = null
         stopOverlay()
         disableSelf()
         stopSelf()
@@ -124,9 +125,10 @@ class AdbEnablerService : AccessibilityService() {
 
     private fun clickAllow(root: AccessibilityNodeInfo?): Boolean {
         if (root == null) return false
-        val texts =
-            arrayOf(getString(R.string.allow_button_ru), getString(R.string.allow_button_en))
-        for (text in texts) {
+        for (text in arrayOf(
+            getString(R.string.allow_button_ru),
+            getString(R.string.allow_button_en)
+        )) {
             val nodes = root.findAccessibilityNodeInfosByText(text) ?: continue
             for (n in nodes) {
                 val cls = n.className?.toString() ?: continue
@@ -212,7 +214,7 @@ class AdbEnablerService : AccessibilityService() {
                 overlaySafe(getString(R.string.overlay_failed), "")
             }
             delay(2500)
-            OverlayController.clear()
+            OverlayController.onCancel = null
             stopOverlay()
             disableSelf()
             stopSelf()
@@ -232,11 +234,9 @@ class AdbEnablerService : AccessibilityService() {
 
     private fun overlayProgress(p: Float) {
         val pct = (p * 100).toInt()
-        if (pct == lastProgress) return
-        lastProgress = pct
-        startService(
-            Intent(this, OverlayService::class.java).putExtra("progress", p)
-        )
+        if (pct == lastPercent) return
+        lastPercent = pct
+        startService(Intent(this, OverlayService::class.java).putExtra("progress", p))
     }
 
     private fun stopOverlay() {
@@ -246,7 +246,7 @@ class AdbEnablerService : AccessibilityService() {
     override fun onInterrupt() {}
 
     override fun onDestroy() {
-        OverlayController.clear()
+        OverlayController.onCancel = null
         scope.cancel()
         stopOverlay()
         super.onDestroy()

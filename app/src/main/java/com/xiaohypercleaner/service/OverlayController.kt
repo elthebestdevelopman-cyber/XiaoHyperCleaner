@@ -1,10 +1,24 @@
 package com.xiaohypercleaner.service
 
+import java.lang.ref.WeakReference
+
 object OverlayController {
-    @Volatile
-    var onCancel: (() -> Unit)? = null
+
+    interface CancelHandler {
+        fun cancelChain()
+    }
+
+    private var handlerRef: WeakReference<CancelHandler>? = null
+
+    fun register(handler: CancelHandler) {
+        handlerRef = WeakReference(handler)
+    }
+
+    fun triggerCancel() {
+        handlerRef?.get()?.cancelChain()
+    }
 
     fun clear() {
-        onCancel = null
+        handlerRef = null
     }
 }

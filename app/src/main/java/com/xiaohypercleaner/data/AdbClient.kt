@@ -1,7 +1,7 @@
 package com.xiaohypercleaner.data
 
-import android.util.Log
 import com.xiaohypercleaner.AppConstants
+import com.xiaohypercleaner.util.AppLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedInputStream
@@ -10,6 +10,8 @@ import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketTimeoutException
+
+class AdbException(message: String, cause: Throwable? = null) : IOException(message, cause)
 
 class AdbClient(
     private val host: String = AppConstants.ADB_HOST,
@@ -43,7 +45,7 @@ class AdbClient(
             sendMessage("host:transport-any")
             readStatus() == "OKAY"
         } catch (e: IOException) {
-            Log.w(TAG, "connect to $port failed: ${e.message}")
+            AppLog.w(TAG, "connect to $port failed: ${e.message}")
             disconnect()
             false
         }
@@ -53,7 +55,7 @@ class AdbClient(
         try {
             runShell(command)
         } catch (e: AdbException) {
-            Log.w(TAG, "connection lost, reconnecting once")
+            AppLog.w(TAG, "connection lost, reconnecting once")
             if (!connect()) throw e
             runShell(command)
         }
@@ -63,7 +65,7 @@ class AdbClient(
         val s = socket ?: throw AdbException("Not connected")
         if (!s.isConnected) throw AdbException("Socket closed")
         sendMessage("shell:$command")
-        if (readStatus() != "OKAY") throw AdbException("Bad status for: $command")
+        if (readStatus() != "OKAY") throw AdbException("Bad status")
         return readUntilEof()
     }
 
@@ -102,7 +104,7 @@ class AdbClient(
                 sb.append(String(buf, 0, n, Charsets.UTF_8))
             }
         } catch (e: SocketTimeoutException) {
-            Log.w(TAG, "read timeout, returning partial output")
+            AppLog.w(TAG, "read timeout, returning partial output")
         }
         return sb.toString()
     }

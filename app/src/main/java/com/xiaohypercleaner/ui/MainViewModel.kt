@@ -3,7 +3,6 @@ package com.xiaohypercleaner.ui
 import android.app.Application
 import android.content.ComponentName
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
@@ -11,7 +10,6 @@ import androidx.lifecycle.viewModelScope
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationEngine
 import com.xiaohypercleaner.service.AdbEnablerService
-import com.xiaohypercleaner.util.AppLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,8 +35,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as XiaoHyperApp
     private val prefs = app.preferencesManager
     private var flowActive = false
-    private var restrictedDone = false
-    private var awaitingRestrictedReturn = false
+    private var autoPromptShown = false
+    private var restrictedShown = false
     private val _state = MutableStateFlow(MainUiState())
     val state: StateFlow<MainUiState> = _state.asStateFlow()
 
@@ -59,10 +57,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val overlay = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
                 Settings.canDrawOverlays(app)
         _state.update { it.copy(isAccessibilityEnabled = acc, isOverlayGranted = overlay) }
-        if (awaitingRestrictedReturn) {
-            awaitingRestrictedReturn = false
-            restrictedDone = true
-            AppLog.i("Flow", "returned from restricted settings")
+        if (!autoPromptShown) {
+            autoPromptShown = true
+            if (!_state.value.isOptimized && !acc) startFlow()
+            return
         }
         if (flowActive) advance()
     }
@@ -70,45 +68,62 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun startFlow() {
         if (_state.value.isWorking) return
         flowActive = true
-        AppLog.i("Flow", "start, restrictedNeeded=${needsRestricted()}")
-        if (needsRestricted() && !restrictedDone) {
-            _state.update { it.copy(showRestrictedDialog = true) }
-        } else {
-            advance()
-        }
-    }
-
-    fun openRestrictedSettings() {
-        _state.update { it.copy(showRestrictedDialog = false) }
-        awaitingRestrictedReturn = true
-    }
-
-    fun skipRestricted() {
-        restrictedDone = true
-        _state.update { it.copy(showRestrictedDialog = false) }
-        if (flowActive) advance()
+        advance()
     }
 
     private fun advance() {
         val s = _state.value
         when {
+            !s.isAccessibilityEnabled && needsRestrictedHint() && !restrictedShown -> {
+                restrictedShown = true
+                _state.update {
+                    it.copy(
+                        showRestrictedDialog = true,
+                        showAccessibilityDialog = false,
+                        showOverlayDialog = false
+                    )
+                }
+            }
+
             !s.isAccessibilityEnabled ->
-                _state.update { it.copy(showAccessibilityDialog = true, showOverlayDialog = false) }
+                _state.update {
+                    it.copy(
+                        showRestrictedDialog = false,
+                        showAccessibilityDialog = true,
+                        showOverlayDialog = false
+                    )
+                }
 
             !s.isOverlayGranted ->
-                _state.update { it.copy(showOverlayDialog = true, showAccessibilityDialog = false) }
+                _state.update {
+                    it.copy(
+                        showRestrictedDialog = false,
+                        showAccessibilityDialog = false,
+                        showOverlayDialog = true
+                    )
+                }
 
             else -> {
                 flowActive = false
                 _state.update {
                     it.copy(
-                        showOverlayDialog = false,
-                        showAccessibilityDialog = false
+                        showRestrictedDialog = false,
+                        showAccessibilityDialog = false,
+                        showOverlayDialog = false
                     )
                 }
                 startChain()
             }
         }
+    }
+
+    fun onRestrictedOpenSettings() {
+        _state.update { it.copy(showRestrictedDialog = false) }
+    }
+
+    fun onRestrictedLater() {
+        flowActive = false
+        _state.update { it.copy(showRestrictedDialog = false) }
     }
 
     fun dialogAgreed() {
@@ -117,7 +132,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun dialogCancelled() {
         flowActive = false
-        _state.update { it.copy(showAccessibilityDialog = false, showOverlayDialog = false) }
+        _state.update {
+            it.copy(
+                showRestrictedDialog = false,
+                showAccessibilityDialog = false,
+                showOverlayDialog = false
+            )
+        }
     }
 
     fun dismissRestoreFailed() {
@@ -139,25 +160,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun confirmReboot() {
         _state.update { it.copy(showRebootDialog = false, isWorking = true) }
         viewModelScope.launch {
-            AppLog.i("Flow", "reboot requested")
             val ok = app.deps.newEngine().reboot()
             _state.update { it.copy(isWorking = false, rebootFailed = !ok) }
         }
     }
 
-    private fun needsRestricted(): Boolean {
+    private fun needsRestrictedHint(): Boolean {
         if (Build.VERSION.SDK_INT < 33) return false
-        return try {
-            val installer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        val installer = try {
+            if (Build.VERSION.SDK_INT >= 30) {
                 app.packageManager.getInstallSourceInfo(app.packageName).installingPackageName
             } else {
                 @Suppress("DEPRECATION")
                 app.packageManager.getInstallerPackageName(app.packageName)
             }
-            installer !in KNOWN_STORES
         } catch (_: Exception) {
-            true
+            null
         }
+        return installer !in KNOWN_STORES
     }
 
     private fun startChain() {
@@ -165,8 +185,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         intent.action = AdbEnablerService.ACTION_START_CHAIN
         try {
             app.startService(intent)
-        } catch (e: Exception) {
-            AppLog.e("Flow", "startService failed: ${e.message}")
+        } catch (_: Exception) {
             runLocal()
         }
     }
@@ -175,7 +194,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _state.update { it.copy(isWorking = true, progress = 0f) }
             val ok = app.deps.newEngine().optimize(callbacks())
-            AppLog.i("Flow", "local optimize result=$ok")
             if (ok) prefs.setHiddenSettingsApplied(true)
             _state.update { it.copy(isWorking = false, isOptimized = ok) }
         }
@@ -186,7 +204,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _state.update { it.copy(isWorking = true, progress = 0f) }
             val ok = app.deps.newEngine().restore(callbacks())
-            AppLog.i("Flow", "restore result=$ok")
             if (ok) {
                 prefs.setHiddenSettingsApplied(false)
                 _state.update { it.copy(isWorking = false, isOptimized = false) }
@@ -197,15 +214,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun callbacks() = OptimizationEngine.Callbacks(
-        onProgress = { p -> _state.update { it.copy(progress = p) } },
-        onError = { msg -> AppLog.e("Engine", msg) }
+        onProgress = { p -> _state.update { it.copy(progress = p) } }
     )
 
     private companion object {
         val KNOWN_STORES = setOf(
-            "com.android.vending", "com.xiaomi.market", "ru.vk.store",
-            "com.huawei.appmarket", "com.sec.android.app.samsungapps",
-            "com.oppo.market", "com.vivo.market", "com.amazon.venezia"
+            "com.android.vending",
+            "com.xiaomi.market",
+            "ru.vk.store",
+            "com.huawei.appmarket",
+            "com.sec.android.app.samsungapps"
         )
     }
 }
