@@ -11,7 +11,6 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketTimeoutException
 
-class AdbException(message: String, cause: Throwable? = null) : IOException(message, cause)
 
 class AdbClient(
     private val host: String = AppConstants.ADB_HOST,
