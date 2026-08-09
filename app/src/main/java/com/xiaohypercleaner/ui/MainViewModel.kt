@@ -10,10 +10,12 @@ import androidx.lifecycle.viewModelScope
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationEngine
 import com.xiaohypercleaner.service.AdbEnablerService
+import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -42,16 +44,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val state: StateFlow<MainUiState> = _state.asStateFlow()
 
     init {
-        // Наблюдение за состоянием оптимизации в DataStore
+        AppLog.i(TAG, "init started")
+
         viewModelScope.launch {
             prefs.isHiddenSettingsApplied.collect { applied ->
+                AppLog.i(TAG, "isHiddenSettingsApplied changed to $applied")
                 _state.update { it.copy(isOptimized = applied) }
             }
         }
 
-        // Наблюдение за результатом оптимизации из службы
         viewModelScope.launch {
             OptimizationNotifier.result.collect { result ->
+                AppLog.i(TAG, "notifier result: $result")
                 when (result) {
                     is OptimizationNotifier.Result.Success -> {
                         _state.update {
@@ -86,11 +90,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // При запуске проверяем restricted settings
-        checkRestrictedSettingsOnStart()
+        viewModelScope.launch {
+            checkRestrictedSettingsOnStart()
+        }
+        AppLog.i(TAG, "init completed")
     }
 
     fun refreshStatuses() {
+        AppLog.i(TAG, "refreshStatuses called")
         val component = ComponentName(app, AdbEnablerService::class.java).flattenToString()
         val acc = Settings.Secure.getString(
             app.contentResolver,
@@ -98,34 +105,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )?.contains(component) == true
         val overlay = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
                 Settings.canDrawOverlays(app)
+        AppLog.i(TAG, "refreshStatuses: accessibility=$acc, overlay=$overlay")
         _state.update { it.copy(isAccessibilityEnabled = acc, isOverlayGranted = overlay) }
         if (flowActive) advance()
     }
 
-    // Проверка restricted settings при запуске
-    private fun checkRestrictedSettingsOnStart() {
-        if (needsRestricted() && !restrictedSettingsAllowed()) {
+    private suspend fun checkRestrictedSettingsOnStart() {
+        val needs = needsRestricted()
+        val shown = prefs.hasShownRestrictedDialog.first()
+        AppLog.i(
+            TAG,
+            "checkRestrictedSettingsOnStart: needsRestricted=$needs, hasShownRestrictedDialog=$shown"
+        )
+
+        if (needs && !shown) {
+            AppLog.i(
+                TAG,
+                "checkRestrictedSettingsOnStart: showing restricted dialog for the first time"
+            )
+            prefs.setHasShownRestrictedDialog(true)
             _state.update { it.copy(showRestrictedDialog = true) }
         }
     }
 
-    // Вызывается из onResume для повторной проверки
     fun checkRestrictedSettingsOnResume() {
-        if (_state.value.showRestrictedDialog && restrictedSettingsAllowed()) {
-            // Пользователь разрешил restricted settings — закрываем диалог и открываем спец возможности
-            _state.update { it.copy(showRestrictedDialog = false) }
-            openAccessibilitySettingsAutomatically()
-        }
+        AppLog.i(TAG, "checkRestrictedSettingsOnResume called")
+        AppLog.i(TAG, "checkRestrictedSettingsOnResume: current state=${_state.value}")
     }
 
     fun startFlow() {
+        AppLog.i(TAG, "startFlow called, isWorking=${_state.value.isWorking}")
         if (_state.value.isWorking) return
-
-        // Проверка restricted settings (Android 13+ sideload)
-        if (needsRestricted() && !restrictedSettingsAllowed()) {
-            _state.update { it.copy(showRestrictedDialog = true) }
-            return
-        }
 
         flowActive = true
         advance()
@@ -133,8 +143,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun advance() {
         val s = _state.value
+        AppLog.i(TAG, "advance: acc=${s.isAccessibilityEnabled}, overlay=${s.isOverlayGranted}")
         when {
-            !s.isAccessibilityEnabled ->
+            !s.isAccessibilityEnabled -> {
+                AppLog.i(TAG, "advance: showing accessibility dialog")
                 _state.update {
                     it.copy(
                         showAccessibilityDialog = true,
@@ -142,8 +154,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         showRestrictedDialog = false
                     )
                 }
+            }
 
-            !s.isOverlayGranted ->
+            !s.isOverlayGranted -> {
+                AppLog.i(TAG, "advance: showing overlay dialog")
                 _state.update {
                     it.copy(
                         showOverlayDialog = true,
@@ -151,8 +165,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         showRestrictedDialog = false
                     )
                 }
+            }
 
             else -> {
+                AppLog.i(TAG, "advance: all permissions granted, starting chain")
                 flowActive = false
                 _state.update {
                     it.copy(
@@ -167,6 +183,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun dialogAgreed() {
+        AppLog.i(TAG, "dialogAgreed")
         _state.update {
             it.copy(
                 showAccessibilityDialog = false,
@@ -177,6 +194,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun dialogCancelled() {
+        AppLog.i(TAG, "dialogCancelled")
         flowActive = false
         _state.update {
             it.copy(
@@ -187,17 +205,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun showRestrictedDialog() {
-        _state.update { it.copy(showRestrictedDialog = true) }
-    }
-
     fun dismissRestrictedDialog() {
+        AppLog.i(TAG, "dismissRestrictedDialog — marking as shown, will not show again")
+        viewModelScope.launch {
+            prefs.setHasShownRestrictedDialog(true)
+        }
         _state.update { it.copy(showRestrictedDialog = false) }
-    }
-
-    // Автоматический переход в спец возможности после разрешения restricted settings
-    private fun openAccessibilitySettingsAutomatically() {
-        _state.update { it.copy(showAccessibilityDialog = true) }
     }
 
     fun dismissRestoreFailed() {
@@ -226,16 +239,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun startChain() {
-        val intent = Intent(app, AdbEnablerService::class.java)
-        intent.action = AdbEnablerService.ACTION_START_CHAIN
-        try {
-            app.startService(intent)
-        } catch (_: Exception) {
-            runLocal()
+        AppLog.i(TAG, "startChain: setting pending flag")
+        viewModelScope.launch {
+            prefs.setPendingOptimization(true)
+            AppLog.i(TAG, "startChain: pending flag set, opening accessibility settings")
+            openAccessibilitySettingsAutomatically()
         }
     }
 
     private fun runLocal() {
+        AppLog.i(TAG, "runLocal (fallback)")
         viewModelScope.launch {
             _state.update { it.copy(isWorking = true, progress = 0f) }
             val deps = XiaoHyperApp.testDeps ?: app.deps
@@ -276,7 +289,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         onProgress = { p -> _state.update { it.copy(progress = p) } }
     )
 
-    // Проверка restricted settings (Android 13+ sideload)
     private fun needsRestricted(): Boolean {
         if (Build.VERSION.SDK_INT < 33) return false
         return !isFromKnownStore()
@@ -290,35 +302,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 @Suppress("DEPRECATION")
                 app.packageManager.getInstallerPackageName(app.packageName)
             }
-            installer in KNOWN_STORES
-        } catch (_: Exception) {
+            val result = installer in KNOWN_STORES
+            AppLog.i(TAG, "isFromKnownStore: installer=$installer, result=$result")
+            result
+        } catch (e: Exception) {
+            AppLog.w(TAG, "isFromKnownStore: exception: ${e.message}")
             false
         }
     }
 
-    private fun restrictedSettingsAllowed(): Boolean {
-        if (Build.VERSION.SDK_INT < 33) return true
-        return try {
-            val appOps = app.getSystemService(android.app.AppOpsManager::class.java)
-            val mode = appOps.unsafeCheckOpNoThrow(
-                "android:restricted_settings",
-                android.os.Process.myUid(),
-                app.packageName
-            )
-            mode == android.app.AppOpsManager.MODE_ALLOWED
-        } catch (_: Exception) {
-            false
-        }
+    private fun openAccessibilitySettingsAutomatically() {
+        AppLog.i(TAG, "openAccessibilitySettingsAutomatically: showing accessibility dialog")
+        _state.update { it.copy(showAccessibilityDialog = true) }
     }
 
     companion object {
+        private const val TAG = "MainVM"
+
         private val KNOWN_STORES = listOf(
-            "com.android.vending",      // Google Play
-            "com.xiaomi.mimarket",       // Mi Market / GetApps
-            "ru.ozon.app.android",       // Ozon
-            "com.retailstore.android",   // RuStore
-            "com.huawei.appmarket",      // Huawei AppGallery
-            "com.samsung.android.app.galaxystore" // Samsung Galaxy Store
+            "com.android.vending",
+            "com.xiaomi.mimarket",
+            "ru.ozon.app.android",
+            "com.retailstore.android",
+            "com.huawei.appmarket",
+            "com.samsung.android.app.galaxystore"
         )
     }
 }

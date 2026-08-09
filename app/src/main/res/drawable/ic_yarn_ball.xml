@@ -1,38 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="60dp"
-    android:height="60dp"
-    android:viewportWidth="60"
-    android:viewportHeight="60">
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
 
-    <!-- Клубок ниток -->
     <path
         android:fillColor="#E91E63"
-        android:pathData="M30,30 m-25,0 a25,25 0 1,0 50,0 a25,25 0 1,0 -50,0" />
+        android:pathData="M24,24 m-18,0 a18,18 0 1,0 36,0 a18,18 0 1,0 -36,0" />
 
-    <!-- Обмотка ниток -->
     <path
         android:fillColor="@android:color/transparent"
-        android:pathData="M15,20 Q25,15 35,20 Q45,25 45,35 Q45,45 35,48 Q25,51 15,45 Q5,39 8,28 Q11,20 15,20"
-        android:strokeWidth="2"
+        android:pathData="M10,14 Q18,10 26,14 Q34,18 34,26 Q34,34 26,37 Q18,40 10,35 Q2,30 5,22 Q8,14 10,14"
+        android:strokeWidth="1.8"
         android:strokeColor="#F8BBD0" />
 
     <path
         android:fillColor="@android:color/transparent"
-        android:pathData="M12,30 Q20,25 30,28 Q40,31 42,40 Q44,49 35,52"
-        android:strokeWidth="2"
+        android:pathData="M8,24 Q14,20 22,22 Q30,24 32,31 Q34,38 27,40"
+        android:strokeWidth="1.8"
         android:strokeColor="#F8BBD0" />
 
     <path
         android:fillColor="@android:color/transparent"
-        android:pathData="M20,15 Q30,12 40,18 Q50,24 48,35"
-        android:strokeWidth="2"
+        android:pathData="M14,9 Q22,7 30,12 Q38,17 37,26"
+        android:strokeWidth="1.8"
         android:strokeColor="#F8BBD0" />
 
-    <!-- Хвостик нитки -->
     <path
         android:fillColor="@android:color/transparent"
-        android:pathData="M50,38 Q52,42 48,46 Q44,50 40,48"
-        android:strokeWidth="2.5"
+        android:pathData="M12,30 Q20,34 28,30 Q34,26 30,18"
+        android:strokeWidth="1.4"
+        android:strokeColor="#F8BBD0" />
+
+    <path
+        android:fillAlpha="0.6"
+        android:fillColor="#FCE4EC"
+        android:pathData="M18,14 Q20,10 24,12 Q22,16 18,14 Z" />
+
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M40,30 Q42,34 40,38 Q38,42 34,41"
+        android:strokeWidth="2"
         android:strokeColor="#E91E63" />
 </vector>

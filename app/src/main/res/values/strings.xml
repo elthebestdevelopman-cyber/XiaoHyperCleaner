@@ -44,10 +44,15 @@
     <string name="overlay_permission_title">Показ поверх других окон</string>
     <string name="overlay_permission_text">Разрешение нужно, чтобы показывать прогресс выполнения. Переключатель включится автоматически — просто подтвердите действие.</string>
 
-    <!-- Диалог restricted settings -->
+    <!-- Restricted/Forbidden settings dialog для Android 13 -->
     <string name="restricted_dialog_title">Ограниченные настройки</string>
     <string name="restricted_dialog_text">Для работы приложения необходимо разрешить ограниченные настройки. Откройте карточку приложения в настройках устройства, нажмите ⋮ в правом верхнем углу и выберите «Разрешить ограниченные настройки».</string>
     <string name="restricted_dialog_open">Открыть настройки</string>
+
+    <!-- Restricted/Forbidden settings dialog для Android 14+ -->
+    <string name="forbidden_dialog_title">Запрещённые настройки</string>
+    <string name="forbidden_dialog_text">Для работы приложения необходимо разрешить запрещённые настройки. Следуйте инструкции:\n\n1. Нажмите кнопку ниже, чтобы открыть настройки приложения\n2. В правом верхнем углу нажмите ⋮ (три точки)\n3. Выберите «Разрешить запрещённые настройки»\n4. Вернитесь в приложение</string>
+    <string name="forbidden_dialog_open">Открыть настройки приложения</string>
 
     <!-- Статусы -->
     <string name="status_working">Выполняется…</string>

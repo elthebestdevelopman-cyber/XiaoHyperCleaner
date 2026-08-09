@@ -1,104 +1,148 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="140dp"
-    android:height="140dp"
-    android:viewportWidth="140"
-    android:viewportHeight="140">
+    android:width="160dp"
+    android:height="160dp"
+    android:viewportWidth="160"
+    android:viewportHeight="160">
 
-    <!-- Тело робота-котика -->
+    <!-- Хвостик-антенна (за телом) -->
     <path
-        android:fillColor="#607D8B"
-        android:pathData="M45,55 L95,55 Q105,55 105,65 L105,115 Q105,125 95,125 L45,125 Q35,125 35,115 L35,65 Q35,55 45,55 Z" />
+        android:fillColor="@android:color/transparent"
+        android:pathData="M115,110 Q135,105 140,92"
+        android:strokeWidth="3"
+        android:strokeColor="#546E7A"
+        android:strokeLineCap="round" />
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M140,92 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
 
-    <!-- Уши -->
+    <!-- Тело (металлическое, округлое) -->
     <path
-        android:fillColor="#607D8B"
-        android:pathData="M40,40 L50,20 L60,40 Z" />
-    <path
-        android:fillColor="#607D8B"
-        android:pathData="M80,40 L90,20 L100,40 Z" />
+        android:fillColor="#B0BEC5"
+        android:pathData="M42,98 Q42,85 55,83 L105,83 Q118,85 118,98 L118,135 Q118,148 105,148 L55,148 Q42,148 42,135 Z" />
 
-    <!-- Внутренняя часть ушей -->
+    <!-- Тёмная грудная панель -->
     <path
-        android:fillColor="#FF8A80"
-        android:pathData="M45,38 L50,28 L55,38 Z" />
-    <path
-        android:fillColor="#FF8A80"
-        android:pathData="M85,38 L90,28 L95,38 Z" />
+        android:fillColor="#546E7A"
+        android:pathData="M62,98 Q62,90 72,90 L88,90 Q98,90 98,98 L98,130 Q98,138 88,138 L72,138 Q62,138 62,130 Z" />
 
-    <!-- Голова -->
+    <!-- Светящийся индикатор на груди -->
     <path
-        android:fillColor="#78909C"
-        android:pathData="M40,55 L100,55 Q108,55 108,63 L108,85 Q108,93 100,93 L40,93 Q32,93 32,85 L32,63 Q32,55 40,55 Z" />
+        android:fillColor="#4FC3F7"
+        android:pathData="M80,114 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+    <path
+        android:fillColor="#E1F5FE"
+        android:pathData="M80,114 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
 
-    <!-- Глаза -->
+    <!-- Левая лапка (металлическая) -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M50,70 m-8,0 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0" />
+        android:fillColor="#90A4AE"
+        android:pathData="M46,128 Q43,128 43,136 L43,148 Q43,153 49,153 L61,153 Q67,153 67,148 L67,136 Q67,128 61,128 Z" />
+    <!-- Правая лапка -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M90,70 m-8,0 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0" />
+        android:fillColor="#90A4AE"
+        android:pathData="M93,128 Q87,128 87,136 L87,148 Q87,153 93,153 L105,153 Q111,153 111,148 L111,136 Q111,128 105,128 Z" />
 
-    <!-- Зрачки -->
+    <!-- Светящиеся подушечки на лапках -->
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M51,146 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M58,146 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M96,146 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M103,146 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+
+    <!-- Голова (большая, металлическая, круглая) -->
+    <path
+        android:fillColor="#B0BEC5"
+        android:pathData="M30,52 Q30,15 80,15 Q130,15 130,52 Q130,88 80,88 Q30,88 30,52 Z" />
+
+    <!-- Левое кошачье ушко (металлическое) -->
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M45,22 L36,0 L62,18 Z" />
+    <!-- Правое кошачье ушко -->
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M115,22 L124,0 L98,18 Z" />
+
+    <!-- Светящаяся внутренняя часть ушек -->
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M47,20 L42,7 L57,17 Z" />
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M113,20 L118,7 L103,17 Z" />
+
+    <!-- Антенна на голове -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M80,15 L80,5"
+        android:strokeWidth="2.5"
+        android:strokeColor="#546E7A"
+        android:strokeLineCap="round" />
+    <path
+        android:fillColor="#FF5252"
+        android:pathData="M80,5 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+
+    <!-- Экран-лицо (тёмный, скруглённый) -->
     <path
         android:fillColor="#263238"
-        android:pathData="M50,70 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+        android:pathData="M42,42 Q42,28 80,28 Q118,28 118,42 L118,66 Q118,78 80,78 Q42,78 42,66 Z" />
+
+    <!-- Левый глаз (светящийся, круглый) -->
     <path
-        android:fillColor="#263238"
-        android:pathData="M90,70 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+        android:fillColor="#4FC3F7"
+        android:pathData="M58,52 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0" />
+    <!-- Правый глаз -->
+    <path
+        android:fillColor="#4FC3F7"
+        android:pathData="M102,52 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0" />
+
+    <!-- Внутренняя часть глаз (ярче) -->
+    <path
+        android:fillColor="#E1F5FE"
+        android:pathData="M58,52 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+    <path
+        android:fillColor="#E1F5FE"
+        android:pathData="M102,52 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
 
     <!-- Блики в глазах -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M52,68 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0" />
+        android:pathData="M60,49 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0" />
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M92,68 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0" />
+        android:pathData="M104,49 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0" />
 
-    <!-- Нос -->
-    <path
-        android:fillColor="#FF8A80"
-        android:pathData="M70,78 L66,82 L74,82 Z" />
-
-    <!-- Рот -->
+    <!-- Милый ротик (светящаяся дуга на экране) -->
     <path
         android:fillColor="@android:color/transparent"
-        android:pathData="M70,82 Q68,85 65,85 M70,82 Q72,85 75,85"
-        android:strokeWidth="1.5"
-        android:strokeColor="#455A64" />
-
-    <!-- Усы -->
-    <path
-        android:fillColor="@android:color/transparent"
-        android:pathData="M60,80 L50,78 M60,82 L50,82 M60,84 L50,86"
-        android:strokeWidth="1"
-        android:strokeColor="#455A64" />
-    <path
-        android:fillColor="@android:color/transparent"
-        android:pathData="M80,80 L90,78 M80,82 L90,82 M80,84 L90,86"
-        android:strokeWidth="1"
-        android:strokeColor="#455A64" />
-
-    <!-- Антенна -->
-    <path
-        android:fillColor="@android:color/transparent"
-        android:pathData="M70,55 L70,45"
+        android:pathData="M72,64 Q80,70 88,64"
         android:strokeWidth="2"
-        android:strokeColor="#455A64" />
-    <path
-        android:fillColor="#FF5722"
-        android:pathData="M70,43 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+        android:strokeColor="#4FC3F7"
+        android:strokeLineCap="round" />
 
-    <!-- Лапы -->
+    <!-- Румянец-индикаторы на щеках -->
+    <path
+        android:fillAlpha="0.8"
+        android:fillColor="#FF80AB"
+        android:pathData="M48,62 m-3,0 a3,2.5 0 1,0 6,0 a3,2.5 0 1,0 -6,0" />
+    <path
+        android:fillAlpha="0.8"
+        android:fillColor="#FF80AB"
+        android:pathData="M112,62 m-3,0 a3,2.5 0 1,0 6,0 a3,2.5 0 1,0 -6,0" />
+
+    <!-- Боковые винтики на голове -->
     <path
         android:fillColor="#546E7A"
-        android:pathData="M45,125 L45,135 Q45,138 48,138 L55,138 Q58,138 58,135 L58,125" />
+        android:pathData="M36,52 m-2.5,0 a2.5,2.5 0 1,0 5,0 a2.5,2.5 0 1,0 -5,0" />
     <path
         android:fillColor="#546E7A"
-        android:pathData="M82,125 L82,135 Q82,138 85,138 L92,138 Q95,138 95,135 L95,125" />
-
-    <!-- Пузо -->
-    <path
-        android:fillColor="#90A4AE"
-        android:pathData="M55,100 L85,100 Q90,100 90,105 L90,120 Q90,125 85,125 L55,125 Q50,125 50,120 L50,105 Q50,100 55,100 Z" />
+        android:pathData="M124,52 m-2.5,0 a2.5,2.5 0 1,0 5,0 a2.5,2.5 0 1,0 -5,0" />
 </vector>

@@ -40,14 +40,22 @@ import com.xiaohypercleaner.ui.theme.DarkGradientStart
 import com.xiaohypercleaner.ui.theme.GradientEnd
 import com.xiaohypercleaner.ui.theme.GradientStart
 import com.xiaohypercleaner.ui.theme.XiaoHyperCleanerTheme
+import com.xiaohypercleaner.util.AppLog
 import kotlinx.coroutines.delay
 
 class SplashActivity : ComponentActivity() {
+
+    companion object {
+        private const val TAG = "Splash"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppLog.i(TAG, "SplashActivity: onCreate")
         setContent {
             XiaoHyperCleanerTheme(darkTheme = isSystemInDarkTheme()) {
                 SplashContent {
+                    AppLog.i(TAG, "SplashActivity: navigating to MainActivity")
                     startActivity(Intent(this, MainActivity::class.java))
                     finish()
                 }
@@ -59,43 +67,52 @@ class SplashActivity : ComponentActivity() {
 @Composable
 private fun SplashContent(onFinished: () -> Unit) {
     LaunchedEffect(Unit) {
+        AppLog.i("Splash", "SplashContent: waiting 2500ms")
         delay(2500)
+        AppLog.i("Splash", "SplashContent: finishing")
         onFinished()
     }
 
     val infiniteTransition = rememberInfiniteTransition(label = "splash")
 
-    // Робокот слегка покачивается
-    val robotOffsetY by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = -8f,
+    val robotSway by infiniteTransition.animateFloat(
+        initialValue = -2f,
+        targetValue = 2f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
+            animation = tween(1800, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "robotSway"
     )
 
-    // Клубок перекатывается из лапы в лапу (влево-вправо)
     val yarnOffsetX by infiniteTransition.animateFloat(
-        initialValue = -35f,
-        targetValue = 35f,
+        initialValue = -28f,
+        targetValue = 28f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = FastOutSlowInEasing),
+            animation = tween(1400, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "yarnRoll"
     )
 
-    // Вращение клубка (перекатывание)
     val yarnRotation by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = 360f,
+        targetValue = 720f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = FastOutSlowInEasing),
+            animation = tween(2800, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "yarnRotate"
+    )
+
+    val yarnBounce by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = -4f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(700, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "yarnBounce"
     )
 
     Column(
@@ -113,29 +130,27 @@ private fun SplashContent(onFinished: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Робот-котик с клубком
         Box(
             contentAlignment = Alignment.BottomCenter,
             modifier = Modifier
-                .size(180.dp)
-                .offset(y = robotOffsetY.dp)
+                .size(200.dp)
+                .graphicsLayer { rotationZ = robotSway }
         ) {
-            // Робот-котик
             Image(
                 painter = painterResource(R.drawable.ic_robot_companion),
                 contentDescription = null,
-                modifier = Modifier.size(140.dp)
+                modifier = Modifier.size(200.dp)
             )
 
-            // Клубок ниток, перекатывающийся из лапы в лапу
             Image(
                 painter = painterResource(R.drawable.ic_yarn_ball),
                 contentDescription = null,
                 modifier = Modifier
-                    .size(40.dp)
-                    .offset(x = yarnOffsetX.dp, y = (-20).dp)
+                    .size(42.dp)
+                    .offset(x = yarnOffsetX.dp, y = (-18).dp)
                     .graphicsLayer {
                         rotationZ = yarnRotation
+                        translationY = yarnBounce * 3
                     }
             )
         }

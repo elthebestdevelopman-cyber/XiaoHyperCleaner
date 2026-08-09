@@ -44,10 +44,15 @@
     <string name="overlay_permission_title">Display over other apps</string>
     <string name="overlay_permission_text">This permission is needed to show progress. The switch will be enabled automatically — just confirm the action.</string>
 
-    <!-- Restricted settings dialog -->
+    <!-- Restricted/Forbidden settings dialog for Android 13 -->
     <string name="restricted_dialog_title">Restricted settings</string>
     <string name="restricted_dialog_text">To allow the app to work, you need to enable restricted settings. Open the app info screen, tap ⋮ in the top right corner and select "Allow restricted settings".</string>
     <string name="restricted_dialog_open">Open settings</string>
+
+    <!-- Restricted/Forbidden settings dialog for Android 14+ -->
+    <string name="forbidden_dialog_title">Forbidden settings</string>
+    <string name="forbidden_dialog_text">To allow the app to work, you need to enable forbidden settings. Follow these steps:\n\n1. Tap the button below to open app settings\n2. Tap ⋮ (three dots) in the top right corner\n3. Select "Allow forbidden settings"\n4. Return to the app</string>
+    <string name="forbidden_dialog_open">Open app settings</string>
 
     <!-- Statuses -->
     <string name="status_working">Working…</string>

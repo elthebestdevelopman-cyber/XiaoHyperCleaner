@@ -76,21 +76,30 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.service.AdbEnablerService
+import com.xiaohypercleaner.ui.components.InfoDialog
+import com.xiaohypercleaner.ui.components.MenuDialog
 import com.xiaohypercleaner.ui.theme.Blue500
 import com.xiaohypercleaner.ui.theme.DarkGradientEnd
 import com.xiaohypercleaner.ui.theme.DarkGradientStart
 import com.xiaohypercleaner.ui.theme.GradientEnd
 import com.xiaohypercleaner.ui.theme.GradientStart
 import com.xiaohypercleaner.ui.theme.XiaoHyperCleanerTheme
+import com.xiaohypercleaner.util.AppLog
 import kotlinx.coroutines.launch
 import java.io.File
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        private const val TAG = "MainAct"
+    }
+
     private lateinit var vm: MainViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppLog.i(TAG, "onCreate started")
+
         setContent {
             val prefs = (application as XiaoHyperApp).preferencesManager
             val isDark by prefs.isDarkTheme.collectAsState(initial = false)
@@ -101,6 +110,7 @@ class MainActivity : ComponentActivity() {
 
             LaunchedEffect(lifecycle) {
                 lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                    AppLog.i(TAG, "lifecycle RESUMED — refreshing statuses")
                     vm.refreshStatuses()
                     vm.checkRestrictedSettingsOnResume()
                 }
@@ -115,13 +125,25 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+        AppLog.i(TAG, "onCreate completed")
     }
 
     override fun onResume() {
         super.onResume()
+        AppLog.i(TAG, "onResume")
         if (::vm.isInitialized) {
             vm.checkRestrictedSettingsOnResume()
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        AppLog.i(TAG, "onPause")
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        AppLog.i(TAG, "onDestroy")
     }
 }
 
@@ -137,17 +159,42 @@ private fun MainContent(
     var menuOpen by remember { mutableStateOf(false) }
     var confirmRestore by remember { mutableStateOf(false) }
 
-    // Диалог restricted settings (показывается при запуске, если нужно)
+    AppLog.i("MainUI", "MainContent composed: state=$state")
+
     if (state.showRestrictedDialog) {
+        val isAndroid14Plus = Build.VERSION.SDK_INT >= 34
+        val title = if (isAndroid14Plus) {
+            stringResource(R.string.forbidden_dialog_title)
+        } else {
+            stringResource(R.string.restricted_dialog_title)
+        }
+        val text = if (isAndroid14Plus) {
+            stringResource(R.string.forbidden_dialog_text)
+        } else {
+            stringResource(R.string.restricted_dialog_text)
+        }
+        val buttonText = if (isAndroid14Plus) {
+            stringResource(R.string.forbidden_dialog_open)
+        } else {
+            stringResource(R.string.restricted_dialog_open)
+        }
+
         InfoDialog(
-            title = stringResource(R.string.restricted_dialog_title),
-            text = stringResource(R.string.restricted_dialog_text),
-            confirmText = stringResource(R.string.restricted_dialog_open),
+            title = title,
+            text = text,
+            confirmText = buttonText,
             onConfirm = {
+                AppLog.i(
+                    "MainUI",
+                    "restricted/forbidden dialog: open settings clicked (Android ${Build.VERSION.SDK_INT})"
+                )
                 vm.dismissRestrictedDialog()
                 openAppInfoSettings(context)
             },
-            onDismiss = { vm.dialogCancelled() }
+            onDismiss = {
+                AppLog.i("MainUI", "restricted/forbidden dialog: dismissed")
+                vm.dialogCancelled()
+            }
         )
     }
 
@@ -157,61 +204,89 @@ private fun MainContent(
             text = stringResource(R.string.accessibility_explanation_text),
             confirmText = stringResource(R.string.agree_and_open),
             onConfirm = {
+                AppLog.i("MainUI", "accessibility dialog: agreed")
                 vm.dialogAgreed()
                 openAccessibilitySettings(context)
             },
-            onDismiss = { vm.dialogCancelled() }
+            onDismiss = {
+                AppLog.i("MainUI", "accessibility dialog: cancelled")
+                vm.dialogCancelled()
+            }
         )
     }
+
     if (state.showOverlayDialog) {
         InfoDialog(
             title = stringResource(R.string.overlay_permission_title),
             text = stringResource(R.string.overlay_permission_text),
             confirmText = stringResource(R.string.allow),
             onConfirm = {
+                AppLog.i("MainUI", "overlay dialog: agreed")
                 vm.dialogAgreed()
                 openOverlaySettings(context)
             },
-            onDismiss = { vm.dialogCancelled() }
+            onDismiss = {
+                AppLog.i("MainUI", "overlay dialog: cancelled")
+                vm.dialogCancelled()
+            }
         )
     }
+
     if (confirmRestore) {
         InfoDialog(
             title = stringResource(R.string.restore_dialog_title),
             text = stringResource(R.string.restore_dialog_text),
             confirmText = stringResource(R.string.restore_confirm),
             onConfirm = {
+                AppLog.i("MainUI", "restore dialog: confirmed")
                 confirmRestore = false
                 vm.restoreOptimization()
             },
-            onDismiss = { confirmRestore = false }
+            onDismiss = {
+                AppLog.i("MainUI", "restore dialog: cancelled")
+                confirmRestore = false
+            }
         )
     }
+
     if (state.showRebootDialog) {
         InfoDialog(
             title = stringResource(R.string.reboot_dialog_title),
             text = stringResource(R.string.reboot_dialog_text),
             confirmText = stringResource(R.string.reboot_confirm),
-            onConfirm = vm::confirmReboot,
-            onDismiss = vm::dismissRebootDialog
+            onConfirm = {
+                AppLog.i("MainUI", "reboot dialog: confirmed")
+                vm.confirmReboot()
+            },
+            onDismiss = {
+                AppLog.i("MainUI", "reboot dialog: dismissed")
+                vm.dismissRebootDialog()
+            }
         )
     }
+
     if (state.rebootFailed) {
         InfoDialog(
             title = stringResource(R.string.reboot_dialog_title),
             text = stringResource(R.string.reboot_failed_text),
-            onDismiss = vm::dismissRebootFailed
+            onDismiss = {
+                AppLog.i("MainUI", "reboot failed dialog: dismissed")
+                vm.dismissRebootFailed()
+            }
         )
     }
+
     if (state.restoreFailed) {
         InfoDialog(
             title = stringResource(R.string.restore_dialog_title),
             text = stringResource(R.string.restore_failed_text),
-            onDismiss = vm::dismissRestoreFailed
+            onDismiss = {
+                AppLog.i("MainUI", "restore failed dialog: dismissed")
+                vm.dismissRestoreFailed()
+            }
         )
     }
 
-    // Финальный диалог после оптимизации
     if (state.showFinalDialog) {
         InfoDialog(
             title = stringResource(R.string.final_dialog_title),
@@ -226,6 +301,7 @@ private fun MainContent(
                 stringResource(R.string.final_dialog_send_log)
             },
             onConfirm = {
+                AppLog.i("MainUI", "final dialog: confirmed, success=${state.optimizationSuccess}")
                 vm.dismissFinalDialog()
                 if (state.optimizationSuccess) {
                     openRateApp(context)
@@ -233,7 +309,10 @@ private fun MainContent(
                     shareLog(context)
                 }
             },
-            onDismiss = { vm.dismissFinalDialog() }
+            onDismiss = {
+                AppLog.i("MainUI", "final dialog: dismissed")
+                vm.dismissFinalDialog()
+            }
         )
     }
 
@@ -241,23 +320,26 @@ private fun MainContent(
         MenuDialog(
             isDark = isDark,
             onDarkChange = onDarkChange,
-            onClose = { menuOpen = false },
-            onRate = { openRateApp(context) },
+            onClose = {
+                AppLog.i("MainUI", "menu: closed")
+                menuOpen = false
+            },
+            onRate = {
+                AppLog.i("MainUI", "menu: rate clicked")
+                openRateApp(context)
+            },
             onYooMoney = {
-                openWebView(
-                    context,
-                    "https://yoomoney.ru/to/410011379195150",
-                    "ЮMoney"
-                )
+                AppLog.i("MainUI", "menu: yoomoney clicked")
+                openWebView(context, "https://yoomoney.ru/to/410011379195150", "ЮMoney")
             },
             onCloudTips = {
-                openWebView(
-                    context,
-                    "https://pay.cloudtips.ru/p/90614cff",
-                    "CloudTips"
-                )
+                AppLog.i("MainUI", "menu: cloudtips clicked")
+                openWebView(context, "https://pay.cloudtips.ru/p/90614cff", "CloudTips")
             },
-            onShareLog = { shareLog(context) }
+            onShareLog = {
+                AppLog.i("MainUI", "menu: share log clicked")
+                shareLog(context)
+            }
         )
     }
 
@@ -279,7 +361,10 @@ private fun MainContent(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                IconButton(onClick = { menuOpen = true }) {
+                IconButton(onClick = {
+                    AppLog.i("MainUI", "menu button clicked")
+                    menuOpen = true
+                }) {
                     Text("⋮", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurface)
                 }
             }
@@ -304,11 +389,18 @@ private fun MainContent(
                 OptimizationCard(
                     state = state,
                     onOptimize = {
+                        AppLog.i("MainUI", "optimize button clicked")
                         view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                         vm.startFlow()
                     },
-                    onRestore = { confirmRestore = true },
-                    onReboot = vm::requestReboot
+                    onRestore = {
+                        AppLog.i("MainUI", "restore button clicked")
+                        confirmRestore = true
+                    },
+                    onReboot = {
+                        AppLog.i("MainUI", "reboot button clicked")
+                        vm.requestReboot()
+                    }
                 )
             }
             Spacer(Modifier.height(16.dp))
@@ -506,77 +598,17 @@ private fun DoneView(onRestore: () -> Unit, onReboot: () -> Unit) {
     ) { Text(stringResource(R.string.reboot_now)) }
 }
 
-@Composable
-private fun InfoDialog(
-    title: String,
-    text: String,
-    confirmText: String? = null,
-    onConfirm: (() -> Unit)? = null,
-    onDismiss: () -> Unit
-) {
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = onDismiss,
-            shape = RoundedCornerShape(20.dp),
-            title = { Text(title, fontWeight = FontWeight.SemiBold) },
-            text = { Text(text) },
-            confirmButton = {
-                if (confirmText != null && onConfirm != null) {
-                    androidx.compose.material3.TextButton(onClick = onConfirm) { Text(confirmText) }
-                } else {
-                    androidx.compose.material3.TextButton(onClick = onDismiss) {
-                        Text(
-                            stringResource(
-                                R.string.close
-                            )
-                        )
-                    }
-                }
-            },
-            dismissButton = {
-                if (confirmText != null) {
-                    androidx.compose.material3.TextButton(onClick = onDismiss) {
-                        Text(
-                            stringResource(
-                                R.string.cancel
-                            )
-                        )
-                    }
-                }
-            }
-        )
-    }
-}
-
-@Composable
-private fun MenuDialog(
-    isDark: Boolean,
-    onDarkChange: (Boolean) -> Unit,
-    onClose: () -> Unit,
-    onRate: () -> Unit,
-    onYooMoney: () -> Unit,
-    onCloudTips: () -> Unit,
-    onShareLog: () -> Unit
-) {
-    com.xiaohypercleaner.ui.components.MenuDialog(
-        isDark = isDark,
-        onDarkChange = onDarkChange,
-        onClose = onClose,
-        onRate = onRate,
-        onYooMoney = onYooMoney,
-        onCloudTips = onCloudTips,
-        onShareLog = onShareLog
-    )
-}
-
 private fun openUrl(context: Context, url: String) {
+    AppLog.i("OpenUrl", "opening url: $url")
     try {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        AppLog.e("OpenUrl", "failed to open url: ${e.message}")
     }
 }
 
 private fun openWebView(context: Context, url: String, title: String) {
+    AppLog.i("WebView", "opening webView: $url")
     try {
         val intent = Intent(context, WebViewActivity::class.java).apply {
             putExtra(WebViewActivity.EXTRA_URL, url)
@@ -584,63 +616,107 @@ private fun openWebView(context: Context, url: String, title: String) {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        AppLog.w("WebView", "WebView failed, fallback to browser: ${e.message}")
         openUrl(context, url)
     }
 }
 
 private fun shareLog(context: Context) {
+    AppLog.i("ShareLog", "shareLog requested")
     try {
-        val logFile = File(context.filesDir, "xhc.log")
-        if (!logFile.exists() || logFile.length() == 0L) {
+        AppLog.i("ShareLog", "preparing log file for sharing")
+
+        val logFile = AppLog.getLogFile()
+        if (logFile == null) {
+            AppLog.w("ShareLog", "log file is null (beta logging not initialized)")
             return
         }
+        AppLog.i(
+            "ShareLog",
+            "log file: ${logFile.absolutePath}, exists=${logFile.exists()}, size=${logFile.length()}"
+        )
+
+        if (!logFile.exists() || logFile.length() == 0L) {
+            AppLog.w("ShareLog", "log file is empty or not exists")
+            return
+        }
+
         val uri = FileProvider.getUriForFile(
             context,
             "${context.packageName}.fileprovider",
             logFile
         )
+        AppLog.i("ShareLog", "FileProvider uri: $uri")
+
         val shareIntent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "XiaoHyperCleaner log")
+            putExtra(Intent.EXTRA_SUBJECT, "XiaoHyperCleaner log ${System.currentTimeMillis()}")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(Intent.createChooser(shareIntent, "Share log"))
-    } catch (_: Exception) {
+        AppLog.i("ShareLog", "share intent sent successfully")
+    } catch (e: Exception) {
+        AppLog.e("ShareLog", "shareLog failed", e)
     }
 }
 
 private fun openAppInfoSettings(context: Context) {
+    AppLog.i("OpenSettings", "opening app info settings for restricted/forbidden settings")
     try {
         val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
             data = Uri.parse("package:${context.packageName}")
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
         context.startActivity(intent)
-    } catch (_: Exception) {
+        AppLog.i("OpenSettings", "app info settings opened successfully")
+    } catch (e: Exception) {
+        AppLog.w("OpenSettings", "app info failed, trying alternative: ${e.message}")
         try {
-            context.startActivity(Intent(Settings.ACTION_SETTINGS).apply {
+            val intent = Intent("android.settings.APPLICATION_DETAILS_SETTINGS").apply {
+                data = Uri.parse("package:${context.packageName}")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            })
-        } catch (_: Exception) {
+            }
+            context.startActivity(intent)
+            AppLog.i("OpenSettings", "alternative app info opened")
+        } catch (e2: Exception) {
+            AppLog.w(
+                "OpenSettings",
+                "alternative also failed, fallback to general settings: ${e2.message}"
+            )
+            try {
+                context.startActivity(Intent(Settings.ACTION_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+            } catch (_: Exception) {
+            }
         }
     }
 }
 
 private fun openOverlaySettings(context: Context) {
+    AppLog.i("OpenSettings", "opening overlay settings")
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        val intent = Intent(
-            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-            Uri.parse("package:${context.packageName}")
-        )
-        context.startActivity(intent)
+        try {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:${context.packageName}")
+            )
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            AppLog.w("OpenSettings", "overlay settings failed: ${e.message}")
+        }
     }
 }
 
 private fun openAccessibilitySettings(context: Context) {
+    AppLog.i("OpenSettings", "opening accessibility settings")
     val component = ComponentName(context, AdbEnablerService::class.java)
     val flattened = component.flattenToString()
+    AppLog.i("OpenSettings", "component flattened: $flattened")
+
     val deep = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
     val args = Bundle()
     args.putString("componentName", flattened)
@@ -651,16 +727,21 @@ private fun openAccessibilitySettings(context: Context) {
     deep.putExtra(":settings:show_fragment_args", args)
     try {
         context.startActivity(deep)
+        AppLog.i("OpenSettings", "deep link to accessibility opened")
         return
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        AppLog.w("OpenSettings", "deep link failed: ${e.message}")
     }
     try {
         context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-    } catch (_: Exception) {
+        AppLog.i("OpenSettings", "fallback to general accessibility settings")
+    } catch (e: Exception) {
+        AppLog.e("OpenSettings", "all accessibility open attempts failed", e)
     }
 }
 
 private fun openRateApp(context: Context) {
+    AppLog.i("OpenRate", "opening rate app")
     val pkg = context.packageName
     val schemes = listOf(
         "rustore://application/$pkg",
@@ -670,9 +751,12 @@ private fun openRateApp(context: Context) {
     for (s in schemes) {
         try {
             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s)))
+            AppLog.i("OpenRate", "opened via scheme: $s")
             return
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            AppLog.w("OpenRate", "scheme $s failed: ${e.message}")
         }
     }
+    AppLog.i("OpenRate", "fallback to web")
     openUrl(context, "https://play.google.com/store/apps/details?id=$pkg")
 }

@@ -13,8 +13,33 @@ class XiaoHyperApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        // Устанавливаем глобальный обработчик крашей ДО инициализации логгера
+        setupCrashHandler()
+
         AppLog.init(this)
-        deps = AppDependencies(this)
+        AppLog.i("App", "XiaoHyperApp: onCreate started")
+
+        try {
+            deps = AppDependencies(this)
+            AppLog.i("App", "XiaoHyperApp: deps created successfully")
+        } catch (e: Exception) {
+            AppLog.e("App", "XiaoHyperApp: failed to create deps", e)
+            throw e
+        }
+
+        AppLog.i("App", "XiaoHyperApp: onCreate completed")
+    }
+
+    private fun setupCrashHandler() {
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            try {
+                AppLog.e("CRASH", "Uncaught exception in thread ${thread.name}", throwable)
+            } catch (_: Exception) {
+            }
+            defaultHandler?.uncaughtException(thread, throwable)
+        }
     }
 
     companion object {
