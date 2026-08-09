@@ -38,7 +38,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VerifiedUser
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -49,10 +48,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -63,7 +59,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -73,7 +68,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
+import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -88,22 +83,29 @@ import com.xiaohypercleaner.ui.theme.GradientEnd
 import com.xiaohypercleaner.ui.theme.GradientStart
 import com.xiaohypercleaner.ui.theme.XiaoHyperCleanerTheme
 import kotlinx.coroutines.launch
+import java.io.File
 
 class MainActivity : ComponentActivity() {
+
+    private lateinit var vm: MainViewModel
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             val prefs = (application as XiaoHyperApp).preferencesManager
             val isDark by prefs.isDarkTheme.collectAsState(initial = false)
             val scope = rememberCoroutineScope()
-            val vm: MainViewModel = viewModel()
+            vm = viewModel()
             val state by vm.state.collectAsState()
             val lifecycle = LocalLifecycleOwner.current.lifecycle
+
             LaunchedEffect(lifecycle) {
                 lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                     vm.refreshStatuses()
+                    vm.checkRestrictedSettingsOnResume()
                 }
             }
+
             XiaoHyperCleanerTheme(darkTheme = isDark) {
                 MainContent(
                     state = state,
@@ -112,6 +114,13 @@ class MainActivity : ComponentActivity() {
                     vm = vm
                 )
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::vm.isInitialized) {
+            vm.checkRestrictedSettingsOnResume()
         }
     }
 }
@@ -127,6 +136,20 @@ private fun MainContent(
     val view = LocalView.current
     var menuOpen by remember { mutableStateOf(false) }
     var confirmRestore by remember { mutableStateOf(false) }
+
+    // Диалог restricted settings (показывается при запуске, если нужно)
+    if (state.showRestrictedDialog) {
+        InfoDialog(
+            title = stringResource(R.string.restricted_dialog_title),
+            text = stringResource(R.string.restricted_dialog_text),
+            confirmText = stringResource(R.string.restricted_dialog_open),
+            onConfirm = {
+                vm.dismissRestrictedDialog()
+                openAppInfoSettings(context)
+            },
+            onDismiss = { vm.dialogCancelled() }
+        )
+    }
 
     if (state.showAccessibilityDialog) {
         InfoDialog(
@@ -187,14 +210,54 @@ private fun MainContent(
             onDismiss = vm::dismissRestoreFailed
         )
     }
+
+    // Финальный диалог после оптимизации
+    if (state.showFinalDialog) {
+        InfoDialog(
+            title = stringResource(R.string.final_dialog_title),
+            text = if (state.optimizationSuccess) {
+                stringResource(R.string.final_dialog_success_text)
+            } else {
+                stringResource(R.string.final_dialog_failed_text)
+            },
+            confirmText = if (state.optimizationSuccess) {
+                stringResource(R.string.final_dialog_rate)
+            } else {
+                stringResource(R.string.final_dialog_send_log)
+            },
+            onConfirm = {
+                vm.dismissFinalDialog()
+                if (state.optimizationSuccess) {
+                    openRateApp(context)
+                } else {
+                    shareLog(context)
+                }
+            },
+            onDismiss = { vm.dismissFinalDialog() }
+        )
+    }
+
     if (menuOpen) {
         MenuDialog(
             isDark = isDark,
             onDarkChange = onDarkChange,
             onClose = { menuOpen = false },
             onRate = { openRateApp(context) },
-            onYooMoney = { openUrl(context, "https://yoomoney.ru/to/410011379195150") },
-            onCloudTips = { openUrl(context, "https://pay.cloudtips.ru/p/90614cff") }
+            onYooMoney = {
+                openWebView(
+                    context,
+                    "https://yoomoney.ru/to/410011379195150",
+                    "ЮMoney"
+                )
+            },
+            onCloudTips = {
+                openWebView(
+                    context,
+                    "https://pay.cloudtips.ru/p/90614cff",
+                    "CloudTips"
+                )
+            },
+            onShareLog = { shareLog(context) }
         )
     }
 
@@ -451,22 +514,34 @@ private fun InfoDialog(
     onConfirm: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
-    Dialog(onDismissRequest = onDismiss) {
-        AlertDialog(
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        androidx.compose.material3.AlertDialog(
             onDismissRequest = onDismiss,
             shape = RoundedCornerShape(20.dp),
             title = { Text(title, fontWeight = FontWeight.SemiBold) },
             text = { Text(text) },
             confirmButton = {
                 if (confirmText != null && onConfirm != null) {
-                    TextButton(onClick = onConfirm) { Text(confirmText) }
+                    androidx.compose.material3.TextButton(onClick = onConfirm) { Text(confirmText) }
                 } else {
-                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+                    androidx.compose.material3.TextButton(onClick = onDismiss) {
+                        Text(
+                            stringResource(
+                                R.string.close
+                            )
+                        )
+                    }
                 }
             },
             dismissButton = {
                 if (confirmText != null) {
-                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+                    androidx.compose.material3.TextButton(onClick = onDismiss) {
+                        Text(
+                            stringResource(
+                                R.string.cancel
+                            )
+                        )
+                    }
                 }
             }
         )
@@ -480,102 +555,76 @@ private fun MenuDialog(
     onClose: () -> Unit,
     onRate: () -> Unit,
     onYooMoney: () -> Unit,
-    onCloudTips: () -> Unit
+    onCloudTips: () -> Unit,
+    onShareLog: () -> Unit
 ) {
-    Dialog(onDismissRequest = onClose) {
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 8.dp
-        ) {
-            Column(
-                modifier = Modifier
-                    .verticalScroll(rememberScrollState())
-                    .padding(20.dp)
-                    .fillMaxWidth()
-            ) {
-                Text(
-                    stringResource(R.string.about_title),
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    stringResource(R.string.about_version),
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    stringResource(R.string.about_text),
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    stringResource(R.string.about_author),
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(16.dp))
-                OutlinedButton(
-                    onClick = onRate,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                ) { Text(stringResource(R.string.rate_app)) }
-                Spacer(Modifier.height(12.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        stringResource(R.string.menu_dark_theme),
-                        modifier = Modifier.weight(1f)
-                    )
-                    Switch(
-                        checked = isDark,
-                        onCheckedChange = onDarkChange,
-                        modifier = Modifier.scale(0.8f)
-                    )
-                }
-                Spacer(Modifier.height(12.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    stringResource(R.string.support_title),
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(8.dp))
-                Button(
-                    onClick = onYooMoney,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                ) { Text(stringResource(R.string.support_yoomoney)) }
-                Spacer(Modifier.height(8.dp))
-                Button(
-                    onClick = onCloudTips,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                ) { Text(stringResource(R.string.support_cloudtips)) }
-                Spacer(Modifier.height(12.dp))
-                TextButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.close))
-                }
-            }
-        }
-    }
+    com.xiaohypercleaner.ui.components.MenuDialog(
+        isDark = isDark,
+        onDarkChange = onDarkChange,
+        onClose = onClose,
+        onRate = onRate,
+        onYooMoney = onYooMoney,
+        onCloudTips = onCloudTips,
+        onShareLog = onShareLog
+    )
 }
 
 private fun openUrl(context: Context, url: String) {
     try {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     } catch (_: Exception) {
+    }
+}
+
+private fun openWebView(context: Context, url: String, title: String) {
+    try {
+        val intent = Intent(context, WebViewActivity::class.java).apply {
+            putExtra(WebViewActivity.EXTRA_URL, url)
+            putExtra(WebViewActivity.EXTRA_TITLE, title)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    } catch (_: Exception) {
+        openUrl(context, url)
+    }
+}
+
+private fun shareLog(context: Context) {
+    try {
+        val logFile = File(context.filesDir, "xhc.log")
+        if (!logFile.exists() || logFile.length() == 0L) {
+            return
+        }
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            logFile
+        )
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, "XiaoHyperCleaner log")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(shareIntent, "Share log"))
+    } catch (_: Exception) {
+    }
+}
+
+private fun openAppInfoSettings(context: Context) {
+    try {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.parse("package:${context.packageName}")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    } catch (_: Exception) {
+        try {
+            context.startActivity(Intent(Settings.ACTION_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+        } catch (_: Exception) {
+        }
     }
 }
 

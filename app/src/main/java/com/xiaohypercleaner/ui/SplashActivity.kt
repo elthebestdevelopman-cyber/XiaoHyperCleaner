@@ -1,10 +1,10 @@
 package com.xiaohypercleaner.ui
 
-import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -12,12 +12,13 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -26,26 +27,30 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xiaohypercleaner.R
+import com.xiaohypercleaner.ui.theme.DarkGradientEnd
+import com.xiaohypercleaner.ui.theme.DarkGradientStart
 import com.xiaohypercleaner.ui.theme.GradientEnd
 import com.xiaohypercleaner.ui.theme.GradientStart
+import com.xiaohypercleaner.ui.theme.XiaoHyperCleanerTheme
 import kotlinx.coroutines.delay
 
-@SuppressLint("CustomSplashScreen")
 class SplashActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            SplashContent {
-                startActivity(Intent(this, MainActivity::class.java))
-                finish()
+            XiaoHyperCleanerTheme(darkTheme = isSystemInDarkTheme()) {
+                SplashContent {
+                    startActivity(Intent(this, MainActivity::class.java))
+                    finish()
+                }
             }
         }
     }
@@ -53,63 +58,101 @@ class SplashActivity : ComponentActivity() {
 
 @Composable
 private fun SplashContent(onFinished: () -> Unit) {
-    val infinite = rememberInfiniteTransition(label = "splash")
-    val catY by infinite.animateFloat(
-        initialValue = 0f, targetValue = -14f,
-        animationSpec = infiniteRepeatable(tween(600), RepeatMode.Reverse),
-        label = "cat"
-    )
-    val yarnX by infinite.animateFloat(
-        initialValue = -50f, targetValue = 50f,
-        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
-        label = "yarn"
-    )
-    val yarnRot by infinite.animateFloat(
-        initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(900)),
-        label = "rot"
-    )
     LaunchedEffect(Unit) {
-        delay(2200)
+        delay(2500)
         onFinished()
     }
-    Box(
-        Modifier
+
+    val infiniteTransition = rememberInfiniteTransition(label = "splash")
+
+    // Робокот слегка покачивается
+    val robotOffsetY by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = -8f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "robotSway"
+    )
+
+    // Клубок перекатывается из лапы в лапу (влево-вправо)
+    val yarnOffsetX by infiniteTransition.animateFloat(
+        initialValue = -35f,
+        targetValue = 35f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "yarnRoll"
+    )
+
+    // Вращение клубка (перекатывание)
+    val yarnRotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "yarnRotate"
+    )
+
+    Column(
+        modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(GradientStart, GradientEnd)))
+            .background(
+                Brush.verticalGradient(
+                    colors = if (isSystemInDarkTheme()) {
+                        listOf(DarkGradientStart, DarkGradientEnd)
+                    } else {
+                        listOf(GradientStart, GradientEnd)
+                    }
+                )
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Column(
-            Modifier.align(Alignment.Center),
-            horizontalAlignment = Alignment.CenterHorizontally
+        // Робот-котик с клубком
+        Box(
+            contentAlignment = Alignment.BottomCenter,
+            modifier = Modifier
+                .size(180.dp)
+                .offset(y = robotOffsetY.dp)
         ) {
-            Box {
-                Image(
-                    painterResource(R.drawable.ic_robot_companion), null,
-                    Modifier
-                        .size(140.dp)
-                        .offset(y = catY.dp)
-                )
-                Image(
-                    painterResource(R.drawable.ic_yarn_ball), null,
-                    Modifier
-                        .size(44.dp)
-                        .align(Alignment.BottomCenter)
-                        .offset(x = yarnX.dp, y = 10.dp)
-                        .rotate(yarnRot)
-                )
-            }
-            Spacer(Modifier.height(28.dp))
-            Text(
-                stringResource(R.string.app_name),
-                fontSize = 28.sp, fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+            // Робот-котик
+            Image(
+                painter = painterResource(R.drawable.ic_robot_companion),
+                contentDescription = null,
+                modifier = Modifier.size(140.dp)
             )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                stringResource(R.string.splash_tagline),
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+
+            // Клубок ниток, перекатывающийся из лапы в лапу
+            Image(
+                painter = painterResource(R.drawable.ic_yarn_ball),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(40.dp)
+                    .offset(x = yarnOffsetX.dp, y = (-20).dp)
+                    .graphicsLayer {
+                        rotationZ = yarnRotation
+                    }
             )
         }
+
+        Text(
+            text = stringResource(R.string.app_name),
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 24.dp)
+        )
+
+        Text(
+            text = stringResource(R.string.splash_tagline),
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp)
+        )
     }
 }

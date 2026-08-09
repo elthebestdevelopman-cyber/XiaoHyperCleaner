@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.xiaohypercleaner.BuildConfig
 import com.xiaohypercleaner.R
 
 @Composable
@@ -67,7 +68,6 @@ fun MenuDialog(
     onRate: () -> Unit,
     onYooMoney: () -> Unit,
     onCloudTips: () -> Unit,
-    showShareLog: Boolean,
     onShareLog: () -> Unit
 ) {
     Dialog(onDismissRequest = onClose) {
@@ -114,15 +114,18 @@ fun MenuDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 ) { Text(stringResource(R.string.rate_app)) }
-                Spacer(Modifier.height(8.dp))
-                if (showShareLog) {
+
+                // Кнопка "Поделиться логом" — только в бета-сборке
+                if (BuildConfig.BETA) {
+                    Spacer(Modifier.height(8.dp))
                     OutlinedButton(
                         onClick = onShareLog,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
                     ) { Text(stringResource(R.string.log_share)) }
-                    Spacer(Modifier.height(8.dp))
                 }
+
+                Spacer(Modifier.height(12.dp))
                 HorizontalDivider()
                 Spacer(Modifier.height(12.dp))
                 Row(

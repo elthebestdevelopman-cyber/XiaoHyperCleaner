@@ -1,57 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">XiaoHyperCleaner</string>
+    <string name="splash_tagline">No root. No bloat. No data.</string>
+
+    <!-- Main buttons -->
     <string name="btn_optimize">Optimize</string>
     <string name="btn_restore">Undo optimization</string>
     <string name="reboot_now">Reboot</string>
+
+    <!-- Menu -->
     <string name="menu_about">About</string>
     <string name="menu_dark_theme">Dark theme</string>
     <string name="close">Close</string>
+    <string name="cancel">Cancel</string>
+    <string name="allow">Continue</string>
+
+    <!-- About -->
     <string name="about_title">About</string>
     <string name="about_version">Version 1.0</string>
     <string name="about_author">Author: ElthebestDevelopman</string>
     <string name="about_text">A configuration tool for Xiaomi, Redmi and Poco devices. Disables system analytics services and applies MIUI / HyperOS parameters via local ADB. All changes are reversible. Results depend on the device model and firmware version.</string>
+
+    <!-- Support -->
     <string name="support_title">Support development:</string>
     <string name="support_yoomoney">Support (YooMoney)</string>
     <string name="support_cloudtips">Support (CloudTips)</string>
     <string name="rate_app">Rate the app</string>
+    <string name="log_share">Share log</string>
+
+    <!-- App description -->
     <string name="app_description_short">Safe configuration for Xiaomi, Redmi, Poco. Disables unnecessary background processes and system analytics.</string>
     <string name="features_title">What the app does</string>
     <string name="feature_processes">Disables system analytics services</string>
     <string name="feature_speed">Configures MIUI / HyperOS system parameters</string>
     <string name="feature_battery">Works without root access</string>
-    <string name="restricted_title">Restricted settings</string>
-    <string name="restricted_text">Android restricts accessibility access for apps installed outside app stores. Open the app settings, tap ⋮ at the top and choose \"Allow restricted settings\", then return.</string>
-    <string name="restricted_open">Open settings</string>
-    <string name="restricted_later">Later</string>
+
+    <!-- Accessibility service dialog -->
     <string name="accessibility_explanation_title">Accessibility service</string>
     <string name="accessibility_explanation_text">The app needs the accessibility service for automatic setup. It enables wireless debugging once and performs the configuration. No data is collected.</string>
     <string name="agree_and_open">Enable</string>
+
+    <!-- Overlay permission dialog -->
     <string name="overlay_permission_title">Display over other apps</string>
     <string name="overlay_permission_text">This permission is needed to show progress. The switch will be enabled automatically — just confirm the action.</string>
-    <string name="allow">Continue</string>
-    <string name="cancel">Cancel</string>
+
+    <!-- Restricted settings dialog -->
+    <string name="restricted_dialog_title">Restricted settings</string>
+    <string name="restricted_dialog_text">To allow the app to work, you need to enable restricted settings. Open the app info screen, tap ⋮ in the top right corner and select "Allow restricted settings".</string>
+    <string name="restricted_dialog_open">Open settings</string>
+
+    <!-- Statuses -->
     <string name="status_working">Working…</string>
     <string name="status_done">Optimization complete!</string>
     <string name="status_done_description">Unnecessary background processes are disabled.</string>
+
+    <!-- Restore dialog -->
     <string name="restore_dialog_title">Undo optimization</string>
     <string name="restore_dialog_text">All parameters and services will be returned to their original state and the device will behave as before. Restore?</string>
     <string name="restore_confirm">Yes, restore</string>
     <string name="restore_failed_text">Failed to revert changes. Make sure wireless debugging is enabled and try again.</string>
+
+    <!-- Reboot dialog -->
     <string name="reboot_dialog_title">Reboot device</string>
     <string name="reboot_dialog_text">The device will be rebooted via ADB. Unsaved data may be lost. Continue?</string>
     <string name="reboot_confirm">Reboot</string>
     <string name="reboot_failed_text">Failed to send the reboot command via ADB.</string>
+
+    <!-- Final dialog -->
+    <string name="final_dialog_title">Configuration complete</string>
+    <string name="final_dialog_success_text">All parameters have been applied successfully. Ads in system apps are disabled and recommendations are no longer shown. If everything works well, please leave a review — it helps other users find the app.</string>
+    <string name="final_dialog_failed_text">Failed to apply all changes. Please send the log to the developer to identify the issues.</string>
+    <string name="final_dialog_rate">Rate the app</string>
+    <string name="final_dialog_send_log">Send log</string>
+
+    <!-- Accessibility chain texts -->
     <string name="allow_button_ru">Разрешить</string>
     <string name="allow_button_en">Allow</string>
     <string-array name="wireless_debugging_texts">
         <item>Wireless debugging</item>
         <item>Беспроводная отладка</item>
     </string-array>
+
+    <!-- Overlay -->
+    <string name="overlay_cancel">Cancel</string>
     <string name="overlay_preparing">Preparing…</string>
     <string name="overlay_connecting">Connecting to ADB…</string>
     <string name="overlay_method1">Applying system parameters…</string>
-    <string name="overlay_method2">Disabling services…</string>
-    <string name="overlay_method3">Rechecking…</string>
+    <string name="overlay_method2">Disabling analytics services…</string>
+    <string name="overlay_method3">Changing region…</string>
+    <string name="overlay_method4">Disabling ad services…</string>
     <string name="overlay_verifying">Final verification…</string>
     <string name="overlay_done">Configuration complete</string>
     <string name="overlay_failed">Failed to apply changes</string>
@@ -59,4 +96,11 @@
     <string name="overlay_searching_overlay_switch">Looking for the overlay switch…</string>
     <string name="overlay_searching_toggle">Looking for the wireless debugging toggle…</string>
     <string name="overlay_clicking_allow">Tapping "Allow"…</string>
+
+    <!-- Verification errors -->
+    <string name="overlay_verify_method1_failed">System settings verification failed</string>
+    <string name="overlay_verify_method2_failed">Analytics services verification failed</string>
+    <string name="overlay_verify_method3_failed">Region verification failed</string>
+    <string name="overlay_verify_method4_failed">Ad services verification failed</string>
+    <string name="overlay_final_verification_failed">Final verification failed</string>
 </resources>

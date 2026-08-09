@@ -6,8 +6,35 @@ import org.junit.Test
 class LogMaskerTest {
 
     @Test
-    fun masksIpv4() {
-        assertEquals("connect to *.*.*.* failed", LogMasker.mask("connect to 127.0.0.1 failed"))
+    fun masksRemoteIp() {
+        assertEquals(
+            "connect to *.*.*.* failed",
+            LogMasker.mask("connect to 192.168.1.10 failed")
+        )
+    }
+
+    @Test
+    fun keepsLocalhost() {
+        assertEquals(
+            "shell on 127.0.0.1",
+            LogMasker.mask("shell on 127.0.0.1")
+        )
+    }
+
+    @Test
+    fun masksLongHex() {
+        assertEquals(
+            "token <hex>",
+            LogMasker.mask("token 0123456789abcdef0123456789abcdef")
+        )
+    }
+
+    @Test
+    fun masksUserPath() {
+        assertEquals(
+            "path /data/user/*",
+            LogMasker.mask("path /data/user/0/com.xiaohypercleaner")
+        )
     }
 
     @Test
@@ -19,8 +46,10 @@ class LogMaskerTest {
     }
 
     @Test
-    fun keepsPackageCommand() {
-        val cmd = "pm disable-user --user 0 com.miui.analytics"
-        assertEquals(cmd, LogMasker.mask(cmd))
+    fun plainTextUntouched() {
+        assertEquals(
+            "optimize failed: timeout",
+            LogMasker.mask("optimize failed: timeout")
+        )
     }
 }

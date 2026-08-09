@@ -3,252 +3,387 @@ package com.xiaohypercleaner.service
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationEngine
-import com.xiaohypercleaner.util.waitFor
+import com.xiaohypercleaner.util.AppLog
+import com.xiaohypercleaner.util.OptimizationNotifier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class AdbEnablerService : AccessibilityService() {
 
     companion object {
-        const val ACTION_START_CHAIN = "com.xiaohypercleaner.START_CHAIN"
+        const val ACTION_START_CHAIN = "com.xiaohypercleaner.action.START_CHAIN"
+        private const val TAG = "XHC"
+        private const val STEP_DELAY_MS = 1500L
+        private const val OPTIMIZATION_DELAY_MS = 2000L
     }
 
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private val app get() = application as XiaoHyperApp
-    private val toggleTexts by lazy {
-        resources.getStringArray(R.array.wireless_debugging_texts)
+    private enum class Step {
+        IDLE, OVERLAY_TOGGLE, DEV_SETTINGS, WIRELESS_DEBUG, ALLOW_DIALOG, OPTIMIZATION, VERIFICATION, DONE
     }
-    private var overlayHandled = false
-    private var optimizationStarted = false
-    private var lastOverlayKey = ""
-    private var lastPercent = -1
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val handler = Handler(Looper.getMainLooper())
+    private var chainActive = false
+    private var chainCancelled = false
+    private var currentStep = Step.IDLE
+    private var lastOverlayUpdate = 0L
+
+    // Явно указываем тип, чтобы избежать рекурсивной проверки типов
+    private val cancelHandler: OverlayController.CancelHandler =
+        object : OverlayController.CancelHandler {
+            override fun cancelChain() {
+                this@AdbEnablerService.cancelChain()
+            }
+        }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        OverlayController.register(cancelHandler)
+        AppLog.i(TAG, "AdbEnablerService: connected")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_START_CHAIN) {
-            OverlayController.onCancel = { cancelChain() }
-            scope.launch {
-                if (!Settings.canDrawOverlays(this@AdbEnablerService)) {
-                    openOverlaySettings()
-                } else {
-                    openDevSettings()
-                }
-            }
+            startChain()
         }
         return START_NOT_STICKY
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null || optimizationStarted) return
-        val pkg = event.packageName?.toString() ?: return
-        if (!pkg.contains("settings", true)) return
-        val root = rootInActiveWindow ?: return
-
-        if (clickAllow(root)) return
-
-        if (!overlayHandled && !Settings.canDrawOverlays(this)) {
-            overlaySafe(
-                getString(R.string.status_working),
-                getString(R.string.overlay_searching_overlay_switch)
-            )
-            val sw = findOurOverlaySwitch(root)
-            if (sw != null) {
-                overlayHandled = true
-                if (sw.isCheckable && !sw.isChecked) {
-                    sw.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                }
-                scope.launch {
-                    val granted = waitFor(AppConstants.OVERLAY_WAIT_TIMEOUT_MS) {
-                        Settings.canDrawOverlays(this@AdbEnablerService)
-                    }
-                    if (granted) {
-                        overlaySafe(
-                            getString(R.string.status_working),
-                            getString(R.string.overlay_clicking_allow)
-                        )
-                        clickAllow(rootInActiveWindow)
-                        openDevSettings()
-                    }
-                }
-                return
-            }
-        }
-
-        if (!optimizationStarted) {
-            val toggle = findCheckable(root, *toggleTexts)
-            if (toggle != null) {
-                overlaySafe(
-                    getString(R.string.status_working),
-                    getString(R.string.overlay_searching_toggle)
-                )
-                if (toggle.isCheckable && !toggle.isChecked) {
-                    toggle.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                }
-                scope.launch {
-                    waitFor(AppConstants.UI_WAIT_TIMEOUT_MS) {
-                        val r = rootInActiveWindow ?: return@waitFor false
-                        val t = findCheckable(r, *toggleTexts)
-                        t != null && t.isChecked
-                    }
-                    overlaySafe(
-                        getString(R.string.status_working),
-                        getString(R.string.overlay_clicking_allow)
-                    )
-                    clickAllow(rootInActiveWindow)
-                    startOptimization()
+    override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        if (!chainActive || chainCancelled) return
+        when (event.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
+                val root = rootInActiveWindow ?: return
+                try {
+                    processEvent(root)
+                } finally {
+                    root.recycle()
                 }
             }
         }
     }
 
+    private fun processEvent(root: AccessibilityNodeInfo) {
+        when (currentStep) {
+            Step.OVERLAY_TOGGLE -> handleOverlayToggle(root)
+            Step.DEV_SETTINGS -> handleDevSettings(root)
+            Step.WIRELESS_DEBUG -> handleWirelessDebug(root)
+            Step.ALLOW_DIALOG -> handleAllowDialog(root)
+            else -> {}
+        }
+    }
+
+    override fun onInterrupt() {
+        cancelChain()
+    }
+
+    private fun startChain() {
+        if (chainActive) return
+        chainActive = true
+        chainCancelled = false
+        currentStep = Step.OVERLAY_TOGGLE
+        OptimizationNotifier.setRunning()
+        startOverlay()
+        AppLog.i(TAG, "AdbEnablerService: chain started")
+
+        overlaySafe(getString(R.string.overlay_searching_overlay_switch))
+        openOverlaySettings()
+    }
+
+    private fun handleOverlayToggle(root: AccessibilityNodeInfo) {
+        val texts = listOf(
+            getString(R.string.overlay_permission_title),
+            "Display over other apps",
+            "Поверх других приложений",
+            "Отображать поверх других окон",
+            "Над другими приложениями"
+        )
+        val node = findNodeByText(root, texts) ?: return
+
+        val switch = findSwitchNode(node)
+        if (switch != null && !switch.isChecked) {
+            switch.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            AppLog.i(TAG, "AdbEnablerService: overlay toggle clicked")
+        }
+
+        handler.postDelayed({
+            if (!chainCancelled) {
+                currentStep = Step.DEV_SETTINGS
+                overlaySafe(getString(R.string.overlay_searching_toggle))
+                openDevSettings()
+            }
+        }, STEP_DELAY_MS)
+    }
+
+    private fun handleDevSettings(root: AccessibilityNodeInfo) {
+        val texts = resources.getStringArray(R.array.wireless_debugging_texts).toList()
+        val node = findNodeByText(root, texts) ?: return
+
+        val switch = findSwitchNode(node)
+        if (switch != null && !switch.isChecked) {
+            switch.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            AppLog.i(TAG, "AdbEnablerService: wireless debug toggle clicked")
+            currentStep = Step.ALLOW_DIALOG
+            overlaySafe(getString(R.string.overlay_clicking_allow))
+        }
+    }
+
+    private fun handleWirelessDebug(root: AccessibilityNodeInfo) {
+        val texts = resources.getStringArray(R.array.wireless_debugging_texts).toList()
+        val node = findNodeByText(root, texts) ?: return
+
+        val switch = findSwitchNode(node)
+        if (switch != null && !switch.isChecked) {
+            switch.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            AppLog.i(TAG, "AdbEnablerService: wireless debug enabled")
+            currentStep = Step.ALLOW_DIALOG
+            overlaySafe(getString(R.string.overlay_clicking_allow))
+        }
+    }
+
+    private fun handleAllowDialog(root: AccessibilityNodeInfo) {
+        val texts = listOf(
+            getString(R.string.allow_button_ru),
+            getString(R.string.allow_button_en),
+            "Разрешить",
+            "Allow",
+            "ОК",
+            "OK"
+        )
+        val node = findNodeByText(root, texts) ?: return
+
+        node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        AppLog.i(TAG, "AdbEnablerService: allow button clicked")
+
+        handler.postDelayed({
+            if (!chainCancelled) {
+                currentStep = Step.OPTIMIZATION
+                overlaySafe(getString(R.string.overlay_connecting))
+                runOptimization()
+            }
+        }, OPTIMIZATION_DELAY_MS)
+    }
+
+    private fun openOverlaySettings() {
+        try {
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                data = Uri.parse("package:$packageName")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+        } catch (_: Exception) {
+            try {
+                startActivity(Intent(Settings.ACTION_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    private fun openDevSettings() {
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+        } catch (_: Exception) {
+            try {
+                startActivity(Intent(Settings.ACTION_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    private fun runOptimization() {
+        scope.launch {
+            try {
+                val app = application as XiaoHyperApp
+                val deps = XiaoHyperApp.testDeps ?: app.deps
+                val engine = deps.newEngine()
+
+                val callbacks = OptimizationEngine.Callbacks(
+                    onStage = { stage -> overlayStage(stage) },
+                    onProgress = { p -> overlayProgress(p) },
+                    onError = { err -> overlayError(err) }
+                )
+
+                overlaySafe(getString(R.string.overlay_connecting))
+                val ok = engine.optimize(callbacks)
+
+                if (ok) {
+                    currentStep = Step.VERIFICATION
+                    overlaySafe(getString(R.string.overlay_verifying))
+
+                    val verification = engine.verifyAll()
+                    if (verification.success) {
+                        deps.preferencesManager.setHiddenSettingsApplied(true)
+                        OptimizationNotifier.setSuccess(verification.details)
+                        overlaySafe(getString(R.string.overlay_done))
+                    } else {
+                        OptimizationNotifier.setFailure(
+                            verification.failedItems,
+                            verification.details
+                        )
+                        overlaySafe(getString(R.string.overlay_failed))
+                    }
+                } else {
+                    OptimizationNotifier.setFailure(listOf("optimization"), "Optimization failed")
+                    overlaySafe(getString(R.string.overlay_failed))
+                }
+
+                finishChain()
+            } catch (e: Exception) {
+                AppLog.e(TAG, "AdbEnablerService: optimization failed: ${e.message}")
+                OptimizationNotifier.setFailure(listOf("exception"), e.message ?: "Unknown error")
+                overlaySafe(getString(R.string.overlay_failed))
+                finishChain()
+            }
+        }
+    }
+
+    private fun finishChain() {
+        chainActive = false
+        currentStep = Step.DONE
+        OverlayController.clear()
+        AppLog.i(TAG, "AdbEnablerService: chain finished")
+        handler.postDelayed({
+            stopOverlay()
+            disableSelf()
+            stopSelf()
+        }, 1500L)
+    }
+
     private fun cancelChain() {
-        optimizationStarted = true
-        OverlayController.onCancel = null
+        if (chainCancelled) return
+        chainCancelled = true
+        chainActive = false
+        currentStep = Step.IDLE
+        OptimizationNotifier.reset()
+        AppLog.i(TAG, "AdbEnablerService: chain cancelled")
+        OverlayController.clear()
         stopOverlay()
         disableSelf()
         stopSelf()
     }
 
-    private fun clickAllow(root: AccessibilityNodeInfo?): Boolean {
-        if (root == null) return false
-        for (text in arrayOf(
-            getString(R.string.allow_button_ru),
-            getString(R.string.allow_button_en)
-        )) {
-            val nodes = root.findAccessibilityNodeInfosByText(text) ?: continue
-            for (n in nodes) {
-                val cls = n.className?.toString() ?: continue
-                if (n.isClickable && cls.contains("Button")) {
-                    n.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    return true
-                }
-            }
-        }
-        return false
+    override fun onDestroy() {
+        OverlayController.clear()
+        scope.cancel()
+        super.onDestroy()
     }
 
-    private fun findOurOverlaySwitch(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        val label = applicationInfo.loadLabel(packageManager).toString()
-        fun walk(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
-            if (node == null) return null
-            val text = node.text?.toString().orEmpty()
-            if (node.isCheckable && text.contains(label, true)) return node
-            for (i in 0 until node.childCount) {
-                val r = walk(node.getChild(i))
-                if (r != null) return r
-            }
-            return null
-        }
-        return walk(root)
-    }
+    // ===== Helpers =====
 
-    private fun findCheckable(
+    private fun findNodeByText(
         root: AccessibilityNodeInfo,
-        vararg texts: String
+        texts: List<String>
     ): AccessibilityNodeInfo? {
-        for (t in texts) {
-            val nodes = root.findAccessibilityNodeInfosByText(t) ?: continue
-            for (n in nodes) if (n.isCheckable) return n
+        for (text in texts) {
+            val nodes = root.findAccessibilityNodeInfosByText(text)
+            if (nodes.isNotEmpty()) {
+                return nodes.firstOrNull()
+            }
         }
         return null
     }
 
-    private fun openOverlaySettings() {
-        startActivity(
-            Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
-    }
-
-    private fun openDevSettings() {
-        startActivity(
-            Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
-        scope.launch {
-            waitFor(AppConstants.DEV_SETTINGS_FALLBACK_MS) { optimizationStarted }
-            if (!optimizationStarted) startOptimization()
+    private fun findSwitchNode(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val className = node.className?.toString() ?: ""
+        if (className.contains("Switch") || className.contains("Toggle")) {
+            return node
         }
-    }
-
-    private fun startOptimization() {
-        if (optimizationStarted) return
-        optimizationStarted = true
-        scope.launch {
-            val engine = app.deps.newEngine()
-            val result = engine.optimize(
-                OptimizationEngine.Callbacks(
-                    onStage = { stage ->
-                        val text = when (stage) {
-                            "connecting" -> getString(R.string.overlay_connecting)
-                            "method1" -> getString(R.string.overlay_method1)
-                            "method2" -> getString(R.string.overlay_method2)
-                            "method3" -> getString(R.string.overlay_method3)
-                            "verifying" -> getString(R.string.overlay_verifying)
-                            else -> ""
-                        }
-                        if (text.isNotEmpty()) overlaySafe(text, "")
-                    },
-                    onProgress = { p -> overlayProgress(p) },
-                    onError = { overlaySafe(getString(R.string.overlay_connect_failed), "") }
-                )
-            )
-            if (result) {
-                app.preferencesManager.setHiddenSettingsApplied(true)
-                overlaySafe(getString(R.string.overlay_done), "")
-            } else {
-                overlaySafe(getString(R.string.overlay_failed), "")
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val result = findSwitchNode(child)
+            if (result != null) {
+                child.recycle()
+                return result
             }
-            delay(2500)
-            OverlayController.onCancel = null
-            stopOverlay()
-            disableSelf()
-            stopSelf()
+            child.recycle()
         }
+        return null
     }
 
-    private fun overlaySafe(status: String, detail: String) {
-        val key = "$status|$detail"
-        if (key == lastOverlayKey) return
-        lastOverlayKey = key
-        startService(
-            Intent(this, OverlayService::class.java)
-                .putExtra("status", status)
-                .putExtra("detail", detail)
-        )
-    }
-
-    private fun overlayProgress(p: Float) {
-        val pct = (p * 100).toInt()
-        if (pct == lastPercent) return
-        lastPercent = pct
-        startService(Intent(this, OverlayService::class.java).putExtra("progress", p))
+    private fun startOverlay() {
+        try {
+            val intent = Intent(this, OverlayService::class.java)
+            intent.putExtra("status", getString(R.string.status_working))
+            intent.putExtra("progress", 0f)
+            startService(intent)
+        } catch (e: Exception) {
+            AppLog.w(TAG, "AdbEnablerService: failed to start overlay: ${e.message}")
+        }
     }
 
     private fun stopOverlay() {
-        stopService(Intent(this, OverlayService::class.java))
+        try {
+            stopService(Intent(this, OverlayService::class.java))
+        } catch (e: Exception) {
+            AppLog.w(TAG, "AdbEnablerService: failed to stop overlay: ${e.message}")
+        }
     }
 
-    override fun onInterrupt() {}
+    private fun overlaySafe(text: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastOverlayUpdate < 500) return
+        lastOverlayUpdate = now
+        try {
+            val intent = Intent(this, OverlayService::class.java)
+            intent.putExtra("detail", text)
+            startService(intent)
+        } catch (e: Exception) {
+            AppLog.w(TAG, "AdbEnablerService: overlay detail failed: ${e.message}")
+        }
+    }
 
-    override fun onDestroy() {
-        OverlayController.onCancel = null
-        scope.cancel()
-        stopOverlay()
-        super.onDestroy()
+    private fun overlayProgress(progress: Float) {
+        try {
+            val intent = Intent(this, OverlayService::class.java)
+            intent.putExtra("progress", progress)
+            startService(intent)
+        } catch (e: Exception) {
+            AppLog.w(TAG, "AdbEnablerService: overlay progress failed: ${e.message}")
+        }
+    }
+
+    private fun overlayStage(stage: String) {
+        val text = when (stage) {
+            "connecting" -> getString(R.string.overlay_connecting)
+            "method1" -> getString(R.string.overlay_method1)
+            "method2" -> getString(R.string.overlay_method2)
+            "method3" -> getString(R.string.overlay_method3)
+            "method4" -> getString(R.string.overlay_method4)
+            "verifying" -> getString(R.string.overlay_verifying)
+            else -> getString(R.string.overlay_preparing)
+        }
+        overlaySafe(text)
+    }
+
+    private fun overlayError(error: String) {
+        val text = when (error) {
+            "connect_failed" -> getString(R.string.overlay_connect_failed)
+            "verify_method1_failed" -> getString(R.string.overlay_verify_method1_failed)
+            "verify_method2_failed" -> getString(R.string.overlay_verify_method2_failed)
+            "verify_method3_failed" -> getString(R.string.overlay_verify_method3_failed)
+            "verify_method4_failed" -> getString(R.string.overlay_verify_method4_failed)
+            "final_verification_failed" -> getString(R.string.overlay_final_verification_failed)
+            else -> getString(R.string.overlay_failed)
+        }
+        overlaySafe(text)
     }
 }

@@ -12,7 +12,15 @@ class XiaoHyperApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         AppLog.init(this)
         deps = AppDependencies(this)
+    }
+
+    companion object {
+        lateinit var instance: XiaoHyperApp
+            private set
+
+        var testDeps: AppDependencies? = null
     }
 }

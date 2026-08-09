@@ -1,26 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="48dp"
-    android:height="48dp"
-    android:viewportWidth="48"
-    android:viewportHeight="48">
+    android:width="60dp"
+    android:height="60dp"
+    android:viewportWidth="60"
+    android:viewportHeight="60">
+
+    <!-- Клубок ниток -->
     <path
-        android:fillColor="#FF7043"
-        android:pathData="M24,24 m-16,0 a16,16 0 1,1 32,0 a16,16 0 1,1 -32,0" />
+        android:fillColor="#E91E63"
+        android:pathData="M30,30 m-25,0 a25,25 0 1,0 50,0 a25,25 0 1,0 -50,0" />
+
+    <!-- Обмотка ниток -->
     <path
-        android:pathData="M10,18 Q24,10 38,18"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M15,20 Q25,15 35,20 Q45,25 45,35 Q45,45 35,48 Q25,51 15,45 Q5,39 8,28 Q11,20 15,20"
         android:strokeWidth="2"
-        android:strokeColor="#FFE0B2" />
+        android:strokeColor="#F8BBD0" />
+
     <path
-        android:pathData="M8,26 Q24,18 40,26"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M12,30 Q20,25 30,28 Q40,31 42,40 Q44,49 35,52"
         android:strokeWidth="2"
-        android:strokeColor="#FFE0B2" />
+        android:strokeColor="#F8BBD0" />
+
     <path
-        android:pathData="M12,33 Q24,26 36,33"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M20,15 Q30,12 40,18 Q50,24 48,35"
         android:strokeWidth="2"
-        android:strokeColor="#FFE0B2" />
+        android:strokeColor="#F8BBD0" />
+
+    <!-- Хвостик нитки -->
     <path
-        android:pathData="M38,30 Q46,34 44,42"
-        android:strokeWidth="2"
-        android:strokeColor="#FF7043" />
+        android:fillColor="@android:color/transparent"
+        android:pathData="M50,38 Q52,42 48,46 Q44,50 40,48"
+        android:strokeWidth="2.5"
+        android:strokeColor="#E91E63" />
 </vector>
