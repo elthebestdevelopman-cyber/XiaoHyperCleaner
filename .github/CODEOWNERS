@@ -1,0 +1,16 @@
+# Это файл CODEOWNERS для XiaoHyperCleaner
+# Формат: <путь> <владелец>
+# Владелец назначается ревьюером при pull request'ах, затрагивающих эти файлы
+
+# Все файлы по умолчанию — владелец ElthebestDevelopman
+* @elthebestdevelopman-cyber
+
+# Критичные файлы (ядро проекта)
+app/src/main/java/com/xiaohypercleaner/data/OptimizationEngine.kt @elthebestdevelopman-cyber
+app/src/main/java/com/xiaohypercleaner/data/AdbClient.kt @elthebestdevelopman-cyber
+app/src/main/java/com/xiaohypercleaner/service/AdbEnablerService.kt @elthebestdevelopman-cyber
+
+# Документация
+README.md @elthebestdevelopman-cyber
+README.en.md @elthebestdevelopman-cyber
+CHANGELOG.md @elthebestdevelopman-cyber
