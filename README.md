@@ -2,6 +2,12 @@
 
 **Без root. Без лишнего. Без данных.**
 
+<div align="center">
+
+**🇷🇺 Русский** | 🇬🇧 [English](README.en.md)
+
+</div>
+
 Инструмент для отключения системной аналитики и рекламы на устройствах **Xiaomi**, **Redmi** и **Poco** через локальный ADB. Работает без root-прав, все изменения полностью обратимы.
 
 [![Version](https://img.shields.io/badge/version-1.0--beta2-blue)](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/releases)
