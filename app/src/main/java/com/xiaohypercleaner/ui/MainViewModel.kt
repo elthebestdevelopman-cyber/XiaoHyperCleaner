@@ -9,6 +9,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationEngine
+import com.xiaohypercleaner.data.OptimizationOptions
+import com.xiaohypercleaner.data.OptimizationReport
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
@@ -27,12 +29,17 @@ data class MainUiState(
     val isOverlayGranted: Boolean = false,
     val showAccessibilityDialog: Boolean = false,
     val showOverlayDialog: Boolean = false,
+    val showOptionsDialog: Boolean = false,
+    val showDnsWarningDialog: Boolean = false,
     val showRestrictedDialog: Boolean = false,
+    val dnsFilterEnabled: Boolean = false,
     val showRebootDialog: Boolean = false,
     val rebootFailed: Boolean = false,
     val restoreFailed: Boolean = false,
     val showFinalDialog: Boolean = false,
-    val optimizationSuccess: Boolean = false
+    val optimizationSuccess: Boolean = false,
+    val finalReport: String = "",
+    val accessibilityAttempts: Int = 0
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -54,6 +61,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch {
+            prefs.dnsFilterEnabled.collect { enabled ->
+                AppLog.i(TAG, "dnsFilterEnabled changed to $enabled")
+                _state.update { it.copy(dnsFilterEnabled = enabled) }
+            }
+        }
+
+        viewModelScope.launch {
             OptimizationNotifier.result.collect { result ->
                 AppLog.i(TAG, "notifier result: $result")
                 when (result) {
@@ -63,7 +77,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 isWorking = false,
                                 isOptimized = true,
                                 showFinalDialog = true,
-                                optimizationSuccess = true
+                                optimizationSuccess = true,
+                                finalReport = result.details
                             )
                         }
                         OptimizationNotifier.reset()
@@ -75,7 +90,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 isWorking = false,
                                 isOptimized = false,
                                 showFinalDialog = true,
-                                optimizationSuccess = false
+                                optimizationSuccess = false,
+                                finalReport = result.details
                             )
                         }
                         OptimizationNotifier.reset()
@@ -90,9 +106,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        viewModelScope.launch {
-            checkRestrictedSettingsOnStart()
-        }
         AppLog.i(TAG, "init completed")
     }
 
@@ -110,33 +123,80 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (flowActive) advance()
     }
 
-    private suspend fun checkRestrictedSettingsOnStart() {
-        val needs = needsRestricted()
-        val shown = prefs.hasShownRestrictedDialog.first()
-        AppLog.i(
-            TAG,
-            "checkRestrictedSettingsOnStart: needsRestricted=$needs, hasShownRestrictedDialog=$shown"
-        )
-
-        if (needs && !shown) {
-            AppLog.i(
-                TAG,
-                "checkRestrictedSettingsOnStart: showing restricted dialog for the first time"
-            )
-            prefs.setHasShownRestrictedDialog(true)
-            _state.update { it.copy(showRestrictedDialog = true) }
-        }
-    }
-
     fun checkRestrictedSettingsOnResume() {
         AppLog.i(TAG, "checkRestrictedSettingsOnResume called")
-        AppLog.i(TAG, "checkRestrictedSettingsOnResume: current state=${_state.value}")
+
+        // Если мы пытались включить accessibility, но не получилось — показываем restricted dialog
+        if (_state.value.accessibilityAttempts > 0 && !_state.value.isAccessibilityEnabled) {
+            AppLog.i(
+                TAG,
+                "checkRestrictedSettingsOnResume: accessibility not enabled after ${_state.value.accessibilityAttempts} attempts"
+            )
+            if (needsRestrictedSettings()) {
+                AppLog.i(TAG, "checkRestrictedSettingsOnResume: showing restricted dialog")
+                _state.update { it.copy(showRestrictedDialog = true) }
+            }
+        }
     }
 
     fun startFlow() {
         AppLog.i(TAG, "startFlow called, isWorking=${_state.value.isWorking}")
         if (_state.value.isWorking) return
+        _state.update { it.copy(showOptionsDialog = true) }
+    }
 
+    fun optionsDialogConfirmed() {
+        AppLog.i(TAG, "optionsDialogConfirmed, dnsFilter=${_state.value.dnsFilterEnabled}")
+        _state.update { it.copy(showOptionsDialog = false) }
+
+        if (_state.value.dnsFilterEnabled) {
+            viewModelScope.launch {
+                val seen = prefs.hasSeenDnsWarning.first()
+                if (!seen) {
+                    AppLog.i(TAG, "showing DNS warning dialog")
+                    _state.update { it.copy(showDnsWarningDialog = true) }
+                    return@launch
+                }
+                proceedToChain()
+            }
+        } else {
+            proceedToChain()
+        }
+    }
+
+    fun dnsWarningAccepted() {
+        AppLog.i(TAG, "dnsWarningAccepted")
+        _state.update { it.copy(showDnsWarningDialog = false) }
+        viewModelScope.launch {
+            prefs.setHasSeenDnsWarning(true)
+        }
+        proceedToChain()
+    }
+
+    fun dnsWarningDeclined() {
+        AppLog.i(TAG, "dnsWarningDeclined — disabling DNS")
+        _state.update { it.copy(showDnsWarningDialog = false, dnsFilterEnabled = false) }
+        viewModelScope.launch {
+            prefs.setDnsFilterEnabled(false)
+        }
+        proceedToChain()
+    }
+
+    fun optionsDialogCancelled() {
+        AppLog.i(TAG, "optionsDialogCancelled")
+        _state.update { it.copy(showOptionsDialog = false) }
+    }
+
+    fun toggleDnsFilter(enabled: Boolean) {
+        AppLog.i(TAG, "toggleDnsFilter: $enabled")
+        _state.update { it.copy(dnsFilterEnabled = enabled) }
+        viewModelScope.launch {
+            prefs.setDnsFilterEnabled(enabled)
+        }
+    }
+
+    private fun proceedToChain() {
+        AppLog.i(TAG, "proceedToChain")
         flowActive = true
         advance()
     }
@@ -174,7 +234,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     it.copy(
                         showOverlayDialog = false,
                         showAccessibilityDialog = false,
-                        showRestrictedDialog = false
+                        showRestrictedDialog = false,
+                        accessibilityAttempts = 0
                     )
                 }
                 startChain()
@@ -188,7 +249,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             it.copy(
                 showAccessibilityDialog = false,
                 showOverlayDialog = false,
-                showRestrictedDialog = false
+                showRestrictedDialog = false,
+                accessibilityAttempts = _state.value.accessibilityAttempts + 1
             )
         }
     }
@@ -205,12 +267,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun dismissRestrictedDialog() {
-        AppLog.i(TAG, "dismissRestrictedDialog — marking as shown, will not show again")
-        viewModelScope.launch {
-            prefs.setHasShownRestrictedDialog(true)
-        }
+    fun restrictedDialogAgreed() {
+        AppLog.i(TAG, "restrictedDialogAgreed — opening app info settings")
         _state.update { it.copy(showRestrictedDialog = false) }
+    }
+
+    fun restrictedDialogCancelled() {
+        AppLog.i(TAG, "restrictedDialogCancelled")
+        flowActive = false
+        _state.update {
+            it.copy(
+                showRestrictedDialog = false,
+                accessibilityAttempts = 0
+            )
+        }
     }
 
     fun dismissRestoreFailed() {
@@ -239,9 +309,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun startChain() {
-        AppLog.i(TAG, "startChain: setting pending flag")
+        AppLog.i(
+            TAG,
+            "startChain: setting pending flag, dnsFilter=${_state.value.dnsFilterEnabled}"
+        )
         viewModelScope.launch {
             prefs.setPendingOptimization(true)
+            prefs.setDnsFilterEnabled(_state.value.dnsFilterEnabled)
             AppLog.i(TAG, "startChain: pending flag set, opening accessibility settings")
             openAccessibilitySettingsAutomatically()
         }
@@ -252,17 +326,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _state.update { it.copy(isWorking = true, progress = 0f) }
             val deps = XiaoHyperApp.testDeps ?: app.deps
-            val ok = deps.newEngine().optimize(callbacks())
-            if (ok) {
+            val engine = deps.newEngine()
+            val options = OptimizationOptions(dnsFilter = _state.value.dnsFilterEnabled)
+            val report = engine.optimize(options, callbacks())
+            if (report.success) {
                 prefs.setHiddenSettingsApplied(true)
-                OptimizationNotifier.setSuccess("Local optimization completed")
+                OptimizationNotifier.setSuccess(buildReportSummary(report))
             } else {
-                OptimizationNotifier.setFailure(
-                    listOf("local_optimization"),
-                    "Local optimization failed"
-                )
+                OptimizationNotifier.setFailure(report.failedActions, buildReportSummary(report))
             }
-            _state.update { it.copy(isWorking = false, isOptimized = ok) }
+            _state.update { it.copy(isWorking = false, isOptimized = report.success) }
         }
     }
 
@@ -289,9 +362,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         onProgress = { p -> _state.update { it.copy(progress = p) } }
     )
 
-    private fun needsRestricted(): Boolean {
-        if (Build.VERSION.SDK_INT < 33) return false
-        return !isFromKnownStore()
+    private fun buildReportSummary(report: OptimizationReport): String {
+        return buildString {
+            append("✅ Отключено сервисов: ${report.disabledPackages.size}\n")
+            append("✅ Применено параметров: ${report.appliedSettings.size}\n")
+            if (report.failedActions.isNotEmpty()) {
+                append("⚠️ Не удалось: ${report.failedActions.joinToString(", ")}\n")
+            }
+            append(if (report.success) "✅ Все проверки пройдены" else "❌ Проверка не пройдена")
+        }
+    }
+
+    private fun needsRestrictedSettings(): Boolean {
+        return Build.VERSION.SDK_INT >= 33 && !isFromKnownStore()
     }
 
     private fun isFromKnownStore(): Boolean {

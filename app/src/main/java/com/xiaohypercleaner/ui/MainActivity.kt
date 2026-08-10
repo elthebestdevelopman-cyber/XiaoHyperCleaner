@@ -48,6 +48,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -85,8 +87,8 @@ import com.xiaohypercleaner.ui.theme.GradientEnd
 import com.xiaohypercleaner.ui.theme.GradientStart
 import com.xiaohypercleaner.ui.theme.XiaoHyperCleanerTheme
 import com.xiaohypercleaner.util.AppLog
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.io.File
 
 class MainActivity : ComponentActivity() {
 
@@ -100,29 +102,61 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         AppLog.i(TAG, "onCreate started")
 
+        val prefs = (application as XiaoHyperApp).preferencesManager
+
         setContent {
-            val prefs = (application as XiaoHyperApp).preferencesManager
             val isDark by prefs.isDarkTheme.collectAsState(initial = false)
             val scope = rememberCoroutineScope()
-            vm = viewModel()
-            val state by vm.state.collectAsState()
-            val lifecycle = LocalLifecycleOwner.current.lifecycle
+            var showOnboarding by remember { mutableStateOf(false) }
+            var onboardingChecked by remember { mutableStateOf(false) }
 
-            LaunchedEffect(lifecycle) {
-                lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                    AppLog.i(TAG, "lifecycle RESUMED — refreshing statuses")
-                    vm.refreshStatuses()
-                    vm.checkRestrictedSettingsOnResume()
-                }
+            // Проверяем онбординг при первом запуске
+            LaunchedEffect(Unit) {
+                val completed = prefs.hasCompletedOnboarding.first()
+                AppLog.i(TAG, "hasCompletedOnboarding=$completed")
+                showOnboarding = !completed
+                onboardingChecked = true
             }
 
-            XiaoHyperCleanerTheme(darkTheme = isDark) {
-                MainContent(
-                    state = state,
-                    isDark = isDark,
-                    onDarkChange = { enabled -> scope.launch { prefs.setDarkTheme(enabled) } },
-                    vm = vm
-                )
+            if (!onboardingChecked) {
+                // Пока не проверили, показываем пустой экран
+                return@setContent
+            }
+
+            if (showOnboarding) {
+                XiaoHyperCleanerTheme(darkTheme = isDark) {
+                    OnboardingScreen(
+                        isDark = isDark,
+                        onFinish = {
+                            AppLog.i(TAG, "onboarding finished")
+                            showOnboarding = false
+                            scope.launch {
+                                prefs.setHasCompletedOnboarding(true)
+                            }
+                        }
+                    )
+                }
+            } else {
+                vm = viewModel()
+                val state by vm.state.collectAsState()
+                val lifecycle = LocalLifecycleOwner.current.lifecycle
+
+                LaunchedEffect(lifecycle) {
+                    lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                        AppLog.i(TAG, "lifecycle RESUMED — refreshing statuses")
+                        vm.refreshStatuses()
+                        vm.checkRestrictedSettingsOnResume()
+                    }
+                }
+
+                XiaoHyperCleanerTheme(darkTheme = isDark) {
+                    MainContent(
+                        state = state,
+                        isDark = isDark,
+                        onDarkChange = { enabled -> scope.launch { prefs.setDarkTheme(enabled) } },
+                        vm = vm
+                    )
+                }
             }
         }
         AppLog.i(TAG, "onCreate completed")
@@ -161,43 +195,6 @@ private fun MainContent(
 
     AppLog.i("MainUI", "MainContent composed: state=$state")
 
-    if (state.showRestrictedDialog) {
-        val isAndroid14Plus = Build.VERSION.SDK_INT >= 34
-        val title = if (isAndroid14Plus) {
-            stringResource(R.string.forbidden_dialog_title)
-        } else {
-            stringResource(R.string.restricted_dialog_title)
-        }
-        val text = if (isAndroid14Plus) {
-            stringResource(R.string.forbidden_dialog_text)
-        } else {
-            stringResource(R.string.restricted_dialog_text)
-        }
-        val buttonText = if (isAndroid14Plus) {
-            stringResource(R.string.forbidden_dialog_open)
-        } else {
-            stringResource(R.string.restricted_dialog_open)
-        }
-
-        InfoDialog(
-            title = title,
-            text = text,
-            confirmText = buttonText,
-            onConfirm = {
-                AppLog.i(
-                    "MainUI",
-                    "restricted/forbidden dialog: open settings clicked (Android ${Build.VERSION.SDK_INT})"
-                )
-                vm.dismissRestrictedDialog()
-                openAppInfoSettings(context)
-            },
-            onDismiss = {
-                AppLog.i("MainUI", "restricted/forbidden dialog: dismissed")
-                vm.dialogCancelled()
-            }
-        )
-    }
-
     if (state.showAccessibilityDialog) {
         InfoDialog(
             title = stringResource(R.string.accessibility_explanation_title),
@@ -228,6 +225,72 @@ private fun MainContent(
             onDismiss = {
                 AppLog.i("MainUI", "overlay dialog: cancelled")
                 vm.dialogCancelled()
+            }
+        )
+    }
+    // Restricted settings dialog (Android 13+ sideload)
+    if (state.showRestrictedDialog) {
+        val isAndroid14Plus = Build.VERSION.SDK_INT >= 34
+        val title = if (isAndroid14Plus) {
+            stringResource(R.string.forbidden_dialog_title)
+        } else {
+            stringResource(R.string.restricted_dialog_title)
+        }
+        val text = if (isAndroid14Plus) {
+            stringResource(R.string.forbidden_dialog_text)
+        } else {
+            stringResource(R.string.restricted_dialog_text)
+        }
+        val buttonText = if (isAndroid14Plus) {
+            stringResource(R.string.forbidden_dialog_open)
+        } else {
+            stringResource(R.string.restricted_dialog_open)
+        }
+
+        InfoDialog(
+            title = title,
+            text = text,
+            confirmText = buttonText,
+            onConfirm = {
+                AppLog.i("MainUI", "restricted dialog: open settings clicked")
+                vm.restrictedDialogAgreed()
+                openAppInfoSettings(context)
+            },
+            onDismiss = {
+                AppLog.i("MainUI", "restricted dialog: cancelled")
+                vm.restrictedDialogCancelled()
+            }
+        )
+    }
+    // Диалог с опциями (DNS)
+    if (state.showOptionsDialog) {
+        OptionsDialog(
+            dnsFilterEnabled = state.dnsFilterEnabled,
+            onDnsToggle = { enabled -> vm.toggleDnsFilter(enabled) },
+            onConfirm = {
+                AppLog.i("MainUI", "options dialog: confirmed")
+                vm.optionsDialogConfirmed()
+            },
+            onCancel = {
+                AppLog.i("MainUI", "options dialog: cancelled")
+                vm.optionsDialogCancelled()
+            }
+        )
+    }
+
+    // Предупреждение о DNS
+    if (state.showDnsWarningDialog) {
+        InfoDialog(
+            title = stringResource(R.string.dns_warning_title),
+            text = stringResource(R.string.dns_warning_text),
+            confirmText = stringResource(R.string.dns_warning_accept),
+            onConfirm = {
+                AppLog.i("MainUI", "DNS warning: accepted")
+                vm.dnsWarningAccepted()
+            },
+            onDismiss = {
+                AppLog.i("MainUI", "DNS warning: declined")
+                vm.dnsWarningDeclined()
             }
         )
     }
@@ -290,7 +353,8 @@ private fun MainContent(
     if (state.showFinalDialog) {
         InfoDialog(
             title = stringResource(R.string.final_dialog_title),
-            text = if (state.optimizationSuccess) {
+            text = if (state.finalReport.isNotEmpty()) state.finalReport
+            else if (state.optimizationSuccess) {
                 stringResource(R.string.final_dialog_success_text)
             } else {
                 stringResource(R.string.final_dialog_failed_text)
@@ -404,6 +468,84 @@ private fun MainContent(
                 )
             }
             Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun OptionsDialog(
+    dnsFilterEnabled: Boolean,
+    onDnsToggle: (Boolean) -> Unit,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit
+) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onCancel) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+            ) {
+                Text(
+                    stringResource(R.string.options_dialog_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    stringResource(R.string.options_dialog_text),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            stringResource(R.string.dns_option_title),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            stringResource(R.string.dns_option_description),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Switch(
+                        checked = dnsFilterEnabled,
+                        onCheckedChange = onDnsToggle
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = onConfirm,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(stringResource(R.string.options_dialog_start))
+                }
+                Spacer(Modifier.height(8.dp))
+                androidx.compose.material3.TextButton(
+                    onClick = onCancel,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
         }
     }
 }
@@ -608,7 +750,7 @@ private fun openUrl(context: Context, url: String) {
 }
 
 private fun openWebView(context: Context, url: String, title: String) {
-    AppLog.i("WebView", "opening webView: $url")
+    AppLog.i("WebView", "opening WebView: $url")
     try {
         val intent = Intent(context, WebViewActivity::class.java).apply {
             putExtra(WebViewActivity.EXTRA_URL, url)
@@ -659,40 +801,6 @@ private fun shareLog(context: Context) {
         AppLog.i("ShareLog", "share intent sent successfully")
     } catch (e: Exception) {
         AppLog.e("ShareLog", "shareLog failed", e)
-    }
-}
-
-private fun openAppInfoSettings(context: Context) {
-    AppLog.i("OpenSettings", "opening app info settings for restricted/forbidden settings")
-    try {
-        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-            data = Uri.parse("package:${context.packageName}")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        }
-        context.startActivity(intent)
-        AppLog.i("OpenSettings", "app info settings opened successfully")
-    } catch (e: Exception) {
-        AppLog.w("OpenSettings", "app info failed, trying alternative: ${e.message}")
-        try {
-            val intent = Intent("android.settings.APPLICATION_DETAILS_SETTINGS").apply {
-                data = Uri.parse("package:${context.packageName}")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-            AppLog.i("OpenSettings", "alternative app info opened")
-        } catch (e2: Exception) {
-            AppLog.w(
-                "OpenSettings",
-                "alternative also failed, fallback to general settings: ${e2.message}"
-            )
-            try {
-                context.startActivity(Intent(Settings.ACTION_SETTINGS).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                })
-            } catch (_: Exception) {
-            }
-        }
     }
 }
 
@@ -759,4 +867,38 @@ private fun openRateApp(context: Context) {
     }
     AppLog.i("OpenRate", "fallback to web")
     openUrl(context, "https://play.google.com/store/apps/details?id=$pkg")
+}
+
+private fun openAppInfoSettings(context: Context) {
+    AppLog.i("OpenSettings", "opening app info settings for restricted/forbidden settings")
+    try {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.parse("package:${context.packageName}")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+        context.startActivity(intent)
+        AppLog.i("OpenSettings", "app info settings opened successfully")
+    } catch (e: Exception) {
+        AppLog.w("OpenSettings", "app info failed, trying alternative: ${e.message}")
+        try {
+            val intent = Intent("android.settings.APPLICATION_DETAILS_SETTINGS").apply {
+                data = Uri.parse("package:${context.packageName}")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            AppLog.i("OpenSettings", "alternative app info opened")
+        } catch (e2: Exception) {
+            AppLog.w(
+                "OpenSettings",
+                "alternative also failed, fallback to general settings: ${e2.message}"
+            )
+            try {
+                context.startActivity(Intent(Settings.ACTION_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+            } catch (_: Exception) {
+            }
+        }
+    }
 }

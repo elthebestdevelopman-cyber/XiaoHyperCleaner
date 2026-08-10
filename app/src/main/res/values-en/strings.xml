@@ -35,6 +35,20 @@
     <string name="feature_speed">Configures MIUI / HyperOS system parameters</string>
     <string name="feature_battery">Works without root access</string>
 
+    <!-- Optimization options dialog -->
+    <string name="options_dialog_title">Optimization options</string>
+    <string name="options_dialog_text">The app will disable system analytics and ad services, and apply optimizing MIUI / HyperOS parameters. All changes are reversible — you can undo them at any time.</string>
+    <string name="options_dialog_start">Start optimization</string>
+
+    <!-- DNS option -->
+    <string name="dns_option_title">DNS ad filter</string>
+    <string name="dns_option_description">Blocks ad domains at the DNS level (AdGuard DNS). Extra protection against ads in browsers and apps.</string>
+
+    <!-- DNS warning -->
+    <string name="dns_warning_title">Warning: DNS filter</string>
+    <string name="dns_warning_text">Changing DNS may affect internet speed. In rare cases, some websites or apps may load slower or fail to open.\n\nIf you notice internet issues after optimization, just undo the optimization — DNS will return to its original settings.\n\nContinue with DNS filter?</string>
+    <string name="dns_warning_accept">Understood, continue</string>
+
     <!-- Accessibility service dialog -->
     <string name="accessibility_explanation_title">Accessibility service</string>
     <string name="accessibility_explanation_text">The app needs the accessibility service for automatic setup. It enables wireless debugging once and performs the configuration. No data is collected.</string>
@@ -94,6 +108,7 @@
     <string name="overlay_method2">Disabling analytics services…</string>
     <string name="overlay_method3">Changing region…</string>
     <string name="overlay_method4">Disabling ad services…</string>
+    <string name="overlay_method5">Configuring DNS filter…</string>
     <string name="overlay_verifying">Final verification…</string>
     <string name="overlay_done">Configuration complete</string>
     <string name="overlay_failed">Failed to apply changes</string>
@@ -101,6 +116,19 @@
     <string name="overlay_searching_overlay_switch">Looking for the overlay switch…</string>
     <string name="overlay_searching_toggle">Looking for the wireless debugging toggle…</string>
     <string name="overlay_clicking_allow">Tapping "Allow"…</string>
+    <!-- Onboarding -->
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_start">Get started</string>
+
+    <string name="onboarding_page1_title">Welcome!</string>
+    <string name="onboarding_page1_text">XiaoHyperCleaner disables system analytics and ad services on Xiaomi, Redmi and Poco devices. The app works without root via local ADB.</string>
+
+    <string name="onboarding_page2_title">Required permissions</string>
+    <string name="onboarding_page2_text">The app needs the accessibility service (for automatic setup) and display over other apps (to show progress). No data is collected or sent anywhere.</string>
+
+    <string name="onboarding_page3_title">Everything is reversible</string>
+    <string name="onboarding_page3_text">All changes can be undone at any time via the "Undo optimization" button. If something goes wrong, the app will automatically restore the original settings.</string>
 
     <!-- Verification errors -->
     <string name="overlay_verify_method1_failed">System settings verification failed</string>

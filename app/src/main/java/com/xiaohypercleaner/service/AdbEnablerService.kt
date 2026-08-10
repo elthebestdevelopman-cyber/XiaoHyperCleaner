@@ -13,6 +13,8 @@ import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationEngine
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
+import com.xiaohypercleaner.data.OptimizationOptions
+import com.xiaohypercleaner.data.OptimizationReport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -210,49 +212,72 @@ class AdbEnablerService : AccessibilityService() {
     }
 
     private fun runOptimization() {
+        AppLog.i(TAG, "AdbEnablerService: runOptimization started")
         scope.launch {
             try {
                 val app = application as XiaoHyperApp
                 val deps = XiaoHyperApp.testDeps ?: app.deps
+
+                // Читаем настройки DNS из DataStore
+                val dnsEnabled = deps.preferencesManager.getDnsFilterEnabled()
+                AppLog.i(TAG, "AdbEnablerService: dnsFilter=$dnsEnabled")
+
                 val engine = deps.newEngine()
+                val options = OptimizationOptions(dnsFilter = dnsEnabled)
 
                 val callbacks = OptimizationEngine.Callbacks(
-                    onStage = { stage -> overlayStage(stage) },
+                    onStage = { stage ->
+                        AppLog.i(TAG, "AdbEnablerService: stage=$stage")
+                        overlayStage(stage)
+                    },
                     onProgress = { p -> overlayProgress(p) },
-                    onError = { err -> overlayError(err) }
+                    onError = { err ->
+                        AppLog.e(TAG, "AdbEnablerService: engine error=$err")
+                        overlayError(err)
+                    }
                 )
 
                 overlaySafe(getString(R.string.overlay_connecting))
-                val ok = engine.optimize(callbacks)
+                val report = engine.optimize(options, callbacks)
+                AppLog.i(TAG, "AdbEnablerService: optimize result success=${report.success}")
+                AppLog.i(
+                    TAG,
+                    "AdbEnablerService: disabled ${report.disabledPackages.size} packages, applied ${report.appliedSettings.size} settings"
+                )
 
-                if (ok) {
+                if (report.success) {
                     currentStep = Step.VERIFICATION
                     overlaySafe(getString(R.string.overlay_verifying))
 
-                    val verification = engine.verifyAll()
-                    if (verification.success) {
-                        deps.preferencesManager.setHiddenSettingsApplied(true)
-                        OptimizationNotifier.setSuccess(verification.details)
-                        overlaySafe(getString(R.string.overlay_done))
-                    } else {
-                        OptimizationNotifier.setFailure(
-                            verification.failedItems,
-                            verification.details
-                        )
-                        overlaySafe(getString(R.string.overlay_failed))
-                    }
+                    deps.preferencesManager.setHiddenSettingsApplied(true)
+                    OptimizationNotifier.setSuccess(buildReportSummary(report))
+                    overlaySafe(getString(R.string.overlay_done))
                 } else {
-                    OptimizationNotifier.setFailure(listOf("optimization"), "Optimization failed")
+                    OptimizationNotifier.setFailure(
+                        report.failedActions,
+                        buildReportSummary(report)
+                    )
                     overlaySafe(getString(R.string.overlay_failed))
                 }
 
                 finishChain()
             } catch (e: Exception) {
-                AppLog.e(TAG, "AdbEnablerService: optimization failed: ${e.message}")
+                AppLog.e(TAG, "AdbEnablerService: optimization exception: ${e.message}")
                 OptimizationNotifier.setFailure(listOf("exception"), e.message ?: "Unknown error")
                 overlaySafe(getString(R.string.overlay_failed))
                 finishChain()
             }
+        }
+    }
+
+    private fun buildReportSummary(report: OptimizationReport): String {
+        return buildString {
+            append("✅ Отключено сервисов: ${report.disabledPackages.size}\n")
+            append("✅ Применено параметров: ${report.appliedSettings.size}\n")
+            if (report.failedActions.isNotEmpty()) {
+                append("⚠️ Не удалось: ${report.failedActions.joinToString(", ")}\n")
+            }
+            append(if (report.success) "✅ Все проверки пройдены" else "❌ Проверка не пройдена")
         }
     }
 
@@ -368,6 +393,7 @@ class AdbEnablerService : AccessibilityService() {
             "method2" -> getString(R.string.overlay_method2)
             "method3" -> getString(R.string.overlay_method3)
             "method4" -> getString(R.string.overlay_method4)
+            "method5" -> getString(R.string.overlay_method5)
             "verifying" -> getString(R.string.overlay_verifying)
             else -> getString(R.string.overlay_preparing)
         }
