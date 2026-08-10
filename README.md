@@ -1,286 +1,317 @@
-# XiaoHyperCleaner
+# 🤖 XiaoHyperCleaner
 
-[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-yellow.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
-[![Beta](https://img.shields.io/github/v/release/elthebestdevelopman-cyber/XiaoHyperCleaner?include_prereleases&label=beta&color=orange)](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/releases)
+**Без root. Без лишнего. Без данных.**
 
-## Скачать
+Инструмент для отключения системной аналитики и рекламы на устройствах **Xiaomi**, **Redmi** и **Poco** через локальный ADB. Работает без root-прав, все изменения полностью обратимы.
 
-Последняя бета для тестирования — в разделе
-[Releases](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/releases).
-Стабильная версия появится в RuStore и GetApps после модерации.
-
-**Download:** the latest beta is in
-[Releases](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/releases).
-Stable version will be published in RuStore and GetApps after store review.
-
-Настройка Xiaomi, Redmi и Poco: отключение сервисов аналитики и применение
-параметров MIUI / HyperOS через локальный ADB. Без root-прав.
-
-> Не аффилировано с Xiaomi. Все изменения обратимы.
-> Результат зависит от модели и версии прошивки.
-
-## Что делает
-
-- Отключает системные сервисы аналитики (7 пакетов)
-- Применяет системные параметры MIUI / HyperOS
-- Динамическое обнаружение порта ADB через mDNS
-- Работает без root
-- Откат изменений одной кнопкой, с подтверждением
-- Перезагрузка через ADB с подтверждением
-
-## Как начать
-
-1. Запустите приложение и нажмите «Оптимизировать».
-2. Включите службу специальных возможностей — приложение откроет нужный экран.
-3. Разрешите показ поверх других окон — переключатель включится автоматически.
-4. Дождитесь завершения.
-
-## Архитектура
-
-- **AdbPortResolver** — mDNS-обнаружение порта ADB (`_adb-tls._tcp.`) с фолбэком на 5555
-- **AdbClient** — собственная реализация протокола ADB поверх TCP-сокета с обработкой ошибок сети и
-  автопереподключением
-- **OptimizationEngine** — трёхэтапная оптимизация с fallback-методами, финальной верификацией и
-  логированием неотключённых пакетов
-- **AdbEnablerService** — AccessibilityService для автоматического включения беспроводной отладки и
-  выполнения настроек
-- **AppDependencies** — ручная Dependency Injection для тестируемости
-- **PreferencesManager** — типобезопасные ключи предпочтений через sealed interface
-
-## Тестирование
-
-Unit-тесты в `app/src/test/java/`:
-
-```bash
-./gradlew test
-```
-
-**Покрыто:**
-
-- Успешная оптимизация через системные ключи
-- Fallback на отключение пакетов при неуспешных ключах
-- Частичное применение настроек не прерывает работу
-- Автоматическое переподключение при обрыве соединения
-- Обработка ошибок ADB
-- Восстановление всех параметров и сервисов
-- mDNS-обнаружение с корректным фолбэком
-
-## Приватность
-
-Никаких данных не собирается. Все команды выполняются локально на устройстве.
-
-## FAQ
-
-**Работает ли на устройствах не Xiaomi?**
-Нет. Приложение заточено под MIUI / HyperOS: системные ключи и пакеты
-специфичны для прошивок Xiaomi, Redmi и Poco.
-
-**Нужен ли root?**
-Нет. Все команды выполняются через локальный ADB с правами shell.
-
-**Почему нужна служба специальных возможностей?**
-Она один раз включает беспроводную отладку и нажимает системные
-переключатели. После завершения служба отключает сама себя.
-
-**Что делать, если оптимизация не прошла?**
-Проверьте, что беспроводная отладка включена, и повторите. Если не помогло —
-откройте Issue и укажите модель, версию прошивки и версию Android.
-
-**Как всё вернуть?**
-Кнопка «Отменить оптимизацию» с подтверждением возвращает все параметры
-и сервисы в исходное состояние.
-
-**Влияет ли это на гарантию и обновления по воздуху?**
-Нет. Приложение не меняет прошивку и не устанавливает бинарники —
-только системные настройки и состояние пакетов. OTA-обновления приходят
-как обычно, после них оптимизацию можно повторить.
-
-**А если мне нужен какой-то отключённый сервис?**
-Кнопка отката возвращает всё. Если хотите выборочно оставить один сервис
-включённым — сообщите в Issue, добавим такую возможность.
-
-**Это безопасно? Приложение просит доступ к спецвозможностям.**
-Да, это намеренно: доступ нужен только на время первичной настройки.
-Код открыт, можно проверить, что именно делает служба.
-После завершения она отключается, и доступ больше не используется.
-
-**Зачем показ поверх других окон?**
-Чтобы вы видели прогресс оптимизации поверх системных экранов.
-Разрешение нужно только во время работы — после отключается.
-
-## Для разработчиков
-
-Kotlin · Jetpack Compose · Material 3 · собственная реализация ADB поверх TCP
-
-Gradle 9.5.0 · AGP 9.3.1 · Kotlin 2.4.10 · Compose BOM 2026.06.01 · JDK 21
-
-Встроенный Kotlin от AGP 9 (без отдельного плагина `kotlin-android`).
-
-CI/CD через GitHub Actions (`.github/workflows/android.yml`): автоматическая
-сборка и тесты на каждый push и pull request.
-
-**Сборка:**
-
-```bash
-./gradlew assembleDebug
-```
-
-**Тесты:**
-
-```bash
-./gradlew test
-```
-
-## Поддержать проект
-
-- ЮMoney: https://yoomoney.ru/to/410011379195150
-- CloudTips: https://pay.cloudtips.ru/p/90614cff
-
-## Лицензия
-
-CC BY-NC 4.0 — бесплатно использовать, изменять и делиться
-в некоммерческих целях с указанием авторства (ElthebestDevelopman).
-Любое коммерческое использование запрещено без письменного разрешения автора.
-
-## Автор
-
-ElthebestDevelopman
+[![Version](https://img.shields.io/badge/version-1.0--beta2-blue)](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/releases)
+[![Android](https://img.shields.io/badge/Android-10%2B-brightgreen)](https://www.android.com/)
+[![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-orange)](https://creativecommons.org/licenses/by-nc/4.0/)
+[![CI](https://img.shields.io/badge/CI-GitHub%20Actions-success)](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/actions)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.4.10-purple)](https://kotlinlang.org/)
 
 ---
 
-## English
+## 📋 Содержание
 
-A configuration tool for Xiaomi / Redmi / Poco devices. Disables system
-analytics services and applies MIUI / HyperOS parameters via local ADB —
-no root access required.
-
-### Features
-
-- Disables system analytics services (7 packages)
-- Applies MIUI / HyperOS system parameters
-- Dynamic ADB port discovery via mDNS
-- No root required
-- One-click rollback with confirmation
-- Reboot via ADB with confirmation
-
-### How to start
-
-1. Launch the app and tap **Optimize**.
-2. Enable the accessibility service — the app opens the right screen.
-3. Grant **Display over other apps** — the switch is toggled automatically.
-4. Wait until completion.
-
-### Architecture
-
-- **AdbPortResolver** — mDNS discovery of ADB port (`_adb-tls._tcp.`) with fallback to 5555
-- **AdbClient** — custom ADB protocol over TCP socket with network error handling and
-  auto-reconnection
-- **OptimizationEngine** — three-stage optimization with fallback methods, final verification and
-  logging of still-enabled packages
-- **AdbEnablerService** — AccessibilityService for automatic wireless debugging enablement
-- **AppDependencies** — manual Dependency Injection for testability
-- **PreferencesManager** — type-safe preference keys via sealed interface
-
-### Testing
-
-Unit tests in `app/src/test/java/`. Run with:
-
-```bash
-./gradlew test
-```
-
-**Coverage:**
-
-- Successful optimization via system keys
-- Fallback to package disabling when keys fail
-- Partial application does not interrupt the workflow
-- Automatic reconnection on connection loss
-- ADB error handling
-- Restoring all parameters and services
-- mDNS discovery with correct fallback
-
-### FAQ
-
-**Does it work on non-Xiaomi devices?**
-No. The app targets MIUI / HyperOS: system keys and packages
-are specific to Xiaomi, Redmi and Poco firmware.
-
-**Is root required?**
-No. All commands run via local ADB with shell privileges.
-
-**Why is the accessibility service needed?**
-It enables wireless debugging once and toggles system switches.
-After completion, it disables itself.
-
-**What if optimization didn't complete?**
-Make sure wireless debugging is enabled and try again. If it still fails,
-open an Issue with device model, firmware version and Android version.
-
-**How to revert everything?**
-The "Undo optimization" button with confirmation restores all parameters
-and services to their original state.
-
-**Does it affect warranty or OTA updates?**
-No. The app doesn't modify firmware or install binaries — only system
-settings and package states. OTA updates work as usual; optimization
-can be re-applied afterwards.
-
-**What if I need a disabled service?**
-The rollback button restores everything. If you want to keep one specific
-service enabled, let us know in an Issue and we'll add that option.
-
-**Is it safe? The app requests accessibility permission.**
-Yes, intentionally: the permission is used only during initial setup.
-The code is open source, so you can verify what the service does.
-After completion it disables itself and is no longer used.
-
-**Why the "display over other apps" permission?**
-To show the optimization progress overlay on top of system screens.
-The permission is needed only while working and is released afterwards.
-
-### For developers
-
-Kotlin · Jetpack Compose · Material 3 · custom ADB over TCP
-
-Gradle 9.5.0 · AGP 9.3.1 · Kotlin 2.4.10 · Compose BOM 2026.06.01 · JDK 21
-
-Built-in Kotlin from AGP 9 (no separate `kotlin-android` plugin).
-
-CI/CD via GitHub Actions (`.github/workflows/android.yml`): automatic
-build and tests on every push and pull request.
-
-**Build:**
-
-```bash
-./gradlew assembleDebug
-```
-
-**Tests:**
-
-```bash
-./gradlew test
-```
-
-### Support
-
-- YooMoney: https://yoomoney.ru/to/410011379195150
-- CloudTips: https://pay.cloudtips.ru/p/90614cff
-
-### License
-
-CC BY-NC 4.0 — free to use, modify and share for **noncommercial purposes**
-with attribution to ElthebestDevelopman. Any commercial use is prohibited
-without separate written permission from the author.
-
-### Author
-
-ElthebestDevelopman
-
-### Disclaimer
-
-The app is provided "as is". Results depend on the device model and firmware
-version. Not affiliated with Xiaomi Inc.
-
-```
+- [О проекте](#-о-проекте)
+- [Возможности](#-возможности)
+- [Требования](#-требования)
+- [Установка](#-установка)
+- [Использование](#-использование)
+- [Структура проекта](#-структура-проекта)
+- [Разработка](#-разработка)
+- [Тестирование](#-тестирование)
+- [FAQ](#-faq)
+- [Roadmap](#-roadmap)
+- [Лицензия](#-лицензия)
+- [Автор](#-автор)
+- [Поддержка проекта](#-поддержка-проекта)
 
 ---
+
+## 🎯 О проекте
+
+**XiaoHyperCleaner** — приложение для владельцев устройств Xiaomi, Redmi и Poco, которые устали от системной аналитики и рекламы, встроенной в MIUI / HyperOS.
+
+Приложение подключается к устройству через **локальный ADB** (`127.0.0.1`) и выполняет настройки, которые раньше приходилось делать вручную через консоль:
+
+- ✅ **Без root-прав** — работает через стандартный ADB
+- ✅ **Без модификации системы** — не трогает системные разделы
+- ✅ **Без сбора данных** — всё работает локально на устройстве
+- ✅ **Полная обратимость** — одним нажатием кнопки
+- ✅ **Транзакционный rollback** — при любом сбое изменения откатываются автоматически
+
+---
+
+## ✨ Возможности
+
+### Основные функции
+
+| Функция | Описание |
+|---------|----------|
+| 🚫 **Отключение аналитики** | `com.miui.analytics`, `com.xiaomi.ab`, `com.miui.bugreport` и др. |
+| 🛑 **Отключение рекламы** | `com.xiaomi.ad`, `com.miui.ad`, `com.miui.systemAdSolution` |
+| 🤖 **Отключение рекомендаций** | `com.miui.msa.core`, `com.miui.personalassistant`, `com.miui.smartassistant` |
+| ⚙️ **Оптимизация параметров** | Анимации, лимит фоновых процессов, энергосбережение |
+| 🌐 **DNS-фильтр (опционально)** | Блокировка рекламных доменов через AdGuard DNS |
+| 🔄 **Полный откат** | Все изменения можно вернуть одной кнопкой |
+
+### Особенности
+
+- 📚 **Онбординг** при первом запуске (3 коротких экрана)
+- 🎛️ **Диалог опций** перед оптимизацией
+- ⚠️ **Предупреждение о DNS** — объяснение возможных нюансов
+- 📊 **Детальный отчёт** после оптимизации:
+  ✅ Отключено сервисов: 7
+  ✅ Применено параметров: 12
+  ⚠️ Не удалось: 2 (защищены системой)
+
+  - 🤖 **Милый робокот** на сплеш-экране, перекатывающий клубок ниток
+- 📝 **Шаринг логов** — в меню есть кнопка «Поделиться логом»
+- 🌍 **Локализация** — RU и EN, всегда синхронно
+- 🌙 **Тёмная тема** — следует за системной
+
+---
+
+## 📱 Требования
+
+| Параметр | Значение |
+|----------|----------|
+| **Устройства** | Xiaomi / Redmi / Poco |
+| **Прошивка** | MIUI 12+ или HyperOS |
+| **Android** | 10+ (API 29+) |
+| **Root** | ❌ Не требуется |
+| **Беспроводная отладка** | Включится автоматически |
+
+---
+
+## 📥 Установка
+
+### Вариант 1: APK из Releases
+
+1. Скачайте `XiaoHyperCleaner-v1.0-beta2.apk` из [Releases](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/releases)
+2. Разрешите установку из неизвестных источников
+3. Установите и запустите
+4. Пройдите онбординг (3 экрана)
+
+### Вариант 2: Сборка из исходников
+
+```bash
+git clone https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner.git
+cd XiaoHyperCleaner
+./gradlew assembleDebug
+
+APK появится в app/build/outputs/apk/debug/
+⚠️ Важно для Android 13+ (MIUI 14 / HyperOS)
+На Android 13+ система блокирует sideload-приложениям доступ к «ограниченным настройкам» (в некоторых прошивках называется «Запрещённые настройки»). Это системное ограничение Android, не баг приложения.
+Как обойти:
+Откройте Настройки → Приложения → XiaoHyperCleaner
+Нажмите ⋮ в правом верхнем углу
+Выберите «Разрешить ограниченные настройки» (или «Запрещённые настройки» в HyperOS)
+Подтвердите отпечатком/паролем
+Вернитесь в приложение
+Это делается один раз. Приложение само предложит это сделать при необходимости.
+🚀 Использование
+Первый запуск
+Запустите приложение
+Пройдите онбординг (3 экрана)
+Нажмите «Оптимизировать» на главном экране
+Выберите параметры (вкл/выкл DNS-фильтр)
+Включите службу специальных возможностей (нужна один раз)
+Приложение автоматически:
+Включит беспроводную отладку
+Подключится к ADB
+Применит все настройки
+Покажет детальный отчёт
+Откат изменений
+Главный экран → кнопка «Отменить оптимизацию»
+Подтвердите действие
+Все пакеты включатся обратно
+Все системные параметры вернутся к исходным значениям
+DNS вернётся к системному (если был включён)
+Поделиться логом
+Если что-то пошло не так:
+Откройте меню ⋮ в правом верхнем углу
+Нажмите «Поделиться логом»
+Отправьте файл xhc.log в Issues
+Все чувствительные данные в логе маскируются: IP-адреса (кроме 127.0.0.1), длинные токены, пути к пользовательским данным, значения системных настроек.
+🏗 Структура проекта
+
+app/src/main/java/com/xiaohypercleaner/
+├── data/
+│   ├── AdbClient.kt              # ADB over TCP (%04x заголовок, shell до EOF)
+│   ├── AdbExecutor.kt            # Интерфейс для DI/тестов
+│   ├── AdbPortResolver.kt        # mDNS _adb-tls._tcp
+│   ├── OptimizationEngine.kt     # 4 метода + DNS + транзакционный rollback
+│   ├── PreferencesManager.kt     # DataStore
+│   └── ServiceRegistry.kt        # Списки пакетов для отключения
+├── service/
+│   ├── AdbEnablerService.kt      # Accessibility-цепочка
+│   ├── OverlayController.kt      # onCancel через WeakReference
+│   └── OverlayService.kt         # Оверлей с прогрессом
+├── ui/
+│   ├── MainActivity.kt           # Главный экран
+│   ├── MainViewModel.kt          # Логика UI
+│   ├── SplashActivity.kt         # Сплеш с робокотом и клубком
+│   ├── OnboardingScreen.kt       # Онбординг (3 экрана)
+│   ├── WebViewActivity.kt        # WebView для донатов
+│   └── components/
+│       └── Dialogs.kt            # Все диалоги
+├── util/
+│   ├── AppLog.kt                 # Бета-логирование с маскировкой
+│   ├── LogMasker.kt              # Маскировка данных в логах
+│   ├── OptimizationNotifier.kt   # StateFlow для передачи результатов
+│   └── Wait.kt                   # waitFor helper
+├── AppConstants.kt               # Константы (таймауты, прогресс)
+├── AppDependencies.kt            # Ручная DI
+└── XiaoHyperApp.kt               # Application
+
+app/src/main/res/
+├── drawable/
+│   ├── ic_robot_companion.xml    # Робокот
+│   └── ic_yarn_ball.xml          # Клубок ниток
+├── values/strings.xml            # RU
+├── values-en/strings.xml         # EN
+└── xml/
+    ├── accessibility_service_config.xml
+    └── file_paths.xml            # FileProvider для логов
+
+app/src/test/java/
+├── OptimizationEngineTest.kt     # 12 тестов
+├── AdbPortResolverTest.kt        # 3 теста
+├── LogMaskerTest.kt              # 6 тестов
+└── MainViewModelTest.kt          # 8 тестов (Robolectric)
+
+💻 Разработка
+Стек технологий
+Компонент
+Версия
+Gradle
+9.5
+AGP
+9.3.1 (built-in Kotlin)
+Kotlin
+2.4.10
+Compose BOM
+2026.06.01
+compileSdk
+37
+targetSdk
+36
+minSdk
+28
+JDK
+21
+Сборка
+# Debug сборка
+./gradlew assembleDebug
+
+# Release сборка
+./gradlew assembleRelease
+
+# Unit-тесты
+./gradlew testDebugUnitTest
+
+# Lint
+./gradlew lintDebug
+
+Архитектурные решения
+Ручная DI через AppDependencies — нет Dagger/Hilt
+AccessibilityService для автоматизации UI-действий
+OverlayService для отображения прогресса
+StateFlow для реактивного UI
+DataStore для персистентности
+Coroutines для асинхронности
+Транзакционный rollback в OptimizationEngine
+Важные нюансы
+%04x заголовок ADB нижним регистром (критично!)
+Shell читается до EOF
+ADB_TIMEOUT_MS как Int (Socket.connect требует Int), остальные *_MS как Long
+Проверка службы через flattenToString() (короткая форма не работает)
+lateinit listener в mDNS (метка this@DiscoveryListener не работает)
+🧪 Тестирование
+Unit-тесты (29 тестов)
+./gradlew testDebugUnitTest
+
+Файл
+Тестов
+Что проверяется
+OptimizationEngineTest
+12
+Оптимизация, откат, DNS, транзакции
+AdbPortResolverTest
+3
+mDNS discovery, mergePorts
+LogMaskerTest
+6
+Маскировка IP, токенов, путей
+MainViewModelTest
+8
+UI-логика (Robolectric)
+
+Ручное тестирование
+См. чек-лист в Releases для детального чек-листа.
+Как оставить багрепорт
+Откройте Issue и укажите:
+Модель: Xiaomi Redmi Note 10 Pro
+Прошивка: MIUI 14.0.4
+Android: 13
+Проблема: пункт "Тумблер беспроводной отладки" — не включается автоматически
+Лог: прикреплён
+Скриншот: прикреплён
+
+Лог можно получить через меню ⋮ → «Поделиться логом».
+❓ FAQ
+Почему приложение не работает на Samsung / Realme / других?
+Технически ADB работает везде, но списки пакетов для отключения специфичны для MIUI / HyperOS. На других прошивках приложение отключит не те пакеты или не отключит ничего. На текущий момент поддерживаются только Xiaomi / Redmi / Poco.
+Сломает ли это обновления прошивки?
+Нет. При обновлении MIUI / HyperOS все отключённые пакеты восстановятся автоматически (они же системные). После обновления нужно будет снова нажать «Оптимизировать».
+Что если после отката что-то не работает?
+Все команды приложения — стандартные ADB-команды. Если возникли проблемы:
+Перезагрузите устройство
+Если не помогло — сбросьте настройки до заводских (крайняя мера)
+За время тестирования таких случаев не было, но знать стоит.
+Почему приложение не в Google Play?
+Политика Google Play запрещает использование Accessibility Services для автоматизации UI-действий (нажатие кнопок, включение переключателей). Это основное назначение нашей службы. Поэтому приложение распространяется через RuStore, GetApps и GitHub.
+Можно ли посмотреть что делает приложение?
+Да, проект полностью открыт. Все команды ADB логируются в xhc.log (в бета-сборках). Каждый может проверить, что именно выполняется.
+🗺 Roadmap
+v1.1 (следующая версия)
+Профили оптимизации: «Мягкая» / «Средняя» / «Максимальная»
+История оптимизаций в DataStore
+Экспорт/импорт настроек
+Больше методов оптимизации (appops, suspend)
+Улучшенный онбординг с видео
+v2.0 (будущее)
+Поддержка других прошивок (OneUI, ColorOS)
+Плагины для расширенной оптимизации
+Облачная синхронизация настроек
+Виджет для быстрого запуска
+📄 Лицензия
+CC BY-NC 4.0 (Creative Commons Attribution-NonCommercial 4.0)
+✅ Использование разрешено
+✅ Модификация разрешена
+✅ Распространение разрешено
+❌ Коммерческое использование запрещено
+Полный текст: creativecommons.org/licenses/by-nc/4.0
+👨‍💻 Автор
+ElthebestDevelopman
+GitHub: @elthebestdevelopman-cyber
+Проект: XiaoHyperCleaner
+💖 Поддержка проекта
+Если приложение оказалось полезным и хочется сказать спасибо:
+Сервис
+Ссылка
+ЮMoney
+yoomoney.ru/to/410011379195150
+CloudTips
+pay.cloudtips.ru/p/90614cff
+Или просто поставьте ⭐ звезду на GitHub — это помогает другим найти проект.
+
+⚖️ Дисклеймер
+Приложение распространяется «как есть». Автор не несёт ответственности за любые последствия использования. Перед применением ознакомьтесь с FAQ и разделом «Использование».
+Все товарные знаки (Xiaomi, Redmi, Poco, MIUI, HyperOS) принадлежат их владельцам. Приложение не аффилировано с Xiaomi Corporation.
+
+Сделано с ❤️ для владельцев Xiaomi
+Releases • Issues • Discussions
