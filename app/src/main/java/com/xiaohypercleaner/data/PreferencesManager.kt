@@ -21,6 +21,10 @@ sealed interface PreferenceKey {
         override val name = "dark_theme"
     }
 
+    data object HasManuallyChosenTheme : PreferenceKey {
+        override val name = "has_manually_chosen_theme"
+    }
+
     data object HiddenSettingsApplied : PreferenceKey {
         override val name = "hidden_settings_applied"
     }
@@ -55,6 +59,8 @@ class PreferencesManager(private val context: Context) {
         writeBool(PreferenceKey.HasCompletedOnboarding, completed)
 
     val isDarkTheme: Flow<Boolean> = readBool(PreferenceKey.DarkTheme, false)
+    val hasManuallyChosenTheme: Flow<Boolean> =
+        readBool(PreferenceKey.HasManuallyChosenTheme, false)
     val isHiddenSettingsApplied: Flow<Boolean> =
         readBool(PreferenceKey.HiddenSettingsApplied, false)
     val pendingOptimization: Flow<Boolean> =
@@ -68,6 +74,9 @@ class PreferencesManager(private val context: Context) {
 
     suspend fun setDarkTheme(enabled: Boolean) =
         writeBool(PreferenceKey.DarkTheme, enabled)
+
+    suspend fun setHasManuallyChosenTheme(chosen: Boolean) =
+        writeBool(PreferenceKey.HasManuallyChosenTheme, chosen)
 
     suspend fun setHiddenSettingsApplied(applied: Boolean) =
         writeBool(PreferenceKey.HiddenSettingsApplied, applied)

@@ -105,7 +105,10 @@ class MainActivity : ComponentActivity() {
         val prefs = (application as XiaoHyperApp).preferencesManager
 
         setContent {
-            val isDark by prefs.isDarkTheme.collectAsState(initial = false)
+            val isDarkFromPrefs by prefs.isDarkTheme.collectAsState(initial = false)
+            val hasManuallyChosen by prefs.hasManuallyChosenTheme.collectAsState(initial = false)
+            val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+            val isDark = if (hasManuallyChosen) isDarkFromPrefs else isSystemDark
             val scope = rememberCoroutineScope()
             var showOnboarding by remember { mutableStateOf(false) }
             var onboardingChecked by remember { mutableStateOf(false) }
@@ -152,7 +155,12 @@ class MainActivity : ComponentActivity() {
                     MainContent(
                         state = state,
                         isDark = isDark,
-                        onDarkChange = { enabled -> scope.launch { prefs.setDarkTheme(enabled) } },
+                        onDarkChange = { enabled ->
+                            scope.launch {
+                                prefs.setDarkTheme(enabled)
+                                prefs.setHasManuallyChosenTheme(true)
+                            }
+                        },
                         vm = vm
                     )
                 }
