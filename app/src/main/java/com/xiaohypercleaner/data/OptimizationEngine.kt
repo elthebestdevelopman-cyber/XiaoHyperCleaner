@@ -36,9 +36,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         val details: String = ""
     )
 
-    /**
-     * Отчёт о rollback: какие элементы откатились успешно, а какие нет.
-     */
     data class RollbackReport(
         val restoredSettings: Int,
         val restoredPackages: Int,
@@ -127,21 +124,21 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             appliedSettings.addAll(settings1)
             delay(AppConstants.COMMAND_DELAY_MS)
 
-            // Метод 2: отключение сервисов
+            // Метод 2: отключение сервисов аналитики
             callbacks.onStage("method2")
             callbacks.onProgress(AppConstants.PROGRESS_METHOD2)
             val packages2 = disableAnalyticsServices(transaction)
             disabledPackages.addAll(packages2)
             delay(AppConstants.COMMAND_DELAY_MS)
 
-            // Метод 3: фейковая смена региона
+            // Метод 3: скрытые ключи и регион
             callbacks.onStage("method3")
             callbacks.onProgress(AppConstants.PROGRESS_METHOD3)
-            val settings3 = applyFakeRegion(transaction)
+            val settings3 = applyHiddenKeys(transaction)
             appliedSettings.addAll(settings3)
             delay(AppConstants.COMMAND_DELAY_MS)
 
-            // Метод 4: отключение служб
+            // Метод 4: отключение рекламных служб
             callbacks.onStage("method4")
             callbacks.onProgress(AppConstants.PROGRESS_METHOD4)
             val packages4 = disableAdServices(transaction)
@@ -174,7 +171,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 callbacks.onError("final_verification_failed")
                 val rollbackReport = rollback(transaction)
 
-                // Ошибки rollback добавляем в failedActions
                 if (rollbackReport.totalFailed > 0) {
                     failedActions.add("rollback_failed: ${rollbackReport.totalFailed}")
                 }
@@ -248,7 +244,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
         val failedActions = mutableListOf<String>()
 
-        // restoreSystemSettings
         val settingsFailed = restoreSystemSettingsWithReport()
         if (settingsFailed.isNotEmpty()) {
             failedActions.add("settings_restore: ${settingsFailed.joinToString()}")
@@ -257,25 +252,16 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
         callbacks.onProgress(AppConstants.PROGRESS_RESTORE_PACKAGES)
 
-        // restoreServices
         val servicesFailed = restoreServicesWithReport()
         if (servicesFailed.isNotEmpty()) {
             failedActions.add("services_restore: ${servicesFailed.joinToString()}")
         }
 
-        // restoreRegion
-        val regionFailed = restoreRegionWithReport()
-        if (regionFailed != null) {
-            failedActions.add("region_restore: $regionFailed")
+        val hiddenFailed = restoreHiddenKeysWithReport()
+        if (hiddenFailed.isNotEmpty()) {
+            failedActions.add("hidden_keys_restore: ${hiddenFailed.joinToString()}")
         }
 
-        // restoreAdServices
-        val adServicesFailed = restoreAdServicesWithReport()
-        if (adServicesFailed.isNotEmpty()) {
-            failedActions.add("ad_services_restore: ${adServicesFailed.joinToString()}")
-        }
-
-        // restoreDns
         val dnsFailed = restoreDnsWithReport()
         if (dnsFailed != null) {
             failedActions.add("dns_restore: $dnsFailed")
@@ -315,45 +301,33 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
     private suspend fun applySystemSettings(transaction: Transaction): List<String> {
         AppLog.i(TAG, "OptimizationEngine: applying system settings")
-        val commands = listOf(
-            "shell settings put global low_power 1" to "shell settings get global low_power",
-            "shell settings put global always_finish_activities 0" to "shell settings get global always_finish_activities",
-            "shell settings put global window_animation_scale 0.5" to "shell settings get global window_animation_scale",
-            "shell settings put global transition_animation_scale 0.5" to "shell settings get global transition_animation_scale",
-            "shell settings put global animator_duration_scale 0.5" to "shell settings get global animator_duration_scale"
-        )
         val applied = mutableListOf<String>()
-        for ((putCmd, getCmd) in commands) {
+
+        for ((key, value) in ServiceRegistry.SYSTEM_SETTINGS) {
             try {
+                val getCmd = "shell settings get $key"
+                val putCmd = "shell settings put $key $value"
                 val original = adb.executeCommand(getCmd).trim()
                 adb.executeCommand(putCmd)
                 transaction.appliedSettings[putCmd] = original
-                applied.add(putCmd.substringAfterLast(" "))
+                applied.add(key.substringAfterLast(" "))
                 delay(AppConstants.COMMAND_DELAY_MS)
             } catch (e: Exception) {
                 AppLog.w(
                     TAG,
-                    "OptimizationEngine: command failed: $putCmd - ${LogMasker.mask(e.message ?: "")}"
+                    "OptimizationEngine: command failed: $key - ${LogMasker.mask(e.message ?: "")}"
                 )
             }
         }
         return applied
     }
 
-    // ===== Метод 2: отключение сервисов =====
+    // ===== Метод 2: отключение сервисов аналитики =====
 
     private suspend fun disableAnalyticsServices(transaction: Transaction): List<String> {
         AppLog.i(TAG, "OptimizationEngine: disabling analytics services")
-        val packages = listOf(
-            "com.miui.analytics",
-            "com.xiaomi.ab",
-            "com.miui.msa.core",
-            "com.miui.systemAdSolution",
-            "com.xiaomi.discover",
-            "com.miui.bugreport"
-        )
         val disabled = mutableListOf<String>()
-        for (pkg in packages) {
+        for (pkg in ServiceRegistry.ANALYTICS_PACKAGES) {
             if (disablePackage(pkg)) {
                 transaction.disabledPackages.add(pkg)
                 disabled.add(pkg)
@@ -362,43 +336,37 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         return disabled
     }
 
-    // ===== Метод 3: фейковая смена региона =====
+    // ===== Метод 3: скрытые ключи =====
 
-    private suspend fun applyFakeRegion(transaction: Transaction): List<String> {
-        AppLog.i(TAG, "OptimizationEngine: applying fake region")
+    private suspend fun applyHiddenKeys(transaction: Transaction): List<String> {
+        AppLog.i(TAG, "OptimizationEngine: applying hidden keys")
         val applied = mutableListOf<String>()
-        return try {
-            val commands = listOf(
-                "shell setprop persist.sys.timezone Asia/Singapore",
-                "shell settings put secure limit_ad_tracking 1"
-            )
-            for (cmd in commands) {
-                adb.executeCommand(cmd)
-                applied.add(cmd.substringAfterLast(" "))
+
+        for ((key, value) in ServiceRegistry.HIDDEN_KEYS_DISABLE) {
+            try {
+                val getCmd = "shell settings get $key"
+                val putCmd = "shell settings put $key $value"
+                val original = adb.executeCommand(getCmd).trim()
+                adb.executeCommand(putCmd)
+                transaction.appliedSettings[putCmd] = original
+                applied.add(key.substringAfterLast(" "))
                 delay(AppConstants.COMMAND_DELAY_MS)
+            } catch (e: Exception) {
+                AppLog.w(
+                    TAG,
+                    "OptimizationEngine: hidden key failed: $key - ${LogMasker.mask(e.message ?: "")}"
+                )
             }
-            applied
-        } catch (e: Exception) {
-            AppLog.w(
-                TAG,
-                "OptimizationEngine: fake region failed: ${LogMasker.mask(e.message ?: "")}"
-            )
-            applied
         }
+        return applied
     }
 
-    // ===== Метод 4: отключение служб =====
+    // ===== Метод 4: отключение рекламных служб =====
 
     private suspend fun disableAdServices(transaction: Transaction): List<String> {
         AppLog.i(TAG, "OptimizationEngine: disabling ad services")
-        val packages = listOf(
-            "com.xiaomi.ad",
-            "com.miui.ad",
-            "com.miui.personalassistant",
-            "com.miui.smartassistant"
-        )
         val disabled = mutableListOf<String>()
-        for (pkg in packages) {
+        for (pkg in ServiceRegistry.AD_SERVICES_PACKAGES) {
             if (disablePackage(pkg)) {
                 transaction.disabledPackages.add(pkg)
                 disabled.add(pkg)
@@ -412,15 +380,16 @@ class OptimizationEngine(private val adb: AdbExecutor) {
     private suspend fun applyDnsFilter(transaction: Transaction): Boolean {
         AppLog.i(TAG, "OptimizationEngine: applying DNS filter (AdGuard)")
         return try {
-            val prevMode = adb.executeCommand("settings get global private_dns_mode").trim()
-            val prevHost = adb.executeCommand("settings get global private_dns_specifier").trim()
+            val prevMode = adb.executeCommand("settings get ${ServiceRegistry.Dns.MODE_KEY}").trim()
+            val prevHost =
+                adb.executeCommand("settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}").trim()
             transaction.previousDnsMode = prevMode
             transaction.previousDnsHost = prevHost
             transaction.enabledDns = true
 
-            adb.executeCommand("settings put global private_dns_mode hostname")
+            adb.executeCommand("settings put ${ServiceRegistry.Dns.MODE_KEY} ${ServiceRegistry.Dns.MODE_VALUE}")
             delay(AppConstants.COMMAND_DELAY_MS)
-            adb.executeCommand("settings put global private_dns_specifier dns.adguard.com")
+            adb.executeCommand("settings put ${ServiceRegistry.Dns.SPECIFIER_KEY} ${ServiceRegistry.Dns.SPECIFIER_VALUE}")
             delay(AppConstants.COMMAND_DELAY_MS)
 
             AppLog.i(TAG, "OptimizationEngine: DNS filter applied")
@@ -473,7 +442,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         return false
     }
 
-    // ===== Rollback (теперь возвращает RollbackReport) =====
+    // ===== Rollback =====
 
     private suspend fun rollback(transaction: Transaction): RollbackReport {
         AppLog.i(TAG, "OptimizationEngine: starting rollback")
@@ -488,13 +457,13 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         // Восстановление DNS
         if (transaction.enabledDns) {
             try {
-                val mode = transaction.previousDnsMode ?: "opportunistic"
+                val mode = transaction.previousDnsMode ?: ServiceRegistry.Dns.RESTORE_MODE
                 if (mode == "off" || mode == "null" || mode.isEmpty()) {
-                    adb.executeCommand("settings put global private_dns_mode opportunistic")
+                    adb.executeCommand("settings put ${ServiceRegistry.Dns.MODE_KEY} ${ServiceRegistry.Dns.RESTORE_MODE}")
                 } else {
-                    adb.executeCommand("settings put global private_dns_mode $mode")
+                    adb.executeCommand("settings put ${ServiceRegistry.Dns.MODE_KEY} $mode")
                     if (!transaction.previousDnsHost.isNullOrEmpty() && transaction.previousDnsHost != "null") {
-                        adb.executeCommand("settings put global private_dns_specifier ${transaction.previousDnsHost}")
+                        adb.executeCommand("settings put ${ServiceRegistry.Dns.SPECIFIER_KEY} ${transaction.previousDnsHost}")
                     }
                 }
                 restoredDns = true
@@ -564,7 +533,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
         if (!verifyAnalyticsDisabled()) failedItems.add("analytics_services")
         if (!verifyAdServicesDisabled()) failedItems.add("ad_services")
-        if (!checkRecommendationsDisabled()) failedItems.add("recommendations")
         if (checkDns && !verifyDnsFilter()) failedItems.add("dns_filter")
 
         val success = failedItems.isEmpty()
@@ -583,7 +551,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
     private suspend fun verifyAnalyticsDisabled(): Boolean {
         return try {
             val result = adb.executeCommand("shell pm list packages -d").trim()
-            val required = listOf("com.miui.analytics", "com.miui.systemAdSolution")
+            val required = ServiceRegistry.ANALYTICS_PACKAGES.take(2) // Проверяем первые 2
             required.all { pkg -> result.contains(pkg) }
         } catch (e: Exception) {
             AppLog.w(
@@ -597,7 +565,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
     private suspend fun verifyAdServicesDisabled(): Boolean {
         return try {
             val result = adb.executeCommand("shell pm list packages -d").trim()
-            result.contains("com.xiaomi.ad") || result.contains("com.miui.ad")
+            ServiceRegistry.AD_SERVICES_PACKAGES.take(2).any { pkg -> result.contains(pkg) }
         } catch (e: Exception) {
             AppLog.w(
                 TAG,
@@ -607,25 +575,12 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
     }
 
-    private suspend fun checkRecommendationsDisabled(): Boolean {
-        return try {
-            val result = adb.executeCommand("shell pm list packages -d").trim()
-            val required = listOf("com.miui.msa.core", "com.miui.personalassistant")
-            required.all { pkg -> result.contains(pkg) }
-        } catch (e: Exception) {
-            AppLog.w(
-                TAG,
-                "OptimizationEngine: recommendations verification failed: ${LogMasker.mask(e.message ?: "")}"
-            )
-            false
-        }
-    }
-
     private suspend fun verifyDnsFilter(): Boolean {
         return try {
-            val mode = adb.executeCommand("settings get global private_dns_mode").trim()
-            val host = adb.executeCommand("settings get global private_dns_specifier").trim()
-            mode.contains("hostname") && host.contains("adguard")
+            val mode = adb.executeCommand("settings get ${ServiceRegistry.Dns.MODE_KEY}").trim()
+            val host =
+                adb.executeCommand("settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}").trim()
+            mode.contains(ServiceRegistry.Dns.MODE_VALUE) && host.contains("adguard")
         } catch (e: Exception) {
             AppLog.w(
                 TAG,
@@ -635,50 +590,33 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
     }
 
-    // ===== Восстановление с отчётами об ошибках =====
-
-    private suspend fun verifyRestored(): VerificationResult {
-        return VerificationResult(
-            success = true,
-            failedItems = emptyList(),
-            details = "Restore completed"
-        )
-    }
+    // ===== Восстановление с отчётами =====
 
     private suspend fun restoreSystemSettingsWithReport(): List<String> {
         AppLog.i(TAG, "OptimizationEngine: restoring system settings")
-        val commands = listOf(
-            "shell settings put global low_power 0",
-            "shell settings put global always_finish_activities 0",
-            "shell settings put global window_animation_scale 1.0",
-            "shell settings put global transition_animation_scale 1.0",
-            "shell settings put global animator_duration_scale 1.0"
-        )
         val failed = mutableListOf<String>()
-        for (cmd in commands) {
+
+        for (key in ServiceRegistry.SYSTEM_SETTINGS.keys) {
             try {
-                adb.executeCommand(cmd)
+                val restoreValue = when {
+                    key.contains("low_power") -> "0"
+                    key.contains("always_finish") -> "0"
+                    key.contains("animation_scale") -> "1.0"
+                    else -> "1"
+                }
+                adb.executeCommand("shell settings put $key $restoreValue")
                 delay(AppConstants.COMMAND_DELAY_MS)
             } catch (e: Exception) {
-                val keyName = cmd.substringAfterLast(" ")
-                failed.add(keyName)
-                AppLog.w(TAG, "OptimizationEngine: restore command failed: $cmd")
+                failed.add(key.substringAfterLast(" "))
+                AppLog.w(TAG, "OptimizationEngine: restore command failed: $key")
             }
         }
         return failed
     }
 
     private suspend fun restoreServicesWithReport(): List<String> {
-        val packages = listOf(
-            "com.miui.analytics",
-            "com.xiaomi.ab",
-            "com.miui.msa.core",
-            "com.miui.systemAdSolution",
-            "com.xiaomi.discover",
-            "com.miui.bugreport"
-        )
         val failed = mutableListOf<String>()
-        for (pkg in packages) {
+        for (pkg in ServiceRegistry.ANALYTICS_PACKAGES + ServiceRegistry.AD_SERVICES_PACKAGES) {
             try {
                 adb.executeCommand("shell pm enable $pkg")
                 delay(AppConstants.COMMAND_DELAY_MS)
@@ -693,37 +631,19 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         return failed
     }
 
-    private suspend fun restoreRegionWithReport(): String? {
-        return try {
-            adb.executeCommand("shell settings put secure limit_ad_tracking 0")
-            delay(AppConstants.COMMAND_DELAY_MS)
-            null
-        } catch (e: Exception) {
-            AppLog.w(
-                TAG,
-                "OptimizationEngine: region restore failed: ${LogMasker.mask(e.message ?: "")}"
-            )
-            e.message ?: "Unknown"
-        }
-    }
-
-    private suspend fun restoreAdServicesWithReport(): List<String> {
-        val packages = listOf(
-            "com.xiaomi.ad",
-            "com.miui.ad",
-            "com.miui.personalassistant",
-            "com.miui.smartassistant"
-        )
+    private suspend fun restoreHiddenKeysWithReport(): List<String> {
+        AppLog.i(TAG, "OptimizationEngine: restoring hidden keys")
         val failed = mutableListOf<String>()
-        for (pkg in packages) {
+
+        for ((key, value) in ServiceRegistry.HIDDEN_KEYS_RESTORE) {
             try {
-                adb.executeCommand("shell pm enable $pkg")
+                adb.executeCommand("shell settings put $key $value")
                 delay(AppConstants.COMMAND_DELAY_MS)
             } catch (e: Exception) {
-                failed.add(pkg)
+                failed.add(key.substringAfterLast(" "))
                 AppLog.w(
                     TAG,
-                    "OptimizationEngine: failed to enable $pkg: ${LogMasker.mask(e.message ?: "")}"
+                    "OptimizationEngine: hidden key restore failed: $key - ${LogMasker.mask(e.message ?: "")}"
                 )
             }
         }
@@ -732,7 +652,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
     private suspend fun restoreDnsWithReport(): String? {
         return try {
-            adb.executeCommand("settings put global private_dns_mode opportunistic")
+            adb.executeCommand("settings put ${ServiceRegistry.Dns.MODE_KEY} ${ServiceRegistry.Dns.RESTORE_MODE}")
             delay(AppConstants.COMMAND_DELAY_MS)
             null
         } catch (e: Exception) {

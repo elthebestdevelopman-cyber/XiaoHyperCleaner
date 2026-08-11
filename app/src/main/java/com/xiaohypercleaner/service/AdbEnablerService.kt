@@ -50,6 +50,7 @@ class AdbEnablerService : AccessibilityService() {
     private var currentStep = Step.IDLE
     private var lastOverlayUpdate = 0L
     private var lastReopenMs = 0L
+    private var lastProgressUpdate = 0L
 
     // Watchdog режима разработчика
     private var paused = false
@@ -72,7 +73,6 @@ class AdbEnablerService : AccessibilityService() {
         })
         AppLog.i(TAG, "AdbEnablerService: connected")
 
-        // Запускаем debounced consumer для accessibility событий
         scope.launch {
             accessibilityEvents
                 .debounce(EVENT_DEBOUNCE_MS)
@@ -93,7 +93,6 @@ class AdbEnablerService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         if (!chainActive || chainCancelled) return
 
-        // Пользователь вернулся в наше приложение — вернём его в настройки
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
             event.packageName?.toString() == packageName
         ) {
@@ -101,7 +100,6 @@ class AdbEnablerService : AccessibilityService() {
             return
         }
 
-        // Отправляем сигнал в debounced channel (без тяжёлой работы на hot path)
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
         ) {
@@ -111,11 +109,6 @@ class AdbEnablerService : AccessibilityService() {
         }
     }
 
-    /**
-     * Обрабатывает accessibility событие после debounce.
-     * Root node получаем здесь, а не в onAccessibilityEvent — к этому моменту
-     * окно уже стабилизировалось после серии быстрых событий.
-     */
     private fun processLatestAccessibilityEvent() {
         if (!chainActive || chainCancelled) return
         val root = rootInActiveWindow ?: return
@@ -145,8 +138,6 @@ class AdbEnablerService : AccessibilityService() {
             }
         }, REOPEN_DELAY_MS)
     }
-
-    // ===== Watchdog режима разработчика =====
 
     private fun startDevWatchdog() {
         cancelDevWatchdog()
@@ -384,7 +375,6 @@ class AdbEnablerService : AccessibilityService() {
                     "AdbEnablerService: disabled ${report.disabledPackages.size} packages, applied ${report.appliedSettings.size} settings"
                 )
 
-                // Логируем отчёт о rollback, если он был (например, при сбое верификации)
                 report.rollbackReport?.let { rb ->
                     AppLog.i(TAG, "AdbEnablerService: rollback report: ${rb.summary()}")
                 }
@@ -464,8 +454,6 @@ class AdbEnablerService : AccessibilityService() {
         super.onDestroy()
     }
 
-    // ===== Helpers =====
-
     private fun findNodeByText(
         root: AccessibilityNodeInfo,
         texts: List<String>
@@ -529,6 +517,9 @@ class AdbEnablerService : AccessibilityService() {
     }
 
     private fun overlayProgress(progress: Float) {
+        val now = System.currentTimeMillis()
+        if (now - lastProgressUpdate < 200) return // не чаще 5 раз в секунду
+        lastProgressUpdate = now
         try {
             val intent = Intent(this, OverlayService::class.java)
             intent.putExtra("progress", progress)
