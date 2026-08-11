@@ -33,8 +33,12 @@ object AppConstants {
     // Прогресс — Float для ProgressBar и колбэков
     const val PROGRESS_START = 5f
     const val PROGRESS_CONNECTED = 15f
+    const val PROGRESS_METHOD1 = 25f
     const val PROGRESS_METHOD2 = 45f
-    const val PROGRESS_METHOD3 = 75f
+    const val PROGRESS_METHOD3 = 60f
+    const val PROGRESS_METHOD4 = 75f
+    const val PROGRESS_METHOD5_DNS = 90f
+    const val PROGRESS_VERIFYING = 95f
     const val PROGRESS_RESTORE_KEYS = 30f
     const val PROGRESS_RESTORE_PACKAGES = 80f
     const val PROGRESS_DONE = 100f

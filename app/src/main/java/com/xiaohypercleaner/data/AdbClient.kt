@@ -2,6 +2,7 @@ package com.xiaohypercleaner.data
 
 import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.util.AppLog
+import com.xiaohypercleaner.util.LogMasker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedInputStream
@@ -44,7 +45,7 @@ class AdbClient(
 
     private fun tryConnect(port: Int): Boolean {
         return try {
-            disconnect() // закрываем старый сокет если был
+            disconnect()
             val s = Socket()
             AppLog.i(
                 TAG,
@@ -70,11 +71,19 @@ class AdbClient(
                 false
             }
         } catch (e: IOException) {
-            AppLog.e(TAG, "tryConnect: IOException on port $port: ${e.message}", e)
+            AppLog.e(
+                TAG,
+                "tryConnect: IOException on port $port: ${LogMasker.mask(e.message ?: "")}",
+                e
+            )
             disconnect()
             false
         } catch (e: Exception) {
-            AppLog.e(TAG, "tryConnect: unexpected exception on port $port", e)
+            AppLog.e(
+                TAG,
+                "tryConnect: unexpected exception on port $port: ${LogMasker.mask(e.message ?: "")}",
+                e
+            )
             disconnect()
             false
         }
@@ -82,19 +91,22 @@ class AdbClient(
 
     override suspend fun executeCommand(command: String): String = withContext(Dispatchers.IO) {
         commandCount++
-        val maskedCmd = com.xiaohypercleaner.util.LogMasker.mask(command)
+        val maskedCmd = LogMasker.mask(command)
         AppLog.i(TAG, "cmd#$commandCount: executing: $maskedCmd")
 
         try {
             val result = runShell(command)
-            val maskedResult = com.xiaohypercleaner.util.LogMasker.mask(result.take(500))
+            val maskedResult = LogMasker.mask(result.take(500))
             AppLog.i(
                 TAG,
                 "cmd#$commandCount: success, result(${result.length} chars): $maskedResult"
             )
             result
         } catch (e: AdbException) {
-            AppLog.w(TAG, "cmd#$commandCount: AdbException: ${e.message}, reconnecting once")
+            AppLog.w(
+                TAG,
+                "cmd#$commandCount: AdbException: ${LogMasker.mask(e.message ?: "")}, reconnecting once"
+            )
             disconnect()
             if (!connect()) {
                 AppLog.e(TAG, "cmd#$commandCount: reconnect FAILED, rethrowing")
@@ -106,7 +118,11 @@ class AdbClient(
                 AppLog.i(TAG, "cmd#$commandCount: retry success")
                 result
             } catch (e2: Exception) {
-                AppLog.e(TAG, "cmd#$commandCount: retry also FAILED", e2)
+                AppLog.e(
+                    TAG,
+                    "cmd#$commandCount: retry also FAILED: ${LogMasker.mask(e2.message ?: "")}",
+                    e2
+                )
                 throw e2
             }
         }
@@ -114,16 +130,19 @@ class AdbClient(
 
     private fun runShell(command: String): String {
         val s = socket ?: throw AdbException("Not connected")
-        if (!s.isConnected) throw AdbException("Socket closed")
-        if (s.isClosed) throw AdbException("Socket was closed")
+        check(s.isConnected && !s.isClosed) { "Socket not usable" }
 
-        sendMessage("shell:$command")
-        val status = readStatus()
-        AppLog.i(TAG, "runShell: status=$status")
-        if (status != "OKAY") throw AdbException("Bad status: $status")
-
-        val result = readUntilEof()
-        return result
+        try {
+            sendMessage("shell:$command")
+            val status = readStatus()
+            AppLog.i(TAG, "runShell: status=$status")
+            check(status == "OKAY") { "Bad status: $status" }
+            return readUntilEof()
+        } catch (e: Exception) {
+            AppLog.w(TAG, "runShell: error, closing socket: ${LogMasker.mask(e.message ?: "")}")
+            disconnect()
+            throw AdbException("Shell failed: ${e.message}", e)
+        }
     }
 
     override fun disconnect() {
@@ -173,7 +192,11 @@ class AdbClient(
         } catch (e: SocketTimeoutException) {
             AppLog.w(TAG, "readUntilEof: timeout after $chunks chunks, returning partial")
         } catch (e: IOException) {
-            AppLog.e(TAG, "readUntilEof: IOException after $chunks chunks", e)
+            AppLog.e(
+                TAG,
+                "readUntilEof: IOException after $chunks chunks: ${LogMasker.mask(e.message ?: "")}",
+                e
+            )
         }
         AppLog.i(TAG, "readUntilEof: read ${sb.length} chars in $chunks chunks")
         return sb.toString()

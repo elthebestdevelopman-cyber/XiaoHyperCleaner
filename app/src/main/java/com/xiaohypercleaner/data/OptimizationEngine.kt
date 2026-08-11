@@ -2,6 +2,7 @@ package com.xiaohypercleaner.data
 
 import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.util.AppLog
+import com.xiaohypercleaner.util.LogMasker
 import kotlinx.coroutines.delay
 
 data class OptimizationOptions(
@@ -49,7 +50,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             AppLog.i(TAG, "OptimizationEngine: connected successfully")
             true
         } catch (e: Exception) {
-            AppLog.e(TAG, "OptimizationEngine: connection failed: ${e.message}")
+            AppLog.e(
+                TAG,
+                "OptimizationEngine: connection failed: ${LogMasker.mask(e.message ?: "")}"
+            )
             false
         }
     }
@@ -89,28 +93,28 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         try {
             // Метод 1: системные параметры
             callbacks.onStage("method1")
-            callbacks.onProgress(AppConstants.PROGRESS_METHOD2)
+            callbacks.onProgress(AppConstants.PROGRESS_METHOD1)
             val settings1 = applySystemSettings(transaction)
             appliedSettings.addAll(settings1)
             delay(AppConstants.COMMAND_DELAY_MS)
 
             // Метод 2: отключение сервисов
             callbacks.onStage("method2")
-            callbacks.onProgress(AppConstants.PROGRESS_METHOD3)
+            callbacks.onProgress(AppConstants.PROGRESS_METHOD2)
             val packages2 = disableAnalyticsServices(transaction)
             disabledPackages.addAll(packages2)
             delay(AppConstants.COMMAND_DELAY_MS)
 
             // Метод 3: фейковая смена региона
             callbacks.onStage("method3")
-            callbacks.onProgress(AppConstants.PROGRESS_RESTORE_KEYS)
+            callbacks.onProgress(AppConstants.PROGRESS_METHOD3)
             val settings3 = applyFakeRegion(transaction)
             appliedSettings.addAll(settings3)
             delay(AppConstants.COMMAND_DELAY_MS)
 
             // Метод 4: отключение служб
             callbacks.onStage("method4")
-            callbacks.onProgress(AppConstants.PROGRESS_RESTORE_PACKAGES)
+            callbacks.onProgress(AppConstants.PROGRESS_METHOD4)
             val packages4 = disableAdServices(transaction)
             disabledPackages.addAll(packages4)
             delay(AppConstants.COMMAND_DELAY_MS)
@@ -118,7 +122,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             // Метод 5 (опционально): DNS-фильтр
             if (options.dnsFilter) {
                 callbacks.onStage("method5")
-                callbacks.onProgress(90f)
+                callbacks.onProgress(AppConstants.PROGRESS_METHOD5_DNS)
                 val ok = applyDnsFilter(transaction)
                 if (ok) {
                     appliedSettings.add("private_dns=adguard")
@@ -130,7 +134,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
             // Финальная проверка
             callbacks.onStage("verifying")
-            callbacks.onProgress(95f)
+            callbacks.onProgress(AppConstants.PROGRESS_VERIFYING)
             val verification = verifyAll(options.dnsFilter)
 
             if (!verification.success) {
@@ -165,7 +169,11 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 verificationResult = verification
             )
         } catch (e: Exception) {
-            AppLog.e(TAG, "OptimizationEngine: unexpected error, rolling back", e)
+            AppLog.e(
+                TAG,
+                "OptimizationEngine: unexpected error, rolling back: ${LogMasker.mask(e.message ?: "")}",
+                e
+            )
             callbacks.onError("unexpected_error")
             rollback(transaction)
             callbacks.onProgress(AppConstants.PROGRESS_FAIL)
@@ -229,7 +237,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             AppLog.i(TAG, "OptimizationEngine: reboot command sent")
             true
         } catch (e: Exception) {
-            AppLog.e(TAG, "OptimizationEngine: reboot failed: ${e.message}")
+            AppLog.e(TAG, "OptimizationEngine: reboot failed: ${LogMasker.mask(e.message ?: "")}")
             false
         }
     }
@@ -254,7 +262,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 applied.add(putCmd.substringAfterLast(" "))
                 delay(AppConstants.COMMAND_DELAY_MS)
             } catch (e: Exception) {
-                AppLog.w(TAG, "OptimizationEngine: command failed: $putCmd - ${e.message}")
+                AppLog.w(
+                    TAG,
+                    "OptimizationEngine: command failed: $putCmd - ${LogMasker.mask(e.message ?: "")}"
+                )
             }
         }
         return applied
@@ -299,7 +310,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             }
             applied
         } catch (e: Exception) {
-            AppLog.w(TAG, "OptimizationEngine: fake region failed: ${e.message}")
+            AppLog.w(
+                TAG,
+                "OptimizationEngine: fake region failed: ${LogMasker.mask(e.message ?: "")}"
+            )
             applied
         }
     }
@@ -343,7 +357,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             AppLog.i(TAG, "OptimizationEngine: DNS filter applied")
             true
         } catch (e: Exception) {
-            AppLog.w(TAG, "OptimizationEngine: DNS filter failed: ${e.message}")
+            AppLog.w(
+                TAG,
+                "OptimizationEngine: DNS filter failed: ${LogMasker.mask(e.message ?: "")}"
+            )
             false
         }
     }
@@ -361,7 +378,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 return true
             }
         } catch (e: Exception) {
-            AppLog.w(TAG, "OptimizationEngine: disable-user failed for $pkg: ${e.message}")
+            AppLog.w(
+                TAG,
+                "OptimizationEngine: disable-user failed for $pkg: ${LogMasker.mask(e.message ?: "")}"
+            )
         }
 
         if (android.os.Build.VERSION.SDK_INT >= 33) {
@@ -373,7 +393,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                     return true
                 }
             } catch (e: Exception) {
-                AppLog.w(TAG, "OptimizationEngine: suspend failed for $pkg: ${e.message}")
+                AppLog.w(
+                    TAG,
+                    "OptimizationEngine: suspend failed for $pkg: ${LogMasker.mask(e.message ?: "")}"
+                )
             }
         }
 
@@ -399,11 +422,14 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                     }
                 }
             } catch (e: Exception) {
-                AppLog.w(TAG, "OptimizationEngine: DNS rollback failed: ${e.message}")
+                AppLog.w(
+                    TAG,
+                    "OptimizationEngine: DNS rollback failed: ${LogMasker.mask(e.message ?: "")}"
+                )
             }
         }
 
-        // Восстановление настроек (в обратном порядке) — через entries.toList().reversed()
+        // Восстановление настроек (в обратном порядке)
         for (entry in transaction.appliedSettings.entries.toList().reversed()) {
             try {
                 val cmd = entry.key
@@ -413,7 +439,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                     adb.executeCommand("settings put $key $original")
                 }
             } catch (e: Exception) {
-                AppLog.w(TAG, "OptimizationEngine: settings rollback failed: ${e.message}")
+                AppLog.w(
+                    TAG,
+                    "OptimizationEngine: settings rollback failed: ${LogMasker.mask(e.message ?: "")}"
+                )
             }
         }
 
@@ -422,7 +451,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             try {
                 adb.executeCommand("shell pm enable $pkg")
             } catch (e: Exception) {
-                AppLog.w(TAG, "OptimizationEngine: package rollback failed for $pkg: ${e.message}")
+                AppLog.w(
+                    TAG,
+                    "OptimizationEngine: package rollback failed for $pkg: ${LogMasker.mask(e.message ?: "")}"
+                )
             }
         }
 
@@ -459,7 +491,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             val required = listOf("com.miui.analytics", "com.miui.systemAdSolution")
             required.all { pkg -> result.contains(pkg) }
         } catch (e: Exception) {
-            AppLog.w(TAG, "OptimizationEngine: analytics verification failed: ${e.message}")
+            AppLog.w(
+                TAG,
+                "OptimizationEngine: analytics verification failed: ${LogMasker.mask(e.message ?: "")}"
+            )
             false
         }
     }
@@ -469,7 +504,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             val result = adb.executeCommand("shell pm list packages -d").trim()
             result.contains("com.xiaomi.ad") || result.contains("com.miui.ad")
         } catch (e: Exception) {
-            AppLog.w(TAG, "OptimizationEngine: ad services verification failed: ${e.message}")
+            AppLog.w(
+                TAG,
+                "OptimizationEngine: ad services verification failed: ${LogMasker.mask(e.message ?: "")}"
+            )
             false
         }
     }
@@ -480,7 +518,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             val required = listOf("com.miui.msa.core", "com.miui.personalassistant")
             required.all { pkg -> result.contains(pkg) }
         } catch (e: Exception) {
-            AppLog.w(TAG, "OptimizationEngine: recommendations verification failed: ${e.message}")
+            AppLog.w(
+                TAG,
+                "OptimizationEngine: recommendations verification failed: ${LogMasker.mask(e.message ?: "")}"
+            )
             false
         }
     }
@@ -491,7 +532,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             val host = adb.executeCommand("settings get global private_dns_specifier").trim()
             mode.contains("hostname") && host.contains("adguard")
         } catch (e: Exception) {
-            AppLog.w(TAG, "OptimizationEngine: DNS verification failed: ${e.message}")
+            AppLog.w(
+                TAG,
+                "OptimizationEngine: DNS verification failed: ${LogMasker.mask(e.message ?: "")}"
+            )
             false
         }
     }
@@ -520,7 +564,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 adb.executeCommand(cmd)
                 delay(AppConstants.COMMAND_DELAY_MS)
             } catch (e: Exception) {
-                AppLog.w(TAG, "OptimizationEngine: restore command failed: $cmd")
+                AppLog.w(
+                    TAG,
+                    "OptimizationEngine: restore command failed: $cmd - ${LogMasker.mask(e.message ?: "")}"
+                )
             }
         }
     }
@@ -539,7 +586,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 adb.executeCommand("shell pm enable $pkg")
                 delay(AppConstants.COMMAND_DELAY_MS)
             } catch (e: Exception) {
-                AppLog.w(TAG, "OptimizationEngine: failed to enable $pkg: ${e.message}")
+                AppLog.w(
+                    TAG,
+                    "OptimizationEngine: failed to enable $pkg: ${LogMasker.mask(e.message ?: "")}"
+                )
             }
         }
     }
@@ -549,7 +599,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             adb.executeCommand("shell settings put secure limit_ad_tracking 0")
             delay(AppConstants.COMMAND_DELAY_MS)
         } catch (e: Exception) {
-            AppLog.w(TAG, "OptimizationEngine: region restore failed: ${e.message}")
+            AppLog.w(
+                TAG,
+                "OptimizationEngine: region restore failed: ${LogMasker.mask(e.message ?: "")}"
+            )
         }
     }
 
@@ -565,7 +618,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 adb.executeCommand("shell pm enable $pkg")
                 delay(AppConstants.COMMAND_DELAY_MS)
             } catch (e: Exception) {
-                AppLog.w(TAG, "OptimizationEngine: failed to enable $pkg: ${e.message}")
+                AppLog.w(
+                    TAG,
+                    "OptimizationEngine: failed to enable $pkg: ${LogMasker.mask(e.message ?: "")}"
+                )
             }
         }
     }
@@ -575,7 +631,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             adb.executeCommand("settings put global private_dns_mode opportunistic")
             delay(AppConstants.COMMAND_DELAY_MS)
         } catch (e: Exception) {
-            AppLog.w(TAG, "OptimizationEngine: DNS restore failed: ${e.message}")
+            AppLog.w(
+                TAG,
+                "OptimizationEngine: DNS restore failed: ${LogMasker.mask(e.message ?: "")}"
+            )
         }
     }
 }

@@ -41,17 +41,13 @@ class AdbEnablerService : AccessibilityService() {
     private var currentStep = Step.IDLE
     private var lastOverlayUpdate = 0L
 
-    // Явно указываем тип, чтобы избежать рекурсивной проверки типов
-    private val cancelHandler: OverlayController.CancelHandler =
-        object : OverlayController.CancelHandler {
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        OverlayController.register(object : OverlayController.CancelHandler {
             override fun cancelChain() {
                 this@AdbEnablerService.cancelChain()
             }
-        }
-
-    override fun onServiceConnected() {
-        super.onServiceConnected()
-        OverlayController.register(cancelHandler)
+        })
         AppLog.i(TAG, "AdbEnablerService: connected")
     }
 
@@ -218,7 +214,6 @@ class AdbEnablerService : AccessibilityService() {
                 val app = application as XiaoHyperApp
                 val deps = XiaoHyperApp.testDeps ?: app.deps
 
-                // Читаем настройки DNS из DataStore
                 val dnsEnabled = deps.preferencesManager.getDnsFilterEnabled()
                 AppLog.i(TAG, "AdbEnablerService: dnsFilter=$dnsEnabled")
 

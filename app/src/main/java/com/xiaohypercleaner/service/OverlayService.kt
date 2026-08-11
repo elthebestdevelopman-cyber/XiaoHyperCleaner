@@ -140,7 +140,7 @@ class OverlayService : Service() {
                 cornerRadius = dp(24).toFloat()
             }
             layoutParams = matchWrap(dp(16))
-            setOnClickListener { OverlayController.onCancel?.invoke() }
+            setOnClickListener { OverlayController.triggerCancel() }
         }
         root.addView(cancel)
     }
