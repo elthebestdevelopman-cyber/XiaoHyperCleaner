@@ -15,6 +15,10 @@ private open class FakeAdb : AdbExecutor {
     var failedOnce = false
     var connectionsCount = 0
 
+    // Состояние DNS — нужно чтобы верификация видела установленные значения
+    var dnsMode: String = "opportunistic"
+    var dnsSpecifier: String = ""
+
     override suspend fun connect(): Boolean {
         connectionsCount++
         return true
@@ -34,33 +38,62 @@ private open class FakeAdb : AdbExecutor {
 
     private fun executeCommandInternal(command: String): String {
         return when {
-            command.startsWith("settings get secure limit_ad_tracking") -> keyValue
-            command.startsWith("settings get global window_animation_scale") -> "0.5"
-            command.startsWith("settings get global transition_animation_scale") -> "0.5"
-            command.startsWith("settings get global animator_duration_scale") -> "0.5"
-            command.startsWith("settings get global low_power") -> "1"
-            command.startsWith("pm list packages -d") ->
+            // ===== settings GET (для rollback и верификации) =====
+            command.contains("settings get secure limit_ad_tracking") -> keyValue
+            command.contains("settings get global window_animation_scale") -> "0.5"
+            command.contains("settings get global transition_animation_scale") -> "0.5"
+            command.contains("settings get global animator_duration_scale") -> "0.5"
+            command.contains("settings get global low_power") -> "1"
+            command.contains("settings get global always_finish_activities") -> "0"
+
+            // DNS get команды (для верификации)
+            command.contains("settings get global private_dns_mode") -> dnsMode
+            command.contains("settings get global private_dns_specifier") -> dnsSpecifier
+
+            // DNS put команды (сохраняем состояние для верификации)
+            command.contains("settings put global private_dns_mode") -> {
+                dnsMode = command.substringAfterLast(' ')
+                "Success"
+            }
+
+            command.contains("settings put global private_dns_specifier") -> {
+                dnsSpecifier = command.substringAfterLast(' ')
+                "Success"
+            }
+
+            // ===== pm list packages — для верификации =====
+            // Матчится и с "shell" prefix и без (OptimizationEngine использует оба варианта)
+            command.contains("pm list packages -d") ->
                 disabledPackages.joinToString("\n") { "package:$it" }
 
-            command.startsWith("pm list packages -e") ->
+            command.contains("pm list packages -e") ->
                 listOf("com.miui.analytics", "com.miui.systemAdSolution")
                     .joinToString("\n") { "package:$it" }
 
-            command.startsWith("pm disable-user") -> {
+            // ===== pm disable-user / enable / suspend =====
+            command.contains("pm disable-user") -> {
                 if (failDisable) "Failure" else {
                     disabledPackages.add(command.substringAfterLast(' '))
                     "Success"
                 }
             }
 
-            command.startsWith("pm enable") -> {
+            command.contains("pm suspend") -> {
+                if (failDisable) "Failure" else {
+                    disabledPackages.add(command.substringAfterLast(' '))
+                    "Success"
+                }
+            }
+
+            command.contains("pm enable") -> {
                 disabledPackages.remove(command.substringAfterLast(' '))
                 "Success"
             }
 
+            // ===== Остальные команды =====
             command.startsWith("settings put") -> "Success"
-            command.startsWith("setprop") -> "Success"
-            command.startsWith("shell reboot") -> ""
+            command.contains("setprop") -> "Success"
+            command.contains("shell reboot") -> ""
 
             else -> ""
         }
