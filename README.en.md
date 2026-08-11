@@ -2,18 +2,14 @@
 
 **No root. No bloat. No data.**
 
-<div align="center">
+A tool for disabling system analytics and ads on **Xiaomi**, **Redmi**, and **Poco** devices via
+local ADB. Works without root access, all changes are fully reversible.
 
 [![Version](https://img.shields.io/badge/version-1.0--beta2-blue)](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/releases)
 [![Android](https://img.shields.io/badge/Android-10%2B-brightgreen)](https://www.android.com/)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-orange)](https://creativecommons.org/licenses/by-nc/4.0/)
+[![CI](https://img.shields.io/badge/CI-GitHub%20Actions-success)](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/actions)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.4.10-purple)](https://kotlinlang.org/)
-
-**🇷🇺 [Русский](README.md)** | 🇬🇧 English
-
-</div>
-
-A tool for disabling system analytics and ads on **Xiaomi**, **Redmi**, and **Poco** devices via local ADB. Works without root access, all changes are fully reversible.
 
 ---
 
@@ -37,9 +33,11 @@ A tool for disabling system analytics and ads on **Xiaomi**, **Redmi**, and **Po
 
 ## 🎯 About
 
-**XiaoHyperCleaner** is an app for Xiaomi, Redmi, and Poco device owners who are tired of system analytics and ads built into MIUI / HyperOS.
+**XiaoHyperCleaner** is an app for Xiaomi, Redmi, and Poco device owners who are tired of system
+analytics and ads built into MIUI / HyperOS.
 
-The app connects to the device via **local ADB** (`127.0.0.1`) and applies settings that previously required manual console commands:
+The app connects to the device via **local ADB** (`127.0.0.1`) and applies settings that previously
+required manual console commands:
 
 - ✅ **No root required** — works via standard ADB
 - ✅ **No system modification** — doesn't touch system partitions
@@ -53,14 +51,14 @@ The app connects to the device via **local ADB** (`127.0.0.1`) and applies setti
 
 ### Main Functions
 
-| Function | Description |
-|----------|-------------|
-| 🚫 **Disable analytics** | `com.miui.analytics`, `com.xiaomi.ab`, `com.miui.bugreport`, etc. |
-| 🛑 **Disable ads** | `com.xiaomi.ad`, `com.miui.ad`, `com.miui.systemAdSolution` |
+| Function                       | Description                                                                  |
+|--------------------------------|------------------------------------------------------------------------------|
+| 🚫 **Disable analytics**       | `com.miui.analytics`, `com.xiaomi.ab`, `com.miui.bugreport`, etc.            |
+| 🛑 **Disable ads**             | `com.xiaomi.ad`, `com.miui.ad`, `com.miui.systemAdSolution`                  |
 | 🤖 **Disable recommendations** | `com.miui.msa.core`, `com.miui.personalassistant`, `com.miui.smartassistant` |
-| ⚙️ **Optimize parameters** | Animations, background process limits, battery saving |
-| 🌐 **DNS filter (optional)** | Block ad domains via AdGuard DNS |
-| 🔄 **Full rollback** | All changes can be undone with one button |
+| ⚙️ **Optimize parameters**     | Animations, background process limits, battery saving                        |
+| 🌐 **DNS filter (optional)**   | Block ad domains via AdGuard DNS                                             |
+| 🔄 **Full rollback**           | All changes can be undone with one button                                    |
 
 ### Highlights
 
@@ -84,12 +82,12 @@ The app connects to the device via **local ADB** (`127.0.0.1`) and applies setti
 
 ## 📱 Requirements
 
-| Parameter | Value |
-|-----------|-------|
-| **Devices** | Xiaomi / Redmi / Poco |
-| **Firmware** | MIUI 12+ or HyperOS |
-| **Android** | 10+ (API 29+) |
-| **Root** | ❌ Not required |
+| Parameter              | Value                 |
+|------------------------|-----------------------|
+| **Devices**            | Xiaomi / Redmi / Poco |
+| **Firmware**           | MIUI 12+ or HyperOS   |
+| **Android**            | 10+ (API 29+)         |
+| **Root**               | ❌ Not required        |
 | **Wireless debugging** | Enabled automatically |
 
 ---
@@ -98,7 +96,8 @@ The app connects to the device via **local ADB** (`127.0.0.1`) and applies setti
 
 ### Option 1: APK from Releases
 
-1. Download `XiaoHyperCleaner-v1.0-beta2.apk` from [Releases](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/releases)
+1. Download `XiaoHyperCleaner-v1.0-beta2.apk`
+   from [Releases](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/releases)
 2. Allow installation from unknown sources
 3. Install and launch
 4. Go through onboarding (3 screens)
@@ -115,7 +114,8 @@ APK will appear in `app/build/outputs/apk/debug/`
 
 ### ⚠️ Important for Android 13+ (MIUI 14 / HyperOS)
 
-On Android 13+, the system blocks sideload apps from accessing "restricted settings" (called "forbidden settings" in some firmware). This is a **system Android limitation**, not an app bug.
+On Android 13+, the system blocks sideload apps from accessing "restricted settings" (called "
+forbidden settings" in some firmware). This is a **system Android limitation**, not an app bug.
 
 **How to bypass:**
 
@@ -139,10 +139,10 @@ This is done **only once**. The app will prompt you to do this when needed.
 4. Choose options (enable/disable DNS filter)
 5. Enable the **accessibility service** (required only once)
 6. The app **automatically**:
-   - Enables wireless debugging
-   - Connects to ADB
-   - Applies all settings
-   - Shows a **detailed report**
+    - Enables wireless debugging
+    - Connects to ADB
+    - Applies all settings
+    - Shows a **detailed report**
 
 ### Rolling Back Changes
 
@@ -158,9 +158,11 @@ If something went wrong:
 
 1. Open the **⋮ menu** in the top-right corner
 2. Tap **"Share log"**
-3. Send the `xhc.log` file to [Issues](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/issues)
+3. Send the `xhc.log` file
+   to [Issues](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/issues)
 
-All sensitive data in the log is masked: IP addresses (except 127.0.0.1), long tokens, paths to user data, system setting values.
+All sensitive data in the log is masked: IP addresses (except 127.0.0.1), long tokens, paths to user
+data, system setting values.
 
 ---
 
@@ -195,6 +197,22 @@ app/src/main/java/com/xiaohypercleaner/
 ├── AppConstants.kt               # Constants (timeouts, progress)
 ├── AppDependencies.kt            # Manual DI
 └── XiaoHyperApp.kt               # Application
+
+app/src/main/res/
+├── drawable/
+│   ├── ic_robot_companion.xml    # Robot cat
+│   └── ic_yarn_ball.xml          # Yarn ball
+├── values/strings.xml            # RU
+├── values-en/strings.xml         # EN
+└── xml/
+    ├── accessibility_service_config.xml
+    └── file_paths.xml            # FileProvider for logs
+
+app/src/test/java/
+├── OptimizationEngineTest.kt     # 12 tests
+├── AdbPortResolverTest.kt        # 3 tests
+├── LogMaskerTest.kt              # 6 tests
+└── MainViewModelTest.kt          # 8 tests (Robolectric)
 ```
 
 ---
@@ -203,16 +221,16 @@ app/src/main/java/com/xiaohypercleaner/
 
 ### Tech Stack
 
-| Component | Version |
-|-----------|---------|
-| **Gradle** | 9.5 |
-| **AGP** | 9.3.1 (built-in Kotlin) |
-| **Kotlin** | 2.4.10 |
-| **Compose BOM** | 2026.06.01 |
-| **compileSdk** | 37 |
-| **targetSdk** | 36 |
-| **minSdk** | 28 |
-| **JDK** | 21 |
+| Component       | Version                 |
+|-----------------|-------------------------|
+| **Gradle**      | 9.5                     |
+| **AGP**         | 9.3.1 (built-in Kotlin) |
+| **Kotlin**      | 2.4.10                  |
+| **Compose BOM** | 2026.06.01              |
+| **compileSdk**  | 37                      |
+| **targetSdk**   | 36                      |
+| **minSdk**      | 28                      |
+| **JDK**         | 21                      |
 
 ### Build
 
@@ -240,6 +258,14 @@ app/src/main/java/com/xiaohypercleaner/
 - **Coroutines** for asynchronous operations
 - **Transactional rollback** in `OptimizationEngine`
 
+### Important Details
+
+- `%04x` ADB header in **lowercase** (critical!)
+- Shell read **until EOF**
+- `ADB_TIMEOUT_MS` as **Int** (Socket.connect requires Int), other `*_MS` as Long
+- Service check via **`flattenToString()`** (short form doesn't work)
+- `lateinit listener` in mDNS (`this@DiscoveryListener` label doesn't work)
+
 ---
 
 ## 🧪 Testing
@@ -250,12 +276,18 @@ app/src/main/java/com/xiaohypercleaner/
 ./gradlew testDebugUnitTest
 ```
 
-| File | Tests | What is tested |
-|------|-------|----------------|
-| `OptimizationEngineTest` | 12 | Optimization, rollback, DNS, transactions |
-| `AdbPortResolverTest` | 3 | mDNS discovery, mergePorts |
-| `LogMaskerTest` | 6 | IP, token, path masking |
-| `MainViewModelTest` | 8 | UI logic (Robolectric) |
+| File                     | Tests | What is tested                            |
+|--------------------------|-------|-------------------------------------------|
+| `OptimizationEngineTest` | 12    | Optimization, rollback, DNS, transactions |
+| `AdbPortResolverTest`    | 3     | mDNS discovery, mergePorts                |
+| `LogMaskerTest`          | 6     | IP, token, path masking                   |
+| `MainViewModelTest`      | 8     | UI logic (Robolectric)                    |
+
+### Manual Testing
+
+See
+the [checklist in Releases](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/releases)
+for a detailed checklist.
 
 ### How to Submit a Bug Report
 
@@ -278,11 +310,14 @@ The **log** can be obtained via the ⋮ menu → "Share log".
 
 ### Why doesn't the app work on Samsung / Realme / others?
 
-Technically, ADB works everywhere, but the **package lists for disabling are specific to MIUI / HyperOS**. On other firmware, the app will disable the wrong packages or nothing at all. Currently, only Xiaomi / Redmi / Poco are supported.
+Technically, ADB works everywhere, but the **package lists for disabling are specific to MIUI /
+HyperOS**. On other firmware, the app will disable the wrong packages or nothing at all. Currently,
+only Xiaomi / Redmi / Poco are supported.
 
 ### Will this break firmware updates?
 
-No. When MIUI / HyperOS is updated, all disabled packages **will be restored automatically** (they're system packages). After the update, you'll need to tap "Optimize" again.
+No. When MIUI / HyperOS is updated, all disabled packages **will be restored automatically** (
+they're system packages). After the update, you'll need to tap "Optimize" again.
 
 ### What if something doesn't work after rollback?
 
@@ -295,11 +330,14 @@ No such cases have occurred during testing, but good to know.
 
 ### Why isn't the app on Google Play?
 
-Google Play policy **prohibits** the use of Accessibility Services for UI action automation (tapping buttons, toggling switches). This is the primary use of our service. Therefore, the app is distributed via **RuStore**, **GetApps**, and **GitHub**.
+Google Play policy **prohibits** the use of Accessibility Services for UI action automation (tapping
+buttons, toggling switches). This is the primary use of our service. Therefore, the app is
+distributed via **RuStore**, **GetApps**, and **GitHub**.
 
 ### Can I see what the app does?
 
-Yes, the project is fully open. All ADB commands are logged to `xhc.log` (in beta builds). Anyone can verify exactly what is executed.
+Yes, the project is fully open. All ADB commands are logged to `xhc.log` (in beta builds). Anyone
+can verify exactly what is executed.
 
 ---
 
@@ -348,10 +386,10 @@ Full text: [creativecommons.org/licenses/by-nc/4.0](https://creativecommons.org/
 
 If the app turned out to be useful and you'd like to say thanks:
 
-| Service | Link |
-|---------|------|
-| **YooMoney** | [yoomoney.ru/to/410011379195150](https://yoomoney.ru/to/410011379195150) |
-| **CloudTips** | [pay.cloudtips.ru/p/90614cff](https://pay.cloudtips.ru/p/90614cff) |
+| Service       | Link                                                                     |
+|---------------|--------------------------------------------------------------------------|
+| **YooMoney**  | [yoomoney.ru/to/410011379195150](https://yoomoney.ru/to/410011379195150) |
+| **CloudTips** | [pay.cloudtips.ru/p/90614cff](https://pay.cloudtips.ru/p/90614cff)       |
 
 Or just **give a ⭐ star** on GitHub — it helps others find the project.
 
@@ -359,9 +397,11 @@ Or just **give a ⭐ star** on GitHub — it helps others find the project.
 
 ## ⚖️ Disclaimer
 
-The application is provided "as is". The author is not responsible for any consequences of use. Please read the FAQ and Usage sections before using.
+The application is provided "as is". The author is not responsible for any consequences of use.
+Please read the FAQ and Usage sections before using.
 
-All trademarks (Xiaomi, Redmi, Poco, MIUI, HyperOS) belong to their respective owners. The application is not affiliated with Xiaomi Corporation.
+All trademarks (Xiaomi, Redmi, Poco, MIUI, HyperOS) belong to their respective owners. The
+application is not affiliated with Xiaomi Corporation.
 
 ---
 
