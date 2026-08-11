@@ -1,21 +1,22 @@
 # 🤖 XiaoHyperCleaner
 
+**Без root. Без лишнего. Без данных.**
+
 [![Version](https://img.shields.io/badge/version-1.0--beta2-blue)](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/releases)
 [![Android](https://img.shields.io/badge/Android-10%2B-brightgreen)](https://www.android.com/)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-orange)](https://creativecommons.org/licenses/by-nc/4.0/)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-success)](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/actions)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.4.10-purple)](https://kotlinlang.org/)
 
-**Без root. Без лишнего. Без данных.**
-
-Инструмент для отключения системной аналитики и рекламы на устройствах **Xiaomi**, **Redmi** и *
-*Poco** через локальный ADB. Работает без root-прав, все изменения полностью обратимы.
-
 <div align="center">
 
 **🇷🇺 Русский** | 🇬🇧 [English](README.en.md)
 
 </div>
+
+Инструмент для отключения системной аналитики и рекламы на устройствах **Xiaomi**, **Redmi** и *
+*Poco** через локальный ADB. Работает без root-прав, все изменения полностью обратимы.
+
 ---
 
 ## 📋 Содержание
