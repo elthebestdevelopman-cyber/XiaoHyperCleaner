@@ -130,6 +130,14 @@
     <string name="overlay_searching_overlay_switch">Looking for the overlay switch…</string>
     <string name="overlay_searching_toggle">Looking for the wireless debugging toggle…</string>
     <string name="overlay_clicking_allow">Tapping "Allow"…</string>
+    <!-- Developer mode dialog -->
+    <string name="dev_mode_dialog_title">Developer mode required</string>
+    <string name="dev_mode_dialog_text">Wireless debugging lives in "Developer options", which is currently off.\n\nEnable it once:\n\n1. Tap "Open About phone"\n2. Tap "Build number" 7 times until you see "You are now a developer"\n3. Return to the app and tap "Continue"</string>
+    <string name="dev_mode_dialog_open_about">Open "About phone"</string>
+    <string name="dev_mode_dialog_retry">Continue</string>
+
+    <!-- Overlay -->
+    <string name="overlay_dev_mode_required">Enable developer mode — see instructions in the app</string>
 
     <!-- Verification errors -->
     <string name="overlay_verify_method1_failed">System settings verification failed</string>

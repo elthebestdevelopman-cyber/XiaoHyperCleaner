@@ -296,6 +296,24 @@ private fun MainContent(
         )
     }
 
+    // Диалог «нужен режим разработчика»
+    if (state.showDevModeDialog) {
+        DevModeDialog(
+            onOpenDeviceInfo = {
+                AppLog.i("MainUI", "dev mode dialog: open device info")
+                openDeviceInfoSettings(context)
+            },
+            onRetry = {
+                AppLog.i("MainUI", "dev mode dialog: retry clicked")
+                vm.devModeDialogRetry()
+            },
+            onCancel = {
+                AppLog.i("MainUI", "dev mode dialog: cancelled")
+                vm.devModeDialogCancel()
+            }
+        )
+    }
+
     if (confirmRestore) {
         InfoDialog(
             title = stringResource(R.string.restore_dialog_title),
@@ -552,6 +570,68 @@ private fun OptionsDialog(
 }
 
 @Composable
+private fun DevModeDialog(
+    onOpenDeviceInfo: () -> Unit,
+    onRetry: () -> Unit,
+    onCancel: () -> Unit
+) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onCancel) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+            ) {
+                Text(
+                    stringResource(R.string.dev_mode_dialog_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    stringResource(R.string.dev_mode_dialog_text),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = onOpenDeviceInfo,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(stringResource(R.string.dev_mode_dialog_open_about))
+                }
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = onRetry,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(stringResource(R.string.dev_mode_dialog_retry))
+                }
+                Spacer(Modifier.height(8.dp))
+                androidx.compose.material3.TextButton(
+                    onClick = onCancel,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun InfoCard() {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -686,23 +766,30 @@ private fun ReadyView(onClick: () -> Unit) {
 
 @Composable
 private fun WorkingView(progress: Float) {
-    Text(
-        stringResource(R.string.status_working),
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onSurface
-    )
-    Spacer(Modifier.height(16.dp))
-    LinearProgressIndicator(
-        progress = { progress },
+    val normalized = (progress / 100f).coerceIn(0f, 1f)
+    val percent = progress.toInt().coerceIn(0, 100)
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        color = Blue500
-    )
-    Spacer(Modifier.height(8.dp))
-    Text(
-        "${(progress * 100).toInt()}%",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            stringResource(R.string.status_working),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(Modifier.height(16.dp))
+        LinearProgressIndicator(
+            progress = { normalized },
+            modifier = Modifier.fillMaxWidth(),
+            color = Blue500
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "$percent%",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }
 
 @Composable
@@ -751,7 +838,7 @@ private fun openUrl(context: Context, url: String) {
 }
 
 private fun openWebView(context: Context, url: String, title: String) {
-    AppLog.i("WebView", "opening webView: $url")
+    AppLog.i("WebView", "opening WebView: $url")
     try {
         val intent = Intent(context, WebViewActivity::class.java).apply {
             putExtra(WebViewActivity.EXTRA_URL, url)
@@ -835,6 +922,28 @@ private fun openAppInfoSettings(context: Context) {
                 })
             } catch (_: Exception) {
             }
+        }
+    }
+}
+
+private fun openDeviceInfoSettings(context: Context) {
+    AppLog.i("OpenSettings", "opening device info settings (to enable developer mode)")
+    try {
+        context.startActivity(
+            Intent(Settings.ACTION_DEVICE_INFO_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
+        AppLog.i("OpenSettings", "device info settings opened")
+    } catch (e: Exception) {
+        AppLog.w("OpenSettings", "device info failed: ${e.message}")
+        try {
+            context.startActivity(
+                Intent(Settings.ACTION_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+        } catch (_: Exception) {
         }
     }
 }

@@ -130,6 +130,14 @@
     <string name="overlay_searching_overlay_switch">Ищем тумблер показа поверх окон…</string>
     <string name="overlay_searching_toggle">Ищем тумблер беспроводной отладки…</string>
     <string name="overlay_clicking_allow">Нажимаем «Разрешить»…</string>
+    <!-- Диалог режима разработчика -->
+    <string name="dev_mode_dialog_title">Нужен режим разработчика</string>
+    <string name="dev_mode_dialog_text">Беспроводная отладка находится в меню «Для разработчиков», которое сейчас выключено.\n\nВключите его один раз:\n\n1. Нажмите «Открыть "О телефоне"»\n2. Нажимайте «Номер сборки» 7 раз, пока не появится надпись «Вы стали разработчиком»\n3. Вернитесь в приложение и нажмите «Продолжить»</string>
+    <string name="dev_mode_dialog_open_about">Открыть «О телефоне»</string>
+    <string name="dev_mode_dialog_retry">Продолжить</string>
+
+    <!-- Оверлей -->
+    <string name="overlay_dev_mode_required">Включите режим разработчика — инструкция в приложении</string>
 
     <!-- Ошибки проверок -->
     <string name="overlay_verify_method1_failed">Проверка системных параметров не пройдена</string>

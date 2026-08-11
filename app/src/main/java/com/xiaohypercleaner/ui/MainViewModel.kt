@@ -13,6 +13,7 @@ import com.xiaohypercleaner.data.OptimizationEngine
 import com.xiaohypercleaner.data.OptimizationOptions
 import com.xiaohypercleaner.data.OptimizationReport
 import com.xiaohypercleaner.service.AdbEnablerService
+import com.xiaohypercleaner.service.OverlayController
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,7 +45,8 @@ data class MainUiState(
     val overlayAttempts: Int = 0,
     val previousAccessibility: Boolean = false,
     val previousOverlay: Boolean = false,
-    val restrictedSettingsShown: Boolean = false
+    val restrictedSettingsShown: Boolean = false,
+    val showDevModeDialog: Boolean = false
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -106,6 +108,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         _state.update { it.copy(isWorking = true) }
                     }
 
+                    is OptimizationNotifier.Result.DevModeRequired -> {
+                        AppLog.i(TAG, "notifier: dev mode required, showing dialog")
+                        _state.update { it.copy(showDevModeDialog = true) }
+                    }
+
                     is OptimizationNotifier.Result.Idle -> {}
                 }
             }
@@ -162,12 +169,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (!acc && prevState.accessibilityAttempts > 0 && flowActive) {
             AppLog.i(TAG, "refreshStatuses: accessibility not enabled after attempt")
 
-            // Проверяем restricted settings эмпирическим методом
             val restrictedAllowed = checkRestrictedSettingsAllowed()
             AppLog.i(TAG, "refreshStatuses: restrictedSettingsAllowed=$restrictedAllowed")
 
             if (!restrictedAllowed && !prevState.restrictedSettingsShown) {
-                // Restricted ещё не разрешены и диалог ещё не показывали — показываем
                 AppLog.i(TAG, "refreshStatuses: showing restricted dialog (first time)")
                 _state.update {
                     it.copy(
@@ -180,7 +185,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return
             }
 
-            // Restricted разрешены ИЛИ диалог уже показывали — показываем accessibility снова
             AppLog.i(TAG, "refreshStatuses: showing accessibility dialog (retry)")
             _state.update {
                 it.copy(
@@ -391,6 +395,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun devModeDialogOpenAbout() {
+        AppLog.i(TAG, "devModeDialog: open about phone")
+        // Диалог остаётся открытым — пользователь вернётся и нажмёт «Продолжить»
+    }
+
+    fun devModeDialogRetry() {
+        AppLog.i(TAG, "devModeDialog: retry — resuming chain")
+        _state.update { it.copy(showDevModeDialog = false) }
+        val intent = Intent(app, AdbEnablerService::class.java)
+        intent.action = AdbEnablerService.ACTION_RETRY_DEV
+        app.startService(intent)
+    }
+
+    fun devModeDialogCancel() {
+        AppLog.i(TAG, "devModeDialog: cancel — stopping chain")
+        _state.update { it.copy(showDevModeDialog = false) }
+        OverlayController.triggerCancel()
+    }
+
     fun dismissRestoreFailed() {
         _state.update { it.copy(restoreFailed = false) }
     }
@@ -497,14 +520,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Проверяет, разрешены ли restricted settings через эмпирический тест.
-     * Пытается записать тестовое значение в Settings.Secure.
-     * Если restricted разрешены — запись пройдёт. Если нет — будет SecurityException.
+     * Проверяет, разрешены ли restricted settings через несколько методов.
      */
     private fun checkRestrictedSettingsAllowed(): Boolean {
         if (Build.VERSION.SDK_INT < 33) return true
 
-        // Если accessibility уже включен — значит всё точно работает
+        // Метод 1: если accessibility уже включен — значит всё работает
         val component = ComponentName(app, AdbEnablerService::class.java).flattenToString()
         val acc = Settings.Secure.getString(
             app.contentResolver,
@@ -515,7 +536,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return true
         }
 
-        // Метод 1: Стандартный AppOpsManager
+        // Метод 2: стандартный AppOpsManager
         try {
             val appOps = app.getSystemService(AppOpsManager::class.java)
             val mode = appOps.unsafeCheckOpNoThrow(
@@ -524,52 +545,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 app.packageName
             )
             if (mode == AppOpsManager.MODE_ALLOWED) {
-                AppLog.i(TAG, "checkRestrictedSettingsAllowed: method1=true (MODE_ALLOWED)")
+                AppLog.i(TAG, "checkRestrictedSettingsAllowed: method2=true (MODE_ALLOWED)")
                 return true
             }
         } catch (e: Exception) {
-            AppLog.w(TAG, "checkRestrictedSettingsAllowed: method1 failed: ${e.message}")
+            AppLog.w(TAG, "checkRestrictedSettingsAllowed: method2 failed: ${e.message}")
         }
 
-        // Метод 2: Эмпирический тест через Settings.Secure
-        // Пытаемся записать тестовое значение. Если restricted разрешены — пройдёт.
-        // Если нет — SecurityException или значение не запишется.
+        // Метод 3: эмпирический тест через Settings.Secure
         val testKey = "xhc_restricted_check_${System.currentTimeMillis() % 1000}"
         val testValue = "check_${System.currentTimeMillis()}"
         try {
             Settings.Secure.putString(app.contentResolver, testKey, testValue)
             val readBack = Settings.Secure.getString(app.contentResolver, testKey)
-
-            // Чистим за собой
             try {
                 Settings.Secure.putString(app.contentResolver, testKey, null)
             } catch (_: Exception) {
             }
-
             if (readBack == testValue) {
                 AppLog.i(
                     TAG,
-                    "checkRestrictedSettingsAllowed: method2=true (Settings.Secure write succeeded)"
+                    "checkRestrictedSettingsAllowed: method3=true (Settings.Secure write)"
                 )
                 return true
             } else {
                 AppLog.w(
                     TAG,
-                    "checkRestrictedSettingsAllowed: method2=false (write returned different value)"
+                    "checkRestrictedSettingsAllowed: method3=false (write returned different value)"
                 )
                 return false
             }
         } catch (e: SecurityException) {
             AppLog.i(
                 TAG,
-                "checkRestrictedSettingsAllowed: method2=false (SecurityException: ${e.message})"
+                "checkRestrictedSettingsAllowed: method3=false (SecurityException: ${e.message})"
             )
             return false
         } catch (e: Exception) {
-            AppLog.w(TAG, "checkRestrictedSettingsAllowed: method2 exception: ${e.message}")
+            AppLog.w(TAG, "checkRestrictedSettingsAllowed: method3 exception: ${e.message}")
         }
 
-        // Метод 3: write_settings
+        // Метод 4: OPSTR_WRITE_SETTINGS
         try {
             val appOps = app.getSystemService(AppOpsManager::class.java)
             val mode = appOps.unsafeCheckOpNoThrow(
@@ -578,11 +594,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 app.packageName
             )
             if (mode == AppOpsManager.MODE_ALLOWED) {
-                AppLog.i(TAG, "checkRestrictedSettingsAllowed: method3=true (write_settings)")
+                AppLog.i(TAG, "checkRestrictedSettingsAllowed: method4=true (write_settings)")
                 return true
             }
         } catch (e: Exception) {
-            AppLog.w(TAG, "checkRestrictedSettingsAllowed: method3 failed: ${e.message}")
+            AppLog.w(TAG, "checkRestrictedSettingsAllowed: method4 failed: ${e.message}")
         }
 
         AppLog.i(TAG, "checkRestrictedSettingsAllowed: all methods returned false")

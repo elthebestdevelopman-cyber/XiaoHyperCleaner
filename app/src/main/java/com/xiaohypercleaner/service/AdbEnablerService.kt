@@ -3,6 +3,7 @@ package com.xiaohypercleaner.service
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -25,9 +26,13 @@ class AdbEnablerService : AccessibilityService() {
 
     companion object {
         const val ACTION_START_CHAIN = "com.xiaohypercleaner.action.START_CHAIN"
+        const val ACTION_RETRY_DEV = "com.xiaohypercleaner.action.RETRY_DEV"
         private const val TAG = "XHC"
         private const val STEP_DELAY_MS = 1500L
         private const val OPTIMIZATION_DELAY_MS = 2000L
+        private const val REOPEN_DELAY_MS = 1000L
+        private const val REOPEN_COOLDOWN_MS = 3000L
+        private const val DEV_WATCHDOG_MS = 8000L
     }
 
     private enum class Step {
@@ -40,6 +45,12 @@ class AdbEnablerService : AccessibilityService() {
     private var chainCancelled = false
     private var currentStep = Step.IDLE
     private var lastOverlayUpdate = 0L
+    private var lastReopenMs = 0L
+
+    // Watchdog режима разработчика
+    private var paused = false
+    private var devToggleFound = false
+    private var devWatchdogRunnable: Runnable? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -52,14 +63,24 @@ class AdbEnablerService : AccessibilityService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_START_CHAIN) {
-            startChain()
+        when (intent?.action) {
+            ACTION_START_CHAIN -> startChain()
+            ACTION_RETRY_DEV -> retryDevSettings()
         }
         return START_NOT_STICKY
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         if (!chainActive || chainCancelled) return
+
+        // Пользователь вернулся в наше приложение — вернём его в настройки
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
+            event.packageName?.toString() == packageName
+        ) {
+            scheduleReopenSettings()
+            return
+        }
+
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
@@ -71,6 +92,61 @@ class AdbEnablerService : AccessibilityService() {
                 }
             }
         }
+    }
+
+    private fun scheduleReopenSettings() {
+        if (paused) return
+        val now = System.currentTimeMillis()
+        if (now - lastReopenMs < REOPEN_COOLDOWN_MS) return
+        lastReopenMs = now
+        handler.postDelayed({
+            if (chainActive && !chainCancelled && !paused) {
+                AppLog.i(
+                    TAG,
+                    "AdbEnablerService: user in app, re-opening settings for step $currentStep"
+                )
+                when (currentStep) {
+                    Step.OVERLAY_TOGGLE -> openOverlaySettings()
+                    Step.DEV_SETTINGS, Step.WIRELESS_DEBUG -> openDevSettings()
+                    else -> {}
+                }
+            }
+        }, REOPEN_DELAY_MS)
+    }
+
+    // ===== Watchdog режима разработчика =====
+
+    private fun startDevWatchdog() {
+        cancelDevWatchdog()
+        devToggleFound = false
+        val r = Runnable {
+            if (chainActive && !chainCancelled && currentStep == Step.DEV_SETTINGS && !devToggleFound) {
+                AppLog.i(
+                    TAG,
+                    "AdbEnablerService: dev watchdog fired — developer mode likely disabled"
+                )
+                paused = true
+                overlaySafe(getString(R.string.overlay_dev_mode_required))
+                OptimizationNotifier.setDevModeRequired()
+            }
+        }
+        devWatchdogRunnable = r
+        handler.postDelayed(r, DEV_WATCHDOG_MS)
+    }
+
+    private fun cancelDevWatchdog() {
+        devWatchdogRunnable?.let { handler.removeCallbacks(it) }
+        devWatchdogRunnable = null
+    }
+
+    private fun retryDevSettings() {
+        if (!chainActive || chainCancelled) return
+        AppLog.i(TAG, "AdbEnablerService: retryDevSettings — user says dev mode enabled")
+        paused = false
+        currentStep = Step.DEV_SETTINGS
+        overlaySafe(getString(R.string.overlay_searching_toggle))
+        openDevSettings()
+        startDevWatchdog()
     }
 
     private fun processEvent(root: AccessibilityNodeInfo) {
@@ -91,13 +167,32 @@ class AdbEnablerService : AccessibilityService() {
         if (chainActive) return
         chainActive = true
         chainCancelled = false
-        currentStep = Step.OVERLAY_TOGGLE
+        paused = false
         OptimizationNotifier.setRunning()
         startOverlay()
         AppLog.i(TAG, "AdbEnablerService: chain started")
 
-        overlaySafe(getString(R.string.overlay_searching_overlay_switch))
-        openOverlaySettings()
+        val overlayGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+                Settings.canDrawOverlays(this)
+
+        if (overlayGranted) {
+            AppLog.i(TAG, "AdbEnablerService: overlay already granted, going to dev settings")
+            currentStep = Step.DEV_SETTINGS
+            overlaySafe(getString(R.string.overlay_searching_toggle))
+            openDevSettings()
+            startDevWatchdog()
+        } else {
+            currentStep = Step.OVERLAY_TOGGLE
+            overlaySafe(getString(R.string.overlay_searching_overlay_switch))
+            openOverlaySettings()
+        }
+    }
+
+    private fun goToDevSettingsStep() {
+        currentStep = Step.DEV_SETTINGS
+        overlaySafe(getString(R.string.overlay_searching_toggle))
+        openDevSettings()
+        startDevWatchdog()
     }
 
     private fun handleOverlayToggle(root: AccessibilityNodeInfo) {
@@ -114,20 +209,24 @@ class AdbEnablerService : AccessibilityService() {
         if (switch != null && !switch.isChecked) {
             switch.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             AppLog.i(TAG, "AdbEnablerService: overlay toggle clicked")
+            handler.postDelayed({
+                if (!chainCancelled && currentStep == Step.OVERLAY_TOGGLE) {
+                    goToDevSettingsStep()
+                }
+            }, STEP_DELAY_MS)
+        } else if (switch != null && switch.isChecked && currentStep == Step.OVERLAY_TOGGLE) {
+            AppLog.i(TAG, "AdbEnablerService: overlay already on, going to dev settings")
+            goToDevSettingsStep()
         }
-
-        handler.postDelayed({
-            if (!chainCancelled) {
-                currentStep = Step.DEV_SETTINGS
-                overlaySafe(getString(R.string.overlay_searching_toggle))
-                openDevSettings()
-            }
-        }, STEP_DELAY_MS)
     }
 
     private fun handleDevSettings(root: AccessibilityNodeInfo) {
         val texts = resources.getStringArray(R.array.wireless_debugging_texts).toList()
         val node = findNodeByText(root, texts) ?: return
+
+        // Тумблер найден — режим разработчика включён, watchdog больше не нужен
+        devToggleFound = true
+        cancelDevWatchdog()
 
         val switch = findSwitchNode(node)
         if (switch != null && !switch.isChecked) {
@@ -135,6 +234,13 @@ class AdbEnablerService : AccessibilityService() {
             AppLog.i(TAG, "AdbEnablerService: wireless debug toggle clicked")
             currentStep = Step.ALLOW_DIALOG
             overlaySafe(getString(R.string.overlay_clicking_allow))
+        } else if (switch != null && switch.isChecked && currentStep == Step.DEV_SETTINGS) {
+            AppLog.i(TAG, "AdbEnablerService: wireless debug already on, starting optimization")
+            currentStep = Step.OPTIMIZATION
+            overlaySafe(getString(R.string.overlay_connecting))
+            handler.postDelayed({
+                if (!chainCancelled) runOptimization()
+            }, 500)
         }
     }
 
@@ -148,6 +254,13 @@ class AdbEnablerService : AccessibilityService() {
             AppLog.i(TAG, "AdbEnablerService: wireless debug enabled")
             currentStep = Step.ALLOW_DIALOG
             overlaySafe(getString(R.string.overlay_clicking_allow))
+        } else if (switch != null && switch.isChecked && currentStep == Step.WIRELESS_DEBUG) {
+            AppLog.i(TAG, "AdbEnablerService: wireless debug already on, starting optimization")
+            currentStep = Step.OPTIMIZATION
+            overlaySafe(getString(R.string.overlay_connecting))
+            handler.postDelayed({
+                if (!chainCancelled) runOptimization()
+            }, 500)
         }
     }
 
@@ -279,6 +392,7 @@ class AdbEnablerService : AccessibilityService() {
     private fun finishChain() {
         chainActive = false
         currentStep = Step.DONE
+        cancelDevWatchdog()
         OverlayController.clear()
         AppLog.i(TAG, "AdbEnablerService: chain finished")
         handler.postDelayed({
@@ -293,6 +407,7 @@ class AdbEnablerService : AccessibilityService() {
         chainCancelled = true
         chainActive = false
         currentStep = Step.IDLE
+        cancelDevWatchdog()
         OptimizationNotifier.reset()
         AppLog.i(TAG, "AdbEnablerService: chain cancelled")
         OverlayController.clear()
@@ -302,6 +417,7 @@ class AdbEnablerService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        cancelDevWatchdog()
         OverlayController.clear()
         scope.cancel()
         super.onDestroy()
