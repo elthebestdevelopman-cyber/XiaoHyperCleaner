@@ -118,23 +118,89 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )?.contains(component) == true
         val overlay = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
                 Settings.canDrawOverlays(app)
-        AppLog.i(TAG, "refreshStatuses: accessibility=$acc, overlay=$overlay")
+        AppLog.i(
+            TAG,
+            "refreshStatuses: accessibility=$acc, overlay=$overlay, attempts=${_state.value.accessibilityAttempts}"
+        )
         _state.update { it.copy(isAccessibilityEnabled = acc, isOverlayGranted = overlay) }
+
+        // Если accessibility только что включился и мы были в процессе — продолжаем
+        if (acc && flowActive && _state.value.accessibilityAttempts > 0) {
+            AppLog.i(TAG, "refreshStatuses: accessibility just enabled, continuing chain")
+            _state.update { it.copy(accessibilityAttempts = 0) }
+            advance()
+            return
+        }
+
+        // Если были попытки и accessibility не включился — НЕ вызываем advance()
+        // checkRestrictedSettingsOnResume() сам покажет нужный диалог
+        if (_state.value.accessibilityAttempts > 0 && !acc) {
+            AppLog.i(TAG, "refreshStatuses: skipping advance, restricted dialog will handle it")
+            return
+        }
+
         if (flowActive) advance()
     }
 
     fun checkRestrictedSettingsOnResume() {
-        AppLog.i(TAG, "checkRestrictedSettingsOnResume called")
+        AppLog.i(
+            TAG,
+            "checkRestrictedSettingsOnResume called, attempts=${_state.value.accessibilityAttempts}, acc=${_state.value.isAccessibilityEnabled}"
+        )
 
-        // Если мы пытались включить accessibility, но не получилось — показываем restricted dialog
+        // Если accessibility уже включен — не нужно ничего проверять
+        if (_state.value.isAccessibilityEnabled) {
+            AppLog.i(
+                TAG,
+                "checkRestrictedSettingsOnResume: accessibility already enabled, skipping"
+            )
+            return
+        }
+
+        // Если пользователь пытался включить accessibility, но не получилось
         if (_state.value.accessibilityAttempts > 0 && !_state.value.isAccessibilityEnabled) {
             AppLog.i(
                 TAG,
                 "checkRestrictedSettingsOnResume: accessibility not enabled after ${_state.value.accessibilityAttempts} attempts"
             )
+
             if (needsRestrictedSettings()) {
-                AppLog.i(TAG, "checkRestrictedSettingsOnResume: showing restricted dialog")
-                _state.update { it.copy(showRestrictedDialog = true) }
+                // Проверяем, действительно ли restricted settings разрешены
+                val restrictedAllowed = restrictedSettingsAllowed()
+                if (restrictedAllowed) {
+                    AppLog.i(
+                        TAG,
+                        "checkRestrictedSettingsOnResume: restricted settings now allowed, re-opening accessibility"
+                    )
+                    _state.update {
+                        it.copy(
+                            showRestrictedDialog = false,
+                            showAccessibilityDialog = true,
+                            showOverlayDialog = false
+                        )
+                    }
+                } else {
+                    AppLog.i(
+                        TAG,
+                        "checkRestrictedSettingsOnResume: showing ONLY restricted dialog, closing accessibility dialog"
+                    )
+                    _state.update {
+                        it.copy(
+                            showRestrictedDialog = true,
+                            showAccessibilityDialog = false,
+                            showOverlayDialog = false
+                        )
+                    }
+                }
+            } else {
+                AppLog.i(TAG, "checkRestrictedSettingsOnResume: showing accessibility dialog again")
+                _state.update {
+                    it.copy(
+                        showAccessibilityDialog = true,
+                        showRestrictedDialog = false,
+                        showOverlayDialog = false
+                    )
+                }
             }
         }
     }
@@ -262,14 +328,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             it.copy(
                 showAccessibilityDialog = false,
                 showOverlayDialog = false,
-                showRestrictedDialog = false
+                showRestrictedDialog = false,
+                accessibilityAttempts = 0
             )
         }
     }
 
     fun restrictedDialogAgreed() {
         AppLog.i(TAG, "restrictedDialogAgreed — opening app info settings")
-        _state.update { it.copy(showRestrictedDialog = false) }
+        _state.update {
+            it.copy(
+                showRestrictedDialog = false,
+                showAccessibilityDialog = false
+            )
+        }
     }
 
     fun restrictedDialogCancelled() {
@@ -278,7 +350,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.update {
             it.copy(
                 showRestrictedDialog = false,
+                showAccessibilityDialog = false,
                 accessibilityAttempts = 0
+            )
+        }
+    }
+
+    fun restrictedSettingsResolved() {
+        AppLog.i(TAG, "restrictedSettingsResolved — re-opening accessibility settings")
+        _state.update {
+            it.copy(
+                showAccessibilityDialog = true,
+                accessibilityAttempts = it.accessibilityAttempts + 1
             )
         }
     }
@@ -316,8 +399,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             prefs.setPendingOptimization(true)
             prefs.setDnsFilterEnabled(_state.value.dnsFilterEnabled)
-            AppLog.i(TAG, "startChain: pending flag set, opening accessibility settings")
-            openAccessibilitySettingsAutomatically()
+            AppLog.i(TAG, "startChain: pending flag set")
+
+            // Если accessibility уже включен — сразу запускаем службу
+            if (_state.value.isAccessibilityEnabled) {
+                AppLog.i(
+                    TAG,
+                    "startChain: accessibility already enabled, starting service directly"
+                )
+                val intent = Intent(app, AdbEnablerService::class.java)
+                intent.action = AdbEnablerService.ACTION_START_CHAIN
+                app.startService(intent)
+            } else {
+                AppLog.i(TAG, "startChain: opening accessibility settings")
+                openAccessibilitySettingsAutomatically()
+            }
         }
     }
 
@@ -390,6 +486,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             result
         } catch (e: Exception) {
             AppLog.w(TAG, "isFromKnownStore: exception: ${e.message}")
+            false
+        }
+    }
+
+    private fun restrictedSettingsAllowed(): Boolean {
+        if (Build.VERSION.SDK_INT < 33) return true
+        return try {
+            val appOps = app.getSystemService(android.app.AppOpsManager::class.java)
+            val mode = appOps.unsafeCheckOpNoThrow(
+                "android:restricted_settings",
+                android.os.Process.myUid(),
+                app.packageName
+            )
+            val result = mode == android.app.AppOpsManager.MODE_ALLOWED
+            AppLog.i(TAG, "restrictedSettingsAllowed: $result (mode=$mode)")
+            result
+        } catch (e: Exception) {
+            AppLog.w(TAG, "restrictedSettingsAllowed: exception: ${e.message}")
             false
         }
     }

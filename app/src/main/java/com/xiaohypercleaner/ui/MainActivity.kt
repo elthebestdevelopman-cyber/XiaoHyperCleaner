@@ -48,8 +48,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -145,7 +145,6 @@ class MainActivity : ComponentActivity() {
                     lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                         AppLog.i(TAG, "lifecycle RESUMED — refreshing statuses")
                         vm.refreshStatuses()
-                        vm.checkRestrictedSettingsOnResume()
                     }
                 }
 
@@ -195,39 +194,6 @@ private fun MainContent(
 
     AppLog.i("MainUI", "MainContent composed: state=$state")
 
-    if (state.showAccessibilityDialog) {
-        InfoDialog(
-            title = stringResource(R.string.accessibility_explanation_title),
-            text = stringResource(R.string.accessibility_explanation_text),
-            confirmText = stringResource(R.string.agree_and_open),
-            onConfirm = {
-                AppLog.i("MainUI", "accessibility dialog: agreed")
-                vm.dialogAgreed()
-                openAccessibilitySettings(context)
-            },
-            onDismiss = {
-                AppLog.i("MainUI", "accessibility dialog: cancelled")
-                vm.dialogCancelled()
-            }
-        )
-    }
-
-    if (state.showOverlayDialog) {
-        InfoDialog(
-            title = stringResource(R.string.overlay_permission_title),
-            text = stringResource(R.string.overlay_permission_text),
-            confirmText = stringResource(R.string.allow),
-            onConfirm = {
-                AppLog.i("MainUI", "overlay dialog: agreed")
-                vm.dialogAgreed()
-                openOverlaySettings(context)
-            },
-            onDismiss = {
-                AppLog.i("MainUI", "overlay dialog: cancelled")
-                vm.dialogCancelled()
-            }
-        )
-    }
     // Restricted settings dialog (Android 13+ sideload)
     if (state.showRestrictedDialog) {
         val isAndroid14Plus = Build.VERSION.SDK_INT >= 34
@@ -262,6 +228,41 @@ private fun MainContent(
             }
         )
     }
+
+    if (state.showAccessibilityDialog) {
+        InfoDialog(
+            title = stringResource(R.string.accessibility_explanation_title),
+            text = stringResource(R.string.accessibility_explanation_text),
+            confirmText = stringResource(R.string.agree_and_open),
+            onConfirm = {
+                AppLog.i("MainUI", "accessibility dialog: agreed")
+                vm.dialogAgreed()
+                openAccessibilitySettings(context)
+            },
+            onDismiss = {
+                AppLog.i("MainUI", "accessibility dialog: cancelled")
+                vm.dialogCancelled()
+            }
+        )
+    }
+
+    if (state.showOverlayDialog) {
+        InfoDialog(
+            title = stringResource(R.string.overlay_permission_title),
+            text = stringResource(R.string.overlay_permission_text),
+            confirmText = stringResource(R.string.allow),
+            onConfirm = {
+                AppLog.i("MainUI", "overlay dialog: agreed")
+                vm.dialogAgreed()
+                openOverlaySettings(context)
+            },
+            onDismiss = {
+                AppLog.i("MainUI", "overlay dialog: cancelled")
+                vm.dialogCancelled()
+            }
+        )
+    }
+
     // Диалог с опциями (DNS)
     if (state.showOptionsDialog) {
         OptionsDialog(
@@ -750,7 +751,7 @@ private fun openUrl(context: Context, url: String) {
 }
 
 private fun openWebView(context: Context, url: String, title: String) {
-    AppLog.i("WebView", "opening WebView: $url")
+    AppLog.i("WebView", "opening webView: $url")
     try {
         val intent = Intent(context, WebViewActivity::class.java).apply {
             putExtra(WebViewActivity.EXTRA_URL, url)
@@ -801,6 +802,40 @@ private fun shareLog(context: Context) {
         AppLog.i("ShareLog", "share intent sent successfully")
     } catch (e: Exception) {
         AppLog.e("ShareLog", "shareLog failed", e)
+    }
+}
+
+private fun openAppInfoSettings(context: Context) {
+    AppLog.i("OpenSettings", "opening app info settings for restricted/forbidden settings")
+    try {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.parse("package:${context.packageName}")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+        context.startActivity(intent)
+        AppLog.i("OpenSettings", "app info settings opened successfully")
+    } catch (e: Exception) {
+        AppLog.w("OpenSettings", "app info failed, trying alternative: ${e.message}")
+        try {
+            val intent = Intent("android.settings.APPLICATION_DETAILS_SETTINGS").apply {
+                data = Uri.parse("package:${context.packageName}")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            AppLog.i("OpenSettings", "alternative app info opened")
+        } catch (e2: Exception) {
+            AppLog.w(
+                "OpenSettings",
+                "alternative also failed, fallback to general settings: ${e2.message}"
+            )
+            try {
+                context.startActivity(Intent(Settings.ACTION_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+            } catch (_: Exception) {
+            }
+        }
     }
 }
 
@@ -867,38 +902,4 @@ private fun openRateApp(context: Context) {
     }
     AppLog.i("OpenRate", "fallback to web")
     openUrl(context, "https://play.google.com/store/apps/details?id=$pkg")
-}
-
-private fun openAppInfoSettings(context: Context) {
-    AppLog.i("OpenSettings", "opening app info settings for restricted/forbidden settings")
-    try {
-        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-            data = Uri.parse("package:${context.packageName}")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        }
-        context.startActivity(intent)
-        AppLog.i("OpenSettings", "app info settings opened successfully")
-    } catch (e: Exception) {
-        AppLog.w("OpenSettings", "app info failed, trying alternative: ${e.message}")
-        try {
-            val intent = Intent("android.settings.APPLICATION_DETAILS_SETTINGS").apply {
-                data = Uri.parse("package:${context.packageName}")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-            AppLog.i("OpenSettings", "alternative app info opened")
-        } catch (e2: Exception) {
-            AppLog.w(
-                "OpenSettings",
-                "alternative also failed, fallback to general settings: ${e2.message}"
-            )
-            try {
-                context.startActivity(Intent(Settings.ACTION_SETTINGS).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                })
-            } catch (_: Exception) {
-            }
-        }
-    }
 }

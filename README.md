@@ -13,7 +13,7 @@
 [Releases](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/releases).
 Stable version will be published in RuStore and GetApps after store review.
 
-Настройка Xiaomi, Redmi и Poco: отключение сервисов аналитики и применение
+Настройка Xiaomi, Redmi и Poco: отключение сервисов и применение
 параметров MIUI / HyperOS через локальный ADB. Без root-прав.
 
 > Не аффилировано с Xiaomi. Все изменения обратимы.
@@ -21,7 +21,7 @@ Stable version will be published in RuStore and GetApps after store review.
 
 ## Что делает
 
-- Отключает системные сервисы аналитики (7 пакетов)
+- Отключает системные сервисы (7 пакетов)
 - Применяет системные параметры MIUI / HyperOS
 - Динамическое обнаружение порта ADB через mDNS
 - Работает без root

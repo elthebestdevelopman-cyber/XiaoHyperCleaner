@@ -94,7 +94,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             appliedSettings.addAll(settings1)
             delay(AppConstants.COMMAND_DELAY_MS)
 
-            // Метод 2: отключение сервисов аналитики
+            // Метод 2: отключение сервисов
             callbacks.onStage("method2")
             callbacks.onProgress(AppConstants.PROGRESS_METHOD3)
             val packages2 = disableAnalyticsServices(transaction)
@@ -108,7 +108,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             appliedSettings.addAll(settings3)
             delay(AppConstants.COMMAND_DELAY_MS)
 
-            // Метод 4: отключение рекламных служб
+            // Метод 4: отключение служб
             callbacks.onStage("method4")
             callbacks.onProgress(AppConstants.PROGRESS_RESTORE_PACKAGES)
             val packages4 = disableAdServices(transaction)
@@ -260,7 +260,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         return applied
     }
 
-    // ===== Метод 2: отключение сервисов аналитики =====
+    // ===== Метод 2: отключение сервисов =====
 
     private suspend fun disableAnalyticsServices(transaction: Transaction): List<String> {
         AppLog.i(TAG, "OptimizationEngine: disabling analytics services")
@@ -304,7 +304,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
     }
 
-    // ===== Метод 4: отключение рекламных служб =====
+    // ===== Метод 4: отключение служб =====
 
     private suspend fun disableAdServices(transaction: Transaction): List<String> {
         AppLog.i(TAG, "OptimizationEngine: disabling ad services")

@@ -19,7 +19,7 @@
     <string name="about_title">About</string>
     <string name="about_version">Version 1.0</string>
     <string name="about_author">Author: ElthebestDevelopman</string>
-    <string name="about_text">A configuration tool for Xiaomi, Redmi and Poco devices. Disables system analytics services and applies MIUI / HyperOS parameters via local ADB. All changes are reversible. Results depend on the device model and firmware version.</string>
+    <string name="about_text">A configuration tool for Xiaomi, Redmi and Poco devices. Applies optimizing MIUI / HyperOS parameters via local ADB. All changes are reversible. Results depend on the device model and firmware version.</string>
 
     <!-- Support -->
     <string name="support_title">Support development:</string>
@@ -29,20 +29,20 @@
     <string name="log_share">Share log</string>
 
     <!-- App description -->
-    <string name="app_description_short">Safe configuration for Xiaomi, Redmi, Poco. Disables unnecessary background processes and system analytics.</string>
+    <string name="app_description_short">Safe configuration for Xiaomi, Redmi, Poco. Optimizes background processes and system parameters.</string>
     <string name="features_title">What the app does</string>
-    <string name="feature_processes">Disables system analytics services</string>
-    <string name="feature_speed">Configures MIUI / HyperOS system parameters</string>
+    <string name="feature_processes">Configures system services</string>
+    <string name="feature_speed">Applies MIUI / HyperOS parameters</string>
     <string name="feature_battery">Works without root access</string>
 
     <!-- Optimization options dialog -->
     <string name="options_dialog_title">Optimization options</string>
-    <string name="options_dialog_text">The app will disable system analytics and ad services, and apply optimizing MIUI / HyperOS parameters. All changes are reversible — you can undo them at any time.</string>
+    <string name="options_dialog_text">The app will apply optimizing MIUI / HyperOS parameters and configure system services. All changes are reversible — you can undo them at any time.</string>
     <string name="options_dialog_start">Start optimization</string>
 
     <!-- DNS option -->
-    <string name="dns_option_title">DNS ad filter</string>
-    <string name="dns_option_description">Blocks ad domains at the DNS level (AdGuard DNS). Extra protection against ads in browsers and apps.</string>
+    <string name="dns_option_title">DNS filter</string>
+    <string name="dns_option_description">Uses AdGuard DNS to filter unwanted domains at the DNS level. May slightly affect internet speed.</string>
 
     <!-- DNS warning -->
     <string name="dns_warning_title">Warning: DNS filter</string>
@@ -58,20 +58,20 @@
     <string name="overlay_permission_title">Display over other apps</string>
     <string name="overlay_permission_text">This permission is needed to show progress. The switch will be enabled automatically — just confirm the action.</string>
 
-    <!-- Restricted/Forbidden settings dialog for Android 13 -->
-    <string name="restricted_dialog_title">Restricted settings</string>
-    <string name="restricted_dialog_text">To allow the app to work, you need to enable restricted settings. Open the app info screen, tap ⋮ in the top right corner and select "Allow restricted settings".</string>
-    <string name="restricted_dialog_open">Open settings</string>
+    <!-- Restricted settings dialog for Android 13 -->
+    <string name="restricted_dialog_title">Additional permission required</string>
+    <string name="restricted_dialog_text">Android is blocking the service because the app was not installed from a store.\n\nTo continue:\n\n1. Tap the button below\n2. In the opened window, tap ⋮ (three dots) in the top right corner\n3. Select "Allow restricted settings"\n4. Confirm the action\n5. Return to the app — it will automatically continue the setup</string>
+    <string name="restricted_dialog_open">Open app settings</string>
 
-    <!-- Restricted/Forbidden settings dialog for Android 14+ -->
-    <string name="forbidden_dialog_title">Forbidden settings</string>
-    <string name="forbidden_dialog_text">To allow the app to work, you need to enable forbidden settings. Follow these steps:\n\n1. Tap the button below to open app settings\n2. Tap ⋮ (three dots) in the top right corner\n3. Select "Allow forbidden settings"\n4. Return to the app</string>
+    <!-- Forbidden settings dialog for Android 14+ -->
+    <string name="forbidden_dialog_title">Additional permission required</string>
+    <string name="forbidden_dialog_text">Android is blocking the service because the app was not installed from a store.\n\nTo continue:\n\n1. Tap the button below\n2. In the opened window, tap ⋮ (three dots) in the top right corner\n3. Select "Allow forbidden settings"\n4. Confirm the action\n5. Return to the app — it will automatically continue the setup</string>
     <string name="forbidden_dialog_open">Open app settings</string>
 
     <!-- Statuses -->
     <string name="status_working">Working…</string>
     <string name="status_done">Optimization complete!</string>
-    <string name="status_done_description">Unnecessary background processes are disabled.</string>
+    <string name="status_done_description">System parameters applied.</string>
 
     <!-- Restore dialog -->
     <string name="restore_dialog_title">Undo optimization</string>
@@ -87,10 +87,24 @@
 
     <!-- Final dialog -->
     <string name="final_dialog_title">Configuration complete</string>
-    <string name="final_dialog_success_text">All parameters have been applied successfully. Ads in system apps are disabled and recommendations are no longer shown. If everything works well, please leave a review — it helps other users find the app.</string>
+    <string name="final_dialog_success_text">All parameters have been applied successfully. If everything works well, please leave a review — it helps other users find the app.</string>
     <string name="final_dialog_failed_text">Failed to apply all changes. Please send the log to the developer to identify the issues.</string>
     <string name="final_dialog_rate">Rate the app</string>
     <string name="final_dialog_send_log">Send log</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_start">Get started</string>
+
+    <string name="onboarding_page1_title">Welcome!</string>
+    <string name="onboarding_page1_text">XiaoHyperCleaner applies optimizing parameters and configures system services on Xiaomi, Redmi and Poco devices. The app works without root via local ADB.</string>
+
+    <string name="onboarding_page2_title">Required permissions</string>
+    <string name="onboarding_page2_text">The app needs the accessibility service (for automatic setup) and display over other apps (to show progress). No data is collected or sent anywhere.</string>
+
+    <string name="onboarding_page3_title">Everything is reversible</string>
+    <string name="onboarding_page3_text">All changes can be undone at any time via the "Undo optimization" button. If something goes wrong, the app will automatically restore the original settings.</string>
 
     <!-- Accessibility chain texts -->
     <string name="allow_button_ru">Разрешить</string>
@@ -105,9 +119,9 @@
     <string name="overlay_preparing">Preparing…</string>
     <string name="overlay_connecting">Connecting to ADB…</string>
     <string name="overlay_method1">Applying system parameters…</string>
-    <string name="overlay_method2">Disabling analytics services…</string>
-    <string name="overlay_method3">Changing region…</string>
-    <string name="overlay_method4">Disabling ad services…</string>
+    <string name="overlay_method2">Configuring analytics services…</string>
+    <string name="overlay_method3">Configuring regional parameters…</string>
+    <string name="overlay_method4">Configuring system services…</string>
     <string name="overlay_method5">Configuring DNS filter…</string>
     <string name="overlay_verifying">Final verification…</string>
     <string name="overlay_done">Configuration complete</string>
@@ -116,24 +130,11 @@
     <string name="overlay_searching_overlay_switch">Looking for the overlay switch…</string>
     <string name="overlay_searching_toggle">Looking for the wireless debugging toggle…</string>
     <string name="overlay_clicking_allow">Tapping "Allow"…</string>
-    <!-- Onboarding -->
-    <string name="onboarding_skip">Skip</string>
-    <string name="onboarding_next">Next</string>
-    <string name="onboarding_start">Get started</string>
-
-    <string name="onboarding_page1_title">Welcome!</string>
-    <string name="onboarding_page1_text">XiaoHyperCleaner disables system analytics and ad services on Xiaomi, Redmi and Poco devices. The app works without root via local ADB.</string>
-
-    <string name="onboarding_page2_title">Required permissions</string>
-    <string name="onboarding_page2_text">The app needs the accessibility service (for automatic setup) and display over other apps (to show progress). No data is collected or sent anywhere.</string>
-
-    <string name="onboarding_page3_title">Everything is reversible</string>
-    <string name="onboarding_page3_text">All changes can be undone at any time via the "Undo optimization" button. If something goes wrong, the app will automatically restore the original settings.</string>
 
     <!-- Verification errors -->
     <string name="overlay_verify_method1_failed">System settings verification failed</string>
-    <string name="overlay_verify_method2_failed">Analytics services verification failed</string>
-    <string name="overlay_verify_method3_failed">Region verification failed</string>
-    <string name="overlay_verify_method4_failed">Ad services verification failed</string>
+    <string name="overlay_verify_method2_failed">Services configuration verification failed</string>
+    <string name="overlay_verify_method3_failed">Regional parameters verification failed</string>
+    <string name="overlay_verify_method4_failed">System services verification failed</string>
     <string name="overlay_final_verification_failed">Final verification failed</string>
 </resources>

@@ -19,7 +19,7 @@
     <string name="about_title">О программе</string>
     <string name="about_version">Версия 1.0</string>
     <string name="about_author">Автор: ElthebestDevelopman</string>
-    <string name="about_text">Инструмент для настройки устройств Xiaomi, Redmi и Poco. Отключает системные сервисы аналитики и применяет параметры MIUI / HyperOS через локальный ADB. Все изменения обратимы. Результат зависит от модели и версии прошивки.</string>
+    <string name="about_text">Инструмент для настройки устройств Xiaomi, Redmi и Poco. Применяет оптимизирующие параметры MIUI / HyperOS через локальный ADB. Все изменения обратимы. Результат зависит от модели и версии прошивки.</string>
 
     <!-- Поддержка -->
     <string name="support_title">Поддержите разработку:</string>
@@ -29,20 +29,20 @@
     <string name="log_share">Поделиться логом</string>
 
     <!-- Описание приложения -->
-    <string name="app_description_short">Безопасная настройка для Xiaomi, Redmi, Poco. Отключает ненужные фоновые процессы и системную аналитику.</string>
+    <string name="app_description_short">Безопасная настройка для Xiaomi, Redmi, Poco. Оптимизирует фоновые процессы и системные параметры.</string>
     <string name="features_title">Что делает приложение</string>
-    <string name="feature_processes">Отключает системные сервисы аналитики</string>
-    <string name="feature_speed">Настраивает системные параметры MIUI / HyperOS</string>
+    <string name="feature_processes">Настраивает системные сервисы</string>
+    <string name="feature_speed">Применяет параметры MIUI / HyperOS</string>
     <string name="feature_battery">Работает без root-прав</string>
 
     <!-- Диалог с опциями оптимизации -->
     <string name="options_dialog_title">Параметры оптимизации</string>
-    <string name="options_dialog_text">Приложение отключит системные сервисы аналитики и рекламы, применит оптимизирующие параметры MIUI / HyperOS. Все изменения обратимы — вы сможете откатить их в любой момент.</string>
+    <string name="options_dialog_text">Приложение применит оптимизирующие параметры MIUI / HyperOS и настроит системные сервисы. Все изменения обратимы — вы сможете откатить их в любой момент.</string>
     <string name="options_dialog_start">Начать оптимизацию</string>
 
     <!-- DNS-опция -->
-    <string name="dns_option_title">DNS-фильтр рекламы</string>
-    <string name="dns_option_description">Блокирует рекламные домены на уровне DNS (AdGuard DNS). Дополнительная защита от рекламы в браузере и приложениях.</string>
+    <string name="dns_option_title">DNS-фильтр</string>
+    <string name="dns_option_description">Использует AdGuard DNS для фильтрации нежелательных доменов на уровне DNS. Может незначительно влиять на скорость интернета.</string>
 
     <!-- Предупреждение о DNS -->
     <string name="dns_warning_title">Внимание: DNS-фильтр</string>
@@ -58,20 +58,20 @@
     <string name="overlay_permission_title">Показ поверх других окон</string>
     <string name="overlay_permission_text">Разрешение нужно, чтобы показывать прогресс выполнения. Переключатель включится автоматически — просто подтвердите действие.</string>
 
-    <!-- Restricted/Forbidden settings dialog для Android 13 -->
-    <string name="restricted_dialog_title">Ограниченные настройки</string>
-    <string name="restricted_dialog_text">Для работы приложения необходимо разрешить ограниченные настройки. Откройте карточку приложения в настройках устройства, нажмите ⋮ в правом верхнем углу и выберите «Разрешить ограниченные настройки».</string>
-    <string name="restricted_dialog_open">Открыть настройки</string>
+    <!-- Restricted settings dialog для Android 13 -->
+    <string name="restricted_dialog_title">Требуется дополнительное разрешение</string>
+    <string name="restricted_dialog_text">Система Android блокирует включение службы, потому что приложение установлено не из магазина.\n\nЧтобы продолжить:\n\n1. Нажмите кнопку ниже\n2. В открывшемся окне нажмите ⋮ (три точки) в правом верхнем углу\n3. Выберите «Разрешить ограниченные настройки»\n4. Подтвердите действие\n5. Вернитесь в приложение — оно автоматически продолжит настройку</string>
+    <string name="restricted_dialog_open">Открыть настройки приложения</string>
 
-    <!-- Restricted/Forbidden settings dialog для Android 14+ -->
-    <string name="forbidden_dialog_title">Запрещённые настройки</string>
-    <string name="forbidden_dialog_text">Для работы приложения необходимо разрешить запрещённые настройки. Следуйте инструкции:\n\n1. Нажмите кнопку ниже, чтобы открыть настройки приложения\n2. В правом верхнем углу нажмите ⋮ (три точки)\n3. Выберите «Разрешить запрещённые настройки»\n4. Вернитесь в приложение</string>
+    <!-- Forbidden settings dialog для Android 14+ -->
+    <string name="forbidden_dialog_title">Требуется дополнительное разрешение</string>
+    <string name="forbidden_dialog_text">Система Android блокирует включение службы, потому что приложение установлено не из магазина.\n\nЧтобы продолжить:\n\n1. Нажмите кнопку ниже\n2. В открывшемся окне нажмите ⋮ (три точки) в правом верхнем углу\n3. Выберите «Разрешить запрещённые настройки»\n4. Подтвердите действие\n5. Вернитесь в приложение — оно автоматически продолжит настройку</string>
     <string name="forbidden_dialog_open">Открыть настройки приложения</string>
 
     <!-- Статусы -->
     <string name="status_working">Выполняется…</string>
     <string name="status_done">Оптимизация завершена!</string>
-    <string name="status_done_description">Ненужные фоновые процессы отключены.</string>
+    <string name="status_done_description">Системные параметры применены.</string>
 
     <!-- Диалог восстановления -->
     <string name="restore_dialog_title">Отменить оптимизацию</string>
@@ -87,10 +87,24 @@
 
     <!-- Финальный диалог -->
     <string name="final_dialog_title">Настройка завершена</string>
-    <string name="final_dialog_success_text">Все параметры применены успешно. Реклама в системных приложениях отключена, рекомендации больше не отображаются. Если всё понравилось, оставьте отзыв — это поможет другим пользователям найти приложение.</string>
+    <string name="final_dialog_success_text">Все параметры применены успешно. Если всё понравилось, оставьте отзыв — это поможет другим пользователям найти приложение.</string>
     <string name="final_dialog_failed_text">Не удалось применить все изменения. Пожалуйста, отправьте лог разработчику для выявления ошибок.</string>
     <string name="final_dialog_rate">Оценить приложение</string>
     <string name="final_dialog_send_log">Отправить лог</string>
+
+    <!-- Онбординг -->
+    <string name="onboarding_skip">Пропустить</string>
+    <string name="onboarding_next">Далее</string>
+    <string name="onboarding_start">Начать</string>
+
+    <string name="onboarding_page1_title">Добро пожаловать!</string>
+    <string name="onboarding_page1_text">XiaoHyperCleaner применяет оптимизирующие параметры и настраивает системные сервисы на устройствах Xiaomi, Redmi и Poco. Приложение работает без root-прав через локальный ADB.</string>
+
+    <string name="onboarding_page2_title">Какие разрешения нужны</string>
+    <string name="onboarding_page2_text">Приложению нужны служба специальных возможностей (для автоматической настройки) и показ поверх других окон (для отображения прогресса). Данные не собираются и никуда не отправляются.</string>
+
+    <string name="onboarding_page3_title">Всё обратимо</string>
+    <string name="onboarding_page3_text">Все изменения можно откатить в любой момент через кнопку «Отменить оптимизацию». Если что-то пойдёт не так, приложение автоматически вернёт исходные настройки.</string>
 
     <!-- Тексты для accessibility-цепочки -->
     <string name="allow_button_ru">Разрешить</string>
@@ -105,9 +119,9 @@
     <string name="overlay_preparing">Подготовка…</string>
     <string name="overlay_connecting">Подключение к ADB…</string>
     <string name="overlay_method1">Применение системных параметров…</string>
-    <string name="overlay_method2">Отключение сервисов аналитики…</string>
-    <string name="overlay_method3">Смена региона…</string>
-    <string name="overlay_method4">Отключение рекламных служб…</string>
+    <string name="overlay_method2">Настройка сервисов аналитики…</string>
+    <string name="overlay_method3">Настройка региональных параметров…</string>
+    <string name="overlay_method4">Настройка системных служб…</string>
     <string name="overlay_method5">Настройка DNS-фильтра…</string>
     <string name="overlay_verifying">Финальная проверка…</string>
     <string name="overlay_done">Настройка завершена</string>
@@ -116,24 +130,11 @@
     <string name="overlay_searching_overlay_switch">Ищем тумблер показа поверх окон…</string>
     <string name="overlay_searching_toggle">Ищем тумблер беспроводной отладки…</string>
     <string name="overlay_clicking_allow">Нажимаем «Разрешить»…</string>
-    <!-- Онбординг -->
-    <string name="onboarding_skip">Пропустить</string>
-    <string name="onboarding_next">Далее</string>
-    <string name="onboarding_start">Начать</string>
-
-    <string name="onboarding_page1_title">Добро пожаловать!</string>
-    <string name="onboarding_page1_text">XiaoHyperCleaner отключает системные сервисы аналитики и рекламы на устройствах Xiaomi, Redmi и Poco. Приложение работает без root-прав через локальный ADB.</string>
-
-    <string name="onboarding_page2_title">Какие разрешения нужны</string>
-    <string name="onboarding_page2_text">Приложению нужны служба специальных возможностей (для автоматической настройки) и показ поверх других окон (для отображения прогресса). Данные не собираются и никуда не отправляются.</string>
-
-    <string name="onboarding_page3_title">Всё обратимо</string>
-    <string name="onboarding_page3_text">Все изменения можно откатить в любой момент через кнопку «Отменить оптимизацию». Если что-то пойдёт не так, приложение автоматически вернёт исходные настройки.</string>
 
     <!-- Ошибки проверок -->
     <string name="overlay_verify_method1_failed">Проверка системных параметров не пройдена</string>
-    <string name="overlay_verify_method2_failed">Проверка отключения аналитики не пройдена</string>
-    <string name="overlay_verify_method3_failed">Проверка региона не пройдена</string>
-    <string name="overlay_verify_method4_failed">Проверка рекламных служб не пройдена</string>
+    <string name="overlay_verify_method2_failed">Проверка настройки сервисов не пройдена</string>
+    <string name="overlay_verify_method3_failed">Проверка региональных параметров не пройдена</string>
+    <string name="overlay_verify_method4_failed">Проверка системных служб не пройдена</string>
     <string name="overlay_final_verification_failed">Финальная проверка не пройдена</string>
 </resources>
