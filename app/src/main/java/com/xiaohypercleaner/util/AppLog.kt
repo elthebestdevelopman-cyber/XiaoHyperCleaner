@@ -19,11 +19,13 @@ object AppLog {
         if (!logToFile) return
 
         try {
+            // Закрываем предыдущий writer если был (важно для Robolectric тестов)
+            closeWriter()
+
             val logDir = context.filesDir
             file = File(logDir, "xhc.log")
 
-            // Очищаем старый лог при запуске
-            if (file?.exists() == true && file?.length() ?: 0L > 5_000_000L) {
+            if (file?.exists() == true && (file?.length() ?: 0L) > 5_000_000L) {
                 file?.delete()
             }
 
@@ -84,12 +86,23 @@ object AppLog {
         return if (f.exists()) f else null
     }
 
+    /**
+     * Закрывает writer и освобождает файловый дескриптор.
+     * ВАЖНО вызывать в tearDown() Robolectric-тестов, иначе Windows не даст удалить
+     * временную директорию Robolectric (файл остаётся открытым).
+     */
     fun close() {
+        closeWriter()
+        file = null
+    }
+
+    private fun closeWriter() {
         try {
+            writer?.flush()
             writer?.close()
-            writer = null
         } catch (e: Exception) {
-            Log.w("AppLog", "Failed to close log file", e)
+            Log.w("AppLog", "Failed to close log writer", e)
         }
+        writer = null
     }
 }

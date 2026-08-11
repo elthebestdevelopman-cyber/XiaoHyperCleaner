@@ -117,35 +117,33 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         delay(AppConstants.DELAY_AFTER_CONNECT_MS)
 
         try {
-            // Метод 1: системные параметры
             callbacks.onStage("method1")
             callbacks.onProgress(AppConstants.PROGRESS_METHOD1)
             val settings1 = applySystemSettings(transaction)
             appliedSettings.addAll(settings1)
             delay(AppConstants.COMMAND_DELAY_MS)
 
-            // Метод 2: отключение сервисов аналитики
             callbacks.onStage("method2")
             callbacks.onProgress(AppConstants.PROGRESS_METHOD2)
             val packages2 = disableAnalyticsServices(transaction)
             disabledPackages.addAll(packages2)
             delay(AppConstants.COMMAND_DELAY_MS)
 
-            // Метод 3: скрытые ключи и регион
             callbacks.onStage("method3")
             callbacks.onProgress(AppConstants.PROGRESS_METHOD3)
             val settings3 = applyHiddenKeys(transaction)
             appliedSettings.addAll(settings3)
+            // Применяем setprop команды (timezone и др.)
+            val props = applySystemProperties()
+            appliedSettings.addAll(props)
             delay(AppConstants.COMMAND_DELAY_MS)
 
-            // Метод 4: отключение рекламных служб
             callbacks.onStage("method4")
             callbacks.onProgress(AppConstants.PROGRESS_METHOD4)
             val packages4 = disableAdServices(transaction)
             disabledPackages.addAll(packages4)
             delay(AppConstants.COMMAND_DELAY_MS)
 
-            // Метод 5 (опционально): DNS-фильтр
             if (options.dnsFilter) {
                 callbacks.onStage("method5")
                 callbacks.onProgress(AppConstants.PROGRESS_METHOD5_DNS)
@@ -158,7 +156,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 delay(AppConstants.COMMAND_DELAY_MS)
             }
 
-            // Финальная проверка
             callbacks.onStage("verifying")
             callbacks.onProgress(AppConstants.PROGRESS_VERIFYING)
             val verification = verifyAll(options.dnsFilter)
@@ -250,6 +247,11 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
         delay(AppConstants.COMMAND_DELAY_MS)
 
+        val propsFailed = restoreSystemPropertiesWithReport()
+        if (propsFailed.isNotEmpty()) {
+            failedActions.add("properties_restore: ${propsFailed.joinToString()}")
+        }
+
         callbacks.onProgress(AppConstants.PROGRESS_RESTORE_PACKAGES)
 
         val servicesFailed = restoreServicesWithReport()
@@ -268,10 +270,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
 
         if (failedActions.isNotEmpty()) {
-            AppLog.w(
-                TAG,
-                "OptimizationEngine: restore had failures: $failedActions"
-            )
+            AppLog.w(TAG, "OptimizationEngine: restore had failures: $failedActions")
             callbacks.onError("restore_verification_failed")
             callbacks.onProgress(AppConstants.PROGRESS_FAIL)
             return false
@@ -297,8 +296,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
     }
 
-    // ===== Метод 1: системные параметры =====
-
     private suspend fun applySystemSettings(transaction: Transaction): List<String> {
         AppLog.i(TAG, "OptimizationEngine: applying system settings")
         val applied = mutableListOf<String>()
@@ -322,7 +319,28 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         return applied
     }
 
-    // ===== Метод 2: отключение сервисов аналитики =====
+    /**
+     * Применяет системные свойства через setprop.
+     * Эти команды не имеют обратного чтения через settings get, поэтому не сохраняются в transaction.
+     */
+    private suspend fun applySystemProperties(): List<String> {
+        AppLog.i(TAG, "OptimizationEngine: applying system properties")
+        val applied = mutableListOf<String>()
+
+        for ((key, value) in ServiceRegistry.SYSTEM_PROPERTIES) {
+            try {
+                adb.executeCommand("shell setprop $key $value")
+                applied.add("$key=$value")
+                delay(AppConstants.COMMAND_DELAY_MS)
+            } catch (e: Exception) {
+                AppLog.w(
+                    TAG,
+                    "OptimizationEngine: setprop failed: $key - ${LogMasker.mask(e.message ?: "")}"
+                )
+            }
+        }
+        return applied
+    }
 
     private suspend fun disableAnalyticsServices(transaction: Transaction): List<String> {
         AppLog.i(TAG, "OptimizationEngine: disabling analytics services")
@@ -335,8 +353,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
         return disabled
     }
-
-    // ===== Метод 3: скрытые ключи =====
 
     private suspend fun applyHiddenKeys(transaction: Transaction): List<String> {
         AppLog.i(TAG, "OptimizationEngine: applying hidden keys")
@@ -361,8 +377,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         return applied
     }
 
-    // ===== Метод 4: отключение рекламных служб =====
-
     private suspend fun disableAdServices(transaction: Transaction): List<String> {
         AppLog.i(TAG, "OptimizationEngine: disabling ad services")
         val disabled = mutableListOf<String>()
@@ -374,8 +388,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
         return disabled
     }
-
-    // ===== Метод 5 (опционально): DNS-фильтр =====
 
     private suspend fun applyDnsFilter(transaction: Transaction): Boolean {
         AppLog.i(TAG, "OptimizationEngine: applying DNS filter (AdGuard)")
@@ -402,8 +414,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             false
         }
     }
-
-    // ===== Умное отключение пакетов =====
 
     private suspend fun disablePackage(pkg: String): Boolean {
         AppLog.i(TAG, "OptimizationEngine: trying to disable $pkg")
@@ -442,8 +452,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         return false
     }
 
-    // ===== Rollback =====
-
     private suspend fun rollback(transaction: Transaction): RollbackReport {
         AppLog.i(TAG, "OptimizationEngine: starting rollback")
 
@@ -454,7 +462,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         var restoredDns = false
         var failedDns: String? = null
 
-        // Восстановление DNS
         if (transaction.enabledDns) {
             try {
                 val mode = transaction.previousDnsMode ?: ServiceRegistry.Dns.RESTORE_MODE
@@ -476,7 +483,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             }
         }
 
-        // Восстановление настроек (в обратном порядке)
         for (entry in transaction.appliedSettings.entries.toList().reversed()) {
             try {
                 val cmd = entry.key
@@ -498,7 +504,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             }
         }
 
-        // Включение обратно отключённых пакетов
         for (pkg in transaction.disabledPackages) {
             try {
                 adb.executeCommand("shell pm enable $pkg")
@@ -508,6 +513,18 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 AppLog.w(
                     TAG,
                     "OptimizationEngine: package rollback failed for $pkg: ${LogMasker.mask(e.message ?: "")}"
+                )
+            }
+        }
+
+        // Откат системных свойств (timezone и др.) — best effort
+        for ((key, value) in ServiceRegistry.SYSTEM_PROPERTIES_RESTORE) {
+            try {
+                adb.executeCommand("shell setprop $key $value")
+            } catch (e: Exception) {
+                AppLog.w(
+                    TAG,
+                    "OptimizationEngine: setprop rollback failed: $key - ${LogMasker.mask(e.message ?: "")}"
                 )
             }
         }
@@ -524,8 +541,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         AppLog.i(TAG, "OptimizationEngine: rollback completed. ${report.summary()}")
         return report
     }
-
-    // ===== Финальная проверка =====
 
     suspend fun verifyAll(checkDns: Boolean = false): VerificationResult {
         AppLog.i(TAG, "OptimizationEngine: running final verification")
@@ -551,7 +566,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
     private suspend fun verifyAnalyticsDisabled(): Boolean {
         return try {
             val result = adb.executeCommand("shell pm list packages -d").trim()
-            val required = ServiceRegistry.ANALYTICS_PACKAGES.take(2) // Проверяем первые 2
+            val required = ServiceRegistry.ANALYTICS_PACKAGES.take(2)
             required.all { pkg -> result.contains(pkg) }
         } catch (e: Exception) {
             AppLog.w(
@@ -590,8 +605,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
     }
 
-    // ===== Восстановление с отчётами =====
-
     private suspend fun restoreSystemSettingsWithReport(): List<String> {
         AppLog.i(TAG, "OptimizationEngine: restoring system settings")
         val failed = mutableListOf<String>()
@@ -609,6 +622,24 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             } catch (e: Exception) {
                 failed.add(key.substringAfterLast(" "))
                 AppLog.w(TAG, "OptimizationEngine: restore command failed: $key")
+            }
+        }
+        return failed
+    }
+
+    private suspend fun restoreSystemPropertiesWithReport(): List<String> {
+        AppLog.i(TAG, "OptimizationEngine: restoring system properties")
+        val failed = mutableListOf<String>()
+        for ((key, value) in ServiceRegistry.SYSTEM_PROPERTIES_RESTORE) {
+            try {
+                adb.executeCommand("shell setprop $key $value")
+                delay(AppConstants.COMMAND_DELAY_MS)
+            } catch (e: Exception) {
+                failed.add(key)
+                AppLog.w(
+                    TAG,
+                    "OptimizationEngine: setprop restore failed: $key - ${LogMasker.mask(e.message ?: "")}"
+                )
             }
         }
         return failed
