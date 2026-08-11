@@ -1,16 +1,22 @@
 # 🤖 XiaoHyperCleaner
 
-**No root. No bloat. No data.**
-
-A tool for disabling system analytics and ads on **Xiaomi**, **Redmi**, and **Poco** devices via
-local ADB. Works without root access, all changes are fully reversible.
-
 [![Version](https://img.shields.io/badge/version-1.0--beta2-blue)](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/releases)
 [![Android](https://img.shields.io/badge/Android-10%2B-brightgreen)](https://www.android.com/)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-orange)](https://creativecommons.org/licenses/by-nc/4.0/)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-success)](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/actions)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.4.10-purple)](https://kotlinlang.org/)
 
+**No root. No bloat. No data.**
+
+A tool for disabling system analytics and ads on **Xiaomi**, **Redmi**, and **Poco** devices via
+local ADB. Works without root access, all changes are fully reversible.
+
+
+<div align="center">
+
+**🇷🇺 Русский** | 🇬🇧 [English](README.en.md)
+
+</div>
 ---
 
 ## 📋 Table of Contents
