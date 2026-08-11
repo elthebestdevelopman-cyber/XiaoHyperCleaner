@@ -14,7 +14,8 @@ data class OptimizationReport(
     val disabledPackages: List<String>,
     val appliedSettings: List<String>,
     val failedActions: List<String>,
-    val verificationResult: OptimizationEngine.VerificationResult
+    val verificationResult: OptimizationEngine.VerificationResult,
+    val rollbackReport: OptimizationEngine.RollbackReport? = null
 )
 
 class OptimizationEngine(private val adb: AdbExecutor) {
@@ -34,6 +35,34 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         val failedItems: List<String> = emptyList(),
         val details: String = ""
     )
+
+    /**
+     * Отчёт о rollback: какие элементы откатились успешно, а какие нет.
+     */
+    data class RollbackReport(
+        val restoredSettings: Int,
+        val restoredPackages: Int,
+        val restoredDns: Boolean,
+        val failedSettings: List<String>,
+        val failedPackages: List<Pair<String, String>>,
+        val failedDns: String?
+    ) {
+        val totalFailed: Int
+            get() = failedSettings.size + failedPackages.size + (if (failedDns != null) 1 else 0)
+
+        fun summary(): String = buildString {
+            append("🔄 Откат: ")
+            append("настройки=${restoredSettings}, ")
+            append("пакеты=${restoredPackages}")
+            if (restoredDns) append(", DNS=да")
+            if (totalFailed > 0) {
+                append("\n⚠️ Не удалось откатить: $totalFailed")
+                if (failedSettings.isNotEmpty()) append("\n  • настройки: ${failedSettings.joinToString()}")
+                if (failedPackages.isNotEmpty()) append("\n  • пакеты: ${failedPackages.joinToString { "${it.first} (${it.second})" }}")
+                if (failedDns != null) append("\n  • DNS: $failedDns")
+            }
+        }
+    }
 
     private class Transaction {
         val appliedSettings = mutableMapOf<String, String>()
@@ -143,14 +172,21 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                     "OptimizationEngine: verification failed, rolling back: ${verification.failedItems}"
                 )
                 callbacks.onError("final_verification_failed")
-                rollback(transaction)
+                val rollbackReport = rollback(transaction)
+
+                // Ошибки rollback добавляем в failedActions
+                if (rollbackReport.totalFailed > 0) {
+                    failedActions.add("rollback_failed: ${rollbackReport.totalFailed}")
+                }
+
                 callbacks.onProgress(AppConstants.PROGRESS_FAIL)
                 return OptimizationReport(
                     success = false,
                     disabledPackages = emptyList(),
                     appliedSettings = emptyList(),
-                    failedActions = verification.failedItems,
-                    verificationResult = verification
+                    failedActions = verification.failedItems + failedActions,
+                    verificationResult = verification,
+                    rollbackReport = rollbackReport
                 )
             }
 
@@ -166,7 +202,8 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 disabledPackages = disabledPackages,
                 appliedSettings = appliedSettings,
                 failedActions = failedActions,
-                verificationResult = verification
+                verificationResult = verification,
+                rollbackReport = null
             )
         } catch (e: Exception) {
             AppLog.e(
@@ -175,18 +212,25 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 e
             )
             callbacks.onError("unexpected_error")
-            rollback(transaction)
+            val rollbackReport = rollback(transaction)
+
+            val exceptionFailedActions = mutableListOf("exception: ${e.message}")
+            if (rollbackReport.totalFailed > 0) {
+                exceptionFailedActions.add("rollback_failed: ${rollbackReport.totalFailed}")
+            }
+
             callbacks.onProgress(AppConstants.PROGRESS_FAIL)
             return OptimizationReport(
                 success = false,
                 disabledPackages = emptyList(),
                 appliedSettings = emptyList(),
-                failedActions = listOf("exception: ${e.message}"),
+                failedActions = exceptionFailedActions,
                 verificationResult = VerificationResult(
                     false,
                     listOf("exception"),
                     e.message ?: "Unknown"
-                )
+                ),
+                rollbackReport = rollbackReport
             )
         }
     }
@@ -202,20 +246,45 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             return false
         }
 
-        restoreSystemSettings()
+        val failedActions = mutableListOf<String>()
+
+        // restoreSystemSettings
+        val settingsFailed = restoreSystemSettingsWithReport()
+        if (settingsFailed.isNotEmpty()) {
+            failedActions.add("settings_restore: ${settingsFailed.joinToString()}")
+        }
         delay(AppConstants.COMMAND_DELAY_MS)
 
         callbacks.onProgress(AppConstants.PROGRESS_RESTORE_PACKAGES)
-        restoreServices()
-        restoreRegion()
-        restoreAdServices()
-        restoreDns()
 
-        val verification = verifyRestored()
-        if (!verification.success) {
+        // restoreServices
+        val servicesFailed = restoreServicesWithReport()
+        if (servicesFailed.isNotEmpty()) {
+            failedActions.add("services_restore: ${servicesFailed.joinToString()}")
+        }
+
+        // restoreRegion
+        val regionFailed = restoreRegionWithReport()
+        if (regionFailed != null) {
+            failedActions.add("region_restore: $regionFailed")
+        }
+
+        // restoreAdServices
+        val adServicesFailed = restoreAdServicesWithReport()
+        if (adServicesFailed.isNotEmpty()) {
+            failedActions.add("ad_services_restore: ${adServicesFailed.joinToString()}")
+        }
+
+        // restoreDns
+        val dnsFailed = restoreDnsWithReport()
+        if (dnsFailed != null) {
+            failedActions.add("dns_restore: $dnsFailed")
+        }
+
+        if (failedActions.isNotEmpty()) {
             AppLog.w(
                 TAG,
-                "OptimizationEngine: restore verification failed: ${verification.failedItems}"
+                "OptimizationEngine: restore had failures: $failedActions"
             )
             callbacks.onError("restore_verification_failed")
             callbacks.onProgress(AppConstants.PROGRESS_FAIL)
@@ -404,10 +473,17 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         return false
     }
 
-    // ===== Rollback =====
+    // ===== Rollback (теперь возвращает RollbackReport) =====
 
-    private suspend fun rollback(transaction: Transaction) {
+    private suspend fun rollback(transaction: Transaction): RollbackReport {
         AppLog.i(TAG, "OptimizationEngine: starting rollback")
+
+        val failedSettings = mutableListOf<String>()
+        val failedPackages = mutableListOf<Pair<String, String>>()
+        var restoredSettings = 0
+        var restoredPackages = 0
+        var restoredDns = false
+        var failedDns: String? = null
 
         // Восстановление DNS
         if (transaction.enabledDns) {
@@ -421,7 +497,9 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                         adb.executeCommand("settings put global private_dns_specifier ${transaction.previousDnsHost}")
                     }
                 }
+                restoredDns = true
             } catch (e: Exception) {
+                failedDns = e.message ?: "Unknown"
                 AppLog.w(
                     TAG,
                     "OptimizationEngine: DNS rollback failed: ${LogMasker.mask(e.message ?: "")}"
@@ -437,8 +515,13 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 val key = cmd.substringAfter("settings put ").substringBeforeLast(" ")
                 if (original.isNotEmpty() && original != "null") {
                     adb.executeCommand("settings put $key $original")
+                    restoredSettings++
+                } else {
+                    restoredSettings++
                 }
             } catch (e: Exception) {
+                val keyName = entry.key.substringAfterLast(" ")
+                failedSettings.add(keyName)
                 AppLog.w(
                     TAG,
                     "OptimizationEngine: settings rollback failed: ${LogMasker.mask(e.message ?: "")}"
@@ -450,7 +533,9 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         for (pkg in transaction.disabledPackages) {
             try {
                 adb.executeCommand("shell pm enable $pkg")
+                restoredPackages++
             } catch (e: Exception) {
+                failedPackages.add(pkg to (e.message ?: "Unknown"))
                 AppLog.w(
                     TAG,
                     "OptimizationEngine: package rollback failed for $pkg: ${LogMasker.mask(e.message ?: "")}"
@@ -458,7 +543,17 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             }
         }
 
-        AppLog.i(TAG, "OptimizationEngine: rollback completed")
+        val report = RollbackReport(
+            restoredSettings = restoredSettings,
+            restoredPackages = restoredPackages,
+            restoredDns = restoredDns,
+            failedSettings = failedSettings,
+            failedPackages = failedPackages,
+            failedDns = failedDns
+        )
+
+        AppLog.i(TAG, "OptimizationEngine: rollback completed. ${report.summary()}")
+        return report
     }
 
     // ===== Финальная проверка =====
@@ -540,7 +635,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
     }
 
-    // ===== Восстановление =====
+    // ===== Восстановление с отчётами об ошибках =====
 
     private suspend fun verifyRestored(): VerificationResult {
         return VerificationResult(
@@ -550,7 +645,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         )
     }
 
-    private suspend fun restoreSystemSettings() {
+    private suspend fun restoreSystemSettingsWithReport(): List<String> {
         AppLog.i(TAG, "OptimizationEngine: restoring system settings")
         val commands = listOf(
             "shell settings put global low_power 0",
@@ -559,20 +654,21 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             "shell settings put global transition_animation_scale 1.0",
             "shell settings put global animator_duration_scale 1.0"
         )
+        val failed = mutableListOf<String>()
         for (cmd in commands) {
             try {
                 adb.executeCommand(cmd)
                 delay(AppConstants.COMMAND_DELAY_MS)
             } catch (e: Exception) {
-                AppLog.w(
-                    TAG,
-                    "OptimizationEngine: restore command failed: $cmd - ${LogMasker.mask(e.message ?: "")}"
-                )
+                val keyName = cmd.substringAfterLast(" ")
+                failed.add(keyName)
+                AppLog.w(TAG, "OptimizationEngine: restore command failed: $cmd")
             }
         }
+        return failed
     }
 
-    private suspend fun restoreServices() {
+    private suspend fun restoreServicesWithReport(): List<String> {
         val packages = listOf(
             "com.miui.analytics",
             "com.xiaomi.ab",
@@ -581,60 +677,70 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             "com.xiaomi.discover",
             "com.miui.bugreport"
         )
+        val failed = mutableListOf<String>()
         for (pkg in packages) {
             try {
                 adb.executeCommand("shell pm enable $pkg")
                 delay(AppConstants.COMMAND_DELAY_MS)
             } catch (e: Exception) {
+                failed.add(pkg)
                 AppLog.w(
                     TAG,
                     "OptimizationEngine: failed to enable $pkg: ${LogMasker.mask(e.message ?: "")}"
                 )
             }
         }
+        return failed
     }
 
-    private suspend fun restoreRegion() {
-        try {
+    private suspend fun restoreRegionWithReport(): String? {
+        return try {
             adb.executeCommand("shell settings put secure limit_ad_tracking 0")
             delay(AppConstants.COMMAND_DELAY_MS)
+            null
         } catch (e: Exception) {
             AppLog.w(
                 TAG,
                 "OptimizationEngine: region restore failed: ${LogMasker.mask(e.message ?: "")}"
             )
+            e.message ?: "Unknown"
         }
     }
 
-    private suspend fun restoreAdServices() {
+    private suspend fun restoreAdServicesWithReport(): List<String> {
         val packages = listOf(
             "com.xiaomi.ad",
             "com.miui.ad",
             "com.miui.personalassistant",
             "com.miui.smartassistant"
         )
+        val failed = mutableListOf<String>()
         for (pkg in packages) {
             try {
                 adb.executeCommand("shell pm enable $pkg")
                 delay(AppConstants.COMMAND_DELAY_MS)
             } catch (e: Exception) {
+                failed.add(pkg)
                 AppLog.w(
                     TAG,
                     "OptimizationEngine: failed to enable $pkg: ${LogMasker.mask(e.message ?: "")}"
                 )
             }
         }
+        return failed
     }
 
-    private suspend fun restoreDns() {
-        try {
+    private suspend fun restoreDnsWithReport(): String? {
+        return try {
             adb.executeCommand("settings put global private_dns_mode opportunistic")
             delay(AppConstants.COMMAND_DELAY_MS)
+            null
         } catch (e: Exception) {
             AppLog.w(
                 TAG,
                 "OptimizationEngine: DNS restore failed: ${LogMasker.mask(e.message ?: "")}"
             )
+            e.message ?: "Unknown"
         }
     }
 }

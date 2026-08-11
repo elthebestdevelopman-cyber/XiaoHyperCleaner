@@ -20,6 +20,7 @@ class AdbClient(
     companion object {
         private const val TAG = "AdbClient"
         private const val MAX_PAYLOAD = 0xFFFF
+        private const val MAX_RESPONSE_SIZE = 10 * 1024 * 1024 // 10 MB лимит
     }
 
     private var socket: Socket? = null
@@ -177,17 +178,38 @@ class AdbClient(
         return status
     }
 
+    /**
+     * Читает ответ shell до EOF с лимитом [MAX_RESPONSE_SIZE] байт.
+     * Если лимит превышен — чтение останавливается и возвращается усечённая строка.
+     * Это защищает от зависания на огромных выводах (dumpsys, logcat и т.д.).
+     */
     private fun readUntilEof(): String {
         val sb = StringBuilder()
         val buf = ByteArray(4096)
         val stream = input ?: return ""
         var chunks = 0
+        var totalBytes = 0
+        var truncated = false
         try {
             while (true) {
                 val n = stream.read(buf)
                 if (n <= 0) break
+                if (totalBytes + n > MAX_RESPONSE_SIZE) {
+                    // Читаем только до лимита
+                    val remaining = MAX_RESPONSE_SIZE - totalBytes
+                    if (remaining > 0) {
+                        sb.append(String(buf, 0, remaining, Charsets.UTF_8))
+                    }
+                    truncated = true
+                    AppLog.w(
+                        TAG,
+                        "readUntilEof: response exceeded ${MAX_RESPONSE_SIZE} bytes, truncated"
+                    )
+                    break
+                }
                 sb.append(String(buf, 0, n, Charsets.UTF_8))
                 chunks++
+                totalBytes += n
             }
         } catch (e: SocketTimeoutException) {
             AppLog.w(TAG, "readUntilEof: timeout after $chunks chunks, returning partial")
@@ -198,7 +220,10 @@ class AdbClient(
                 e
             )
         }
-        AppLog.i(TAG, "readUntilEof: read ${sb.length} chars in $chunks chunks")
+        AppLog.i(
+            TAG,
+            "readUntilEof: read ${sb.length} chars in $chunks chunks (truncated=$truncated)"
+        )
         return sb.toString()
     }
 

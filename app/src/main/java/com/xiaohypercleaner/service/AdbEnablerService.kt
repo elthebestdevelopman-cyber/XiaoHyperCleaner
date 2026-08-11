@@ -20,6 +20,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 
 class AdbEnablerService : AccessibilityService() {
@@ -33,6 +36,7 @@ class AdbEnablerService : AccessibilityService() {
         private const val REOPEN_DELAY_MS = 1000L
         private const val REOPEN_COOLDOWN_MS = 3000L
         private const val DEV_WATCHDOG_MS = 8000L
+        private const val EVENT_DEBOUNCE_MS = 250L
     }
 
     private enum class Step {
@@ -52,6 +56,13 @@ class AdbEnablerService : AccessibilityService() {
     private var devToggleFound = false
     private var devWatchdogRunnable: Runnable? = null
 
+    // Debounce для accessibility событий
+    private val accessibilityEvents = MutableSharedFlow<Unit>(
+        replay = 0,
+        extraBufferCapacity = 16,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         OverlayController.register(object : OverlayController.CancelHandler {
@@ -60,6 +71,15 @@ class AdbEnablerService : AccessibilityService() {
             }
         })
         AppLog.i(TAG, "AdbEnablerService: connected")
+
+        // Запускаем debounced consumer для accessibility событий
+        scope.launch {
+            accessibilityEvents
+                .debounce(EVENT_DEBOUNCE_MS)
+                .collect {
+                    processLatestAccessibilityEvent()
+                }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -81,16 +101,28 @@ class AdbEnablerService : AccessibilityService() {
             return
         }
 
-        when (event.eventType) {
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
-            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
-                val root = rootInActiveWindow ?: return
-                try {
-                    processEvent(root)
-                } finally {
-                    root.recycle()
-                }
+        // Отправляем сигнал в debounced channel (без тяжёлой работы на hot path)
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+            event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+        ) {
+            scope.launch {
+                accessibilityEvents.emit(Unit)
             }
+        }
+    }
+
+    /**
+     * Обрабатывает accessibility событие после debounce.
+     * Root node получаем здесь, а не в onAccessibilityEvent — к этому моменту
+     * окно уже стабилизировалось после серии быстрых событий.
+     */
+    private fun processLatestAccessibilityEvent() {
+        if (!chainActive || chainCancelled) return
+        val root = rootInActiveWindow ?: return
+        try {
+            processEvent(root)
+        } finally {
+            root.recycle()
         }
     }
 
@@ -224,7 +256,6 @@ class AdbEnablerService : AccessibilityService() {
         val texts = resources.getStringArray(R.array.wireless_debugging_texts).toList()
         val node = findNodeByText(root, texts) ?: return
 
-        // Тумблер найден — режим разработчика включён, watchdog больше не нужен
         devToggleFound = true
         cancelDevWatchdog()
 
@@ -353,6 +384,11 @@ class AdbEnablerService : AccessibilityService() {
                     "AdbEnablerService: disabled ${report.disabledPackages.size} packages, applied ${report.appliedSettings.size} settings"
                 )
 
+                // Логируем отчёт о rollback, если он был (например, при сбое верификации)
+                report.rollbackReport?.let { rb ->
+                    AppLog.i(TAG, "AdbEnablerService: rollback report: ${rb.summary()}")
+                }
+
                 if (report.success) {
                     currentStep = Step.VERIFICATION
                     overlaySafe(getString(R.string.overlay_verifying))
@@ -385,6 +421,11 @@ class AdbEnablerService : AccessibilityService() {
             if (report.failedActions.isNotEmpty()) {
                 append("⚠️ Не удалось: ${report.failedActions.joinToString(", ")}\n")
             }
+            report.rollbackReport?.let { rb ->
+                append("\n")
+                append(rb.summary())
+            }
+            append("\n")
             append(if (report.success) "✅ Все проверки пройдены" else "❌ Проверка не пройдена")
         }
     }
