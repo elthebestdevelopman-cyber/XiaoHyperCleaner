@@ -36,9 +36,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PrivacyTip
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -227,7 +227,7 @@ private fun MainContent(
             status = shizukuStatus,
             onInstall = {
                 AppLog.i("MainUI", "shizuku dialog: install clicked")
-                ShizukuHelper.openStoreForInstall(context)
+                ShizukuHelper.openShizukuInStore(context)
                 shizukuPrefs.edit().putBoolean("shizuku_prompt_shown", true).apply()
             },
             onOpenApp = {
@@ -525,6 +525,9 @@ private fun ShizukuGuideDialog(
     onOpenApp: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
+    val isInstalled = remember { ShizukuHelper.isInstalled(context) }
+
     val title = stringResource(R.string.shizuku_dialog_title)
     val (text, primaryText, primaryAction) = when (status) {
         ShizukuExecutor.Status.NOT_INSTALLED -> Triple(
@@ -573,14 +576,27 @@ private fun ShizukuGuideDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(16.dp))
+
                 Button(
-                    onClick = primaryAction,
+                    onClick = {
+                        if (status == ShizukuExecutor.Status.NOT_INSTALLED || !isInstalled) {
+                            ShizukuHelper.openShizukuInStore(context)
+                        } else {
+                            primaryAction()
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(primaryText)
+                    Text(
+                        if (status == ShizukuExecutor.Status.NOT_INSTALLED || !isInstalled) {
+                            stringResource(R.string.shizuku_dialog_install)
+                        } else {
+                            primaryText
+                        }
+                    )
                 }
                 Spacer(Modifier.height(8.dp))
                 androidx.compose.material3.TextButton(
@@ -773,11 +789,11 @@ private fun InfoCard() {
                 textAlign = TextAlign.Start
             )
             Spacer(Modifier.height(12.dp))
-            FeatureRow(Icons.Filled.PrivacyTip, stringResource(R.string.feature_processes))
+            FeatureRow(Icons.Filled.Lock, stringResource(R.string.feature_processes))
             Spacer(Modifier.height(8.dp))
-            FeatureRow(Icons.Filled.Settings, stringResource(R.string.feature_speed))
+            FeatureRow(Icons.Filled.Build, stringResource(R.string.feature_speed))
             Spacer(Modifier.height(8.dp))
-            FeatureRow(Icons.Filled.VerifiedUser, stringResource(R.string.feature_battery))
+            FeatureRow(Icons.Filled.Star, stringResource(R.string.feature_battery))
         }
     }
 }

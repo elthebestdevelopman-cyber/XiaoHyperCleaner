@@ -19,6 +19,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import com.xiaohypercleaner.R
 
+@Suppress("DEPRECATION")
 class OverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
