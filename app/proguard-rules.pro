@@ -4,6 +4,12 @@
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
 
+# Shizuku reflection
+-keep class rikka.shizuku.Shizuku {
+    rikka.shizuku.ShizukuRemoteProcess newProcess(java.lang.String[], java.lang.String[], java.lang.String);
+}
+-keep class rikka.shizuku.** { *; }
+
 # Свой код не обфусцируем (маленький проект, проще отлаживать)
 -keep class com.xiaohypercleaner.** { *; }
 

@@ -20,6 +20,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -77,6 +78,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
+import com.xiaohypercleaner.data.ShizukuExecutor
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.ui.components.InfoDialog
@@ -88,6 +90,7 @@ import com.xiaohypercleaner.ui.theme.GradientEnd
 import com.xiaohypercleaner.ui.theme.GradientStart
 import com.xiaohypercleaner.ui.theme.XiaoHyperCleanerTheme
 import com.xiaohypercleaner.util.AppLog
+import com.xiaohypercleaner.util.ShizukuHelper
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -106,7 +109,11 @@ class MainActivity : ComponentActivity() {
         val prefs = (application as XiaoHyperApp).preferencesManager
 
         setContent {
-            val isDark by prefs.isDarkTheme.collectAsState(initial = false)
+            val isDarkFromPrefs by prefs.isDarkTheme.collectAsState(initial = false)
+            val hasManuallyChosen by prefs.hasManuallyChosenTheme.collectAsState(initial = false)
+            val isSystemDark = isSystemInDarkTheme()
+            val isDark = if (hasManuallyChosen) isDarkFromPrefs else isSystemDark
+
             val scope = rememberCoroutineScope()
             var showOnboarding by remember { mutableStateOf(false) }
             var onboardingChecked by remember { mutableStateOf(false) }
@@ -151,7 +158,12 @@ class MainActivity : ComponentActivity() {
                     MainContent(
                         state = state,
                         isDark = isDark,
-                        onDarkChange = { enabled -> scope.launch { prefs.setDarkTheme(enabled) } },
+                        onDarkChange = { enabled ->
+                            scope.launch {
+                                prefs.setDarkTheme(enabled)
+                                prefs.setHasManuallyChosenTheme(true)
+                            }
+                        },
                         vm = vm
                     )
                 }
@@ -165,7 +177,6 @@ class MainActivity : ComponentActivity() {
         AppLog.i(TAG, "onResume")
         if (::vm.isInitialized) {
             vm.checkRestrictedSettingsOnResume()
-            // Скрываем оверлей-подсказку при возврате в приложение, если цепочка не запущена
             if (!vm.state.value.isWorking) {
                 stopService(Intent(this, OverlayService::class.java))
             }
@@ -197,29 +208,49 @@ private fun MainContent(
 
     AppLog.i("MainUI", "MainContent composed: state=$state")
 
-    // Restricted settings dialog (Android 13+ sideload)
+    // Shizuku引导 диалог (показывается один раз)
+    val shizukuPrefs = remember {
+        context.getSharedPreferences("xhc_prefs", Context.MODE_PRIVATE)
+    }
+    val shizukuPromptShown = shizukuPrefs.getBoolean("shizuku_prompt_shown", false)
+    val shizukuStatus = remember { ShizukuExecutor.checkStatus() }
+
+    if (!shizukuPromptShown &&
+        shizukuStatus != ShizukuExecutor.Status.AVAILABLE &&
+        !state.isWorking &&
+        !state.showDevModeDialog &&
+        !state.showRestrictedDialog &&
+        !state.showAccessibilityDialog &&
+        !state.showOverlayDialog
+    ) {
+        ShizukuGuideDialog(
+            status = shizukuStatus,
+            onInstall = {
+                AppLog.i("MainUI", "shizuku dialog: install clicked")
+                ShizukuHelper.openStoreForInstall(context)
+                shizukuPrefs.edit().putBoolean("shizuku_prompt_shown", true).apply()
+            },
+            onOpenApp = {
+                AppLog.i("MainUI", "shizuku dialog: open app clicked")
+                ShizukuHelper.openShizukuApp(context)
+                shizukuPrefs.edit().putBoolean("shizuku_prompt_shown", true).apply()
+            },
+            onDismiss = {
+                AppLog.i("MainUI", "shizuku dialog: dismissed")
+                shizukuPrefs.edit().putBoolean("shizuku_prompt_shown", true).apply()
+            }
+        )
+    }
+
     if (state.showRestrictedDialog) {
         val isAndroid14Plus = Build.VERSION.SDK_INT >= 34
-        val title = if (isAndroid14Plus) {
-            stringResource(R.string.forbidden_dialog_title)
-        } else {
-            stringResource(R.string.restricted_dialog_title)
-        }
-        val text = if (isAndroid14Plus) {
-            stringResource(R.string.forbidden_dialog_text)
-        } else {
-            stringResource(R.string.restricted_dialog_text)
-        }
-        val buttonText = if (isAndroid14Plus) {
-            stringResource(R.string.forbidden_dialog_open)
-        } else {
-            stringResource(R.string.restricted_dialog_open)
-        }
-
         InfoDialog(
-            title = title,
-            text = text,
-            confirmText = buttonText,
+            title = if (isAndroid14Plus) stringResource(R.string.forbidden_dialog_title)
+            else stringResource(R.string.restricted_dialog_title),
+            text = if (isAndroid14Plus) stringResource(R.string.forbidden_dialog_text)
+            else stringResource(R.string.restricted_dialog_text),
+            confirmText = if (isAndroid14Plus) stringResource(R.string.forbidden_dialog_open)
+            else stringResource(R.string.restricted_dialog_open),
             onConfirm = {
                 AppLog.i("MainUI", "restricted dialog: open settings clicked")
                 vm.restrictedDialogAgreed()
@@ -272,7 +303,6 @@ private fun MainContent(
         )
     }
 
-    // Диалог с опциями (DNS)
     if (state.showOptionsDialog) {
         OptionsDialog(
             dnsFilterEnabled = state.dnsFilterEnabled,
@@ -288,7 +318,6 @@ private fun MainContent(
         )
     }
 
-    // Предупреждение о DNS
     if (state.showDnsWarningDialog) {
         InfoDialog(
             title = stringResource(R.string.dns_warning_title),
@@ -305,7 +334,6 @@ private fun MainContent(
         )
     }
 
-    // Диалог «нужен режим разработчика»
     if (state.showDevModeDialog) {
         DevModeDialog(
             onOpenDeviceInfo = {
@@ -382,24 +410,14 @@ private fun MainContent(
         InfoDialog(
             title = stringResource(R.string.final_dialog_title),
             text = if (state.finalReport.isNotEmpty()) state.finalReport
-            else if (state.optimizationSuccess) {
-                stringResource(R.string.final_dialog_success_text)
-            } else {
-                stringResource(R.string.final_dialog_failed_text)
-            },
-            confirmText = if (state.optimizationSuccess) {
-                stringResource(R.string.final_dialog_rate)
-            } else {
-                stringResource(R.string.final_dialog_send_log)
-            },
+            else if (state.optimizationSuccess) stringResource(R.string.final_dialog_success_text)
+            else stringResource(R.string.final_dialog_failed_text),
+            confirmText = if (state.optimizationSuccess) stringResource(R.string.final_dialog_rate)
+            else stringResource(R.string.final_dialog_send_log),
             onConfirm = {
                 AppLog.i("MainUI", "final dialog: confirmed, success=${state.optimizationSuccess}")
                 vm.dismissFinalDialog()
-                if (state.optimizationSuccess) {
-                    openRateApp(context)
-                } else {
-                    shareLog(context)
-                }
+                if (state.optimizationSuccess) openRateApp(context) else shareLog(context)
             },
             onDismiss = {
                 AppLog.i("MainUI", "final dialog: dismissed")
@@ -501,6 +519,82 @@ private fun MainContent(
 }
 
 @Composable
+private fun ShizukuGuideDialog(
+    status: ShizukuExecutor.Status,
+    onInstall: () -> Unit,
+    onOpenApp: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val title = stringResource(R.string.shizuku_dialog_title)
+    val (text, primaryText, primaryAction) = when (status) {
+        ShizukuExecutor.Status.NOT_INSTALLED -> Triple(
+            stringResource(R.string.shizuku_dialog_not_installed),
+            stringResource(R.string.shizuku_dialog_install),
+            onInstall
+        )
+
+        ShizukuExecutor.Status.NOT_RUNNING -> Triple(
+            stringResource(R.string.shizuku_dialog_not_running),
+            stringResource(R.string.shizuku_dialog_open_app),
+            onOpenApp
+        )
+
+        ShizukuExecutor.Status.PERMISSION_REQUIRED -> Triple(
+            stringResource(R.string.shizuku_dialog_permission),
+            stringResource(R.string.shizuku_dialog_open_app),
+            onOpenApp
+        )
+
+        ShizukuExecutor.Status.AVAILABLE -> return
+    }
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+            ) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = primaryAction,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(primaryText)
+                }
+                Spacer(Modifier.height(8.dp))
+                androidx.compose.material3.TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.shizuku_dialog_later))
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun OptionsDialog(
     dnsFilterEnabled: Boolean,
     onDnsToggle: (Boolean) -> Unit,
@@ -551,10 +645,7 @@ private fun OptionsDialog(
                         )
                     }
                     Spacer(Modifier.width(8.dp))
-                    Switch(
-                        checked = dnsFilterEnabled,
-                        onCheckedChange = onDnsToggle
-                    )
+                    Switch(checked = dnsFilterEnabled, onCheckedChange = onDnsToggle)
                 }
                 Spacer(Modifier.height(16.dp))
                 Button(
@@ -837,6 +928,17 @@ private fun DoneView(onRestore: () -> Unit, onReboot: () -> Unit) {
     ) { Text(stringResource(R.string.reboot_now)) }
 }
 
+private fun showHintOverlay(context: Context, text: String) {
+    AppLog.i("Overlay", "showing hint overlay")
+    try {
+        val intent = Intent(context, OverlayService::class.java)
+        intent.putExtra("hint", text)
+        context.startService(intent)
+    } catch (e: Exception) {
+        AppLog.w("Overlay", "failed to show hint: ${e.message}")
+    }
+}
+
 private fun openUrl(context: Context, url: String) {
     AppLog.i("OpenUrl", "opening url: $url")
     try {
@@ -858,17 +960,6 @@ private fun openWebView(context: Context, url: String, title: String) {
     } catch (e: Exception) {
         AppLog.w("WebView", "WebView failed, fallback to browser: ${e.message}")
         openUrl(context, url)
-    }
-}
-
-private fun showHintOverlay(context: Context, text: String) {
-    AppLog.i("Overlay", "showing hint overlay")
-    try {
-        val intent = Intent(context, OverlayService::class.java)
-        intent.putExtra("hint", text)
-        context.startService(intent)
-    } catch (e: Exception) {
-        AppLog.w("Overlay", "failed to show hint: ${e.message}")
     }
 }
 
@@ -932,10 +1023,7 @@ private fun openAppInfoSettings(context: Context) {
             context.startActivity(intent)
             AppLog.i("OpenSettings", "alternative app info opened")
         } catch (e2: Exception) {
-            AppLog.w(
-                "OpenSettings",
-                "alternative also failed, fallback to general settings: ${e2.message}"
-            )
+            AppLog.w("OpenSettings", "alternative also failed, fallback: ${e2.message}")
             try {
                 context.startActivity(Intent(Settings.ACTION_SETTINGS).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

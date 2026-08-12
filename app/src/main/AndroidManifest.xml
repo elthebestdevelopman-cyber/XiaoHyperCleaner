@@ -4,6 +4,24 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+    <!-- Видимость пакета Shizuku и магазинов (Android 11+) -->
+    <queries>
+        <package android:name="moe.shizuku.privileged.api" />
+
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="market" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="rustore" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="mimarket" />
+        </intent>
+    </queries>
+
     <application
         android:name=".XiaoHyperApp"
         android:allowBackup="true"
@@ -25,14 +43,12 @@
 
         <activity
             android:name=".ui.MainActivity"
-            android:exported="false"
-            android:theme="@style/Theme.XiaoHyperCleaner" />
+            android:configChanges="orientation|screenSize|uiMode"
+            android:exported="false" />
 
         <activity
             android:name=".ui.WebViewActivity"
-            android:configChanges="orientation|screenSize|keyboardHidden"
-            android:exported="false"
-            android:theme="@style/Theme.XiaoHyperCleaner" />
+            android:exported="false" />
 
         <service
             android:name=".service.AdbEnablerService"
@@ -49,6 +65,15 @@
         <service
             android:name=".service.OverlayService"
             android:exported="false" />
+
+        <!-- Shizuku provider (обязательно для работы Shizuku API) -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="moe.shizuku.manager.permission.API_V23" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

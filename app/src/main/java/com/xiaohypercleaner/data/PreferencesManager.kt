@@ -102,7 +102,6 @@ class PreferencesManager(private val context: Context) {
     suspend fun getDnsFilterEnabled(): Boolean =
         dnsFilterEnabled.first()
 
-    // String-хранилище для отчёта (используем edit напрямую)
     suspend fun setLastReportJson(json: String) {
         context.dataStore.edit { prefs ->
             prefs[androidx.datastore.preferences.core.stringPreferencesKey("last_report_json")] =

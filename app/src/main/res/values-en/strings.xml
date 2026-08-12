@@ -157,4 +157,12 @@
     <string name="hint_overlay">Turn on the "Display over other apps" switch for XiaoHyperCleaner.</string>
     <string name="hint_dev">Turn on "Wireless debugging". If missing — enable "USB debugging" first, then enable wireless. Confirm all warnings.</string>
     <string name="hint_allow">Tap "Allow" in the system dialog that appears.</string>
+    <string name="shizuku_dialog_title">Fast optimization</string>
+    <string name="shizuku_dialog_not_installed">For instant optimization without Wi-Fi and permission chains, install the free Shizuku app. It takes 30 seconds and nothing else needs to be configured.</string>
+    <string name="shizuku_dialog_not_running">Shizuku is installed but not running. Open it and tap "Start" — after that optimization will work without Wi-Fi.</string>
+    <string name="shizuku_dialog_permission">Open Shizuku and allow XiaoHyperCleaner to use the API. This is done once.</string>
+    <string name="shizuku_dialog_install">Download Shizuku</string>
+    <string name="shizuku_dialog_open_app">Open Shizuku</string>
+    <string name="shizuku_dialog_later">Later, use wireless debugging</string>
+    <string name="shizuku_attribution">Uses Shizuku API (MIT License, © Rikka)\ngithub.com/RikkaApps/Shizuku-API</string>
 </resources>
