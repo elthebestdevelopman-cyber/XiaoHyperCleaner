@@ -33,8 +33,6 @@ class AdbEnablerService : AccessibilityService() {
         private const val TAG = "XHC"
         private const val STEP_DELAY_MS = 1500L
         private const val OPTIMIZATION_DELAY_MS = 2000L
-        private const val REOPEN_DELAY_MS = 1000L
-        private const val REOPEN_COOLDOWN_MS = 3000L
         private const val DEV_WATCHDOG_MS = 8000L
         private const val EVENT_DEBOUNCE_MS = 250L
     }
@@ -49,7 +47,6 @@ class AdbEnablerService : AccessibilityService() {
     private var chainCancelled = false
     private var currentStep = Step.IDLE
     private var lastOverlayUpdate = 0L
-    private var lastReopenMs = 0L
     private var lastProgressUpdate = 0L
 
     // Watchdog режима разработчика
@@ -93,10 +90,11 @@ class AdbEnablerService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         if (!chainActive || chainCancelled) return
 
+        // Пользователь в нашем приложении — только логируем, НЕ выкидываем в настройки
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
             event.packageName?.toString() == packageName
         ) {
-            scheduleReopenSettings()
+            AppLog.i(TAG, "AdbEnablerService: user in app (step=$currentStep)")
             return
         }
 
@@ -119,26 +117,6 @@ class AdbEnablerService : AccessibilityService() {
         }
     }
 
-    private fun scheduleReopenSettings() {
-        if (paused) return
-        val now = System.currentTimeMillis()
-        if (now - lastReopenMs < REOPEN_COOLDOWN_MS) return
-        lastReopenMs = now
-        handler.postDelayed({
-            if (chainActive && !chainCancelled && !paused) {
-                AppLog.i(
-                    TAG,
-                    "AdbEnablerService: user in app, re-opening settings for step $currentStep"
-                )
-                when (currentStep) {
-                    Step.OVERLAY_TOGGLE -> openOverlaySettings()
-                    Step.DEV_SETTINGS, Step.WIRELESS_DEBUG -> openDevSettings()
-                    else -> {}
-                }
-            }
-        }, REOPEN_DELAY_MS)
-    }
-
     private fun startDevWatchdog() {
         cancelDevWatchdog()
         devToggleFound = false
@@ -149,7 +127,8 @@ class AdbEnablerService : AccessibilityService() {
                     "AdbEnablerService: dev watchdog fired — developer mode likely disabled"
                 )
                 paused = true
-                overlaySafe(getString(R.string.overlay_dev_mode_required))
+                // НЕ показываем оверлей: диалог в приложении сам всё объяснит,
+                // а оверлей перекрывал бы его кнопки
                 OptimizationNotifier.setDevModeRequired()
             }
         }
@@ -166,6 +145,8 @@ class AdbEnablerService : AccessibilityService() {
         if (!chainActive || chainCancelled) return
         AppLog.i(TAG, "AdbEnablerService: retryDevSettings — user says dev mode enabled")
         paused = false
+        // Перезапускаем оверлей, который был скрыт для диалога dev mode
+        startOverlay()
         currentStep = Step.DEV_SETTINGS
         overlaySafe(getString(R.string.overlay_searching_toggle))
         openDevSettings()
@@ -244,30 +225,59 @@ class AdbEnablerService : AccessibilityService() {
     }
 
     private fun handleDevSettings(root: AccessibilityNodeInfo) {
-        val texts = resources.getStringArray(R.array.wireless_debugging_texts).toList()
-        val node = findNodeByText(root, texts) ?: return
+        val texts = listOf(
+            "Wireless debugging", "Беспроводная отладка",
+            "Отладка по Wi-Fi", "Отладка по беспроводной сети",
+            "Wireless ADB", "Wi-Fi debugging", "Wi-Fi ADB", "Wireless debug"
+        )
+        val node = findNodeByText(root, texts)
 
-        devToggleFound = true
-        cancelDevWatchdog()
+        if (node != null) {
+            devToggleFound = true
+            cancelDevWatchdog()
 
-        val switch = findSwitchNode(node)
-        if (switch != null && !switch.isChecked) {
-            switch.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            AppLog.i(TAG, "AdbEnablerService: wireless debug toggle clicked")
-            currentStep = Step.ALLOW_DIALOG
-            overlaySafe(getString(R.string.overlay_clicking_allow))
-        } else if (switch != null && switch.isChecked && currentStep == Step.DEV_SETTINGS) {
-            AppLog.i(TAG, "AdbEnablerService: wireless debug already on, starting optimization")
-            currentStep = Step.OPTIMIZATION
-            overlaySafe(getString(R.string.overlay_connecting))
-            handler.postDelayed({
-                if (!chainCancelled) runOptimization()
-            }, 500)
+            val switch = findSwitchNode(node)
+            if (switch != null && !switch.isChecked) {
+                switch.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                AppLog.i(TAG, "AdbEnablerService: wireless debug toggle clicked")
+                currentStep = Step.ALLOW_DIALOG
+                overlaySafe(getString(R.string.overlay_clicking_allow))
+            } else if (switch != null && switch.isChecked && currentStep == Step.DEV_SETTINGS) {
+                AppLog.i(TAG, "AdbEnablerService: wireless debug already on, starting optimization")
+                currentStep = Step.OPTIMIZATION
+                overlaySafe(getString(R.string.overlay_connecting))
+                handler.postDelayed({
+                    if (!chainCancelled) runOptimization()
+                }, 500)
+            }
+            return
         }
+
+        // Fallback: MIUI требует сначала включить USB debugging
+        val usbDebugTexts = listOf(
+            "USB debugging", "Отладка по USB", "USB debug",
+            "USB отладка", "Отладка USB"
+        )
+        val usbNode = findNodeByText(root, usbDebugTexts)
+        if (usbNode != null) {
+            val usbSwitch = findSwitchNode(usbNode)
+            if (usbSwitch != null && !usbSwitch.isChecked) {
+                usbSwitch.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                AppLog.i(TAG, "AdbEnablerService: USB debugging enabled (MIUI prerequisite)")
+                overlaySafe("USB debugging включена, ищем беспроводную...")
+                return
+            }
+        }
+
+        AppLog.i(TAG, "AdbEnablerService: no wireless/USB toggle found, waiting for watchdog")
     }
 
     private fun handleWirelessDebug(root: AccessibilityNodeInfo) {
-        val texts = resources.getStringArray(R.array.wireless_debugging_texts).toList()
+        val texts = listOf(
+            "Wireless debugging", "Беспроводная отладка",
+            "Отладка по Wi-Fi", "Отладка по беспроводной сети",
+            "Wireless ADB", "Wi-Fi debugging", "Wi-Fi ADB", "Wireless debug"
+        )
         val node = findNodeByText(root, texts) ?: return
 
         val switch = findSwitchNode(node)
@@ -290,21 +300,23 @@ class AdbEnablerService : AccessibilityService() {
         val texts = listOf(
             getString(R.string.allow_button_ru),
             getString(R.string.allow_button_en),
-            "Разрешить",
-            "Allow",
-            "ОК",
-            "OK"
+            "Разрешить", "Allow", "ОК", "OK",
+            "Разрешить в любом случае", "Allow anyway",
+            "Продолжить", "Continue",
+            "Понятно", "Got it",
+            "Подтвердить", "Confirm",
+            "Включить", "Turn on"
         )
         val node = findNodeByText(root, texts) ?: return
 
         node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        AppLog.i(TAG, "AdbEnablerService: allow button clicked")
+        AppLog.i(TAG, "AdbEnablerService: allow/warning button clicked")
 
         handler.postDelayed({
             if (!chainCancelled) {
-                currentStep = Step.OPTIMIZATION
-                overlaySafe(getString(R.string.overlay_connecting))
-                runOptimization()
+                // После MIUI warning снова ищем wireless toggle
+                currentStep = Step.DEV_SETTINGS
+                overlaySafe(getString(R.string.overlay_searching_toggle))
             }
         }, OPTIMIZATION_DELAY_MS)
     }
@@ -454,6 +466,8 @@ class AdbEnablerService : AccessibilityService() {
         super.onDestroy()
     }
 
+    // ===== Helpers =====
+
     private fun findNodeByText(
         root: AccessibilityNodeInfo,
         texts: List<String>
@@ -518,7 +532,7 @@ class AdbEnablerService : AccessibilityService() {
 
     private fun overlayProgress(progress: Float) {
         val now = System.currentTimeMillis()
-        if (now - lastProgressUpdate < 200) return // не чаще 5 раз в секунду
+        if (now - lastProgressUpdate < 200) return
         lastProgressUpdate = now
         try {
             val intent = Intent(this, OverlayService::class.java)

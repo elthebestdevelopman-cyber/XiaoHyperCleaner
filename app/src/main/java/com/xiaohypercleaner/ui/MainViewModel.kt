@@ -14,6 +14,7 @@ import com.xiaohypercleaner.data.OptimizationOptions
 import com.xiaohypercleaner.data.OptimizationReport
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.OverlayController
+import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -109,7 +110,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     is OptimizationNotifier.Result.DevModeRequired -> {
-                        AppLog.i(TAG, "notifier: dev mode required, showing dialog")
+                        AppLog.i(TAG, "notifier: dev mode required, hiding overlay, showing dialog")
+                        // ВАЖНО: останавливаем оверлей, иначе он перекроет кнопки диалога
+                        stopOverlayService()
                         _state.update { it.copy(showDevModeDialog = true) }
                     }
 
@@ -119,6 +122,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         AppLog.i(TAG, "init completed")
+    }
+
+    /**
+     * Останавливает OverlayService, чтобы системное окно оверлея
+     * не перекрывало диалоги приложения (DevModeDialog и др.).
+     */
+    private fun stopOverlayService() {
+        try {
+            app.stopService(Intent(app, OverlayService::class.java))
+            AppLog.i(TAG, "overlay service stopped for dialog")
+        } catch (e: Exception) {
+            AppLog.w(TAG, "failed to stop overlay service: ${e.message}")
+        }
     }
 
     fun refreshStatuses() {
@@ -397,11 +413,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun devModeDialogOpenAbout() {
         AppLog.i(TAG, "devModeDialog: open about phone")
-        // Диалог остаётся открытым — пользователь вернётся и нажмёт «Продолжить»
+        // Оверлей уже остановлен при показе диалога — кнопки доступны
     }
 
     fun devModeDialogRetry() {
-        AppLog.i(TAG, "devModeDialog: retry — resuming chain")
+        AppLog.i(TAG, "devModeDialog: retry — resuming chain (service will restart overlay)")
         _state.update { it.copy(showDevModeDialog = false) }
         val intent = Intent(app, AdbEnablerService::class.java)
         intent.action = AdbEnablerService.ACTION_RETRY_DEV
@@ -519,13 +535,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Проверяет, разрешены ли restricted settings через несколько методов.
-     */
     private fun checkRestrictedSettingsAllowed(): Boolean {
         if (Build.VERSION.SDK_INT < 33) return true
 
-        // Метод 1: если accessibility уже включен — значит всё работает
         val component = ComponentName(app, AdbEnablerService::class.java).flattenToString()
         val acc = Settings.Secure.getString(
             app.contentResolver,
@@ -536,7 +548,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return true
         }
 
-        // Метод 2: стандартный AppOpsManager
         try {
             val appOps = app.getSystemService(AppOpsManager::class.java)
             val mode = appOps.unsafeCheckOpNoThrow(
@@ -552,7 +563,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.w(TAG, "checkRestrictedSettingsAllowed: method2 failed: ${e.message}")
         }
 
-        // Метод 3: эмпирический тест через Settings.Secure
         val testKey = "xhc_restricted_check_${System.currentTimeMillis() % 1000}"
         val testValue = "check_${System.currentTimeMillis()}"
         try {
@@ -585,7 +595,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.w(TAG, "checkRestrictedSettingsAllowed: method3 exception: ${e.message}")
         }
 
-        // Метод 4: OPSTR_WRITE_SETTINGS
         try {
             val appOps = app.getSystemService(AppOpsManager::class.java)
             val mode = appOps.unsafeCheckOpNoThrow(
