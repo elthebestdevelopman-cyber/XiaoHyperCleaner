@@ -129,7 +129,6 @@ class AdbEnablerService : AccessibilityService() {
         try {
             processEvent(root)
         } finally {
-            // recycle() deprecated на API 30+, но безопасен на всех версиях
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
                 root.recycle()
             }
@@ -242,20 +241,42 @@ class AdbEnablerService : AccessibilityService() {
 
     private fun handleDevSettings(root: AccessibilityNodeInfo) {
         val texts = listOf(
+            // Стандартные Android 11+
             "Wireless debugging", "Беспроводная отладка",
+            // MIUI / HyperOS основные варианты
             "Отладка по Wi-Fi", "Отладка по беспроводной сети",
             "Wireless ADB", "Wi-Fi debugging", "Wi-Fi ADB", "Wireless debug",
+            // MIUI / HyperOS дополнительные варианты
             "Отладка по сети", "Network debugging", "ADB over network",
-            "Отладка ADB", "ADB debugging"
+            "Отладка ADB", "ADB debugging",
+            "Беспроводная отладка ADB",
+            "Wireless ADB debugging",
+            "Отладка по беспроводной сети ADB",
+            "Wi-Fi ADB отладка",
+            "Беспроводной ADB",
+            // HyperOS 2024+
+            "Отладка Wi-Fi",
+            "Wi-Fi отладка",
+            // Poco / Redmi варианты
+            "Отладка по Wi‑Fi",  // с неразрывным дефисом
+            "Беспроводная отладка по сети"
         )
+
+        AppLog.i(
+            TAG,
+            "AdbEnablerService: searching for wireless debug toggle in ${texts.size} variants"
+        )
+
         val node = findNodeByText(root, texts)
 
         if (node != null) {
             devToggleFound = true
             cancelDevWatchdog()
+            AppLog.i(TAG, "AdbEnablerService: found node with text: ${node.text}")
 
             val switch = findSwitchNode(node)
             if (switch == null) {
+                // HyperOS: это строка-ссылка на подэкран — открываем её
                 node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 AppLog.i(
                     TAG,
@@ -279,6 +300,7 @@ class AdbEnablerService : AccessibilityService() {
             return
         }
 
+        // Fallback: ищем USB debugging (MIUI требует сначала включить USB)
         val usbDebugTexts = listOf(
             "USB debugging", "Отладка по USB", "USB debug",
             "USB отладка", "Отладка USB", "USB отладка по USB"
@@ -294,14 +316,24 @@ class AdbEnablerService : AccessibilityService() {
             }
         }
 
-        AppLog.i(TAG, "AdbEnablerService: no wireless/USB toggle found, waiting for watchdog")
+        // Диагностика: логируем что видим на экране когда toggle не найден
+        val screenText = StringBuilder()
+        collectScreenText(root, screenText, 0)
+        val screenPreview = screenText.toString().take(2000)
+        AppLog.w(
+            TAG,
+            "AdbEnablerService: no wireless/USB toggle found. Screen content (first 2000 chars):\n$screenPreview"
+        )
+        AppLog.i(TAG, "AdbEnablerService: waiting for watchdog")
     }
 
     private fun handleWirelessDebug(root: AccessibilityNodeInfo) {
         val texts = listOf(
             "Wireless debugging", "Беспроводная отладка",
             "Отладка по Wi-Fi", "Отладка по беспроводной сети",
-            "Wireless ADB", "Wi-Fi debugging", "Wi-Fi ADB", "Wireless debug"
+            "Wireless ADB", "Wi-Fi debugging", "Wi-Fi ADB", "Wireless debug",
+            "Отладка по сети", "Network debugging", "ADB over network",
+            "Отладка ADB", "ADB debugging"
         )
         val node = findNodeByText(root, texts) ?: return
 
@@ -514,6 +546,25 @@ class AdbEnablerService : AccessibilityService() {
             if (result != null) return result
         }
         return null
+    }
+
+    /**
+     * Собирает весь текст с экрана для диагностики.
+     * Используется когда toggle не находится — показывает что реально есть на экране.
+     */
+    private fun collectScreenText(node: AccessibilityNodeInfo, sb: StringBuilder, depth: Int) {
+        if (depth > 10 || sb.length > 3000) return
+
+        node.text?.let { text ->
+            if (text.isNotEmpty()) {
+                sb.append("  ".repeat(depth)).append(text).append("\n")
+            }
+        }
+
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            collectScreenText(child, sb, depth + 1)
+        }
     }
 
     private fun startOverlay() {
