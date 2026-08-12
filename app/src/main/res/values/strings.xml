@@ -157,7 +157,7 @@
     <string name="hint_overlay">Включите переключатель «Поверх других приложений» для XiaoHyperCleaner.</string>
     <string name="hint_dev">Включите «Беспроводная отладка». Если её нет — сначала включите «Отладка по USB», затем включите беспроводную. Подтвердите все предупреждения.</string>
     <string name="hint_allow">Нажмите «Разрешить» в появившемся системном диалоге.</string>
-    <!-- Shizuku引导 -->
+    <!-- Shizuku -->
     <string name="shizuku_dialog_title">Быстрая оптимизация</string>
     <string name="shizuku_dialog_not_installed">Для мгновенной оптимизации без Wi-Fi и цепочек разрешений установите бесплатное приложение Shizuku. Это займёт 30 секунд, и больше ничего настраивать не придётся.</string>
     <string name="shizuku_dialog_not_running">Приложение Shizuku установлено, но не запущено. Откройте его и нажмите «Запустить» — после этого оптимизация будет работать без Wi-Fi.</string>
