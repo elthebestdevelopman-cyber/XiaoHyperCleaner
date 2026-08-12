@@ -90,7 +90,6 @@ class AdbEnablerService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         if (!chainActive || chainCancelled) return
 
-        // Пользователь в нашем приложении — только логируем, НЕ выкидываем в настройки
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
             event.packageName?.toString() == packageName
         ) {
@@ -127,8 +126,7 @@ class AdbEnablerService : AccessibilityService() {
                     "AdbEnablerService: dev watchdog fired — developer mode likely disabled"
                 )
                 paused = true
-                // НЕ показываем оверлей: диалог в приложении сам всё объяснит,
-                // а оверлей перекрывал бы его кнопки
+                // Оверлей не показываем — диалог в приложении сам всё объяснит
                 OptimizationNotifier.setDevModeRequired()
             }
         }
@@ -145,10 +143,9 @@ class AdbEnablerService : AccessibilityService() {
         if (!chainActive || chainCancelled) return
         AppLog.i(TAG, "AdbEnablerService: retryDevSettings — user says dev mode enabled")
         paused = false
-        // Перезапускаем оверлей, который был скрыт для диалога dev mode
         startOverlay()
         currentStep = Step.DEV_SETTINGS
-        overlaySafe(getString(R.string.overlay_searching_toggle))
+        overlaySafe(getString(R.string.hint_dev))
         openDevSettings()
         startDevWatchdog()
     }
@@ -182,19 +179,19 @@ class AdbEnablerService : AccessibilityService() {
         if (overlayGranted) {
             AppLog.i(TAG, "AdbEnablerService: overlay already granted, going to dev settings")
             currentStep = Step.DEV_SETTINGS
-            overlaySafe(getString(R.string.overlay_searching_toggle))
+            overlaySafe(getString(R.string.hint_dev))
             openDevSettings()
             startDevWatchdog()
         } else {
             currentStep = Step.OVERLAY_TOGGLE
-            overlaySafe(getString(R.string.overlay_searching_overlay_switch))
+            overlaySafe(getString(R.string.hint_overlay))
             openOverlaySettings()
         }
     }
 
     private fun goToDevSettingsStep() {
         currentStep = Step.DEV_SETTINGS
-        overlaySafe(getString(R.string.overlay_searching_toggle))
+        overlaySafe(getString(R.string.hint_dev))
         openDevSettings()
         startDevWatchdog()
     }
@@ -241,7 +238,7 @@ class AdbEnablerService : AccessibilityService() {
                 switch.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 AppLog.i(TAG, "AdbEnablerService: wireless debug toggle clicked")
                 currentStep = Step.ALLOW_DIALOG
-                overlaySafe(getString(R.string.overlay_clicking_allow))
+                overlaySafe(getString(R.string.hint_allow))
             } else if (switch != null && switch.isChecked && currentStep == Step.DEV_SETTINGS) {
                 AppLog.i(TAG, "AdbEnablerService: wireless debug already on, starting optimization")
                 currentStep = Step.OPTIMIZATION
@@ -264,7 +261,7 @@ class AdbEnablerService : AccessibilityService() {
             if (usbSwitch != null && !usbSwitch.isChecked) {
                 usbSwitch.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 AppLog.i(TAG, "AdbEnablerService: USB debugging enabled (MIUI prerequisite)")
-                overlaySafe("USB debugging включена, ищем беспроводную...")
+                overlaySafe(getString(R.string.hint_dev))
                 return
             }
         }
@@ -285,7 +282,7 @@ class AdbEnablerService : AccessibilityService() {
             switch.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             AppLog.i(TAG, "AdbEnablerService: wireless debug enabled")
             currentStep = Step.ALLOW_DIALOG
-            overlaySafe(getString(R.string.overlay_clicking_allow))
+            overlaySafe(getString(R.string.hint_allow))
         } else if (switch != null && switch.isChecked && currentStep == Step.WIRELESS_DEBUG) {
             AppLog.i(TAG, "AdbEnablerService: wireless debug already on, starting optimization")
             currentStep = Step.OPTIMIZATION
@@ -314,9 +311,8 @@ class AdbEnablerService : AccessibilityService() {
 
         handler.postDelayed({
             if (!chainCancelled) {
-                // После MIUI warning снова ищем wireless toggle
                 currentStep = Step.DEV_SETTINGS
-                overlaySafe(getString(R.string.overlay_searching_toggle))
+                overlaySafe(getString(R.string.hint_dev))
             }
         }, OPTIMIZATION_DELAY_MS)
     }

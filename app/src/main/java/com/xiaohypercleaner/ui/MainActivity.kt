@@ -78,6 +78,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.service.AdbEnablerService
+import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.ui.components.InfoDialog
 import com.xiaohypercleaner.ui.components.MenuDialog
 import com.xiaohypercleaner.ui.theme.Blue500
@@ -105,15 +106,11 @@ class MainActivity : ComponentActivity() {
         val prefs = (application as XiaoHyperApp).preferencesManager
 
         setContent {
-            val isDarkFromPrefs by prefs.isDarkTheme.collectAsState(initial = false)
-            val hasManuallyChosen by prefs.hasManuallyChosenTheme.collectAsState(initial = false)
-            val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
-            val isDark = if (hasManuallyChosen) isDarkFromPrefs else isSystemDark
+            val isDark by prefs.isDarkTheme.collectAsState(initial = false)
             val scope = rememberCoroutineScope()
             var showOnboarding by remember { mutableStateOf(false) }
             var onboardingChecked by remember { mutableStateOf(false) }
 
-            // Проверяем онбординг при первом запуске
             LaunchedEffect(Unit) {
                 val completed = prefs.hasCompletedOnboarding.first()
                 AppLog.i(TAG, "hasCompletedOnboarding=$completed")
@@ -122,7 +119,6 @@ class MainActivity : ComponentActivity() {
             }
 
             if (!onboardingChecked) {
-                // Пока не проверили, показываем пустой экран
                 return@setContent
             }
 
@@ -155,12 +151,7 @@ class MainActivity : ComponentActivity() {
                     MainContent(
                         state = state,
                         isDark = isDark,
-                        onDarkChange = { enabled ->
-                            scope.launch {
-                                prefs.setDarkTheme(enabled)
-                                prefs.setHasManuallyChosenTheme(true)
-                            }
-                        },
+                        onDarkChange = { enabled -> scope.launch { prefs.setDarkTheme(enabled) } },
                         vm = vm
                     )
                 }
@@ -174,6 +165,10 @@ class MainActivity : ComponentActivity() {
         AppLog.i(TAG, "onResume")
         if (::vm.isInitialized) {
             vm.checkRestrictedSettingsOnResume()
+            // Скрываем оверлей-подсказку при возврате в приложение, если цепочка не запущена
+            if (!vm.state.value.isWorking) {
+                stopService(Intent(this, OverlayService::class.java))
+            }
         }
     }
 
@@ -228,7 +223,9 @@ private fun MainContent(
             onConfirm = {
                 AppLog.i("MainUI", "restricted dialog: open settings clicked")
                 vm.restrictedDialogAgreed()
+                vm.markAppInfoOpened()
                 openAppInfoSettings(context)
+                showHintOverlay(context, context.getString(R.string.hint_restricted))
             },
             onDismiss = {
                 AppLog.i("MainUI", "restricted dialog: cancelled")
@@ -245,7 +242,10 @@ private fun MainContent(
             onConfirm = {
                 AppLog.i("MainUI", "accessibility dialog: agreed")
                 vm.dialogAgreed()
+                com.xiaohypercleaner.service.ChainFlags.waitingAccessibilityReturn = true
+                vm.markAccessibilityOpened()
                 openAccessibilitySettings(context)
+                showHintOverlay(context, context.getString(R.string.hint_accessibility))
             },
             onDismiss = {
                 AppLog.i("MainUI", "accessibility dialog: cancelled")
@@ -263,6 +263,7 @@ private fun MainContent(
                 AppLog.i("MainUI", "overlay dialog: agreed")
                 vm.dialogAgreed()
                 openOverlaySettings(context)
+                showHintOverlay(context, context.getString(R.string.hint_overlay))
             },
             onDismiss = {
                 AppLog.i("MainUI", "overlay dialog: cancelled")
@@ -857,6 +858,17 @@ private fun openWebView(context: Context, url: String, title: String) {
     } catch (e: Exception) {
         AppLog.w("WebView", "WebView failed, fallback to browser: ${e.message}")
         openUrl(context, url)
+    }
+}
+
+private fun showHintOverlay(context: Context, text: String) {
+    AppLog.i("Overlay", "showing hint overlay")
+    try {
+        val intent = Intent(context, OverlayService::class.java)
+        intent.putExtra("hint", text)
+        context.startService(intent)
+    } catch (e: Exception) {
+        AppLog.w("Overlay", "failed to show hint: ${e.message}")
     }
 }
 

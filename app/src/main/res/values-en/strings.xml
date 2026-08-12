@@ -51,7 +51,7 @@
 
     <!-- Accessibility service dialog -->
     <string name="accessibility_explanation_title">Accessibility service</string>
-    <string name="accessibility_explanation_text">The app needs the accessibility service for automatic setup. It enables wireless debugging once and performs the configuration. No data is collected.</string>
+    <string name="accessibility_explanation_text">To set up the app automatically, enable the "XiaoHyperCleaner" service in the Accessibility menu. It is usually located in the "Downloaded apps / Installed services" submenu.\n\nAfter tapping "Enable", a list of services will open — find "XiaoHyperCleaner", turn on the switch and confirm the system warning.</string>
     <string name="agree_and_open">Enable</string>
 
     <!-- Overlay permission dialog -->
@@ -60,12 +60,12 @@
 
     <!-- Restricted settings dialog for Android 13 -->
     <string name="restricted_dialog_title">Additional permission required</string>
-    <string name="restricted_dialog_text">Android is blocking the service because the app was not installed from a store.\n\nTo continue:\n\n1. Tap the button below\n2. In the opened window, tap ⋮ (three dots) in the top right corner\n3. Select "Allow restricted settings"\n4. Confirm the action\n5. Return to the app — it will automatically continue the setup</string>
+    <string name="restricted_dialog_text">Android is blocking the service because the app was not installed from a store.\n\nTo continue:\n\n1. Tap the button below ("Open app settings")\n2. In the opened window, scroll all the way down and find "Restricted settings"\n3. Allow access by toggling the switch\n4. If there is no such item at the bottom, tap ⋮ (three dots) in the top right corner — it will be there\n5. Return to the app</string>
     <string name="restricted_dialog_open">Open app settings</string>
 
     <!-- Forbidden settings dialog for Android 14+ -->
     <string name="forbidden_dialog_title">Additional permission required</string>
-    <string name="forbidden_dialog_text">Android is blocking the service because the app was not installed from a store.\n\nTo continue:\n\n1. Tap the button below\n2. In the opened window, tap ⋮ (three dots) in the top right corner\n3. Select "Allow forbidden settings"\n4. Confirm the action\n5. Return to the app — it will automatically continue the setup</string>
+    <string name="forbidden_dialog_text">Android is blocking the service because the app was not installed from a store.\n\nTo continue:\n\n1. Tap the button below ("Open app settings")\n2. In the opened window, scroll all the way down and find "Forbidden settings"\n3. Allow access by toggling the switch\n4. If there is no such item at the bottom, tap ⋮ (three dots) in the top right corner — it will be there\n5. Return to the app</string>
     <string name="forbidden_dialog_open">Open app settings</string>
 
     <!-- Statuses -->
@@ -112,6 +112,11 @@
     <string-array name="wireless_debugging_texts">
         <item>Wireless debugging</item>
         <item>Беспроводная отладка</item>
+        <item>Отладка по Wi-Fi</item>
+        <item>Отладка по беспроводной сети</item>
+        <item>Wireless ADB</item>
+        <item>Wi-Fi debugging</item>
+        <item>Wi-Fi ADB</item>
     </string-array>
 
     <!-- Overlay -->
@@ -130,13 +135,6 @@
     <string name="overlay_searching_overlay_switch">Looking for the overlay switch…</string>
     <string name="overlay_searching_toggle">Looking for the wireless debugging toggle…</string>
     <string name="overlay_clicking_allow">Tapping "Allow"…</string>
-    <!-- Developer mode dialog -->
-    <string name="dev_mode_dialog_title">Developer mode required</string>
-    <string name="dev_mode_dialog_text">Wireless debugging lives in "Developer options", which is currently off.\n\nEnable it once:\n\n1. Tap "Open About phone"\n2. Tap "Build number" 7 times until you see "You are now a developer"\n3. Return to the app and tap "Continue"</string>
-    <string name="dev_mode_dialog_open_about">Open "About phone"</string>
-    <string name="dev_mode_dialog_retry">Continue</string>
-
-    <!-- Overlay -->
     <string name="overlay_dev_mode_required">Enable developer mode — see instructions in the app</string>
 
     <!-- Verification errors -->
@@ -145,4 +143,18 @@
     <string name="overlay_verify_method3_failed">Regional parameters verification failed</string>
     <string name="overlay_verify_method4_failed">System services verification failed</string>
     <string name="overlay_final_verification_failed">Final verification failed</string>
+
+    <!-- Developer mode dialog -->
+    <string name="dev_mode_dialog_title">Developer mode required</string>
+    <string name="dev_mode_dialog_text">Wireless debugging lives in "Developer options", which is currently off.\n\nEnable it once:\n\n1. Tap "Open About phone"\n2. Tap "Build number" 7 times until you see "You are now a developer"\n3. Return to the app and tap "Continue"</string>
+    <string name="dev_mode_dialog_open_about">Open "About phone"</string>
+    <string name="dev_mode_dialog_retry">Continue</string>
+
+    <!-- Hints over settings -->
+    <string name="hint_title">Hint</string>
+    <string name="hint_accessibility">In "Accessibility" find the "XiaoHyperCleaner" service ("Downloaded apps / Installed services" submenu), turn on the switch and confirm the warning.</string>
+    <string name="hint_restricted">Scroll app settings all the way down and find "Restricted / Forbidden settings" — turn on the switch. If there is no such item, tap ⋮ (three dots) in the top right corner.</string>
+    <string name="hint_overlay">Turn on the "Display over other apps" switch for XiaoHyperCleaner.</string>
+    <string name="hint_dev">Turn on "Wireless debugging". If missing — enable "USB debugging" first, then enable wireless. Confirm all warnings.</string>
+    <string name="hint_allow">Tap "Allow" in the system dialog that appears.</string>
 </resources>

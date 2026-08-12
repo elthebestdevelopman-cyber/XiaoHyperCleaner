@@ -1,13 +1,14 @@
 package com.xiaohypercleaner.ui
 
 import android.app.Application
-import android.app.AppOpsManager
 import android.content.ComponentName
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationEngine
 import com.xiaohypercleaner.data.OptimizationOptions
@@ -55,6 +56,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as XiaoHyperApp
     private val prefs = app.preferencesManager
     private var flowActive = false
+
+    // Машина состояний автопереходов при блокировке службы
+    private enum class Redirect { NONE, ACCESSIBILITY, APP_INFO }
+
+    private var lastRedirect = Redirect.NONE
+    private var restrictedFlowStarted = false
+
     private val _state = MutableStateFlow(MainUiState())
     val state: StateFlow<MainUiState> = _state.asStateFlow()
 
@@ -111,7 +119,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                     is OptimizationNotifier.Result.DevModeRequired -> {
                         AppLog.i(TAG, "notifier: dev mode required, hiding overlay, showing dialog")
-                        // ВАЖНО: останавливаем оверлей, иначе он перекроет кнопки диалога
                         stopOverlayService()
                         _state.update { it.copy(showDevModeDialog = true) }
                     }
@@ -124,16 +131,87 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i(TAG, "init completed")
     }
 
-    /**
-     * Останавливает OverlayService, чтобы системное окно оверлея
-     * не перекрывало диалоги приложения (DevModeDialog и др.).
-     */
     private fun stopOverlayService() {
         try {
             app.stopService(Intent(app, OverlayService::class.java))
             AppLog.i(TAG, "overlay service stopped for dialog")
         } catch (e: Exception) {
             AppLog.w(TAG, "failed to stop overlay service: ${e.message}")
+        }
+    }
+
+    // ===== Метки для машины автопереходов (вызывает MainActivity) =====
+
+    fun markAccessibilityOpened() {
+        lastRedirect = Redirect.ACCESSIBILITY
+        AppLog.i(TAG, "markAccessibilityOpened")
+    }
+
+    fun markAppInfoOpened() {
+        lastRedirect = Redirect.APP_INFO
+        AppLog.i(TAG, "markAppInfoOpened")
+    }
+
+    private fun resetRedirectFlow() {
+        lastRedirect = Redirect.NONE
+        restrictedFlowStarted = false
+    }
+
+    // ===== Автопереходы с карточками =====
+
+    private fun showHint(text: String) {
+        try {
+            val intent = Intent(app, OverlayService::class.java)
+            intent.putExtra("hint", text)
+            app.startService(intent)
+        } catch (e: Exception) {
+            AppLog.w(TAG, "failed to show hint: ${e.message}")
+        }
+    }
+
+    /** Пользователю сказали «нет доступа» — сразу кидаем в настройки приложения с карточкой */
+    private fun openAppInfoWithHint() {
+        AppLog.i(TAG, "auto-redirect: opening app info with hint card")
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:${app.packageName}")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            app.startActivity(intent)
+            showHint(app.getString(R.string.hint_restricted))
+        } catch (e: Exception) {
+            AppLog.w(TAG, "auto-redirect to app info failed: ${e.message}")
+            _state.update { it.copy(showRestrictedDialog = true) }
+        }
+    }
+
+    /** Вернулся из настроек приложения — снова кидаем в установленные службы с карточкой */
+    private fun openAccessibilityWithHint() {
+        AppLog.i(TAG, "auto-redirect: opening accessibility services with hint card")
+        val component = ComponentName(app, AdbEnablerService::class.java).flattenToString()
+        val deep = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        val args = android.os.Bundle()
+        args.putString("componentName", component)
+        deep.putExtra(
+            ":settings:show_fragment",
+            "com.android.settings.accessibility.ToggleAccessibilityServicePreferenceFragment"
+        )
+        deep.putExtra(":settings:show_fragment_args", args)
+        try {
+            deep.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            app.startActivity(deep)
+            showHint(app.getString(R.string.hint_accessibility))
+        } catch (e: Exception) {
+            try {
+                app.startActivity(
+                    Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+                showHint(app.getString(R.string.hint_accessibility))
+            } catch (e2: Exception) {
+                AppLog.w(TAG, "auto-redirect to accessibility failed: ${e2.message}")
+                _state.update { it.copy(showAccessibilityDialog = true) }
+            }
         }
     }
 
@@ -153,7 +231,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         AppLog.i(
             TAG,
-            "refreshStatuses: accessibility=$acc (was ${prevState.previousAccessibility}), overlay=$overlay (was ${prevState.previousOverlay}), accAttempts=${prevState.accessibilityAttempts}, overlayAttempts=${prevState.overlayAttempts}"
+            "refreshStatuses: accessibility=$acc (was ${prevState.previousAccessibility}), overlay=$overlay (was ${prevState.previousOverlay}), accAttempts=${prevState.accessibilityAttempts}, overlayAttempts=${prevState.overlayAttempts}, lastRedirect=$lastRedirect"
         )
 
         _state.update {
@@ -165,15 +243,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
-        // Если accessibility только что включился
+        // Служба включилась — продолжаем цепочку, сбрасываем автопереходы
         if (accessibilityJustChanged && flowActive) {
             AppLog.i(TAG, "refreshStatuses: accessibility just enabled, continuing chain")
+            resetRedirectFlow()
             _state.update { it.copy(accessibilityAttempts = 0) }
             advance()
             return
         }
 
-        // Если overlay только что включился
         if (overlayJustChanged && flowActive) {
             AppLog.i(TAG, "refreshStatuses: overlay just enabled, continuing chain")
             _state.update { it.copy(overlayAttempts = 0) }
@@ -181,38 +259,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        // Если accessibility не включился после попытки
+        // ===== Служба НЕ включилась после попытки — машина автопереходов =====
         if (!acc && prevState.accessibilityAttempts > 0 && flowActive) {
             AppLog.i(TAG, "refreshStatuses: accessibility not enabled after attempt")
-
-            val restrictedAllowed = checkRestrictedSettingsAllowed()
-            AppLog.i(TAG, "refreshStatuses: restrictedSettingsAllowed=$restrictedAllowed")
-
-            if (!restrictedAllowed && !prevState.restrictedSettingsShown) {
-                AppLog.i(TAG, "refreshStatuses: showing restricted dialog (first time)")
-                _state.update {
-                    it.copy(
-                        showRestrictedDialog = true,
-                        showAccessibilityDialog = false,
-                        showOverlayDialog = false,
-                        restrictedSettingsShown = true
-                    )
+            when {
+                // Пришли из спец.возможностей без включения = получили «нет доступа»
+                lastRedirect == Redirect.ACCESSIBILITY && !restrictedFlowStarted -> {
+                    AppLog.i(TAG, "refreshStatuses: denied — auto-redirect to app info")
+                    restrictedFlowStarted = true
+                    lastRedirect = Redirect.APP_INFO
+                    openAppInfoWithHint()
                 }
-                return
-            }
 
-            AppLog.i(TAG, "refreshStatuses: showing accessibility dialog (retry)")
-            _state.update {
-                it.copy(
-                    showAccessibilityDialog = true,
-                    showRestrictedDialog = false,
-                    showOverlayDialog = false
-                )
+                // Пришли из настроек приложения — разрешено или нет, снова в службы
+                lastRedirect == Redirect.APP_INFO -> {
+                    AppLog.i(
+                        TAG,
+                        "refreshStatuses: back from app info — auto-redirect to accessibility"
+                    )
+                    lastRedirect = Redirect.ACCESSIBILITY
+                    openAccessibilityWithHint()
+                }
+
+                // Предохранитель: объясняем диалогом внутри приложения
+                else -> {
+                    AppLog.i(TAG, "refreshStatuses: loop breaker — showing restricted dialog")
+                    _state.update {
+                        it.copy(
+                            showRestrictedDialog = true,
+                            showAccessibilityDialog = false,
+                            showOverlayDialog = false,
+                            restrictedSettingsShown = true
+                        )
+                    }
+                }
             }
             return
         }
 
-        // Если overlay не включился после попытки
         if (!overlay && prevState.overlayAttempts > 0 && flowActive) {
             AppLog.i(
                 TAG,
@@ -326,6 +410,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             else -> {
                 AppLog.i(TAG, "advance: all permissions granted, starting chain")
                 flowActive = false
+                resetRedirectFlow()
                 _state.update {
                     it.copy(
                         showOverlayDialog = false,
@@ -376,6 +461,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun dialogCancelled() {
         AppLog.i(TAG, "dialogCancelled")
         flowActive = false
+        resetRedirectFlow()
         _state.update {
             it.copy(
                 showAccessibilityDialog = false,
@@ -401,6 +487,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun restrictedDialogCancelled() {
         AppLog.i(TAG, "restrictedDialogCancelled")
         flowActive = false
+        resetRedirectFlow()
         _state.update {
             it.copy(
                 showRestrictedDialog = false,
@@ -413,7 +500,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun devModeDialogOpenAbout() {
         AppLog.i(TAG, "devModeDialog: open about phone")
-        // Оверлей уже остановлен при показе диалога — кнопки доступны
     }
 
     fun devModeDialogRetry() {
@@ -514,121 +600,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun needsRestrictedSettings(): Boolean {
-        return Build.VERSION.SDK_INT >= 33 && !isFromKnownStore()
-    }
-
-    private fun isFromKnownStore(): Boolean {
-        return try {
-            val installer = if (Build.VERSION.SDK_INT >= 30) {
-                app.packageManager.getInstallSourceInfo(app.packageName).installingPackageName
-            } else {
-                @Suppress("DEPRECATION")
-                app.packageManager.getInstallerPackageName(app.packageName)
-            }
-            val result = installer in KNOWN_STORES
-            AppLog.i(TAG, "isFromKnownStore: installer=$installer, result=$result")
-            result
-        } catch (e: Exception) {
-            AppLog.w(TAG, "isFromKnownStore: exception: ${e.message}")
-            false
-        }
-    }
-
-    private fun checkRestrictedSettingsAllowed(): Boolean {
-        if (Build.VERSION.SDK_INT < 33) return true
-
-        val component = ComponentName(app, AdbEnablerService::class.java).flattenToString()
-        val acc = Settings.Secure.getString(
-            app.contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        )?.contains(component) == true
-        if (acc) {
-            AppLog.i(TAG, "checkRestrictedSettingsAllowed: accessibility already enabled = true")
-            return true
-        }
-
-        try {
-            val appOps = app.getSystemService(AppOpsManager::class.java)
-            val mode = appOps.unsafeCheckOpNoThrow(
-                "android:restricted_settings",
-                android.os.Process.myUid(),
-                app.packageName
-            )
-            if (mode == AppOpsManager.MODE_ALLOWED) {
-                AppLog.i(TAG, "checkRestrictedSettingsAllowed: method2=true (MODE_ALLOWED)")
-                return true
-            }
-        } catch (e: Exception) {
-            AppLog.w(TAG, "checkRestrictedSettingsAllowed: method2 failed: ${e.message}")
-        }
-
-        val testKey = "xhc_restricted_check_${System.currentTimeMillis() % 1000}"
-        val testValue = "check_${System.currentTimeMillis()}"
-        try {
-            Settings.Secure.putString(app.contentResolver, testKey, testValue)
-            val readBack = Settings.Secure.getString(app.contentResolver, testKey)
-            try {
-                Settings.Secure.putString(app.contentResolver, testKey, null)
-            } catch (_: Exception) {
-            }
-            if (readBack == testValue) {
-                AppLog.i(
-                    TAG,
-                    "checkRestrictedSettingsAllowed: method3=true (Settings.Secure write)"
-                )
-                return true
-            } else {
-                AppLog.w(
-                    TAG,
-                    "checkRestrictedSettingsAllowed: method3=false (write returned different value)"
-                )
-                return false
-            }
-        } catch (e: SecurityException) {
-            AppLog.i(
-                TAG,
-                "checkRestrictedSettingsAllowed: method3=false (SecurityException: ${e.message})"
-            )
-            return false
-        } catch (e: Exception) {
-            AppLog.w(TAG, "checkRestrictedSettingsAllowed: method3 exception: ${e.message}")
-        }
-
-        try {
-            val appOps = app.getSystemService(AppOpsManager::class.java)
-            val mode = appOps.unsafeCheckOpNoThrow(
-                AppOpsManager.OPSTR_WRITE_SETTINGS,
-                android.os.Process.myUid(),
-                app.packageName
-            )
-            if (mode == AppOpsManager.MODE_ALLOWED) {
-                AppLog.i(TAG, "checkRestrictedSettingsAllowed: method4=true (write_settings)")
-                return true
-            }
-        } catch (e: Exception) {
-            AppLog.w(TAG, "checkRestrictedSettingsAllowed: method4 failed: ${e.message}")
-        }
-
-        AppLog.i(TAG, "checkRestrictedSettingsAllowed: all methods returned false")
-        return false
-    }
-
     private fun openAccessibilitySettingsAutomatically() {
         AppLog.i(TAG, "openAccessibilitySettingsAutomatically: showing accessibility dialog")
+        ChainFlagsAutoReturn()
         _state.update { it.copy(showAccessibilityDialog = true) }
+    }
+
+    private fun ChainFlagsAutoReturn() {
+        com.xiaohypercleaner.service.ChainFlags.waitingAccessibilityReturn = true
     }
 
     companion object {
         private const val TAG = "MainVM"
-
-        private val KNOWN_STORES = listOf(
-            "com.android.vending",
-            "com.xiaomi.mimarket",
-            "ru.ozon.app.android",
-            "com.retailstore.android",
-            "com.huawei.appmarket",
-            "com.samsung.android.app.galaxystore"
-        )
     }
 }

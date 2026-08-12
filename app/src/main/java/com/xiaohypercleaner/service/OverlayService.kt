@@ -27,8 +27,10 @@ class OverlayService : Service() {
     private lateinit var detailView: TextView
     private lateinit var progressBar: ProgressBar
     private lateinit var percentView: TextView
+    private lateinit var cancelView: TextView
     private var bounce: ObjectAnimator? = null
     private var lastPercent = -1
+    private var hintMode = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -36,17 +38,7 @@ class OverlayService : Service() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         buildUi()
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else
-                WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT
-        ).apply {
+        val params = baseParams().apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             y = dp(32)
         }
@@ -54,8 +46,29 @@ class OverlayService : Service() {
         startBounce()
     }
 
+    private fun baseParams() = WindowManager.LayoutParams(
+        WindowManager.LayoutParams.MATCH_PARENT,
+        WindowManager.LayoutParams.WRAP_CONTENT,
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        else
+            WindowManager.LayoutParams.TYPE_PHONE,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+        PixelFormat.TRANSLUCENT
+    )
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         intent?.let {
+            // Режим подсказки: полупрозрачная карточка с инструкцией поверх настроек
+            it.getStringExtra("hint")?.let { hint ->
+                enterHintMode(hint)
+                return START_NOT_STICKY
+            }
+
+            // Обычный режим прогресса — выходим из hint, если были в нём
+            if (hintMode) exitHintMode()
+
             it.getStringExtra("status")?.let { t -> titleView.text = t }
             it.getStringExtra("detail")?.let { d ->
                 detailView.text = d
@@ -72,6 +85,41 @@ class OverlayService : Service() {
             }
         }
         return START_NOT_STICKY
+    }
+
+    /**
+     * Включает режим подсказки: карточка поднимается вверх,
+     * скрываются прогресс и кнопка отмены — остаётся только инструкция.
+     */
+    private fun enterHintMode(text: String) {
+        hintMode = true
+        titleView.text = getString(R.string.hint_title)
+        detailView.text = text
+        detailView.visibility = View.VISIBLE
+        progressBar.visibility = View.GONE
+        percentView.visibility = View.GONE
+        cancelView.visibility = View.GONE
+
+        val params = baseParams().apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            y = dp(16)
+        }
+        runCatching { windowManager.updateViewLayout(root, params) }
+        root.alpha = 0.92f
+    }
+
+    private fun exitHintMode() {
+        hintMode = false
+        progressBar.visibility = View.VISIBLE
+        percentView.visibility = View.VISIBLE
+        cancelView.visibility = View.VISIBLE
+
+        val params = baseParams().apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            y = dp(32)
+        }
+        runCatching { windowManager.updateViewLayout(root, params) }
+        root.alpha = 1f
     }
 
     override fun onDestroy() {
@@ -129,7 +177,7 @@ class OverlayService : Service() {
             layoutParams = matchWrap(dp(4))
         }
         root.addView(percentView)
-        val cancel = TextView(this).apply {
+        cancelView = TextView(this).apply {
             text = getString(R.string.cancel)
             textSize = 15f
             setTextColor(Color.WHITE)
@@ -142,7 +190,7 @@ class OverlayService : Service() {
             layoutParams = matchWrap(dp(16))
             setOnClickListener { OverlayController.triggerCancel() }
         }
-        root.addView(cancel)
+        root.addView(cancelView)
     }
 
     private fun startBounce() {
