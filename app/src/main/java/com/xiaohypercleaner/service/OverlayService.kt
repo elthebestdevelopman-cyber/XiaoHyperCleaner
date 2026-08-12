@@ -3,6 +3,7 @@ package com.xiaohypercleaner.service
 import android.animation.ObjectAnimator
 import android.app.Service
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
@@ -85,6 +86,24 @@ class OverlayService : Service() {
             }
         }
         return START_NOT_STICKY
+    }
+
+    /**
+     * При повороте экрана обновляем позицию оверлея,
+     * чтобы он не "улетал" вверх/вниз при смене ориентации.
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (::root.isInitialized && root.isAttachedToWindow) {
+            runCatching {
+                val params = baseParams().apply {
+                    gravity = if (hintMode) Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                    else Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                    y = dp(if (hintMode) 16 else 32)
+                }
+                windowManager.updateViewLayout(root, params)
+            }
+        }
     }
 
     /**

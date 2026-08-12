@@ -68,7 +68,7 @@ class SplashActivity : ComponentActivity() {
 private fun SplashContent(onFinished: () -> Unit) {
     LaunchedEffect(Unit) {
         AppLog.i("Splash", "SplashContent: waiting 2500ms")
-        delay(2500)
+        delay(1500)
         AppLog.i("Splash", "SplashContent: finishing")
         onFinished()
     }

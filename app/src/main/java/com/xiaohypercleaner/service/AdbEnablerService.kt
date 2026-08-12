@@ -12,10 +12,10 @@ import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationEngine
-import com.xiaohypercleaner.util.AppLog
-import com.xiaohypercleaner.util.OptimizationNotifier
 import com.xiaohypercleaner.data.OptimizationOptions
 import com.xiaohypercleaner.data.OptimizationReport
+import com.xiaohypercleaner.util.AppLog
+import com.xiaohypercleaner.util.OptimizationNotifier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -49,12 +49,10 @@ class AdbEnablerService : AccessibilityService() {
     private var lastOverlayUpdate = 0L
     private var lastProgressUpdate = 0L
 
-    // Watchdog режима разработчика
     private var paused = false
     private var devToggleFound = false
     private var devWatchdogRunnable: Runnable? = null
 
-    // Debounce для accessibility событий
     private val accessibilityEvents = MutableSharedFlow<Unit>(
         replay = 0,
         extraBufferCapacity = 16,
@@ -69,6 +67,23 @@ class AdbEnablerService : AccessibilityService() {
             }
         })
         AppLog.i(TAG, "AdbEnablerService: connected")
+
+        // Автовозврат в приложение после включения службы
+        if (ChainFlags.waitingAccessibilityReturn) {
+            ChainFlags.waitingAccessibilityReturn = false
+            AppLog.i(
+                TAG,
+                "AdbEnablerService: service enabled — returning user to app automatically"
+            )
+            try {
+                val intent = Intent(this, com.xiaohypercleaner.ui.MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                }
+                startActivity(intent)
+            } catch (e: Exception) {
+                AppLog.w(TAG, "AdbEnablerService: failed to return to app: ${e.message}")
+            }
+        }
 
         scope.launch {
             accessibilityEvents
@@ -126,7 +141,6 @@ class AdbEnablerService : AccessibilityService() {
                     "AdbEnablerService: dev watchdog fired — developer mode likely disabled"
                 )
                 paused = true
-                // Оверлей не показываем — диалог в приложении сам всё объяснит
                 OptimizationNotifier.setDevModeRequired()
             }
         }
@@ -250,7 +264,6 @@ class AdbEnablerService : AccessibilityService() {
             return
         }
 
-        // Fallback: MIUI требует сначала включить USB debugging
         val usbDebugTexts = listOf(
             "USB debugging", "Отладка по USB", "USB debug",
             "USB отладка", "Отладка USB"
@@ -462,8 +475,6 @@ class AdbEnablerService : AccessibilityService() {
         super.onDestroy()
     }
 
-    // ===== Helpers =====
-
     private fun findNodeByText(
         root: AccessibilityNodeInfo,
         texts: List<String>
@@ -477,6 +488,14 @@ class AdbEnablerService : AccessibilityService() {
         return null
     }
 
+    /**
+     * Рекурсивно ищет Switch/Toggle в дереве AccessibilityNodeInfo.
+     *
+     * ВАЖНО: НЕ вызываем recycle() на дочерних узлах.
+     * AccessibilityNodeInfo — это пул объектов, и ручное recycle() в рекурсии
+     * может привести к IllegalStateException при попытке использовать освобождённый
+     * объект. GC освободит память сам, когда ссылки больше не нужны.
+     */
     private fun findSwitchNode(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         val className = node.className?.toString() ?: ""
         if (className.contains("Switch") || className.contains("Toggle")) {
@@ -485,11 +504,8 @@ class AdbEnablerService : AccessibilityService() {
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
             val result = findSwitchNode(child)
-            if (result != null) {
-                child.recycle()
-                return result
-            }
-            child.recycle()
+            if (result != null) return result
+            // НЕ вызываем child.recycle() — GC справится
         }
         return null
     }

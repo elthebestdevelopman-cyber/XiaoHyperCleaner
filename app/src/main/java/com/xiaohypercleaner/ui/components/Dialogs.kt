@@ -91,9 +91,9 @@ fun MenuDialog(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    stringResource(R.string.about_version),
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
+                    "Version ${com.xiaohypercleaner.BuildConfig.VERSION_NAME}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(

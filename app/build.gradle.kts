@@ -10,7 +10,7 @@ android {
     defaultConfig {
         applicationId = "com.xiaohypercleaner"
         minSdk = 28
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 2
         versionName = "1.0-beta2"
         buildConfigField("boolean", "BETA", "true")

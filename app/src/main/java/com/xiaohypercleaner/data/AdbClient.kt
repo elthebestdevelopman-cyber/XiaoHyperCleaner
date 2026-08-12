@@ -4,7 +4,9 @@ import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.LogMasker
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.io.BufferedInputStream
 import java.io.IOException
 import java.io.OutputStream
@@ -21,6 +23,9 @@ class AdbClient(
         private const val TAG = "AdbClient"
         private const val MAX_PAYLOAD = 0xFFFF
         private const val MAX_RESPONSE_SIZE = 10 * 1024 * 1024 // 10 MB лимит
+        private const val COMMAND_TIMEOUT_MS = 30_000L // 30 секунд максимум на команду
+        private const val READ_HARD_TIMEOUT_MS =
+            25_000L // 25 секунд hard timeout внутри цикла чтения
     }
 
     private var socket: Socket? = null
@@ -90,42 +95,54 @@ class AdbClient(
         }
     }
 
+    /**
+     * Выполняет ADB-команду с общим таймаутом COMMAND_TIMEOUT_MS.
+     * Это защита от зависания на длинных shell-командах (logcat, dumpsys, бесконечных процессах).
+     */
     override suspend fun executeCommand(command: String): String = withContext(Dispatchers.IO) {
         commandCount++
         val maskedCmd = LogMasker.mask(command)
         AppLog.i(TAG, "cmd#$commandCount: executing: $maskedCmd")
 
         try {
-            val result = runShell(command)
-            val maskedResult = LogMasker.mask(result.take(500))
-            AppLog.i(
-                TAG,
-                "cmd#$commandCount: success, result(${result.length} chars): $maskedResult"
-            )
-            result
-        } catch (e: AdbException) {
-            AppLog.w(
-                TAG,
-                "cmd#$commandCount: AdbException: ${LogMasker.mask(e.message ?: "")}, reconnecting once"
-            )
+            withTimeout(COMMAND_TIMEOUT_MS) {
+                try {
+                    val result = runShell(command)
+                    val maskedResult = LogMasker.mask(result.take(500))
+                    AppLog.i(
+                        TAG,
+                        "cmd#$commandCount: success, result(${result.length} chars): $maskedResult"
+                    )
+                    result
+                } catch (e: AdbException) {
+                    AppLog.w(
+                        TAG,
+                        "cmd#$commandCount: AdbException: ${LogMasker.mask(e.message ?: "")}, reconnecting once"
+                    )
+                    disconnect()
+                    if (!connect()) {
+                        AppLog.e(TAG, "cmd#$commandCount: reconnect FAILED, rethrowing")
+                        throw e
+                    }
+                    AppLog.i(TAG, "cmd#$commandCount: reconnect OK, retrying command")
+                    try {
+                        val result = runShell(command)
+                        AppLog.i(TAG, "cmd#$commandCount: retry success")
+                        result
+                    } catch (e2: Exception) {
+                        AppLog.e(
+                            TAG,
+                            "cmd#$commandCount: retry also FAILED: ${LogMasker.mask(e2.message ?: "")}",
+                            e2
+                        )
+                        throw e2
+                    }
+                }
+            }
+        } catch (e: TimeoutCancellationException) {
+            AppLog.e(TAG, "cmd#$commandCount: TIMEOUT after ${COMMAND_TIMEOUT_MS}ms")
             disconnect()
-            if (!connect()) {
-                AppLog.e(TAG, "cmd#$commandCount: reconnect FAILED, rethrowing")
-                throw e
-            }
-            AppLog.i(TAG, "cmd#$commandCount: reconnect OK, retrying command")
-            try {
-                val result = runShell(command)
-                AppLog.i(TAG, "cmd#$commandCount: retry success")
-                result
-            } catch (e2: Exception) {
-                AppLog.e(
-                    TAG,
-                    "cmd#$commandCount: retry also FAILED: ${LogMasker.mask(e2.message ?: "")}",
-                    e2
-                )
-                throw e2
-            }
+            throw AdbException("Command timed out after ${COMMAND_TIMEOUT_MS}ms: $command")
         }
     }
 
@@ -179,9 +196,13 @@ class AdbClient(
     }
 
     /**
-     * Читает ответ shell до EOF с лимитом [MAX_RESPONSE_SIZE] байт.
-     * Если лимит превышен — чтение останавливается и возвращается усечённая строка.
-     * Это защищает от зависания на огромных выводах (dumpsys, logcat и т.д.).
+     * Читает ответ shell до EOF с двойной защитой от зависания:
+     * 1. Hard timeout внутри цикла (READ_HARD_TIMEOUT_MS = 25s) — прерывает бесконечный цикл
+     *    если wireless ADB шлёт данные каплями без закрытия соединения
+     * 2. Лимит размера ответа (MAX_RESPONSE_SIZE = 10MB) — защита от огромных выводов
+     * 3. soTimeout на сокете (AppConstants.ADB_TIMEOUT_MS) — защита от полного отсутствия данных
+     *
+     * Возвращает partial result при таймауте, не бросает исключение (это делает внешний withTimeout).
      */
     private fun readUntilEof(): String {
         val sb = StringBuilder()
@@ -190,16 +211,23 @@ class AdbClient(
         var chunks = 0
         var totalBytes = 0
         var truncated = false
+        val startTime = System.currentTimeMillis()
+
         try {
             while (true) {
+                // Hard timeout: защита от бесконечного цикла если данные идут каплями
+                if (System.currentTimeMillis() - startTime > READ_HARD_TIMEOUT_MS) {
+                    AppLog.w(
+                        TAG,
+                        "readUntilEof: hard timeout after ${READ_HARD_TIMEOUT_MS}ms, returning partial (${sb.length} chars)"
+                    )
+                    break
+                }
                 val n = stream.read(buf)
                 if (n <= 0) break
                 if (totalBytes + n > MAX_RESPONSE_SIZE) {
-                    // Читаем только до лимита
                     val remaining = MAX_RESPONSE_SIZE - totalBytes
-                    if (remaining > 0) {
-                        sb.append(String(buf, 0, remaining, Charsets.UTF_8))
-                    }
+                    if (remaining > 0) sb.append(String(buf, 0, remaining, Charsets.UTF_8))
                     truncated = true
                     AppLog.w(
                         TAG,
@@ -212,7 +240,7 @@ class AdbClient(
                 totalBytes += n
             }
         } catch (e: SocketTimeoutException) {
-            AppLog.w(TAG, "readUntilEof: timeout after $chunks chunks, returning partial")
+            AppLog.w(TAG, "readUntilEof: socket timeout after $chunks chunks (${sb.length} chars)")
         } catch (e: IOException) {
             AppLog.e(
                 TAG,
@@ -222,7 +250,7 @@ class AdbClient(
         }
         AppLog.i(
             TAG,
-            "readUntilEof: read ${sb.length} chars in $chunks chunks (truncated=$truncated)"
+            "readUntilEof: read ${sb.length} chars in $chunks chunks (truncated=$truncated, elapsed=${System.currentTimeMillis() - startTime}ms)"
         )
         return sb.toString()
     }
