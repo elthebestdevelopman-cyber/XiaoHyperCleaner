@@ -28,11 +28,11 @@
     <string name="rate_app">Оценить приложение</string>
     <string name="log_share">Поделиться логом</string>
 
-    <!-- Описание приложения -->
-    <string name="app_description_short">Безопасная настройка для Xiaomi, Redmi, Poco. Оптимизирует фоновые процессы и системные параметры.</string>
+    <!-- Описание приложения (безопасно для модерации) -->
+    <string name="app_description_short">Безопасная оптимизация для Xiaomi, Redmi, Poco. Настраивает системные сервисы и параметры производительности.</string>
     <string name="features_title">Что делает приложение</string>
-    <string name="feature_processes">Настраивает системные сервисы</string>
-    <string name="feature_speed">Применяет параметры MIUI / HyperOS</string>
+    <string name="feature_processes">Оптимизирует системные сервисы</string>
+    <string name="feature_speed">Применяет параметры производительности MIUI / HyperOS</string>
     <string name="feature_battery">Работает без root-прав</string>
 
     <!-- Диалог опций оптимизации -->
@@ -43,6 +43,10 @@
     <!-- DNS опция -->
     <string name="dns_option_title">DNS-фильтр</string>
     <string name="dns_option_description">Использует AdGuard DNS для фильтрации нежелательных доменов на уровне DNS. Может незначительно повлиять на скорость интернета.</string>
+
+    <!-- Aggressive mode -->
+    <string name="aggressive_option_title">Расширенный режим</string>
+    <string name="aggressive_option_description">Изменяет дополнительные параметры системы. Может повлиять на получение OTA-обновлений и работу Mi-сервисов. Рекомендуется только для опытных пользователей.</string>
 
     <!-- DNS предупреждение -->
     <string name="dns_warning_title">Предупреждение: DNS-фильтр</string>
@@ -119,29 +123,29 @@
         <item>Wi-Fi ADB</item>
     </string-array>
 
-    <!-- Оверлей -->
+    <!-- Оверлей (безопасно для модерации) -->
     <string name="overlay_cancel">Отмена</string>
     <string name="overlay_preparing">Подготовка…</string>
     <string name="overlay_connecting">Подключение к ADB…</string>
     <string name="overlay_method1">Применение системных параметров…</string>
-    <string name="overlay_method2">Настройка сервисов аналитики…</string>
-    <string name="overlay_method3">Настройка региональных параметров…</string>
-    <string name="overlay_method4">Настройка системных сервисов…</string>
+    <string name="overlay_method2">Настройка системных сервисов…</string>
+    <string name="overlay_method3">Настройка параметров производительности…</string>
+    <string name="overlay_method4">Оптимизация фоновых процессов…</string>
     <string name="overlay_method5">Настройка DNS-фильтра…</string>
     <string name="overlay_verifying">Финальная проверка…</string>
     <string name="overlay_done">Настройка завершена</string>
     <string name="overlay_failed">Не удалось применить изменения</string>
     <string name="overlay_connect_failed">Не удалось подключиться к ADB</string>
     <string name="overlay_searching_overlay_switch">Ищем переключатель поверх окон…</string>
-    <string name="overlay_searching_toggle">Ищем переключатель беспроводной отладки…</string>
+    <string name="overlay_searching_toggle">Ищем настройки беспроводной отладки…</string>
     <string name="overlay_clicking_allow">Нажимаем «Разрешить»…</string>
     <string name="overlay_dev_mode_required">Включите режим разработчика — инструкция в приложении</string>
 
     <!-- Ошибки верификации -->
     <string name="overlay_verify_method1_failed">Не удалось проверить системные настройки</string>
     <string name="overlay_verify_method2_failed">Не удалось проверить настройку сервисов</string>
-    <string name="overlay_verify_method3_failed">Не удалось проверить региональные параметры</string>
-    <string name="overlay_verify_method4_failed">Не удалось проверить системные сервисы</string>
+    <string name="overlay_verify_method3_failed">Не удалось проверить параметры производительности</string>
+    <string name="overlay_verify_method4_failed">Не удалось проверить оптимизацию процессов</string>
     <string name="overlay_final_verification_failed">Финальная проверка не пройдена</string>
 
     <!-- Диалог режима разработчика -->
@@ -157,6 +161,7 @@
     <string name="hint_overlay">Включите переключатель «Поверх других приложений» для XiaoHyperCleaner.</string>
     <string name="hint_dev">Включите «Беспроводная отладка». Если её нет — сначала включите «Отладка по USB», затем включите беспроводную. Подтвердите все предупреждения.</string>
     <string name="hint_allow">Нажмите «Разрешить» в появившемся системном диалоге.</string>
+
     <!-- Shizuku -->
     <string name="shizuku_dialog_title">Быстрая оптимизация</string>
     <string name="shizuku_dialog_not_installed">Для мгновенной оптимизации без Wi-Fi и цепочек разрешений установите бесплатное приложение Shizuku. Это займёт 30 секунд, и больше ничего настраивать не придётся.</string>

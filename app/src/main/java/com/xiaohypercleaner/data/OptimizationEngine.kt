@@ -6,7 +6,8 @@ import com.xiaohypercleaner.util.LogMasker
 import kotlinx.coroutines.delay
 
 data class OptimizationOptions(
-    val dnsFilter: Boolean = false
+    val dnsFilter: Boolean = false,
+    val aggressiveMode: Boolean = false
 )
 
 data class OptimizationReport(
@@ -67,6 +68,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         var enabledDns: Boolean = false
         var previousDnsMode: String? = null
         var previousDnsHost: String? = null
+        var originalRegion: String? = null
     }
 
     private suspend fun connect(): Boolean {
@@ -88,7 +90,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         options: OptimizationOptions = OptimizationOptions(),
         callbacks: Callbacks = Callbacks()
     ): OptimizationReport {
-        AppLog.i(TAG, "OptimizationEngine: starting optimization, dnsFilter=${options.dnsFilter}")
+        AppLog.i(
+            TAG,
+            "OptimizationEngine: starting optimization, dnsFilter=${options.dnsFilter}, aggressive=${options.aggressiveMode}"
+        )
         val transaction = Transaction()
         val appliedSettings = mutableListOf<String>()
         val disabledPackages = mutableListOf<String>()
@@ -133,9 +138,11 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             callbacks.onProgress(AppConstants.PROGRESS_METHOD3)
             val settings3 = applyHiddenKeys(transaction)
             appliedSettings.addAll(settings3)
-            // Применяем setprop команды (timezone и др.)
-            val props = applySystemProperties()
-            appliedSettings.addAll(props)
+
+            if (options.aggressiveMode) {
+                val regional = applyRegionalKeys(transaction)
+                appliedSettings.addAll(regional)
+            }
             delay(AppConstants.COMMAND_DELAY_MS)
 
             callbacks.onStage("method4")
@@ -247,11 +254,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
         delay(AppConstants.COMMAND_DELAY_MS)
 
-        val propsFailed = restoreSystemPropertiesWithReport()
-        if (propsFailed.isNotEmpty()) {
-            failedActions.add("properties_restore: ${propsFailed.joinToString()}")
-        }
-
         callbacks.onProgress(AppConstants.PROGRESS_RESTORE_PACKAGES)
 
         val servicesFailed = restoreServicesWithReport()
@@ -319,29 +321,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         return applied
     }
 
-    /**
-     * Применяет системные свойства через setprop.
-     * Эти команды не имеют обратного чтения через settings get, поэтому не сохраняются в transaction.
-     */
-    private suspend fun applySystemProperties(): List<String> {
-        AppLog.i(TAG, "OptimizationEngine: applying system properties")
-        val applied = mutableListOf<String>()
-
-        for ((key, value) in ServiceRegistry.SYSTEM_PROPERTIES) {
-            try {
-                adb.executeCommand("shell setprop $key $value")
-                applied.add("$key=$value")
-                delay(AppConstants.COMMAND_DELAY_MS)
-            } catch (e: Exception) {
-                AppLog.w(
-                    TAG,
-                    "OptimizationEngine: setprop failed: $key - ${LogMasker.mask(e.message ?: "")}"
-                )
-            }
-        }
-        return applied
-    }
-
     private suspend fun disableAnalyticsServices(transaction: Transaction): List<String> {
         AppLog.i(TAG, "OptimizationEngine: disabling analytics services")
         val disabled = mutableListOf<String>()
@@ -371,6 +350,34 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 AppLog.w(
                     TAG,
                     "OptimizationEngine: hidden key failed: $key - ${LogMasker.mask(e.message ?: "")}"
+                )
+            }
+        }
+        return applied
+    }
+
+    private suspend fun applyRegionalKeys(transaction: Transaction): List<String> {
+        AppLog.i(TAG, "OptimizationEngine: applying regional keys (aggressive mode)")
+        val applied = mutableListOf<String>()
+
+        for (key in ServiceRegistry.REGIONAL_KEYS) {
+            try {
+                val getCmd = "shell settings get $key"
+                val putCmd = "shell settings put $key DE"
+                val original = adb.executeCommand(getCmd).trim()
+
+                transaction.originalRegion =
+                    if (original == "null" || original.isEmpty()) null else original
+
+                adb.executeCommand(putCmd)
+                transaction.appliedSettings[putCmd] = original
+                applied.add(key.substringAfterLast(" "))
+                AppLog.i(TAG, "OptimizationEngine: regional key applied, original=$original")
+                delay(AppConstants.COMMAND_DELAY_MS)
+            } catch (e: Exception) {
+                AppLog.w(
+                    TAG,
+                    "OptimizationEngine: regional key failed: $key - ${LogMasker.mask(e.message ?: "")}"
                 )
             }
         }
@@ -420,11 +427,17 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
         try {
             val result = adb.executeCommand("shell pm disable-user --user 0 $pkg")
-            if (result.contains("Success") || result.isEmpty() || !result.contains("Failure")) {
+            if (result.contains("Success")) {
                 delay(AppConstants.COMMAND_DELAY_MS)
                 AppLog.i(TAG, "OptimizationEngine: disabled $pkg via disable-user")
                 return true
             }
+            AppLog.w(
+                TAG,
+                "OptimizationEngine: disable-user returned no Success for $pkg: ${
+                    LogMasker.mask(result.take(200))
+                }"
+            )
         } catch (e: Exception) {
             AppLog.w(
                 TAG,
@@ -435,11 +448,17 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             try {
                 val result = adb.executeCommand("shell pm suspend $pkg")
-                if (result.contains("Success") || result.isEmpty() || !result.contains("Failure")) {
+                if (result.contains("Success")) {
                     delay(AppConstants.COMMAND_DELAY_MS)
                     AppLog.i(TAG, "OptimizationEngine: suspended $pkg")
                     return true
                 }
+                AppLog.w(
+                    TAG,
+                    "OptimizationEngine: suspend returned no Success for $pkg: ${
+                        LogMasker.mask(result.take(200))
+                    }"
+                )
             } catch (e: Exception) {
                 AppLog.w(
                     TAG,
@@ -517,18 +536,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             }
         }
 
-        // Откат системных свойств (timezone и др.) — best effort
-        for ((key, value) in ServiceRegistry.SYSTEM_PROPERTIES_RESTORE) {
-            try {
-                adb.executeCommand("shell setprop $key $value")
-            } catch (e: Exception) {
-                AppLog.w(
-                    TAG,
-                    "OptimizationEngine: setprop rollback failed: $key - ${LogMasker.mask(e.message ?: "")}"
-                )
-            }
-        }
-
         val report = RollbackReport(
             restoredSettings = restoredSettings,
             restoredPackages = restoredPackages,
@@ -566,8 +573,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
     private suspend fun verifyAnalyticsDisabled(): Boolean {
         return try {
             val result = adb.executeCommand("shell pm list packages -d").trim()
-            val required = ServiceRegistry.ANALYTICS_PACKAGES.take(2)
-            required.all { pkg -> result.contains(pkg) }
+            ServiceRegistry.ANALYTICS_PACKAGES.take(2).any { pkg -> result.contains(pkg) }
         } catch (e: Exception) {
             AppLog.w(
                 TAG,
@@ -622,24 +628,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             } catch (e: Exception) {
                 failed.add(key.substringAfterLast(" "))
                 AppLog.w(TAG, "OptimizationEngine: restore command failed: $key")
-            }
-        }
-        return failed
-    }
-
-    private suspend fun restoreSystemPropertiesWithReport(): List<String> {
-        AppLog.i(TAG, "OptimizationEngine: restoring system properties")
-        val failed = mutableListOf<String>()
-        for ((key, value) in ServiceRegistry.SYSTEM_PROPERTIES_RESTORE) {
-            try {
-                adb.executeCommand("shell setprop $key $value")
-                delay(AppConstants.COMMAND_DELAY_MS)
-            } catch (e: Exception) {
-                failed.add(key)
-                AppLog.w(
-                    TAG,
-                    "OptimizationEngine: setprop restore failed: $key - ${LogMasker.mask(e.message ?: "")}"
-                )
             }
         }
         return failed

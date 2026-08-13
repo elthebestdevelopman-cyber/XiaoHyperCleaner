@@ -37,6 +37,7 @@ data class MainUiState(
     val showDnsWarningDialog: Boolean = false,
     val showRestrictedDialog: Boolean = false,
     val dnsFilterEnabled: Boolean = false,
+    val aggressiveMode: Boolean = false,
     val showRebootDialog: Boolean = false,
     val rebootFailed: Boolean = false,
     val restoreFailed: Boolean = false,
@@ -326,7 +327,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun optionsDialogConfirmed() {
-        AppLog.i(TAG, "optionsDialogConfirmed, dnsFilter=${_state.value.dnsFilterEnabled}")
+        AppLog.i(
+            TAG,
+            "optionsDialogConfirmed, dnsFilter=${_state.value.dnsFilterEnabled}, aggressive=${_state.value.aggressiveMode}"
+        )
         _state.update { it.copy(showOptionsDialog = false) }
 
         if (_state.value.dnsFilterEnabled) {
@@ -373,6 +377,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             prefs.setDnsFilterEnabled(enabled)
         }
+    }
+
+    fun toggleAggressiveMode(enabled: Boolean) {
+        AppLog.i(TAG, "toggleAggressiveMode: $enabled")
+        _state.update { it.copy(aggressiveMode = enabled) }
     }
 
     private fun proceedToChain() {
@@ -544,11 +553,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun startChain() {
         AppLog.i(
             TAG,
-            "startChain: setting pending flag, dnsFilter=${_state.value.dnsFilterEnabled}"
+            "startChain: setting pending flag, dnsFilter=${_state.value.dnsFilterEnabled}, aggressive=${_state.value.aggressiveMode}"
         )
         viewModelScope.launch {
             prefs.setPendingOptimization(true)
             prefs.setDnsFilterEnabled(_state.value.dnsFilterEnabled)
+            prefs.setAggressiveMode(_state.value.aggressiveMode)
             AppLog.i(TAG, "startChain: pending flag set")
 
             if (_state.value.isAccessibilityEnabled) {

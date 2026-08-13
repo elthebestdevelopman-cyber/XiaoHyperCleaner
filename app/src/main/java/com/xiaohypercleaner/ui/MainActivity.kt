@@ -309,7 +309,9 @@ private fun MainContent(
     if (state.showOptionsDialog) {
         OptionsDialog(
             dnsFilterEnabled = state.dnsFilterEnabled,
+            aggressiveMode = state.aggressiveMode,
             onDnsToggle = { enabled -> vm.toggleDnsFilter(enabled) },
+            onAggressiveToggle = { enabled -> vm.toggleAggressiveMode(enabled) },
             onConfirm = {
                 AppLog.i("MainUI", "options dialog: confirmed")
                 vm.optionsDialogConfirmed()
@@ -616,7 +618,9 @@ private fun ShizukuGuideDialog(
 @Composable
 private fun OptionsDialog(
     dnsFilterEnabled: Boolean,
+    aggressiveMode: Boolean,
     onDnsToggle: (Boolean) -> Unit,
+    onAggressiveToggle: (Boolean) -> Unit,
     onConfirm: () -> Unit,
     onCancel: () -> Unit
 ) {
@@ -647,6 +651,7 @@ private fun OptionsDialog(
                 Spacer(Modifier.height(16.dp))
                 HorizontalDivider()
                 Spacer(Modifier.height(12.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -664,8 +669,39 @@ private fun OptionsDialog(
                         )
                     }
                     Spacer(Modifier.width(8.dp))
-                    Switch(checked = dnsFilterEnabled, onCheckedChange = onDnsToggle)
+                    Switch(
+                        checked = dnsFilterEnabled,
+                        onCheckedChange = onDnsToggle
+                    )
                 }
+
+                Spacer(Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            stringResource(R.string.aggressive_option_title),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            stringResource(R.string.aggressive_option_description),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Switch(
+                        checked = aggressiveMode,
+                        onCheckedChange = onAggressiveToggle
+                    )
+                }
+
                 Spacer(Modifier.height(16.dp))
                 Button(
                     onClick = onConfirm,

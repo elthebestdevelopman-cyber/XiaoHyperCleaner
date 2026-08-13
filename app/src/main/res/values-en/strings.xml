@@ -28,11 +28,11 @@
     <string name="rate_app">Rate the app</string>
     <string name="log_share">Share log</string>
 
-    <!-- App description -->
-    <string name="app_description_short">Safe configuration for Xiaomi, Redmi, Poco. Optimizes background processes and system parameters.</string>
+    <!-- App description (safe for moderation) -->
+    <string name="app_description_short">Safe optimization for Xiaomi, Redmi, Poco. Configures system services and performance parameters.</string>
     <string name="features_title">What the app does</string>
-    <string name="feature_processes">Configures system services</string>
-    <string name="feature_speed">Applies MIUI / HyperOS parameters</string>
+    <string name="feature_processes">Optimizes system services</string>
+    <string name="feature_speed">Applies MIUI / HyperOS performance parameters</string>
     <string name="feature_battery">Works without root access</string>
 
     <!-- Optimization options dialog -->
@@ -43,6 +43,10 @@
     <!-- DNS option -->
     <string name="dns_option_title">DNS filter</string>
     <string name="dns_option_description">Uses AdGuard DNS to filter unwanted domains at the DNS level. May slightly affect internet speed.</string>
+
+    <!-- Aggressive mode -->
+    <string name="aggressive_option_title">Advanced mode</string>
+    <string name="aggressive_option_description">Changes additional system parameters. May affect OTA updates and Mi services. Recommended for advanced users only.</string>
 
     <!-- DNS warning -->
     <string name="dns_warning_title">Warning: DNS filter</string>
@@ -119,29 +123,29 @@
         <item>Wi-Fi ADB</item>
     </string-array>
 
-    <!-- Overlay -->
+    <!-- Overlay (safe for moderation) -->
     <string name="overlay_cancel">Cancel</string>
     <string name="overlay_preparing">Preparing…</string>
     <string name="overlay_connecting">Connecting to ADB…</string>
     <string name="overlay_method1">Applying system parameters…</string>
-    <string name="overlay_method2">Configuring analytics services…</string>
-    <string name="overlay_method3">Configuring regional parameters…</string>
-    <string name="overlay_method4">Configuring system services…</string>
+    <string name="overlay_method2">Configuring system services…</string>
+    <string name="overlay_method3">Applying performance parameters…</string>
+    <string name="overlay_method4">Optimizing background processes…</string>
     <string name="overlay_method5">Configuring DNS filter…</string>
     <string name="overlay_verifying">Final verification…</string>
     <string name="overlay_done">Configuration complete</string>
     <string name="overlay_failed">Failed to apply changes</string>
     <string name="overlay_connect_failed">Failed to connect to ADB</string>
     <string name="overlay_searching_overlay_switch">Looking for the overlay switch…</string>
-    <string name="overlay_searching_toggle">Looking for the wireless debugging toggle…</string>
+    <string name="overlay_searching_toggle">Looking for wireless debugging settings…</string>
     <string name="overlay_clicking_allow">Tapping "Allow"…</string>
     <string name="overlay_dev_mode_required">Enable developer mode — see instructions in the app</string>
 
     <!-- Verification errors -->
     <string name="overlay_verify_method1_failed">System settings verification failed</string>
     <string name="overlay_verify_method2_failed">Services configuration verification failed</string>
-    <string name="overlay_verify_method3_failed">Regional parameters verification failed</string>
-    <string name="overlay_verify_method4_failed">System services verification failed</string>
+    <string name="overlay_verify_method3_failed">Performance parameters verification failed</string>
+    <string name="overlay_verify_method4_failed">Process optimization verification failed</string>
     <string name="overlay_final_verification_failed">Final verification failed</string>
 
     <!-- Developer mode dialog -->

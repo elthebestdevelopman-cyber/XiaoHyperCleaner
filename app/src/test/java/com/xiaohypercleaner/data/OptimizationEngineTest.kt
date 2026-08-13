@@ -1,7 +1,6 @@
 package com.xiaohypercleaner.data
 
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -15,9 +14,9 @@ private open class FakeAdb : AdbExecutor {
     var failedOnce = false
     var connectionsCount = 0
 
-    // Состояние DNS — нужно чтобы верификация видела установленные значения
     var dnsMode: String = "opportunistic"
     var dnsSpecifier: String = ""
+    var originalRegion: String = "RU"
 
     override suspend fun connect(): Boolean {
         connectionsCount++
@@ -38,19 +37,20 @@ private open class FakeAdb : AdbExecutor {
 
     private fun executeCommandInternal(command: String): String {
         return when {
-            // ===== settings GET (для rollback и верификации) =====
             command.contains("settings get secure limit_ad_tracking") -> keyValue
+            command.contains("settings get secure user_experience_program") -> "1"
+            command.contains("settings get secure upload_log_pref") -> "1"
+            command.contains("settings get secure show_recommendations") -> "1"
+            command.contains("settings get secure miui_region") -> originalRegion
             command.contains("settings get global window_animation_scale") -> "0.5"
             command.contains("settings get global transition_animation_scale") -> "0.5"
             command.contains("settings get global animator_duration_scale") -> "0.5"
             command.contains("settings get global low_power") -> "1"
             command.contains("settings get global always_finish_activities") -> "0"
 
-            // DNS get команды (для верификации)
             command.contains("settings get global private_dns_mode") -> dnsMode
             command.contains("settings get global private_dns_specifier") -> dnsSpecifier
 
-            // DNS put команды (сохраняем состояние для верификации)
             command.contains("settings put global private_dns_mode") -> {
                 dnsMode = command.substringAfterLast(' ')
                 "Success"
@@ -61,8 +61,6 @@ private open class FakeAdb : AdbExecutor {
                 "Success"
             }
 
-            // ===== pm list packages — для верификации =====
-            // Матчится и с "shell" prefix и без (OptimizationEngine использует оба варианта)
             command.contains("pm list packages -d") ->
                 disabledPackages.joinToString("\n") { "package:$it" }
 
@@ -70,7 +68,6 @@ private open class FakeAdb : AdbExecutor {
                 listOf("com.miui.analytics", "com.miui.systemAdSolution")
                     .joinToString("\n") { "package:$it" }
 
-            // ===== pm disable-user / enable / suspend =====
             command.contains("pm disable-user") -> {
                 if (failDisable) "Failure" else {
                     disabledPackages.add(command.substringAfterLast(' '))
@@ -90,7 +87,6 @@ private open class FakeAdb : AdbExecutor {
                 "Success"
             }
 
-            // ===== Остальные команды =====
             command.startsWith("settings put") -> "Success"
             command.contains("setprop") -> "Success"
             command.contains("shell reboot") -> ""
@@ -155,19 +151,56 @@ class OptimizationEngineTest {
         )
     }
 
+    /**
+     * Проверяет что в обычном режиме применяются безопасные настройки (limit_ad_tracking и др.)
+     * БЕЗ смены региона (timezone/setprop удалены как ломающие функциональность)
+     */
     @Test
-    fun optimizeAppliesFakeRegion() = runBlocking {
+    fun optimizeAppliesSafeSettings() = runBlocking {
         val fake = FakeAdb()
         val engine = OptimizationEngine(fake)
         val report = engine.optimize()
         assertTrue("optimize should succeed", report.success)
         assertTrue(
-            "should set timezone",
-            fake.commands.any { it.contains("setprop persist.sys.timezone Asia/Singapore") }
-        )
-        assertTrue(
             "should set limit_ad_tracking",
             fake.commands.any { it.contains("settings put secure limit_ad_tracking 1") }
+        )
+        assertTrue(
+            "should set user_experience_program to 0",
+            fake.commands.any { it.contains("settings put secure user_experience_program 0") }
+        )
+        assertTrue(
+            "should NOT change timezone (removed for safety)",
+            fake.commands.none { it.contains("setprop persist.sys.timezone") }
+        )
+        assertTrue(
+            "should NOT change region by default",
+            fake.commands.none { it.contains("settings put secure miui_region") }
+        )
+    }
+
+    /**
+     * Проверяет что в aggressive mode меняется регион на DE.
+     * Этот режим опасен (ломает OTA), поэтому выключен по умолчанию.
+     */
+    @Test
+    fun optimizeAggressiveModeChangesRegion() = runBlocking {
+        val fake = FakeAdb()
+        val engine = OptimizationEngine(fake)
+        val options = OptimizationOptions(aggressiveMode = true)
+        val report = engine.optimize(options)
+        assertTrue("optimize should succeed in aggressive mode", report.success)
+        assertTrue(
+            "should read original region before changing",
+            fake.commands.any { it.contains("settings get secure miui_region") }
+        )
+        assertTrue(
+            "should change region to DE in aggressive mode",
+            fake.commands.any { it.contains("settings put secure miui_region DE") }
+        )
+        assertTrue(
+            "appliedSettings should contain miui_region",
+            report.appliedSettings.any { it.contains("miui_region") }
         )
     }
 
@@ -256,17 +289,16 @@ class OptimizationEngineTest {
         val engine = OptimizationEngine(fake)
         val report = engine.optimize()
         assertTrue("optimize should succeed", report.success)
-        // Как минимум системные настройки (5) + регион (2) = 7
+        // 5 системных настроек + 4 безопасных = минимум 9
         assertTrue(
-            "appliedSettings should have at least 7 items, got ${report.appliedSettings.size}",
-            report.appliedSettings.size >= 7
+            "appliedSettings should have at least 9 items, got ${report.appliedSettings.size}",
+            report.appliedSettings.size >= 9
         )
         // Как минимум несколько пакетов отключено
         assertTrue(
             "disabledPackages should have at least 3 items, got ${report.disabledPackages.size}",
             report.disabledPackages.size >= 3
         )
-        // Успешная оптимизация = пустой failedActions
         assertTrue(
             "failedActions should be empty on success",
             report.failedActions.isEmpty()

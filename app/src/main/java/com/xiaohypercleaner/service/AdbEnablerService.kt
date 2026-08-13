@@ -24,6 +24,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @Suppress("DEPRECATION")
@@ -241,12 +242,9 @@ class AdbEnablerService : AccessibilityService() {
 
     private fun handleDevSettings(root: AccessibilityNodeInfo) {
         val texts = listOf(
-            // Стандартные Android 11+
             "Wireless debugging", "Беспроводная отладка",
-            // MIUI / HyperOS основные варианты
             "Отладка по Wi-Fi", "Отладка по беспроводной сети",
             "Wireless ADB", "Wi-Fi debugging", "Wi-Fi ADB", "Wireless debug",
-            // MIUI / HyperOS дополнительные варианты
             "Отладка по сети", "Network debugging", "ADB over network",
             "Отладка ADB", "ADB debugging",
             "Беспроводная отладка ADB",
@@ -254,11 +252,9 @@ class AdbEnablerService : AccessibilityService() {
             "Отладка по беспроводной сети ADB",
             "Wi-Fi ADB отладка",
             "Беспроводной ADB",
-            // HyperOS 2024+
             "Отладка Wi-Fi",
             "Wi-Fi отладка",
-            // Poco / Redmi варианты
-            "Отладка по Wi‑Fi",  // с неразрывным дефисом
+            "Отладка по Wi‑Fi",
             "Беспроводная отладка по сети"
         )
 
@@ -276,7 +272,6 @@ class AdbEnablerService : AccessibilityService() {
 
             val switch = findSwitchNode(node)
             if (switch == null) {
-                // HyperOS: это строка-ссылка на подэкран — открываем её
                 node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 AppLog.i(
                     TAG,
@@ -300,7 +295,6 @@ class AdbEnablerService : AccessibilityService() {
             return
         }
 
-        // Fallback: ищем USB debugging (MIUI требует сначала включить USB)
         val usbDebugTexts = listOf(
             "USB debugging", "Отладка по USB", "USB debug",
             "USB отладка", "Отладка USB", "USB отладка по USB"
@@ -316,7 +310,6 @@ class AdbEnablerService : AccessibilityService() {
             }
         }
 
-        // Диагностика: логируем что видим на экране когда toggle не найден
         val screenText = StringBuilder()
         collectScreenText(root, screenText, 0)
         val screenPreview = screenText.toString().take(2000)
@@ -418,10 +411,17 @@ class AdbEnablerService : AccessibilityService() {
                 val deps = XiaoHyperApp.testDeps ?: app.deps
 
                 val dnsEnabled = deps.preferencesManager.getDnsFilterEnabled()
-                AppLog.i(TAG, "AdbEnablerService: dnsFilter=$dnsEnabled")
+                val aggressiveEnabled = deps.preferencesManager.aggressiveMode.first()
+                AppLog.i(
+                    TAG,
+                    "AdbEnablerService: dnsFilter=$dnsEnabled, aggressive=$aggressiveEnabled"
+                )
 
                 val engine = deps.newEngine()
-                val options = OptimizationOptions(dnsFilter = dnsEnabled)
+                val options = OptimizationOptions(
+                    dnsFilter = dnsEnabled,
+                    aggressiveMode = aggressiveEnabled
+                )
 
                 val callbacks = OptimizationEngine.Callbacks(
                     onStage = { stage ->
@@ -548,10 +548,6 @@ class AdbEnablerService : AccessibilityService() {
         return null
     }
 
-    /**
-     * Собирает весь текст с экрана для диагностики.
-     * Используется когда toggle не находится — показывает что реально есть на экране.
-     */
     private fun collectScreenText(node: AccessibilityNodeInfo, sb: StringBuilder, depth: Int) {
         if (depth > 10 || sb.length > 3000) return
 

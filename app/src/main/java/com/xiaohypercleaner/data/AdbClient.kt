@@ -14,6 +14,15 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketTimeoutException
 
+/**
+ * ADB-клиент, говорящий по классическому plaintext-протоколу ADB
+ * (4-символьный hex-заголовок длины, shell-команды до EOF).
+ *
+ * ВАЖНО: executeCommand() принимает команды в едином формате —
+ * с префиксом "shell " или без. Префикс нормализуется, т.к. runShell()
+ * сам добавляет "shell:" для wire-протокола. Это делает AdbClient
+ * совместимым с ShizukuExecutor и RootExecutor, которые тоже stripping-уют префикс.
+ */
 class AdbClient(
     private val host: String = AppConstants.ADB_HOST,
     private val ports: List<Int> = listOf(AppConstants.ADB_DEFAULT_PORT)
@@ -22,10 +31,9 @@ class AdbClient(
     companion object {
         private const val TAG = "AdbClient"
         private const val MAX_PAYLOAD = 0xFFFF
-        private const val MAX_RESPONSE_SIZE = 10 * 1024 * 1024 // 10 MB лимит
-        private const val COMMAND_TIMEOUT_MS = 30_000L // 30 секунд максимум на команду
-        private const val READ_HARD_TIMEOUT_MS =
-            25_000L // 25 секунд hard timeout внутри цикла чтения
+        private const val MAX_RESPONSE_SIZE = 10 * 1024 * 1024 // 10 MB лимит ответа
+        private const val COMMAND_TIMEOUT_MS = 30_000L // общий таймаут команды
+        private const val READ_HARD_TIMEOUT_MS = 25_000L // hard timeout цикла чтения
     }
 
     private var socket: Socket? = null
@@ -96,18 +104,23 @@ class AdbClient(
     }
 
     /**
-     * Выполняет ADB-команду с общим таймаутом COMMAND_TIMEOUT_MS.
-     * Это защита от зависания на длинных shell-командах (logcat, dumpsys, бесконечных процессах).
+     * Выполняет ADB-команду с общим таймаутом и одноразовым реконнектом.
+     *
+     * Нормализация: убираем "shell " префикс — runShell() сам добавляет
+     * "shell:" для wire-протокола. Без этой нормализации команды вида
+     * "shell pm disable-user ..." превращались бы в "shell:shell pm ..."
+     * и падали на устройстве.
      */
     override suspend fun executeCommand(command: String): String = withContext(Dispatchers.IO) {
         commandCount++
-        val maskedCmd = LogMasker.mask(command)
+        val normalized = command.trim().removePrefix("shell ")
+        val maskedCmd = LogMasker.mask(normalized)
         AppLog.i(TAG, "cmd#$commandCount: executing: $maskedCmd")
 
         try {
             withTimeout(COMMAND_TIMEOUT_MS) {
                 try {
-                    val result = runShell(command)
+                    val result = runShell(normalized)
                     val maskedResult = LogMasker.mask(result.take(500))
                     AppLog.i(
                         TAG,
@@ -126,7 +139,7 @@ class AdbClient(
                     }
                     AppLog.i(TAG, "cmd#$commandCount: reconnect OK, retrying command")
                     try {
-                        val result = runShell(command)
+                        val result = runShell(normalized)
                         AppLog.i(TAG, "cmd#$commandCount: retry success")
                         result
                     } catch (e2: Exception) {
@@ -142,7 +155,7 @@ class AdbClient(
         } catch (e: TimeoutCancellationException) {
             AppLog.e(TAG, "cmd#$commandCount: TIMEOUT after ${COMMAND_TIMEOUT_MS}ms")
             disconnect()
-            throw AdbException("Command timed out after ${COMMAND_TIMEOUT_MS}ms: $command")
+            throw AdbException("Command timed out after ${COMMAND_TIMEOUT_MS}ms: $normalized")
         }
     }
 
@@ -196,13 +209,13 @@ class AdbClient(
     }
 
     /**
-     * Читает ответ shell до EOF с двойной защитой от зависания:
-     * 1. Hard timeout внутри цикла (READ_HARD_TIMEOUT_MS = 25s) — прерывает бесконечный цикл
-     *    если wireless ADB шлёт данные каплями без закрытия соединения
-     * 2. Лимит размера ответа (MAX_RESPONSE_SIZE = 10MB) — защита от огромных выводов
-     * 3. soTimeout на сокете (AppConstants.ADB_TIMEOUT_MS) — защита от полного отсутствия данных
+     * Читает ответ shell до EOF с трёхуровневой защитой от зависания:
+     * 1. Hard timeout внутри цикла (READ_HARD_TIMEOUT_MS) — прерывает бесконечный
+     *    цикл если wireless ADB шлёт данные каплями без закрытия соединения
+     * 2. Лимит размера ответа (MAX_RESPONSE_SIZE) — защита от огромных выводов
+     * 3. soTimeout на сокете (AppConstants.ADB_TIMEOUT_MS) — защита от тишины
      *
-     * Возвращает partial result при таймауте, не бросает исключение (это делает внешний withTimeout).
+     * Возвращает partial result при таймауте, не бросает исключение.
      */
     private fun readUntilEof(): String {
         val sb = StringBuilder()
@@ -215,7 +228,6 @@ class AdbClient(
 
         try {
             while (true) {
-                // Hard timeout: защита от бесконечного цикла если данные идут каплями
                 if (System.currentTimeMillis() - startTime > READ_HARD_TIMEOUT_MS) {
                     AppLog.w(
                         TAG,
