@@ -3,6 +3,7 @@ package com.xiaohypercleaner.ui
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -82,7 +83,15 @@ import com.xiaohypercleaner.data.ShizukuExecutor
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.ui.components.InfoDialog
+import com.xiaohypercleaner.ui.components.LevelConfirmDialog
 import com.xiaohypercleaner.ui.components.MenuDialog
+import com.xiaohypercleaner.ui.components.OptimizationLevelDialog
+import com.xiaohypercleaner.ui.components.OptimizationLevel
+import com.xiaohypercleaner.ui.components.ShizukuSetupWizard
+import com.xiaohypercleaner.ui.components.ShizukuSourcesDialog
+import com.xiaohypercleaner.ui.components.SimpleStepScreen
+import com.xiaohypercleaner.ui.components.SimpleDoneDialog
+import com.xiaohypercleaner.ui.components.SimpleStepState
 import com.xiaohypercleaner.ui.theme.Blue500
 import com.xiaohypercleaner.ui.theme.DarkGradientEnd
 import com.xiaohypercleaner.ui.theme.DarkGradientStart
@@ -93,6 +102,7 @@ import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.ShizukuHelper
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import rikka.shizuku.Shizuku
 
 class MainActivity : ComponentActivity() {
 
@@ -102,9 +112,25 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var vm: MainViewModel
 
+    private val shizukuPermissionListener =
+        Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
+            if (requestCode == MainViewModel.SHIZUKU_PERMISSION_CODE) {
+                val granted = grantResult == PackageManager.PERMISSION_GRANTED
+                AppLog.i(
+                    TAG,
+                    "shizukuPermissionListener: requestCode=$requestCode, granted=$granted"
+                )
+                if (::vm.isInitialized) {
+                    vm.onShizukuPermissionResult(granted)
+                }
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AppLog.i(TAG, "onCreate started")
+
+        Shizuku.addRequestPermissionResultListener(shizukuPermissionListener)
 
         val prefs = (application as XiaoHyperApp).preferencesManager
 
@@ -189,6 +215,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        Shizuku.removeRequestPermissionResultListener(shizukuPermissionListener)
         super.onDestroy()
         AppLog.i(TAG, "onDestroy")
     }
@@ -208,14 +235,73 @@ private fun MainContent(
 
     AppLog.i("MainUI", "MainContent composed: state=$state")
 
+    // Диалог выбора уровня оптимизации — самое первое что показывается при нажатии "Оптимизировать"
+    if (state.showLevelDialog) {
+        OptimizationLevelDialog(
+            onChoose = { level -> vm.onLevelChosen(level) }
+        )
+    }
+    // Экран текущего шага простой оптимизации
+    if (state.simpleStep != null) {
+        SimpleStepScreen(
+            state = state.simpleStep,
+            isEnglish = java.util.Locale.getDefault().language != "ru",
+            onStart = { vm.startCurrentSimpleStep() },
+            onNext = { vm.nextSimpleStep() },
+            onSkip = { vm.skipSimpleStep() },
+            onCancel = { vm.closeSimpleMode() }
+        )
+    }
+
+    // Финальный экран после всех шагов простой оптимизации
+    if (state.simpleDone != null) {
+        SimpleDoneDialog(
+            completedCount = state.simpleDone.first,
+            totalCount = state.simpleDone.second,
+            onRate = { openRateApp(context) },
+            onDonate = { openWebView(context, "https://yoomoney.ru/to/410011379195150", "ЮMoney") },
+            onClose = { vm.closeSimpleMode() }
+        )
+    }
+    // Подтверждение выбранного уровня — даёт время прочитать
+    if (state.showLevelConfirm && state.selectedLevel != null) {
+        LevelConfirmDialog(
+            level = state.selectedLevel,
+            onConfirm = { vm.confirmLevelStart() },
+            onCancel = { vm.cancelLevelConfirm() }
+        )
+    }
     // Карточка Shizuku — показывается при нажатии «Оптимизировать»,
-    // если Shizuku недоступен. Повторяется при каждом нажатии, пока не станет доступен.
+    // если Shizuku недоступен. Повторяется при каждом нажатии.
     if (state.showShizukuDialog) {
         ShizukuGuideDialog(
             status = state.shizukuStatus,
             onInstall = { vm.shizukuDialogInstall() },
             onOpenApp = { vm.shizukuDialogOpenApp() },
+            onSources = { vm.openShizukuSources() },
             onDismiss = { vm.shizukuDialogLater() }
+        )
+    }
+
+    // Выбор альтернативного источника, если Google Play не дал установить
+    if (state.showShizukuSources) {
+        ShizukuSourcesDialog(
+            onSource = { source -> vm.installFromSource(source) },
+            onClose = { vm.closeShizukuSources() }
+        )
+    }
+
+    // Мастер пошагового запуска Shizuku
+    if (state.showShizukuWizard) {
+        ShizukuSetupWizard(
+            checkMessage = state.shizukuCheckMessage,
+            onOpenAbout = { openDeviceInfoSettings(context) },
+            onOpenDevOptions = { openDevOptionsSettings(context) },
+            onOpenShizuku = { ShizukuHelper.openShizukuApp(context) },
+            onRequestPermission = { vm.requestShizukuPermission() },
+            onCheck = { vm.wizardCheck() },
+            onSkip = { vm.wizardSkip() },
+            onClose = { vm.closeShizukuWizard() }
         )
     }
 
@@ -502,6 +588,7 @@ private fun ShizukuGuideDialog(
     status: ShizukuExecutor.Status,
     onInstall: () -> Unit,
     onOpenApp: () -> Unit,
+    onSources: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -517,13 +604,13 @@ private fun ShizukuGuideDialog(
 
         ShizukuExecutor.Status.NOT_RUNNING -> Triple(
             stringResource(R.string.shizuku_dialog_not_running),
-            stringResource(R.string.shizuku_dialog_open_app),
+            stringResource(R.string.shizuku_dialog_howto),
             onOpenApp
         )
 
         ShizukuExecutor.Status.PERMISSION_REQUIRED -> Triple(
             stringResource(R.string.shizuku_dialog_permission),
-            stringResource(R.string.shizuku_dialog_open_app),
+            stringResource(R.string.shizuku_dialog_howto),
             onOpenApp
         )
 
@@ -559,7 +646,7 @@ private fun ShizukuGuideDialog(
                 Button(
                     onClick = {
                         if (status == ShizukuExecutor.Status.NOT_INSTALLED || !isInstalled) {
-                            ShizukuHelper.openShizukuInStore(context)
+                            onInstall()
                         } else {
                             primaryAction()
                         }
@@ -578,6 +665,17 @@ private fun ShizukuGuideDialog(
                     )
                 }
                 Spacer(Modifier.height(8.dp))
+
+                // Только если Shizuku не установлен — предлагаем альтернативные магазины
+                if (status == ShizukuExecutor.Status.NOT_INSTALLED) {
+                    androidx.compose.material3.TextButton(
+                        onClick = onSources,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.shizuku_card_other_sources))
+                    }
+                }
+
                 androidx.compose.material3.TextButton(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth()
@@ -978,7 +1076,7 @@ private fun openUrl(context: Context, url: String) {
 }
 
 private fun openWebView(context: Context, url: String, title: String) {
-    AppLog.i("WebView", "opening WebView: $url")
+    AppLog.i("WebView", "opening webView: $url")
     try {
         val intent = Intent(context, WebViewActivity::class.java).apply {
             putExtra(WebViewActivity.EXTRA_URL, url)
@@ -1074,6 +1172,27 @@ private fun openDeviceInfoSettings(context: Context) {
         AppLog.i("OpenSettings", "device info settings opened")
     } catch (e: Exception) {
         AppLog.w("OpenSettings", "device info failed: ${e.message}")
+        try {
+            context.startActivity(
+                Intent(Settings.ACTION_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+        } catch (_: Exception) {
+        }
+    }
+}
+
+private fun openDevOptionsSettings(context: Context) {
+    AppLog.i("OpenSettings", "opening developer options")
+    try {
+        context.startActivity(
+            Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
+    } catch (e: Exception) {
+        AppLog.w("OpenSettings", "dev options failed: ${e.message}")
         try {
             context.startActivity(
                 Intent(Settings.ACTION_SETTINGS).apply {

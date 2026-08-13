@@ -14,6 +14,8 @@ import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationEngine
 import com.xiaohypercleaner.data.OptimizationOptions
 import com.xiaohypercleaner.data.OptimizationReport
+import com.xiaohypercleaner.data.SimpleOptimizationRunner
+import com.xiaohypercleaner.data.SimpleSteps
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
 import kotlinx.coroutines.CoroutineScope
@@ -27,6 +29,13 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
+/**
+ * Мост для передачи результатов простых шагов из Accessibility-сервиса в ViewModel.
+ */
+object SimpleStepBridge {
+    var onResult: ((Boolean) -> Unit)? = null
+}
+
 @Suppress("DEPRECATION")
 @OptIn(FlowPreview::class)
 class AdbEnablerService : AccessibilityService() {
@@ -34,6 +43,7 @@ class AdbEnablerService : AccessibilityService() {
     companion object {
         const val ACTION_START_CHAIN = "com.xiaohypercleaner.action.START_CHAIN"
         const val ACTION_RETRY_DEV = "com.xiaohypercleaner.action.RETRY_DEV"
+        const val ACTION_SIMPLE_STEP = "com.xiaohypercleaner.action.SIMPLE_STEP"
         private const val TAG = "XHC"
         private const val STEP_DELAY_MS = 1500L
         private const val OPTIMIZATION_DELAY_MS = 2000L
@@ -101,8 +111,34 @@ class AdbEnablerService : AccessibilityService() {
         when (intent?.action) {
             ACTION_START_CHAIN -> startChain()
             ACTION_RETRY_DEV -> retryDevSettings()
+            ACTION_SIMPLE_STEP -> {
+                val stepIndex = intent.getIntExtra("step_index", 0)
+                executeSimpleStep(stepIndex)
+            }
         }
         return START_NOT_STICKY
+    }
+
+    /**
+     * Выполняет один шаг простой оптимизации через Accessibility.
+     */
+    private fun executeSimpleStep(stepIndex: Int) {
+        if (stepIndex >= SimpleSteps.ALL.size) {
+            AppLog.w(TAG, "executeSimpleStep: index out of range: $stepIndex")
+            return
+        }
+        val step = SimpleSteps.ALL[stepIndex]
+        AppLog.i(TAG, "executeSimpleStep: ${step.id}")
+
+        scope.launch {
+            val runner = SimpleOptimizationRunner(this@AdbEnablerService)
+            val result = runner.executeStep(step)
+            AppLog.i(
+                TAG,
+                "executeSimpleStep: result success=${result.success}, reason=${result.reason}"
+            )
+            SimpleStepBridge.onResult?.invoke(result.success)
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
@@ -518,6 +554,7 @@ class AdbEnablerService : AccessibilityService() {
     override fun onDestroy() {
         cancelDevWatchdog()
         OverlayController.clear()
+        SimpleStepBridge.onResult = null
         scope.cancel()
         super.onDestroy()
     }

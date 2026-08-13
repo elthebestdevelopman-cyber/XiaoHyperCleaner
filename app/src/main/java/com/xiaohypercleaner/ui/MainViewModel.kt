@@ -14,9 +14,13 @@ import com.xiaohypercleaner.data.OptimizationEngine
 import com.xiaohypercleaner.data.OptimizationOptions
 import com.xiaohypercleaner.data.OptimizationReport
 import com.xiaohypercleaner.data.ShizukuExecutor
+import com.xiaohypercleaner.data.SimpleSteps
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.OverlayController
 import com.xiaohypercleaner.service.OverlayService
+import com.xiaohypercleaner.service.SimpleStepBridge
+import com.xiaohypercleaner.ui.components.OptimizationLevel
+import com.xiaohypercleaner.ui.components.SimpleStepState
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
 import com.xiaohypercleaner.util.ShizukuHelper
@@ -42,6 +46,14 @@ data class MainUiState(
     val aggressiveMode: Boolean = false,
     val showShizukuDialog: Boolean = false,
     val shizukuStatus: ShizukuExecutor.Status = ShizukuExecutor.Status.NOT_INSTALLED,
+    val showShizukuSources: Boolean = false,
+    val showShizukuWizard: Boolean = false,
+    val shizukuCheckMessage: String? = null,
+    val showLevelDialog: Boolean = false,
+    val showLevelConfirm: Boolean = false,
+    val selectedLevel: OptimizationLevel? = null,
+    val simpleStep: SimpleStepState? = null,
+    val simpleDone: Pair<Int, Int>? = null,
     val showRebootDialog: Boolean = false,
     val rebootFailed: Boolean = false,
     val restoreFailed: Boolean = false,
@@ -62,6 +74,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = app.preferencesManager
     private var flowActive = false
 
+    /** После возврата из магазина: если Shizuku так и не установлен — предложим другие источники */
+    private var pendingSourceSuggestion = false
+
     private enum class Redirect { NONE, ACCESSIBILITY, APP_INFO }
 
     private var lastRedirect = Redirect.NONE
@@ -70,8 +85,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _state = MutableStateFlow(MainUiState())
     val state: StateFlow<MainUiState> = _state.asStateFlow()
 
+    // ===== Простая оптимизация =====
+    private var simpleStepIndex = 0
+    private var simpleCompletedCount = 0
+
     init {
         AppLog.i(TAG, "init started")
+
+        // Подписываемся на результаты простых шагов от Accessibility-сервиса
+        SimpleStepBridge.onResult = { success ->
+            AppLog.i(TAG, "SimpleStepBridge result: $success")
+            onSimpleStepResult(success)
+        }
 
         viewModelScope.launch {
             prefs.isHiddenSettingsApplied.collect { applied ->
@@ -245,6 +270,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
+        // Вернулись из магазина, а Shizuku всё ещё не установлен — предлагаем другие источники
+        if (pendingSourceSuggestion) {
+            pendingSourceSuggestion = false
+            val st = ShizukuExecutor.checkStatus(app)
+            AppLog.i(TAG, "refreshStatuses: pendingSourceSuggestion, shizuku=$st")
+            if (st == ShizukuExecutor.Status.NOT_INSTALLED) {
+                _state.update { it.copy(showShizukuSources = true) }
+            }
+        }
+
         if (accessibilityJustChanged && flowActive) {
             AppLog.i(TAG, "refreshStatuses: accessibility just enabled, continuing chain")
             resetRedirectFlow()
@@ -316,55 +351,268 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i(TAG, "checkRestrictedSettingsOnResume called (no-op, handled by refreshStatuses)")
     }
 
-    // ===== Запуск потока: Shizuku приоритетен =====
+    // ===== Запуск потока: выбор уровня =====
 
-    /**
-     * Кнопка «Оптимизировать».
-     *
-     * Приоритет путей:
-     * 1. Root — обрабатывается внутри newEngine() прозрачно
-     * 2. Shizuku — если недоступен, предлагаем установить (карточка)
-     * 3. Wireless ADB — если пользователь нажал «Позже»
-     */
     fun startFlow() {
         AppLog.i(TAG, "startFlow called, isWorking=${_state.value.isWorking}")
         if (_state.value.isWorking) return
 
+        // НОВОЕ: если уже идёт простая оптимизация — не начинаем заново
+        if (_state.value.simpleStep != null || _state.value.simpleDone != null) {
+            AppLog.i(TAG, "startFlow: simple mode already active, ignoring")
+            return
+        }
+
+        _state.update { it.copy(showLevelDialog = true) }
+    }
+
+    fun onLevelChosen(level: OptimizationLevel) {
+        AppLog.i(TAG, "onLevelChosen: $level")
+        // Не запускаем сразу — даём пользователю прочитать подтверждение
+        _state.update {
+            it.copy(
+                showLevelDialog = false,
+                showLevelConfirm = true,
+                selectedLevel = level
+            )
+        }
+    }
+
+    fun confirmLevelStart() {
+        val level = _state.value.selectedLevel ?: OptimizationLevel.SIMPLE
+        AppLog.i(TAG, "confirmLevelStart: $level")
+        _state.update { it.copy(showLevelConfirm = false, selectedLevel = null) }
+        when (level) {
+            OptimizationLevel.SIMPLE -> startSimpleMode()
+            OptimizationLevel.ADVANCED -> startAdvancedFlow()
+            OptimizationLevel.EXTREME -> {
+                _state.update { it.copy(aggressiveMode = true) }
+                startAdvancedFlow()
+            }
+        }
+    }
+
+    fun cancelLevelConfirm() {
+        AppLog.i(TAG, "cancelLevelConfirm")
+        _state.update { it.copy(showLevelConfirm = false, selectedLevel = null) }
+    }
+
+    /** Продвинутый поток — текущая логика с Shizuku */
+    private fun startAdvancedFlow() {
         val status = ShizukuExecutor.checkStatus(app)
-        AppLog.i(TAG, "startFlow: shizuku status=$status")
+        AppLog.i(TAG, "startAdvancedFlow: shizuku status=$status")
 
         if (status != ShizukuExecutor.Status.AVAILABLE) {
-            // Shizuku не готов — показываем карточку с предложением
-            _state.update {
-                it.copy(showShizukuDialog = true, shizukuStatus = status)
-            }
+            _state.update { it.copy(showShizukuDialog = true, shizukuStatus = status) }
         } else {
-            // Shizuku готов — сразу к опциям
             _state.update { it.copy(showOptionsDialog = true) }
         }
     }
 
-    /** Карточка Shizuku: «Скачать» */
+    // ===== Простая оптимизация =====
+
+    fun startSimpleMode() {
+        AppLog.i(TAG, "startSimpleMode")
+        simpleStepIndex = 0
+        simpleCompletedCount = 0
+        showSimpleStep()
+    }
+
+    private fun showSimpleStep() {
+        if (simpleStepIndex >= SimpleSteps.ALL.size) {
+            _state.update {
+                it.copy(
+                    simpleStep = null,
+                    simpleDone = Pair(simpleCompletedCount, SimpleSteps.ALL.size)
+                )
+            }
+            return
+        }
+        _state.update {
+            it.copy(
+                simpleStep = SimpleStepState(
+                    stepIndex = simpleStepIndex,
+                    totalSteps = SimpleSteps.ALL.size,
+                    step = SimpleSteps.ALL[simpleStepIndex],
+                    status = SimpleStepState.Status.READY,
+                    completedCount = simpleCompletedCount
+                ),
+                simpleDone = null
+            )
+        }
+    }
+
+    fun startCurrentSimpleStep() {
+        AppLog.i(TAG, "startCurrentSimpleStep: index=$simpleStepIndex")
+        _state.update {
+            it.copy(simpleStep = it.simpleStep?.copy(status = SimpleStepState.Status.WORKING))
+        }
+        val intent = Intent(app, AdbEnablerService::class.java).apply {
+            action = AdbEnablerService.ACTION_SIMPLE_STEP
+            putExtra("step_index", simpleStepIndex)
+        }
+        app.startService(intent)
+    }
+
+    fun onSimpleStepResult(success: Boolean) {
+        AppLog.i(TAG, "onSimpleStepResult: success=$success")
+        if (success) {
+            simpleCompletedCount++
+            _state.update {
+                it.copy(simpleStep = it.simpleStep?.copy(status = SimpleStepState.Status.SUCCESS))
+            }
+        } else {
+            _state.update {
+                it.copy(simpleStep = it.simpleStep?.copy(status = SimpleStepState.Status.FAILED))
+            }
+        }
+    }
+
+    fun nextSimpleStep() {
+        simpleStepIndex++
+        showSimpleStep()
+    }
+
+    fun skipSimpleStep() {
+        AppLog.i(TAG, "skipSimpleStep: index=$simpleStepIndex")
+        simpleStepIndex++
+        showSimpleStep()
+    }
+
+    fun closeSimpleMode() {
+        AppLog.i(TAG, "closeSimpleMode")
+        _state.update { it.copy(simpleStep = null, simpleDone = null) }
+    }
+
+    // ===== Shizuku диалоги =====
+
     fun shizukuDialogInstall() {
         AppLog.i(TAG, "shizuku dialog: install clicked")
+        pendingSourceSuggestion = true
         _state.update { it.copy(showShizukuDialog = false) }
         ShizukuHelper.openShizukuInStore(app)
     }
 
-    /** Карточка Shizuku: «Открыть» */
     fun shizukuDialogOpenApp() {
         AppLog.i(TAG, "shizuku dialog: open app clicked")
         _state.update { it.copy(showShizukuDialog = false) }
-        ShizukuHelper.openShizukuApp(app)
+        openShizukuWizard()
     }
 
-    /** Карточка Shizuku: «Позже» → обычная цепочка через wireless ADB */
+    fun openShizukuWizard() {
+        AppLog.i(TAG, "shizuku dialog: howto clicked — opening wizard")
+        _state.update {
+            it.copy(
+                showShizukuDialog = false,
+                showShizukuWizard = true,
+                shizukuCheckMessage = null
+            )
+        }
+    }
+
+    fun closeShizukuWizard() {
+        AppLog.i(TAG, "wizard: closed")
+        _state.update { it.copy(showShizukuWizard = false) }
+    }
+
+    fun wizardSkip() {
+        AppLog.i(TAG, "wizard: skip — proceeding to options dialog (wireless ADB path)")
+        _state.update {
+            it.copy(
+                showShizukuWizard = false,
+                shizukuCheckMessage = null,
+                showOptionsDialog = true
+            )
+        }
+    }
+
+    fun requestShizukuPermission() {
+        AppLog.i(TAG, "wizardRequestPermission: requesting...")
+        ShizukuExecutor.requestPermission(SHIZUKU_PERMISSION_CODE)
+    }
+
+    fun onShizukuPermissionResult(granted: Boolean) {
+        AppLog.i(TAG, "onShizukuPermissionResult: granted=$granted")
+        if (granted) {
+            _state.update {
+                it.copy(
+                    showShizukuWizard = false,
+                    shizukuCheckMessage = null,
+                    showOptionsDialog = true
+                )
+            }
+        } else {
+            _state.update {
+                it.copy(
+                    shizukuCheckMessage = app.getString(R.string.shizuku_wizard_permission_denied)
+                )
+            }
+        }
+    }
+
+    fun wizardCheck() {
+        val status = ShizukuExecutor.checkStatus(app)
+        AppLog.i(TAG, "wizardCheck: status=$status")
+        when (status) {
+            ShizukuExecutor.Status.AVAILABLE -> {
+                AppLog.i(TAG, "wizardCheck: SUCCESS — proceeding to options")
+                _state.update {
+                    it.copy(
+                        showShizukuWizard = false,
+                        shizukuCheckMessage = null,
+                        showOptionsDialog = true
+                    )
+                }
+            }
+
+            ShizukuExecutor.Status.PERMISSION_REQUIRED -> {
+                _state.update {
+                    it.copy(
+                        shizukuCheckMessage = app.getString(R.string.shizuku_wizard_step6)
+                    )
+                }
+            }
+
+            else -> {
+                _state.update {
+                    it.copy(
+                        shizukuCheckMessage = app.getString(R.string.shizuku_wizard_not_ready)
+                    )
+                }
+            }
+        }
+    }
+
+    fun openShizukuSources() {
+        AppLog.i(TAG, "shizuku dialog: other sources clicked")
+        _state.update { it.copy(showShizukuDialog = false, showShizukuSources = true) }
+    }
+
+    fun closeShizukuSources() {
+        _state.update { it.copy(showShizukuSources = false) }
+    }
+
+    fun installFromSource(source: String) {
+        AppLog.i(TAG, "sources dialog: chosen=$source")
+        pendingSourceSuggestion = true
+        _state.update { it.copy(showShizukuSources = false) }
+        when (source) {
+            "play" -> ShizukuHelper.openPlay(app)
+            "aurora" -> ShizukuHelper.openAurora(app)
+            "getapps" -> ShizukuHelper.openGetApps(app)
+            "github" -> ShizukuHelper.openGithub(app)
+            "apkpure" -> ShizukuHelper.openApkPure(app)
+        }
+    }
+
     fun shizukuDialogLater() {
         AppLog.i(TAG, "shizuku dialog: later — proceeding to options dialog")
         _state.update {
             it.copy(showShizukuDialog = false, showOptionsDialog = true)
         }
     }
+
+    // ===== Опции =====
 
     fun optionsDialogConfirmed() {
         AppLog.i(
@@ -662,5 +910,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         private const val TAG = "MainVM"
+        const val SHIZUKU_PERMISSION_CODE = 9001
     }
 }

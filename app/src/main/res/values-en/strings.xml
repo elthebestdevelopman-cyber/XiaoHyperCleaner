@@ -169,4 +169,78 @@
     <string name="shizuku_dialog_open_app">Open Shizuku</string>
     <string name="shizuku_dialog_later">Later, use wireless debugging</string>
     <string name="shizuku_attribution">Uses Shizuku API (MIT License, © Rikka)\ngithub.com/RikkaApps/Shizuku-API</string>
+
+    <!-- Alternative Shizuku sources -->
+    <string name="shizuku_card_other_sources">Google Play blocked? Other sources</string>
+    <string name="shizuku_sources_title">Download Shizuku</string>
+    <string name="shizuku_sources_text">If Google Play does not allow installation, choose another source:</string>
+    <string name="shizuku_sources_play">Google Play</string>
+    <string name="shizuku_sources_aurora">Aurora Store</string>
+    <string name="shizuku_sources_getapps">GetApps (Xiaomi)</string>
+    <string name="shizuku_sources_github">GitHub (direct APK)</string>
+    <string name="shizuku_sources_apkpure">APKPure</string>
+
+    <!-- Shizuku Setup Wizard -->
+    <string name="shizuku_dialog_howto">How to start Shizuku?</string>
+    <string name="shizuku_wizard_title">Fast optimization via Shizuku</string>
+    <string name="shizuku_wizard_intro">Shizuku allows faster optimization but requires complex setup. If it does not work — you can skip and use regular optimization.</string>
+    <string name="shizuku_wizard_skip_top">Skip and use regular optimization</string>
+    <string name="shizuku_wizard_or">or set up Shizuku:</string>
+    <string name="shizuku_wizard_step1_title">Step 1: Enable developer mode</string>
+    <string name="shizuku_wizard_step1_desc">Tap "Build number" 7 times until "You are now a developer" appears.</string>
+    <string name="shizuku_wizard_step2_title">Step 2: Enable wireless debugging</string>
+    <string name="shizuku_wizard_step2_desc">Find "Wireless debugging" and turn it on.</string>
+    <string name="shizuku_wizard_step3_title">Step 3: Get pairing code</string>
+    <string name="shizuku_wizard_step3_desc">In Wireless debugging settings tap "Pair device with pairing code" and copy the 6-digit code.</string>
+    <string name="shizuku_wizard_step4_title">Step 4: Start Shizuku</string>
+    <string name="shizuku_wizard_step4_desc">Open Shizuku, tap "Start via Wireless debugging", paste the code and tap OK.</string>
+    <string name="shizuku_wizard_step5_title">Step 5: Check readiness</string>
+    <string name="shizuku_wizard_step5_desc">Return here and tap "Check readiness".</string>
+    <string name="shizuku_wizard_open_about">Open "About phone"</string>
+    <string name="shizuku_wizard_open_dev">Open "Developer options"</string>
+    <string name="shizuku_wizard_open_shizuku">Open Shizuku</string>
+    <string name="shizuku_wizard_check">Check readiness</string>
+    <string name="shizuku_wizard_skip">Not working? Use regular optimization</string>
+    <string name="shizuku_wizard_success">Shizuku is ready!</string>
+    <string name="shizuku_wizard_not_ready">Shizuku is not running yet.\n\nIf it does not work — tap "Skip" and use regular optimization.</string>
+    <string name="shizuku_wizard_close">Close</string>
+    <string name="shizuku_wizard_step6">Allow XiaoHyperCleaner to use Shizuku.</string>
+    <string name="shizuku_wizard_request_permission">Grant Shizuku access</string>
+    <string name="shizuku_wizard_permission_granted">Permission granted!</string>
+    <string name="shizuku_wizard_permission_denied">Permission denied. Please try again.</string>
+
+    <!-- Optimization level selection -->
+    <string name="level_dialog_title">Choose optimization level</string>
+    <string name="level_dialog_text">Higher level = more changes. Simple optimization removes most ads and works for everyone.</string>
+    <string name="level_simple_title">🟢 Simple (recommended)</string>
+    <string name="level_simple_desc">No Wi-Fi or complex setup. Only toggles in phone settings. For everyone.</string>
+    <string name="level_advanced_title">🟡 Advanced</string>
+    <string name="level_advanced_desc">Requires Shizuku or wireless debugging. More features.</string>
+    <string name="level_extreme_title">🔴 Extreme</string>
+    <string name="level_extreme_desc">Everything from advanced + region change. For power users only.</string>
+
+    <!-- Simple optimization: steps -->
+    <string name="simple_step_of">Step %1$d of %2$d</string>
+    <string name="simple_step_working">Turning off…</string>
+    <string name="simple_step_success">Done! Moving to next step.</string>
+    <string name="simple_step_failed">Could not turn off automatically. Try manually or skip.</string>
+    <string name="simple_step_skip">Skip this step</string>
+    <string name="simple_step_next">Continue</string>
+    <string name="simple_step_manual">Not working? Instructions</string>
+    <string name="simple_step_manual_text">Find the "%1$s" switch on the opened screen and turn it off. Then return and tap "Continue".</string>
+
+    <!-- Simple optimization: final -->
+    <string name="simple_done_title">Optimization complete!</string>
+    <string name="simple_done_text">We turned off ads in system apps. Xiaomi will now show less ads and collect less data.\n\nIf the app helped — please rate it or support development.</string>
+    <string name="simple_done_rate">Rate the app</string>
+    <string name="simple_done_donate">Support development ☕</string>
+    <string name="simple_done_close">Close</string>
+    <string name="simple_done_steps_done">Steps done: %1$d of %2$d</string>
+    <string name="level_confirm_simple_title">Simple optimization</string>
+    <string name="level_confirm_simple_text">The app will automatically turn off switches in phone settings (ads, recommendations, telemetry). You just tap "Continue" at each step. No Wi-Fi or complex setup required.</string>
+    <string name="level_confirm_advanced_title">Advanced optimization</string>
+    <string name="level_confirm_advanced_text">Requires Shizuku or wireless debugging. The app will apply more settings: system services, performance parameters, DNS filter. All changes are reversible.</string>
+    <string name="level_confirm_extreme_title">Extreme optimization</string>
+    <string name="level_confirm_extreme_text">Everything from advanced + region change for maximum ad removal. May affect OTA updates and Mi services. For power users only.</string>
+    <string name="level_confirm_start">Start</string>
 </resources>

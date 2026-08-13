@@ -2,11 +2,13 @@ package com.xiaohypercleaner.data
 
 import android.content.Context
 import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.LogMasker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
+import rikka.shizuku.ShizukuRemoteProcess
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.lang.reflect.Method
@@ -33,13 +35,6 @@ class ShizukuExecutor : AdbExecutor {
             }
         }
 
-        /**
-         * Правильный порядок проверки (фикс карточки):
-         * 1. Пакет не установлен → NOT_INSTALLED → карточка «Скачать Shizuku»
-         * 2. Установлен, сервис не запущен → NOT_RUNNING → «Открыть и запустить»
-         * 3. Запущен, нет разрешения → PERMISSION_REQUIRED → «Разрешить»
-         * 4. Готово → AVAILABLE
-         */
         fun checkStatus(context: Context): Status {
             if (!isInstalled(context)) {
                 AppLog.i(TAG, "checkStatus: NOT_INSTALLED (package not found)")
@@ -59,6 +54,19 @@ class ShizukuExecutor : AdbExecutor {
             } catch (e: Throwable) {
                 AppLog.w(TAG, "checkStatus: binder error → NOT_RUNNING: ${e.message}")
                 Status.NOT_RUNNING
+            }
+        }
+
+        /**
+         * Запрашивает разрешение у Shizuku для нашего приложения.
+         * Это ОБЯЗАТЕЛЬНЫЙ шаг: без него pingBinder() вернёт false.
+         */
+        fun requestPermission(requestCode: Int) {
+            AppLog.i(TAG, "requestPermission: requestCode=$requestCode")
+            try {
+                Shizuku.requestPermission(requestCode)
+            } catch (e: Throwable) {
+                AppLog.e(TAG, "requestPermission failed: ${e.message}")
             }
         }
 
@@ -107,9 +115,7 @@ class ShizukuExecutor : AdbExecutor {
             val stripped = command.trim().removePrefix("shell ")
             val cmd = arrayOf("sh", "-c", stripped)
 
-            // Приводим к java.lang.Process — это базовый класс ShizukuRemoteProcess,
-            // не требует дополнительного импорта и всегда доступен
-            val process = method.invoke(null, cmd, null, null) as? Process
+            val process = method.invoke(null, cmd, null, null) as? ShizukuRemoteProcess
                 ?: throw AdbException("Shizuku.newProcess returned null")
 
             val reader = BufferedReader(InputStreamReader(process.inputStream))

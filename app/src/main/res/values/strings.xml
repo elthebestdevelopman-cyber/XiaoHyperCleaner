@@ -171,4 +171,79 @@
     <string name="shizuku_dialog_open_app">Открыть Shizuku</string>
     <string name="shizuku_dialog_later">Позже, использовать беспроводную отладку</string>
     <string name="shizuku_attribution">Используется Shizuku API (MIT License, © Rikka)\ngithub.com/RikkaApps/Shizuku-API</string>
+
+    <!-- Альтернативные источники Shizuku -->
+    <string name="shizuku_card_other_sources">Google Play не даёт? Другие источники</string>
+    <string name="shizuku_sources_title">Скачать Shizuku</string>
+    <string name="shizuku_sources_text">Если Google Play не разрешает установку, выберите другой источник:</string>
+    <string name="shizuku_sources_play">Google Play</string>
+    <string name="shizuku_sources_aurora">Aurora Store</string>
+    <string name="shizuku_sources_getapps">GetApps (Xiaomi)</string>
+    <string name="shizuku_sources_github">GitHub (APK напрямую)</string>
+    <string name="shizuku_sources_apkpure">APKPure</string>
+
+    <!-- Мастер настройки Shizuku -->
+    <string name="shizuku_dialog_howto">Как запустить Shizuku?</string>
+    <string name="shizuku_wizard_title">Быстрая оптимизация через Shizuku</string>
+    <string name="shizuku_wizard_intro">Shizuku позволяет оптимизировать устройство быстрее, но требует сложной настройки. Если не получится — можно пропустить и использовать обычную оптимизацию.</string>
+    <string name="shizuku_wizard_skip_top">Пропустить и использовать обычную оптимизацию</string>
+    <string name="shizuku_wizard_or">или настройте Shizuku:</string>
+    <string name="shizuku_wizard_step1_title">Шаг 1: Включите режим разработчика</string>
+    <string name="shizuku_wizard_step1_desc">В открывшемся окне нажимайте "Номер сборки" 7 раз, пока не появится надпись "Вы стали разработчиком".</string>
+    <string name="shizuku_wizard_step2_title">Шаг 2: Включите беспроводную отладку</string>
+    <string name="shizuku_wizard_step2_desc">Найдите "Беспроводная отладка" и включите переключатель.</string>
+    <string name="shizuku_wizard_step3_title">Шаг 3: Получите код сопряжения</string>
+    <string name="shizuku_wizard_step3_desc">В настройках беспроводной отладки нажмите "Сопрячь устройство с помощью кода" и скопируйте 6-значный код.</string>
+    <string name="shizuku_wizard_step4_title">Шаг 4: Запустите Shizuku</string>
+    <string name="shizuku_wizard_step4_desc">Откройте Shizuku, нажмите "Start via Wireless debugging", вставьте код и нажмите OK.</string>
+    <string name="shizuku_wizard_step5_title">Шаг 5: Проверьте готовность</string>
+    <string name="shizuku_wizard_step5_desc">Вернитесь сюда и нажмите "Проверить готовность".</string>
+    <string name="shizuku_wizard_open_about">Открыть "О телефоне"</string>
+    <string name="shizuku_wizard_open_dev">Открыть "Для разработчиков"</string>
+    <string name="shizuku_wizard_open_shizuku">Открыть Shizuku</string>
+    <string name="shizuku_wizard_check">Проверить готовность</string>
+    <string name="shizuku_wizard_skip">Не получается? Использовать обычную оптимизацию</string>
+    <string name="shizuku_wizard_success">Shizuku готов!</string>
+    <string name="shizuku_wizard_not_ready">Shizuku ещё не запущен.\n\nЕсли не получается — нажмите "Пропустить" и используйте обычную оптимизацию.</string>
+    <string name="shizuku_wizard_close">Закрыть</string>
+    <string name="shizuku_wizard_step6">Разрешите XiaoHyperCleaner использовать Shizuku.</string>
+    <string name="shizuku_wizard_request_permission">Разрешить доступ к Shizuku</string>
+    <string name="shizuku_wizard_permission_granted">Разрешение получено!</string>
+    <string name="shizuku_wizard_permission_denied">Разрешение не дано. Попробуйте снова.</string>
+
+    <!-- Выбор уровня оптимизации -->
+    <string name="level_dialog_title">Выберите уровень оптимизации</string>
+    <string name="level_dialog_text">Чем выше уровень — тем больше настроек меняется. Простая оптимизация справится с большинством рекламы и подойдёт всем.</string>
+    <string name="level_simple_title">🟢 Простая (рекомендуется)</string>
+    <string name="level_simple_desc">Без Wi-Fi и сложных настроек. Только переключатели в настройках телефона. Для всех.</string>
+    <string name="level_advanced_title">🟡 Продвинутая</string>
+    <string name="level_advanced_desc">Требует Shizuku или беспроводную отладку. Больше возможностей.</string>
+    <string name="level_extreme_title">🔴 Экстрим</string>
+    <string name="level_extreme_desc">Всё из продвинутой + смена региона. Только для опытных пользователей.</string>
+
+    <!-- Простая оптимизация: шаги -->
+    <string name="simple_step_of">Шаг %1$d из %2$d</string>
+    <string name="simple_step_working">Отключаем…</string>
+    <string name="simple_step_success">Готово! Переходим к следующему.</string>
+    <string name="simple_step_failed">Не удалось отключить автоматически. Попробуйте вручную или пропустите.</string>
+    <string name="simple_step_skip">Пропустить этот шаг</string>
+    <string name="simple_step_next">Продолжить</string>
+    <string name="simple_step_manual">Не получается? Инструкция</string>
+    <string name="simple_step_manual_text">Найдите переключатель «%1$s» на открывшемся экране и выключите его. Затем вернитесь и нажмите «Продолжить».</string>
+
+    <!-- Финал простой оптимизации -->
+    <string name="simple_done_title">Оптимизация завершена!</string>
+    <string name="simple_done_text">Мы отключили рекламу в системных приложениях. Теперь Xiaomi будет показывать меньше рекламы и собирать меньше данных.\n\nЕсли приложение помогло — поддержите разработку или оставьте отзыв.</string>
+    <string name="simple_done_rate">Оценить приложение</string>
+    <string name="simple_done_donate">Поддержать на чай ☕</string>
+    <string name="simple_done_close">Закрыть</string>
+    <string name="simple_done_steps_done">Выполнено шагов: %1$d из %2$d</string>
+    <!-- Подтверждение уровня -->
+    <string name="level_confirm_simple_title">Простая оптимизация</string>
+    <string name="level_confirm_simple_text">Приложение автоматически выключит переключатели в настройках телефона (реклама, рекомендации, телеметрия). Вам нужно будет только нажимать «Продолжить» на каждом шаге. Без Wi-Fi и сложных настроек.</string>
+    <string name="level_confirm_advanced_title">Продвинутая оптимизация</string>
+    <string name="level_confirm_advanced_text">Потребуется Shizuku или беспроводная отладка. Приложение применит больше настроек: системные сервисы, параметры производительности, DNS-фильтр. Все изменения обратимы.</string>
+    <string name="level_confirm_extreme_title">Экстрим оптимизация</string>
+    <string name="level_confirm_extreme_text">Всё из продвинутой + смена региона для максимального удаления рекламы. Может повлиять на OTA-обновления и Mi-сервисы. Только для опытных пользователей.</string>
+    <string name="level_confirm_start">Начать</string>
 </resources>
