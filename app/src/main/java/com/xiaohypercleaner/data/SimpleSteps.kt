@@ -1,15 +1,12 @@
-// app/src/main/java/com/xiaohypercleaner/data/SimpleSteps.kt
-
 package com.xiaohypercleaner.data
 
 import android.content.Intent
-import android.net.Uri
 
 /**
  * Шаги простой оптимизации — только переключение тумблеров через UI.
  * Не требует ADB, Shizuku, root. Только Accessibility Service.
  *
- * Работает на MIUI 12-14 и HyperOS.
+ * Работает на MIUI 12-14 и HyperOS (Xiaomi, Redmi, Poco).
  */
 object SimpleSteps {
 

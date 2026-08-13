@@ -92,7 +92,6 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
 
     /**
      * Ищет Switch/Toggle по любому из текстов.
-     * Сначала ищет Switch в родителе текста, потом по классу.
      */
     private fun findSwitchNode(texts: List<String>): AccessibilityNodeInfo? {
         val root = service.rootInActiveWindow ?: return null
@@ -100,12 +99,10 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
             for (text in texts) {
                 val nodes = root.findAccessibilityNodeInfosByText(text)
                 for (node in nodes) {
-                    // Ищем Switch/CheckBox/Toggle в родителе
                     val switch = findSwitchInHierarchy(node)
                     if (switch != null) return switch
                 }
             }
-            // Fallback: ищем по классу Switch
             findByClassName(root, "Switch") ?: findByClassName(root, "Toggle")
         } finally {
             // root не recycle на Android 11+
@@ -123,7 +120,6 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
             ) {
                 return current
             }
-            // Ищем Switch среди соседей
             val parent = current.parent ?: break
             for (i in 0 until parent.childCount) {
                 val child = parent.getChild(i) ?: continue
@@ -142,7 +138,6 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         root: AccessibilityNodeInfo,
         className: String
     ): AccessibilityNodeInfo? {
-        // DFS по дереву
         val stack = ArrayDeque<AccessibilityNodeInfo>()
         stack.addLast(root)
         var visited = 0

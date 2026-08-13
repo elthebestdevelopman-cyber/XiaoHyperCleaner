@@ -86,12 +86,10 @@ import com.xiaohypercleaner.ui.components.InfoDialog
 import com.xiaohypercleaner.ui.components.LevelConfirmDialog
 import com.xiaohypercleaner.ui.components.MenuDialog
 import com.xiaohypercleaner.ui.components.OptimizationLevelDialog
-import com.xiaohypercleaner.ui.components.OptimizationLevel
 import com.xiaohypercleaner.ui.components.ShizukuSetupWizard
 import com.xiaohypercleaner.ui.components.ShizukuSourcesDialog
-import com.xiaohypercleaner.ui.components.SimpleStepScreen
 import com.xiaohypercleaner.ui.components.SimpleDoneDialog
-import com.xiaohypercleaner.ui.components.SimpleStepState
+import com.xiaohypercleaner.ui.components.SimpleStepScreen
 import com.xiaohypercleaner.ui.theme.Blue500
 import com.xiaohypercleaner.ui.theme.DarkGradientEnd
 import com.xiaohypercleaner.ui.theme.DarkGradientStart
@@ -235,12 +233,22 @@ private fun MainContent(
 
     AppLog.i("MainUI", "MainContent composed: state=$state")
 
-    // Диалог выбора уровня оптимизации — самое первое что показывается при нажатии "Оптимизировать"
+    // ===== ПРОСТОЙ РЕЖИМ: выбор уровня =====
     if (state.showLevelDialog) {
         OptimizationLevelDialog(
             onChoose = { level -> vm.onLevelChosen(level) }
         )
     }
+
+    // Подтверждение выбранного уровня — даёт время прочитать
+    if (state.showLevelConfirm && state.selectedLevel != null) {
+        LevelConfirmDialog(
+            level = state.selectedLevel,
+            onConfirm = { vm.confirmLevelStart() },
+            onCancel = { vm.cancelLevelConfirm() }
+        )
+    }
+
     // Экран текущего шага простой оптимизации
     if (state.simpleStep != null) {
         SimpleStepScreen(
@@ -263,16 +271,8 @@ private fun MainContent(
             onClose = { vm.closeSimpleMode() }
         )
     }
-    // Подтверждение выбранного уровня — даёт время прочитать
-    if (state.showLevelConfirm && state.selectedLevel != null) {
-        LevelConfirmDialog(
-            level = state.selectedLevel,
-            onConfirm = { vm.confirmLevelStart() },
-            onCancel = { vm.cancelLevelConfirm() }
-        )
-    }
-    // Карточка Shizuku — показывается при нажатии «Оптимизировать»,
-    // если Shizuku недоступен. Повторяется при каждом нажатии.
+
+    // ===== SHIZUKU диалоги =====
     if (state.showShizukuDialog) {
         ShizukuGuideDialog(
             status = state.shizukuStatus,
@@ -305,6 +305,7 @@ private fun MainContent(
         )
     }
 
+    // ===== ПРОДВИНУТЫЙ РЕЖИМ: разрешения =====
     if (state.showRestrictedDialog) {
         val isAndroid14Plus = Build.VERSION.SDK_INT >= 34
         InfoDialog(
@@ -1076,7 +1077,7 @@ private fun openUrl(context: Context, url: String) {
 }
 
 private fun openWebView(context: Context, url: String, title: String) {
-    AppLog.i("WebView", "opening webView: $url")
+    AppLog.i("WebView", "opening WebView: $url")
     try {
         val intent = Intent(context, WebViewActivity::class.java).apply {
             putExtra(WebViewActivity.EXTRA_URL, url)

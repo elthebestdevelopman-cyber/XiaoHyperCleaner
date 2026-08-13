@@ -3,100 +3,82 @@
     <string name="app_name">XiaoHyperCleaner</string>
     <string name="splash_tagline">No root. No bloat. No data.</string>
 
-    <!-- Main buttons -->
     <string name="btn_optimize">Optimize</string>
     <string name="btn_restore">Undo optimization</string>
     <string name="reboot_now">Reboot</string>
 
-    <!-- Menu -->
     <string name="menu_about">About</string>
     <string name="menu_dark_theme">Dark theme</string>
     <string name="close">Close</string>
     <string name="cancel">Cancel</string>
     <string name="allow">Continue</string>
 
-    <!-- About -->
     <string name="about_title">About</string>
     <string name="about_version">Version 1.0</string>
     <string name="about_author">Author: ElthebestDevelopman</string>
     <string name="about_text">A configuration tool for Xiaomi, Redmi and Poco devices. Applies optimizing MIUI / HyperOS parameters via local ADB. All changes are reversible. Results depend on the device model and firmware version.</string>
 
-    <!-- Support -->
     <string name="support_title">Support development:</string>
     <string name="support_yoomoney">Support (YooMoney)</string>
     <string name="support_cloudtips">Support (CloudTips)</string>
     <string name="rate_app">Rate the app</string>
     <string name="log_share">Share log</string>
 
-    <!-- App description (safe for moderation) -->
     <string name="app_description_short">Safe optimization for Xiaomi, Redmi, Poco. Configures system services and performance parameters.</string>
     <string name="features_title">What the app does</string>
     <string name="feature_processes">Optimizes system services</string>
     <string name="feature_speed">Applies MIUI / HyperOS performance parameters</string>
     <string name="feature_battery">Works without root access</string>
 
-    <!-- Optimization options dialog -->
     <string name="options_dialog_title">Optimization options</string>
     <string name="options_dialog_text">The app will apply optimizing MIUI / HyperOS parameters and configure system services. All changes are reversible — you can undo them at any time.</string>
     <string name="options_dialog_start">Start optimization</string>
 
-    <!-- DNS option -->
     <string name="dns_option_title">DNS filter</string>
     <string name="dns_option_description">Uses AdGuard DNS to filter unwanted domains at the DNS level. May slightly affect internet speed.</string>
 
-    <!-- Aggressive mode -->
     <string name="aggressive_option_title">Advanced mode</string>
     <string name="aggressive_option_description">Changes additional system parameters. May affect OTA updates and Mi services. Recommended for advanced users only.</string>
 
-    <!-- DNS warning -->
     <string name="dns_warning_title">Warning: DNS filter</string>
     <string name="dns_warning_text">Changing DNS may affect internet speed. In rare cases, some websites or apps may load slower or fail to open.\n\nIf you notice internet issues after optimization, just undo the optimization — DNS will return to its original settings.\n\nContinue with DNS filter?</string>
     <string name="dns_warning_accept">Understood, continue</string>
 
-    <!-- Accessibility service dialog -->
     <string name="accessibility_explanation_title">Accessibility service</string>
     <string name="accessibility_explanation_text">To set up the app automatically, enable the "XiaoHyperCleaner" service in the Accessibility menu. It is usually located in the "Downloaded apps / Installed services" submenu.\n\nAfter tapping "Enable", a list of services will open — find "XiaoHyperCleaner", turn on the switch and confirm the system warning.</string>
     <string name="agree_and_open">Enable</string>
 
-    <!-- Overlay permission dialog -->
     <string name="overlay_permission_title">Display over other apps</string>
     <string name="overlay_permission_text">This permission is needed to show progress. The switch will be enabled automatically — just confirm the action.</string>
 
-    <!-- Restricted settings dialog for Android 13 -->
     <string name="restricted_dialog_title">Additional permission required</string>
     <string name="restricted_dialog_text">Android is blocking the service because the app was not installed from a store.\n\nTo continue:\n\n1. Tap the button below ("Open app settings")\n2. In the opened window, scroll all the way down and find "Restricted settings"\n3. Allow access by toggling the switch\n4. If there is no such item at the bottom, tap ⋮ (three dots) in the top right corner — it will be there\n5. Return to the app</string>
     <string name="restricted_dialog_open">Open app settings</string>
 
-    <!-- Forbidden settings dialog for Android 14+ -->
     <string name="forbidden_dialog_title">Additional permission required</string>
     <string name="forbidden_dialog_text">Android is blocking the service because the app was not installed from a store.\n\nTo continue:\n\n1. Tap the button below ("Open app settings")\n2. In the opened window, scroll all the way down and find "Forbidden settings"\n3. Allow access by toggling the switch\n4. If there is no such item at the bottom, tap ⋮ (three dots) in the top right corner — it will be there\n5. Return to the app</string>
     <string name="forbidden_dialog_open">Open app settings</string>
 
-    <!-- Statuses -->
     <string name="status_working">Working…</string>
     <string name="status_done">Optimization complete!</string>
     <string name="status_done_description">System parameters applied.</string>
 
-    <!-- Restore dialog -->
     <string name="restore_dialog_title">Undo optimization</string>
     <string name="restore_dialog_text">All parameters and services will be returned to their original state and the device will behave as before. Restore?</string>
     <string name="restore_confirm">Yes, restore</string>
     <string name="restore_failed_text">Failed to revert changes. Make sure wireless debugging is enabled and try again.</string>
 
-    <!-- Reboot dialog -->
     <string name="reboot_dialog_title">Reboot device</string>
     <string name="reboot_dialog_text">The device will be rebooted via ADB. Unsaved data may be lost. Continue?</string>
     <string name="reboot_confirm">Reboot</string>
     <string name="reboot_failed_text">Failed to send the reboot command via ADB.</string>
 
-    <!-- Final dialog -->
     <string name="final_dialog_title">Configuration complete</string>
     <string name="final_dialog_success_text">All parameters have been applied successfully. If everything works well, please leave a review — it helps other users find the app.</string>
     <string name="final_dialog_failed_text">Failed to apply all changes. Please send the log to the developer to identify the issues.</string>
     <string name="final_dialog_rate">Rate the app</string>
     <string name="final_dialog_send_log">Send log</string>
 
-    <!-- Onboarding -->
     <string name="onboarding_skip">Skip</string>
     <string name="onboarding_next">Next</string>
     <string name="onboarding_start">Get started</string>
@@ -110,7 +92,6 @@
     <string name="onboarding_page3_title">Everything is reversible</string>
     <string name="onboarding_page3_text">All changes can be undone at any time via the "Undo optimization" button. If something goes wrong, the app will automatically restore the original settings.</string>
 
-    <!-- Accessibility chain texts -->
     <string name="allow_button_ru">Разрешить</string>
     <string name="allow_button_en">Allow</string>
     <string-array name="wireless_debugging_texts">
@@ -123,7 +104,6 @@
         <item>Wi-Fi ADB</item>
     </string-array>
 
-    <!-- Overlay (safe for moderation) -->
     <string name="overlay_cancel">Cancel</string>
     <string name="overlay_preparing">Preparing…</string>
     <string name="overlay_connecting">Connecting to ADB…</string>
@@ -141,26 +121,24 @@
     <string name="overlay_clicking_allow">Tapping "Allow"…</string>
     <string name="overlay_dev_mode_required">Enable developer mode — see instructions in the app</string>
 
-    <!-- Verification errors -->
     <string name="overlay_verify_method1_failed">System settings verification failed</string>
     <string name="overlay_verify_method2_failed">Services configuration verification failed</string>
     <string name="overlay_verify_method3_failed">Performance parameters verification failed</string>
     <string name="overlay_verify_method4_failed">Process optimization verification failed</string>
     <string name="overlay_final_verification_failed">Final verification failed</string>
 
-    <!-- Developer mode dialog -->
     <string name="dev_mode_dialog_title">Developer mode required</string>
     <string name="dev_mode_dialog_text">Wireless debugging lives in "Developer options", which is currently off.\n\nEnable it once:\n\n1. Tap "Open About phone"\n2. Tap "Build number" 7 times until you see "You are now a developer"\n3. Return to the app and tap "Continue"</string>
     <string name="dev_mode_dialog_open_about">Open "About phone"</string>
     <string name="dev_mode_dialog_retry">Continue</string>
 
-    <!-- Hints over settings -->
     <string name="hint_title">Hint</string>
     <string name="hint_accessibility">In "Accessibility" find the "XiaoHyperCleaner" service ("Downloaded apps / Installed services" submenu), turn on the switch and confirm the warning.</string>
     <string name="hint_restricted">Scroll app settings all the way down and find "Restricted / Forbidden settings" — turn on the switch. If there is no such item, tap ⋮ (three dots) in the top right corner.</string>
     <string name="hint_overlay">Turn on the "Display over other apps" switch for XiaoHyperCleaner.</string>
     <string name="hint_dev">Turn on "Wireless debugging". If missing — enable "USB debugging" first, then enable wireless. Confirm all warnings.</string>
     <string name="hint_allow">Tap "Allow" in the system dialog that appears.</string>
+
     <string name="shizuku_dialog_title">Fast optimization</string>
     <string name="shizuku_dialog_not_installed">For instant optimization without Wi-Fi and permission chains, install the free Shizuku app. It takes 30 seconds and nothing else needs to be configured.</string>
     <string name="shizuku_dialog_not_running">Shizuku is installed but not running. Open it and tap "Start" — after that optimization will work without Wi-Fi.</string>
@@ -170,7 +148,6 @@
     <string name="shizuku_dialog_later">Later, use wireless debugging</string>
     <string name="shizuku_attribution">Uses Shizuku API (MIT License, © Rikka)\ngithub.com/RikkaApps/Shizuku-API</string>
 
-    <!-- Alternative Shizuku sources -->
     <string name="shizuku_card_other_sources">Google Play blocked? Other sources</string>
     <string name="shizuku_sources_title">Download Shizuku</string>
     <string name="shizuku_sources_text">If Google Play does not allow installation, choose another source:</string>
@@ -180,7 +157,6 @@
     <string name="shizuku_sources_github">GitHub (direct APK)</string>
     <string name="shizuku_sources_apkpure">APKPure</string>
 
-    <!-- Shizuku Setup Wizard -->
     <string name="shizuku_dialog_howto">How to start Shizuku?</string>
     <string name="shizuku_wizard_title">Fast optimization via Shizuku</string>
     <string name="shizuku_wizard_intro">Shizuku allows faster optimization but requires complex setup. If it does not work — you can skip and use regular optimization.</string>
@@ -209,7 +185,6 @@
     <string name="shizuku_wizard_permission_granted">Permission granted!</string>
     <string name="shizuku_wizard_permission_denied">Permission denied. Please try again.</string>
 
-    <!-- Optimization level selection -->
     <string name="level_dialog_title">Choose optimization level</string>
     <string name="level_dialog_text">Higher level = more changes. Simple optimization removes most ads and works for everyone.</string>
     <string name="level_simple_title">🟢 Simple (recommended)</string>
@@ -219,23 +194,6 @@
     <string name="level_extreme_title">🔴 Extreme</string>
     <string name="level_extreme_desc">Everything from advanced + region change. For power users only.</string>
 
-    <!-- Simple optimization: steps -->
-    <string name="simple_step_of">Step %1$d of %2$d</string>
-    <string name="simple_step_working">Turning off…</string>
-    <string name="simple_step_success">Done! Moving to next step.</string>
-    <string name="simple_step_failed">Could not turn off automatically. Try manually or skip.</string>
-    <string name="simple_step_skip">Skip this step</string>
-    <string name="simple_step_next">Continue</string>
-    <string name="simple_step_manual">Not working? Instructions</string>
-    <string name="simple_step_manual_text">Find the "%1$s" switch on the opened screen and turn it off. Then return and tap "Continue".</string>
-
-    <!-- Simple optimization: final -->
-    <string name="simple_done_title">Optimization complete!</string>
-    <string name="simple_done_text">We turned off ads in system apps. Xiaomi will now show less ads and collect less data.\n\nIf the app helped — please rate it or support development.</string>
-    <string name="simple_done_rate">Rate the app</string>
-    <string name="simple_done_donate">Support development ☕</string>
-    <string name="simple_done_close">Close</string>
-    <string name="simple_done_steps_done">Steps done: %1$d of %2$d</string>
     <string name="level_confirm_simple_title">Simple optimization</string>
     <string name="level_confirm_simple_text">The app will automatically turn off switches in phone settings (ads, recommendations, telemetry). You just tap "Continue" at each step. No Wi-Fi or complex setup required.</string>
     <string name="level_confirm_advanced_title">Advanced optimization</string>
@@ -243,4 +201,21 @@
     <string name="level_confirm_extreme_title">Extreme optimization</string>
     <string name="level_confirm_extreme_text">Everything from advanced + region change for maximum ad removal. May affect OTA updates and Mi services. For power users only.</string>
     <string name="level_confirm_start">Start</string>
+
+    <string name="simple_step_of">Step %1$d of %2$d</string>
+    <string name="simple_step_working">Turning off…</string>
+    <string name="simple_step_success">Done! Moving to next step.</string>
+    <string name="simple_step_failed">Could not turn off automatically. Try manually or skip.</string>
+    <string name="simple_step_skip">Skip this step</string>
+    <string name="simple_step_next">Continue</string>
+    <string name="simple_step_start">Turn off automatically</string>
+    <string name="simple_step_manual">Not working? Instructions</string>
+    <string name="simple_step_manual_text">Find the "%1$s" switch on the opened screen and turn it off. Then return and tap "Continue".</string>
+
+    <string name="simple_done_title">Optimization complete!</string>
+    <string name="simple_done_text">We turned off ads in system apps. Xiaomi will now show less ads and collect less data.\n\nIf the app helped — please rate it or support development.</string>
+    <string name="simple_done_rate">Rate the app</string>
+    <string name="simple_done_donate">Support development ☕</string>
+    <string name="simple_done_close">Close</string>
+    <string name="simple_done_steps_done">Steps done: %1$d of %2$d</string>
 </resources>

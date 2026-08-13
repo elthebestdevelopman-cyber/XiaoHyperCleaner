@@ -106,10 +106,6 @@ fun OptimizationLevelDialog(
     }
 }
 
-/**
- * Подтверждение выбранного уровня. Даёт пользователю время прочитать
- * что будет происходить, и осознанно нажать «Начать».
- */
 @Composable
 fun LevelConfirmDialog(
     level: OptimizationLevel,

@@ -29,9 +29,6 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-/**
- * Мост для передачи результатов простых шагов из Accessibility-сервиса в ViewModel.
- */
 object SimpleStepBridge {
     var onResult: ((Boolean) -> Unit)? = null
 }
@@ -119,9 +116,6 @@ class AdbEnablerService : AccessibilityService() {
         return START_NOT_STICKY
     }
 
-    /**
-     * Выполняет один шаг простой оптимизации через Accessibility.
-     */
     private fun executeSimpleStep(stepIndex: Int) {
         if (stepIndex >= SimpleSteps.ALL.size) {
             AppLog.w(TAG, "executeSimpleStep: index out of range: $stepIndex")

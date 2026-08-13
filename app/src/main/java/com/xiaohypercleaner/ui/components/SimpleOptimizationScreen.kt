@@ -23,9 +23,6 @@ import androidx.compose.ui.unit.dp
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.data.SimpleSteps
 
-/**
- * Состояние простого шага.
- */
 data class SimpleStepState(
     val stepIndex: Int,
     val totalSteps: Int,
@@ -36,9 +33,6 @@ data class SimpleStepState(
     enum class Status { READY, WORKING, SUCCESS, FAILED }
 }
 
-/**
- * Экран одного шага простой оптимизации.
- */
 @Composable
 fun SimpleStepScreen(
     state: SimpleStepState,
@@ -60,7 +54,6 @@ fun SimpleStepScreen(
                     .padding(20.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                // Прогресс
                 Text(
                     stringResource(R.string.simple_step_of, state.stepIndex + 1, state.totalSteps),
                     style = MaterialTheme.typography.labelMedium,
@@ -74,7 +67,6 @@ fun SimpleStepScreen(
                 )
                 Spacer(Modifier.height(16.dp))
 
-                // Заголовок и описание
                 Text(
                     if (isEnglish) state.step.titleEn else state.step.titleRu,
                     style = MaterialTheme.typography.titleMedium,
@@ -88,7 +80,6 @@ fun SimpleStepScreen(
                 )
                 Spacer(Modifier.height(20.dp))
 
-                // Действия в зависимости от статуса
                 when (state.status) {
                     SimpleStepState.Status.READY -> {
                         Button(
@@ -97,7 +88,7 @@ fun SimpleStepScreen(
                                 .fillMaxWidth()
                                 .height(52.dp),
                             shape = RoundedCornerShape(12.dp)
-                        ) { Text(stringResource(R.string.simple_step_next)) }
+                        ) { Text(stringResource(R.string.simple_step_start)) }
                     }
 
                     SimpleStepState.Status.WORKING -> {
@@ -156,9 +147,6 @@ fun SimpleStepScreen(
     }
 }
 
-/**
- * Финальный экран после всех шагов.
- */
 @Composable
 fun SimpleDoneDialog(
     completedCount: Int,
@@ -173,9 +161,12 @@ fun SimpleDoneDialog(
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 8.dp
         ) {
-            Column(modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
                 Text(
                     "🎉 " + stringResource(R.string.simple_done_title),
                     style = MaterialTheme.typography.titleLarge,
