@@ -208,40 +208,14 @@ private fun MainContent(
 
     AppLog.i("MainUI", "MainContent composed: state=$state")
 
-    // Shizuku диалог (показывается один раз)
-    val shizukuPrefs = context.getSharedPreferences("xhc_prefs", Context.MODE_PRIVATE)
-    var shizukuPromptShown by remember {
-        mutableStateOf(shizukuPrefs.getBoolean("shizuku_prompt_shown", false))
-    }
-    val shizukuStatus = remember { ShizukuExecutor.checkStatus(context) }
-
-    if (!shizukuPromptShown &&
-        shizukuStatus != ShizukuExecutor.Status.AVAILABLE &&
-        !state.isWorking &&
-        !state.showDevModeDialog &&
-        !state.showRestrictedDialog &&
-        !state.showAccessibilityDialog &&
-        !state.showOverlayDialog
-    ) {
+    // Карточка Shizuku — показывается при нажатии «Оптимизировать»,
+    // если Shizuku недоступен. Повторяется при каждом нажатии, пока не станет доступен.
+    if (state.showShizukuDialog) {
         ShizukuGuideDialog(
-            status = shizukuStatus,
-            onInstall = {
-                AppLog.i("MainUI", "shizuku dialog: install clicked")
-                ShizukuHelper.openShizukuInStore(context)
-                shizukuPrefs.edit().putBoolean("shizuku_prompt_shown", true).apply()
-                shizukuPromptShown = true
-            },
-            onOpenApp = {
-                AppLog.i("MainUI", "shizuku dialog: open app clicked")
-                ShizukuHelper.openShizukuApp(context)
-                shizukuPrefs.edit().putBoolean("shizuku_prompt_shown", true).apply()
-                shizukuPromptShown = true
-            },
-            onDismiss = {
-                AppLog.i("MainUI", "shizuku dialog: dismissed")
-                shizukuPrefs.edit().putBoolean("shizuku_prompt_shown", true).apply()
-                shizukuPromptShown = true
-            }
+            status = state.shizukuStatus,
+            onInstall = { vm.shizukuDialogInstall() },
+            onOpenApp = { vm.shizukuDialogOpenApp() },
+            onDismiss = { vm.shizukuDialogLater() }
         )
     }
 

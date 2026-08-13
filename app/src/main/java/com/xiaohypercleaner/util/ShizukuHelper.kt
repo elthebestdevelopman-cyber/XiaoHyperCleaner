@@ -6,15 +6,15 @@ import android.content.pm.PackageManager
 import android.net.Uri
 
 /**
- * Помощник для引导 пользователя через установку Shizuku.
+ * Помощник установки Shizuku.
  *
- * Shizuku 100% есть в:
+ * Shizuku 100% есть только в:
  * - Google Play (market://)
  * - F-Droid (fdroid://)
- * - GitHub (прямой APK, работает всегда)
- * - APKPure (web-зеркало)
+ * - GitHub (официальный APK, открывается в браузере на любом устройстве)
+ * - APKPure (зеркало, браузер)
  *
- * RuStore и GetApps НЕ содержат Shizuku — не используем.
+ * RuStore и GetApps НЕ содержат Shizuku — НЕ используются.
  */
 object ShizukuHelper {
 
@@ -36,10 +36,7 @@ object ShizukuHelper {
             AppLog.i("ShizukuHelper", "Shizuku NOT installed")
             false
         } catch (e: Exception) {
-            AppLog.w(
-                "ShizukuHelper",
-                "Shizuku check failed: ${e.javaClass.simpleName}: ${e.message}"
-            )
+            AppLog.w("ShizukuHelper", "Shizuku check failed: ${e.javaClass.simpleName}")
             false
         }
     }
@@ -54,31 +51,27 @@ object ShizukuHelper {
     }
 
     /**
-     * Открывает страницу Shizuku в магазине, где он 100% есть.
+     * Открывает страницу Shizuku там, где он точно есть.
      *
      * Приоритет:
-     * 1. Google Play (deep link на страницу приложения)
-     * 2. F-Droid (deep link на страницу приложения)
-     * 3. GitHub releases (APK напрямую — работает на любом устройстве)
-     * 4. APKPure web (fallback-зеркало)
+     * 1. Google Play deep link — сразу на страницу приложения
+     * 2. Google Play web — fallback
+     * 3. F-Droid deep link — если стоит F-Droid
+     * 4. GitHub releases — универсально, работает на любом устройстве
+     * 5. APKPure — последнее зеркало
      */
     fun openShizukuInStore(context: Context) {
-        AppLog.i("ShizukuHelper", "=== openShizukuInStore START ===")
+        AppLog.i("ShizukuHelper", "=== openShizukuInStore START (v3, no RuStore) ===")
 
-        // 1. Google Play
+        // 1+2. Google Play
         if (hasPackage(context, PLAY_PACKAGE)) {
-            if (tryOpen(
-                    context,
-                    "market://details?id=$SHIZUKU_PACKAGE",
-                    "Play Store deep link"
-                )
-            ) return
-            if (tryOpen(context, URL_PLAY_WEB, "Play Store web")) return
+            if (tryOpen(context, "market://details?id=$SHIZUKU_PACKAGE", "Play deep link")) return
+            if (tryOpen(context, URL_PLAY_WEB, "Play web")) return
         } else {
-            AppLog.i("ShizukuHelper", "Play Store not present")
+            AppLog.i("ShizukuHelper", "Play Store not present on device")
         }
 
-        // 2. F-Droid
+        // 3. F-Droid
         if (hasPackage(context, FDROID_PACKAGE)) {
             if (tryOpen(
                     context,
@@ -86,24 +79,17 @@ object ShizukuHelper {
                     "F-Droid deep link"
                 )
             ) return
-            if (tryOpen(
-                    context,
-                    "https://f-droid.org/packages/$SHIZUKU_PACKAGE/",
-                    "F-Droid web"
-                )
-            ) return
         } else {
-            AppLog.i("ShizukuHelper", "F-Droid not present")
+            AppLog.i("ShizukuHelper", "F-Droid not present on device")
         }
 
-        // 3. GitHub — универсальный путь (APK напрямую)
+        // 4. GitHub — официальный APK, работает всегда
         if (tryOpen(context, URL_GITHUB, "GitHub releases")) return
 
-        // 4. APKPure — последнее зеркало
+        // 5. APKPure — зеркало
         if (tryOpen(context, URL_APKPURE, "APKPure web")) return
 
-        AppLog.e("ShizukuHelper", "All store attempts failed")
-        AppLog.i("ShizukuHelper", "=== openShizukuInStore END ===")
+        AppLog.e("ShizukuHelper", "ALL store attempts failed")
     }
 
     private fun tryOpen(context: Context, uri: String, name: String): Boolean {
@@ -133,10 +119,7 @@ object ShizukuHelper {
                 false
             }
         } catch (e: Exception) {
-            AppLog.e(
-                "ShizukuHelper",
-                "openShizukuApp failed: ${e.javaClass.simpleName}: ${e.message}"
-            )
+            AppLog.e("ShizukuHelper", "openShizukuApp failed: ${e.javaClass.simpleName}")
             false
         }
     }

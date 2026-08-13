@@ -15,7 +15,7 @@ import kotlinx.coroutines.withContext
  * Ручной DI-контейнер приложения.
  * Инициализируется в XiaoHyperApp.onCreate().
  *
- * Отвечает за создание и связывание всех основных компонентов приложения:
+ * Отвечает за создание и связывание всех основных компонентов:
  * - PreferencesManager (хранилище настроек пользователя)
  * - AdbPortResolver (обнаружение портов wireless debugging через mDNS)
  * - OptimizationEngine (движок оптимизации с выбором лучшего исполнителя)
@@ -36,26 +36,33 @@ class AppDependencies(private val context: Context) {
     /**
      * Создаёт OptimizationEngine с лучшим доступным исполнителем.
      *
-     * Цепочка приоритетов (от лучшего к fallback):
-     * 1. Root (su) — мгновенно, без Wi-Fi, без цепочек разрешений
-     * 2. Shizuku (если установлен, запущен и разрешён) — мгновенно, без Wi-Fi
-     * 3. Wireless ADB (fallback) — требует Wi-Fi и цепочку разрешений
+     * Цепочка приоритетов (от самого лёгкого для пользователя к самому сложному):
      *
-     * Если все источники прав недоступны — fallback на wireless ADB.
-     * Пользователю будет предложено включить wireless debugging через цепочку.
+     * 1. Root (su) — мгновенно, ноль действий от пользователя.
+     *    Если устройство рутировано — это лучший путь.
+     *
+     * 2. Shizuku — мгновенно, требует одну установку и запуск.
+     *    Работает без Wi-Fi и без цепочек разрешений.
+     *
+     * 3. Wireless ADB — в последнюю очередь.
+     *    Требует Wi-Fi и цепочку разрешений (accessibility → overlay → dev mode).
+     *
+     * Если все источники прав недоступны — fallback на wireless ADB,
+     * пользователю будет предложена цепочка с карточками-подсказками.
      */
     suspend fun newEngine(): OptimizationEngine = withContext(Dispatchers.IO) {
         return@withContext try {
             // Приоритет 1: root — лучший путь если устройство рутировано
             if (RootExecutor.isAvailable()) {
-                AppLog.i("AppDeps", "newEngine: using ROOT (best path)")
+                AppLog.i("AppDeps", "newEngine: using ROOT (best path, zero user actions)")
                 return@withContext OptimizationEngine(RootExecutor())
             }
+            AppLog.i("AppDeps", "newEngine: root not available")
 
             // Приоритет 2: Shizuku — быстрый путь без Wi-Fi
-            val shizukuStatus = ShizukuExecutor.checkStatus()
+            val shizukuStatus = ShizukuExecutor.checkStatus(context)
             if (shizukuStatus == ShizukuExecutor.Status.AVAILABLE) {
-                AppLog.i("AppDeps", "newEngine: using Shizuku")
+                AppLog.i("AppDeps", "newEngine: using Shizuku (no Wi-Fi needed)")
                 return@withContext OptimizationEngine(ShizukuExecutor())
             }
             AppLog.i("AppDeps", "newEngine: Shizuku=$shizukuStatus, not available")

@@ -13,11 +13,13 @@ import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationEngine
 import com.xiaohypercleaner.data.OptimizationOptions
 import com.xiaohypercleaner.data.OptimizationReport
+import com.xiaohypercleaner.data.ShizukuExecutor
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.OverlayController
 import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
+import com.xiaohypercleaner.util.ShizukuHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,6 +40,8 @@ data class MainUiState(
     val showRestrictedDialog: Boolean = false,
     val dnsFilterEnabled: Boolean = false,
     val aggressiveMode: Boolean = false,
+    val showShizukuDialog: Boolean = false,
+    val shizukuStatus: ShizukuExecutor.Status = ShizukuExecutor.Status.NOT_INSTALLED,
     val showRebootDialog: Boolean = false,
     val rebootFailed: Boolean = false,
     val restoreFailed: Boolean = false,
@@ -58,7 +62,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = app.preferencesManager
     private var flowActive = false
 
-    // Машина состояний автопереходов при блокировке службы
     private enum class Redirect { NONE, ACCESSIBILITY, APP_INFO }
 
     private var lastRedirect = Redirect.NONE
@@ -141,7 +144,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ===== Метки для машины автопереходов (вызывает MainActivity) =====
+    // ===== Метки для машины автопереходов =====
 
     fun markAccessibilityOpened() {
         lastRedirect = Redirect.ACCESSIBILITY
@@ -170,7 +173,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Пользователю сказали «нет доступа» — сразу кидаем в настройки приложения с карточкой */
     private fun openAppInfoWithHint() {
         AppLog.i(TAG, "auto-redirect: opening app info with hint card")
         try {
@@ -186,7 +188,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Вернулся из настроек приложения — снова кидаем в установленные службы с карточкой */
     private fun openAccessibilityWithHint() {
         AppLog.i(TAG, "auto-redirect: opening accessibility services with hint card")
         val component = ComponentName(app, AdbEnablerService::class.java).flattenToString()
@@ -244,7 +245,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
-        // Служба включилась — продолжаем цепочку, сбрасываем автопереходы
         if (accessibilityJustChanged && flowActive) {
             AppLog.i(TAG, "refreshStatuses: accessibility just enabled, continuing chain")
             resetRedirectFlow()
@@ -260,11 +260,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        // ===== Служба НЕ включилась после попытки — машина автопереходов =====
         if (!acc && prevState.accessibilityAttempts > 0 && flowActive) {
             AppLog.i(TAG, "refreshStatuses: accessibility not enabled after attempt")
             when {
-                // Пришли из спец.возможностей без включения = получили «нет доступа»
                 lastRedirect == Redirect.ACCESSIBILITY && !restrictedFlowStarted -> {
                     AppLog.i(TAG, "refreshStatuses: denied — auto-redirect to app info")
                     restrictedFlowStarted = true
@@ -272,7 +270,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     openAppInfoWithHint()
                 }
 
-                // Пришли из настроек приложения — разрешено или нет, снова в службы
                 lastRedirect == Redirect.APP_INFO -> {
                     AppLog.i(
                         TAG,
@@ -282,7 +279,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     openAccessibilityWithHint()
                 }
 
-                // Предохранитель: объясняем диалогом внутри приложения
                 else -> {
                     AppLog.i(TAG, "refreshStatuses: loop breaker — showing restricted dialog")
                     _state.update {
@@ -320,10 +316,54 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i(TAG, "checkRestrictedSettingsOnResume called (no-op, handled by refreshStatuses)")
     }
 
+    // ===== Запуск потока: Shizuku приоритетен =====
+
+    /**
+     * Кнопка «Оптимизировать».
+     *
+     * Приоритет путей:
+     * 1. Root — обрабатывается внутри newEngine() прозрачно
+     * 2. Shizuku — если недоступен, предлагаем установить (карточка)
+     * 3. Wireless ADB — если пользователь нажал «Позже»
+     */
     fun startFlow() {
         AppLog.i(TAG, "startFlow called, isWorking=${_state.value.isWorking}")
         if (_state.value.isWorking) return
-        _state.update { it.copy(showOptionsDialog = true) }
+
+        val status = ShizukuExecutor.checkStatus(app)
+        AppLog.i(TAG, "startFlow: shizuku status=$status")
+
+        if (status != ShizukuExecutor.Status.AVAILABLE) {
+            // Shizuku не готов — показываем карточку с предложением
+            _state.update {
+                it.copy(showShizukuDialog = true, shizukuStatus = status)
+            }
+        } else {
+            // Shizuku готов — сразу к опциям
+            _state.update { it.copy(showOptionsDialog = true) }
+        }
+    }
+
+    /** Карточка Shizuku: «Скачать» */
+    fun shizukuDialogInstall() {
+        AppLog.i(TAG, "shizuku dialog: install clicked")
+        _state.update { it.copy(showShizukuDialog = false) }
+        ShizukuHelper.openShizukuInStore(app)
+    }
+
+    /** Карточка Shizuku: «Открыть» */
+    fun shizukuDialogOpenApp() {
+        AppLog.i(TAG, "shizuku dialog: open app clicked")
+        _state.update { it.copy(showShizukuDialog = false) }
+        ShizukuHelper.openShizukuApp(app)
+    }
+
+    /** Карточка Shizuku: «Позже» → обычная цепочка через wireless ADB */
+    fun shizukuDialogLater() {
+        AppLog.i(TAG, "shizuku dialog: later — proceeding to options dialog")
+        _state.update {
+            it.copy(showShizukuDialog = false, showOptionsDialog = true)
+        }
     }
 
     fun optionsDialogConfirmed() {

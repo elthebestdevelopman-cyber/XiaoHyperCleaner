@@ -13,7 +13,6 @@ import java.lang.reflect.Method
 
 /**
  * Реализация AdbExecutor через Shizuku API (MIT License).
- * Выполняет shell-команды с правами shell без wireless debugging и Wi-Fi.
  */
 class ShizukuExecutor : AdbExecutor {
 
@@ -23,7 +22,6 @@ class ShizukuExecutor : AdbExecutor {
         private const val MAX_RESPONSE_SIZE = 10 * 1024 * 1024
         private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
 
-        /** Проверяет установлен ли пакет Shizuku */
         fun isInstalled(context: Context): Boolean {
             return try {
                 context.packageManager.getPackageInfo(SHIZUKU_PACKAGE, 0)
@@ -36,11 +34,11 @@ class ShizukuExecutor : AdbExecutor {
         }
 
         /**
-         * Корректное определение статуса (исправлен баг карточки):
-         * 1. Пакет НЕ установлен → NOT_INSTALLED (карточка «Скачать»)
-         * 2. Установлен, но сервис не запущен → NOT_RUNNING (карточка «Запустить»)
-         * 3. Запущен, но нет разрешения → PERMISSION_REQUIRED (карточка «Разрешить»)
-         * 4. Всё готово → AVAILABLE
+         * Правильный порядок проверки (фикс карточки):
+         * 1. Пакет не установлен → NOT_INSTALLED → карточка «Скачать Shizuku»
+         * 2. Установлен, сервис не запущен → NOT_RUNNING → «Открыть и запустить»
+         * 3. Запущен, нет разрешения → PERMISSION_REQUIRED → «Разрешить»
+         * 4. Готово → AVAILABLE
          */
         fun checkStatus(context: Context): Status {
             if (!isInstalled(context)) {
@@ -64,10 +62,6 @@ class ShizukuExecutor : AdbExecutor {
             }
         }
 
-        /**
-         * Получаем приватный метод newProcess через reflection.
-         * В Shizuku 13.1.5 этот метод private, но сигнатура стабильна.
-         */
         private val newProcessMethod: Method? by lazy {
             try {
                 Shizuku::class.java.getDeclaredMethod(
@@ -77,7 +71,7 @@ class ShizukuExecutor : AdbExecutor {
                     String::class.java
                 ).apply { isAccessible = true }
             } catch (e: Throwable) {
-                AppLog.e(TAG, "Failed to obtain Shizuku.newProcess method: ${e.message}")
+                AppLog.e(TAG, "Failed to obtain Shizuku.newProcess: ${e.message}")
                 null
             }
         }
@@ -106,16 +100,16 @@ class ShizukuExecutor : AdbExecutor {
         val maskedCmd = LogMasker.mask(command)
         AppLog.i(TAG, "executeCommand: $maskedCmd")
 
-        val method =
-            newProcessMethod ?: throw AdbException("Shizuku.newProcess method not available")
+        val method = newProcessMethod
+            ?: throw AdbException("Shizuku.newProcess method not available")
 
         try {
             val stripped = command.trim().removePrefix("shell ")
-            val cmd: Array<String> = arrayOf("sh", "-c", stripped)
-            val envp: Array<String>? = null
-            val dir: String? = null
+            val cmd = arrayOf("sh", "-c", stripped)
 
-            val process = method.invoke(null, cmd, envp, dir) as? ShizukuRemoteProcess
+            // Приводим к java.lang.Process — это базовый класс ShizukuRemoteProcess,
+            // не требует дополнительного импорта и всегда доступен
+            val process = method.invoke(null, cmd, null, null) as? Process
                 ?: throw AdbException("Shizuku.newProcess returned null")
 
             val reader = BufferedReader(InputStreamReader(process.inputStream))
