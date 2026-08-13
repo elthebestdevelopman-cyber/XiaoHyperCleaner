@@ -1,12 +1,12 @@
 package com.xiaohypercleaner.data
 
+import android.content.Context
 import android.content.pm.PackageManager
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.LogMasker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
-import rikka.shizuku.ShizukuRemoteProcess
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.lang.reflect.Method
@@ -21,11 +21,52 @@ class ShizukuExecutor : AdbExecutor {
         private const val TAG = "ShizukuExec"
         private const val READ_TIMEOUT_MS = 30_000L
         private const val MAX_RESPONSE_SIZE = 10 * 1024 * 1024
+        private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
+
+        /** Проверяет установлен ли пакет Shizuku */
+        fun isInstalled(context: Context): Boolean {
+            return try {
+                context.packageManager.getPackageInfo(SHIZUKU_PACKAGE, 0)
+                true
+            } catch (_: PackageManager.NameNotFoundException) {
+                false
+            } catch (_: Exception) {
+                false
+            }
+        }
+
+        /**
+         * Корректное определение статуса (исправлен баг карточки):
+         * 1. Пакет НЕ установлен → NOT_INSTALLED (карточка «Скачать»)
+         * 2. Установлен, но сервис не запущен → NOT_RUNNING (карточка «Запустить»)
+         * 3. Запущен, но нет разрешения → PERMISSION_REQUIRED (карточка «Разрешить»)
+         * 4. Всё готово → AVAILABLE
+         */
+        fun checkStatus(context: Context): Status {
+            if (!isInstalled(context)) {
+                AppLog.i(TAG, "checkStatus: NOT_INSTALLED (package not found)")
+                return Status.NOT_INSTALLED
+            }
+            return try {
+                if (!Shizuku.pingBinder()) {
+                    AppLog.i(TAG, "checkStatus: NOT_RUNNING (binder not pingable)")
+                    Status.NOT_RUNNING
+                } else if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+                    AppLog.i(TAG, "checkStatus: AVAILABLE")
+                    Status.AVAILABLE
+                } else {
+                    AppLog.i(TAG, "checkStatus: PERMISSION_REQUIRED")
+                    Status.PERMISSION_REQUIRED
+                }
+            } catch (e: Throwable) {
+                AppLog.w(TAG, "checkStatus: binder error → NOT_RUNNING: ${e.message}")
+                Status.NOT_RUNNING
+            }
+        }
 
         /**
          * Получаем приватный метод newProcess через reflection.
-         * В Shizuku 13.1.5 этот метод private, но сигнатура стабильна:
-         * static ShizukuRemoteProcess newProcess(String[], String[], String)
+         * В Shizuku 13.1.5 этот метод private, но сигнатура стабильна.
          */
         private val newProcessMethod: Method? by lazy {
             try {
@@ -40,25 +81,6 @@ class ShizukuExecutor : AdbExecutor {
                 null
             }
         }
-
-        fun checkStatus(): Status {
-            return try {
-                if (!Shizuku.pingBinder()) {
-                    AppLog.i(TAG, "checkStatus: binder not pingable")
-                    return Status.NOT_RUNNING
-                }
-                if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
-                    AppLog.i(TAG, "checkStatus: available and granted")
-                    Status.AVAILABLE
-                } else {
-                    AppLog.i(TAG, "checkStatus: installed but not granted")
-                    Status.PERMISSION_REQUIRED
-                }
-            } catch (e: Throwable) {
-                AppLog.w(TAG, "checkStatus: Shizuku not installed: ${e.message}")
-                Status.NOT_INSTALLED
-            }
-        }
     }
 
     enum class Status {
@@ -69,8 +91,15 @@ class ShizukuExecutor : AdbExecutor {
     }
 
     override suspend fun connect(): Boolean = withContext(Dispatchers.IO) {
-        AppLog.i(TAG, "connect: checking Shizuku")
-        checkStatus() == Status.AVAILABLE
+        try {
+            val ok = Shizuku.pingBinder() &&
+                    Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+            AppLog.i(TAG, "connect: $ok")
+            ok
+        } catch (e: Throwable) {
+            AppLog.w(TAG, "connect failed: ${e.message}")
+            false
+        }
     }
 
     override suspend fun executeCommand(command: String): String = withContext(Dispatchers.IO) {
@@ -81,12 +110,11 @@ class ShizukuExecutor : AdbExecutor {
             newProcessMethod ?: throw AdbException("Shizuku.newProcess method not available")
 
         try {
-            val stripped = command.removePrefix("shell ")
+            val stripped = command.trim().removePrefix("shell ")
             val cmd: Array<String> = arrayOf("sh", "-c", stripped)
             val envp: Array<String>? = null
             val dir: String? = null
 
-            // Вызов через reflection (метод private)
             val process = method.invoke(null, cmd, envp, dir) as? ShizukuRemoteProcess
                 ?: throw AdbException("Shizuku.newProcess returned null")
 

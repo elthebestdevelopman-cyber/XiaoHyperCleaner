@@ -210,12 +210,12 @@ private fun MainContent(
 
     // Shizuku диалог (показывается один раз)
     val shizukuPrefs = context.getSharedPreferences("xhc_prefs", Context.MODE_PRIVATE)
-    val shizukuPromptShown = remember {
+    var shizukuPromptShown by remember {
         mutableStateOf(shizukuPrefs.getBoolean("shizuku_prompt_shown", false))
     }
-    val shizukuStatus = remember { ShizukuExecutor.checkStatus() }
+    val shizukuStatus = remember { ShizukuExecutor.checkStatus(context) }
 
-    if (!shizukuPromptShown.value &&
+    if (!shizukuPromptShown &&
         shizukuStatus != ShizukuExecutor.Status.AVAILABLE &&
         !state.isWorking &&
         !state.showDevModeDialog &&
@@ -229,18 +229,18 @@ private fun MainContent(
                 AppLog.i("MainUI", "shizuku dialog: install clicked")
                 ShizukuHelper.openShizukuInStore(context)
                 shizukuPrefs.edit().putBoolean("shizuku_prompt_shown", true).apply()
-                shizukuPromptShown.value = true
+                shizukuPromptShown = true
             },
             onOpenApp = {
                 AppLog.i("MainUI", "shizuku dialog: open app clicked")
                 ShizukuHelper.openShizukuApp(context)
                 shizukuPrefs.edit().putBoolean("shizuku_prompt_shown", true).apply()
-                shizukuPromptShown.value = true
+                shizukuPromptShown = true
             },
             onDismiss = {
                 AppLog.i("MainUI", "shizuku dialog: dismissed")
                 shizukuPrefs.edit().putBoolean("shizuku_prompt_shown", true).apply()
-                shizukuPromptShown.value = true
+                shizukuPromptShown = true
             }
         )
     }
