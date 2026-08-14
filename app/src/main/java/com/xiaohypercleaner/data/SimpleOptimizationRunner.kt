@@ -6,17 +6,6 @@ import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.util.AppLog
 import kotlinx.coroutines.delay
 
-/**
- * Запускает шаги SimpleSteps через Accessibility Service.
- *
- * Для каждого шага:
- * 1. Пробует все intent-ы по очереди (первый рабочий используем)
- * 2. Ищет тумблер по списку текстов
- * 3. Проверяет isChecked
- * 4. Если состояние не то что нужно — кликает
- * 5. Через 600ms проверяет снова
- * 6. Возвращает успех/неудачу
- */
 @Suppress("DEPRECATION")
 class SimpleOptimizationRunner(private val service: AccessibilityService) {
 
@@ -33,9 +22,6 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         val reason: String? = null
     )
 
-    /**
-     * Выполняет один шаг. Возвращает результат.
-     */
     suspend fun executeStep(step: SimpleSteps.Step): StepResult {
         AppLog.i(TAG, "Executing step: ${step.id}")
 
@@ -67,7 +53,7 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
 
         delay(WAIT_FOR_SCREEN_MS)
 
-        // 2. Ищем тумблер по списку текстов
+        // 2. Ищем switch
         val switchNode = findSwitchNode(step.searchTexts)
         if (switchNode == null) {
             AppLog.w(
@@ -76,7 +62,10 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
             )
             return StepResult(step.id, false, reason = "switch_not_found")
         }
-        AppLog.i(TAG, "Step ${step.id}: found switch, isChecked=${switchNode.isChecked}")
+        AppLog.i(
+            TAG,
+            "Step ${step.id}: found switch, isChecked=${switchNode.isChecked}, clickable=${switchNode.isClickable}"
+        )
 
         // 3. Проверяем состояние
         if (switchNode.isChecked == step.targetChecked) {
@@ -84,10 +73,10 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
             return StepResult(step.id, true)
         }
 
-        // 4. Кликаем
-        val clicked = switchNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        // 4. Кликаем — пробуем switch, потом parent
+        val clicked = clickSwitch(switchNode)
         if (!clicked) {
-            AppLog.w(TAG, "Step ${step.id}: click failed")
+            AppLog.w(TAG, "Step ${step.id}: all click attempts failed")
             return StepResult(step.id, false, reason = "click_failed")
         }
         AppLog.i(TAG, "Step ${step.id}: clicked")
@@ -104,6 +93,34 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
             "Step ${step.id}: new state=$newState, target=${step.targetChecked}, success=$success"
         )
         return StepResult(step.id, success, reason = if (!success) "state_not_changed" else null)
+    }
+
+    /**
+     * Пробует кликнуть switch. Если не получается — кликает parent.
+     * Это решает проблему MIUI где switch сам не кликабельный.
+     */
+    /**
+     * Пробует кликнуть switch. Если не получается — кликает parent.
+     * Это решает проблему MIUI где switch сам не кликабельный.
+     */
+    private fun clickSwitch(node: AccessibilityNodeInfo): Boolean {
+        // Пробуем кликнуть сам switch
+        if (node.isClickable) {
+            val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            if (result) return true
+        }
+
+        // Пробуем кликнуть parent (типично для MIUI)
+        val parent = node.parent
+        if (parent != null) {
+            val result = parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            if (result) {
+                AppLog.i(TAG, "clicked parent instead of switch")
+                return true
+            }
+        }
+
+        return false
     }
 
     private fun findSwitchNode(texts: List<String>): AccessibilityNodeInfo? {
