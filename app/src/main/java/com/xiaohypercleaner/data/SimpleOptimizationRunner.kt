@@ -1,6 +1,7 @@
 package com.xiaohypercleaner.data
 
 import android.accessibilityservice.AccessibilityService
+import android.content.ActivityNotFoundException
 import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.util.AppLog
 import kotlinx.coroutines.delay
@@ -9,11 +10,11 @@ import kotlinx.coroutines.delay
  * Запускает шаги SimpleSteps через Accessibility Service.
  *
  * Для каждого шага:
- * 1. Открывает нужный экран настроек через Intent
+ * 1. Пробует все intent-ы по очереди (первый рабочий используем)
  * 2. Ищет тумблер по списку текстов
  * 3. Проверяет isChecked
  * 4. Если состояние не то что нужно — кликает
- * 5. Через 500ms проверяет снова
+ * 5. Через 600ms проверяет снова
  * 6. Возвращает успех/неудачу
  */
 @Suppress("DEPRECATION")
@@ -21,10 +22,8 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
 
     companion object {
         private const val TAG = "SimpleRunner"
-        private const val WAIT_FOR_SCREEN_MS = 1200L
+        private const val WAIT_FOR_SCREEN_MS = 1500L
         private const val WAIT_AFTER_CLICK_MS = 600L
-        private const val MAX_SEARCH_ATTEMPTS = 8
-        private const val SEARCH_INTERVAL_MS = 400L
     }
 
     data class StepResult(
@@ -40,13 +39,30 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
     suspend fun executeStep(step: SimpleSteps.Step): StepResult {
         AppLog.i(TAG, "Executing step: ${step.id}")
 
-        // 1. Открываем нужный экран
-        try {
-            service.startActivity(step.intent)
-            AppLog.i(TAG, "Step ${step.id}: opened screen")
-        } catch (e: Exception) {
-            AppLog.e(TAG, "Step ${step.id}: failed to open screen: ${e.message}")
-            return StepResult(step.id, false, reason = "screen_not_opened")
+        // 1. Пробуем все intent-ы по очереди
+        var screenOpened = false
+        for (intent in step.intents) {
+            try {
+                service.startActivity(intent)
+                AppLog.i(
+                    TAG,
+                    "Step ${step.id}: opened screen with intent ${intent.action ?: intent.component}"
+                )
+                screenOpened = true
+                break
+            } catch (e: ActivityNotFoundException) {
+                AppLog.w(
+                    TAG,
+                    "Step ${step.id}: intent not found: ${intent.action ?: intent.component}"
+                )
+            } catch (e: Exception) {
+                AppLog.w(TAG, "Step ${step.id}: intent failed: ${e.message}")
+            }
+        }
+
+        if (!screenOpened) {
+            AppLog.e(TAG, "Step ${step.id}: ALL intents failed")
+            return StepResult(step.id, false, reason = "all_intents_failed")
         }
 
         delay(WAIT_FOR_SCREEN_MS)
@@ -90,9 +106,6 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         return StepResult(step.id, success, reason = if (!success) "state_not_changed" else null)
     }
 
-    /**
-     * Ищет Switch/Toggle по любому из текстов.
-     */
     private fun findSwitchNode(texts: List<String>): AccessibilityNodeInfo? {
         val root = service.rootInActiveWindow ?: return null
         return try {

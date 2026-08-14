@@ -11,7 +11,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -117,11 +116,25 @@ fun SimpleStepScreen(
                     }
 
                     SimpleStepState.Status.FAILED -> {
+                        // Показываем ручную инструкцию
                         Text(
                             "⚠️ " + stringResource(R.string.simple_step_failed),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.error
                         )
+                        Spacer(Modifier.height(12.dp))
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Text(
+                                text = if (isEnglish) state.step.manualHintEn else state.step.manualHintRu,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+
                         Spacer(Modifier.height(12.dp))
                         Button(
                             onClick = onNext,
