@@ -49,3 +49,4 @@ new-config.yaml
 .DS_Store
 Thumbs.db
 desktop.ini
+.continue/agents/new-config.yaml
