@@ -23,19 +23,9 @@ import androidx.compose.ui.unit.dp
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.data.SimpleSteps
 
-data class SimpleStepState(
-    val stepIndex: Int,
-    val totalSteps: Int,
-    val step: SimpleSteps.Step,
-    val status: Status,
-    val completedCount: Int
-) {
-    enum class Status { READY, WORKING, SUCCESS, FAILED }
-}
-
 @Composable
 fun SimpleStepScreen(
-    state: SimpleStepState,
+    state: com.xiaohypercleaner.data.SimpleStepState,
     isEnglish: Boolean,
     onStart: () -> Unit,
     onNext: () -> Unit,
@@ -81,7 +71,7 @@ fun SimpleStepScreen(
                 Spacer(Modifier.height(20.dp))
 
                 when (state.status) {
-                    SimpleStepState.Status.READY -> {
+                    com.xiaohypercleaner.data.SimpleStepState.Status.READY -> {
                         Button(
                             onClick = onStart,
                             modifier = Modifier
@@ -91,7 +81,7 @@ fun SimpleStepScreen(
                         ) { Text(stringResource(R.string.simple_step_start)) }
                     }
 
-                    SimpleStepState.Status.WORKING -> {
+                    com.xiaohypercleaner.data.SimpleStepState.Status.WORKING -> {
                         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(8.dp))
                         Text(
@@ -100,7 +90,7 @@ fun SimpleStepScreen(
                         )
                     }
 
-                    SimpleStepState.Status.SUCCESS -> {
+                    com.xiaohypercleaner.data.SimpleStepState.Status.SUCCESS -> {
                         Text(
                             "✅ " + stringResource(R.string.simple_step_success),
                             style = MaterialTheme.typography.bodyMedium,
@@ -116,7 +106,7 @@ fun SimpleStepScreen(
                         ) { Text(stringResource(R.string.simple_step_next)) }
                     }
 
-                    SimpleStepState.Status.FAILED -> {
+                    com.xiaohypercleaner.data.SimpleStepState.Status.FAILED -> {
                         // Показываем ручную инструкцию
                         Text(
                             "⚠️ " + stringResource(R.string.simple_step_failed),
