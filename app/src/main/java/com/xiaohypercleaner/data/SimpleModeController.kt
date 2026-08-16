@@ -8,7 +8,7 @@ import com.xiaohypercleaner.R
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.ChainFlags
 import com.xiaohypercleaner.ui.SimpleModePhase
-import com.xiaohypercleaner.ui.components.SimpleStepState
+import com.xiaohypercleaner.data.SimpleStepState
 import com.xiaohypercleaner.util.AppLog
 
 /**
