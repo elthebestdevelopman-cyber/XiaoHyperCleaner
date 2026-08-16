@@ -111,7 +111,7 @@ class AdbClient(
      * "shell pm disable-user ..." превращались бы в "shell:shell pm ..."
      * и падали на устройстве.
      */
-    override suspend fun executeCommand(command: String): String = withContext(Dispatchers.IO) {
+    override suspend fun executeCommand(command: String): Result<String> = withContext(Dispatchers.IO) {
         commandCount++
         val normalized = command.trim().removePrefix("shell ")
         val maskedCmd = LogMasker.mask(normalized)
@@ -126,7 +126,7 @@ class AdbClient(
                         TAG,
                         "cmd#$commandCount: success, result(${result.length} chars): $maskedResult"
                     )
-                    result
+                    Result.success(result)
                 } catch (e: AdbException) {
                     AppLog.w(
                         TAG,
@@ -135,27 +135,27 @@ class AdbClient(
                     disconnect()
                     if (!connect()) {
                         AppLog.e(TAG, "cmd#$commandCount: reconnect FAILED, rethrowing")
-                        throw e
+                        return@withTimeout Result.failure(e)
                     }
                     AppLog.i(TAG, "cmd#$commandCount: reconnect OK, retrying command")
                     try {
                         val result = runShell(normalized)
                         AppLog.i(TAG, "cmd#$commandCount: retry success")
-                        result
+                        Result.success(result)
                     } catch (e2: Exception) {
                         AppLog.e(
                             TAG,
                             "cmd#$commandCount: retry also FAILED: ${LogMasker.mask(e2.message ?: "")}",
                             e2
                         )
-                        throw e2
+                        Result.failure(e2)
                     }
                 }
             }
         } catch (e: TimeoutCancellationException) {
             AppLog.e(TAG, "cmd#$commandCount: TIMEOUT after ${COMMAND_TIMEOUT_MS}ms")
             disconnect()
-            throw AdbException("Command timed out after ${COMMAND_TIMEOUT_MS}ms: $normalized")
+            Result.failure(AdbException("Command timed out after ${COMMAND_TIMEOUT_MS}ms: $normalized"))
         }
     }
 

@@ -81,8 +81,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val app = application as XiaoHyperApp
     private val prefs = app.preferencesManager
+    private val permissionFlow = PermissionFlowManager(app)
     private var flowActive = false
     private var simpleModeActive = false
+    private var simpleStepIndex = 0
+    private var simpleCompletedCount = 0
 
     private var pendingSourceSuggestion = false
 
