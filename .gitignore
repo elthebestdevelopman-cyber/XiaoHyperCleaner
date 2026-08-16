@@ -44,3 +44,4 @@ coverage/
 htmlcov/
 .coverage
 ```
+new-config.yaml
