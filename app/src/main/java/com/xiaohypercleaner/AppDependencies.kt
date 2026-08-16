@@ -53,9 +53,10 @@ class AppDependencies(private val context: Context) {
     suspend fun newEngine(): OptimizationEngine = withContext(Dispatchers.IO) {
         return@withContext try {
             // Приоритет 1: root — лучший путь если устройство рутировано
-            if (RootExecutor.isAvailable()) {
+            val rootExecutor = RootExecutor()
+            if (rootExecutor.isAvailable()) {
                 AppLog.i("AppDeps", "newEngine: using ROOT (best path, zero user actions)")
-                return@withContext OptimizationEngine(RootExecutor())
+                return@withContext OptimizationEngine(rootExecutor)
             }
             AppLog.i("AppDeps", "newEngine: root not available")
 

@@ -8,4 +8,8 @@ object ChainFlags {
      *  Как только служба включится, она сама вернёт пользователя в приложение. */
     @Volatile
     var waitingAccessibilityReturn: Boolean = false
+    
+    /** Время последнего редиректа в настройки (для watchdog) */
+    @Volatile
+    var lastRedirectTime: Long = 0L
 }

@@ -25,6 +25,14 @@ class RootExecutor : AdbExecutor {
         private const val MAX_RESPONSE_SIZE = 100_000 // 100KB лимит ответа
     }
 
+    override suspend fun connect(): Boolean {
+        return isAvailable()
+    }
+
+    override fun disconnect() {
+        // Root-сессии не требуют явного отключения
+    }
+
     /**
      * Проверка доступности root-прав.
      * КРИТИЧНО: suspend-функция с timeout для безопасности.

@@ -2,6 +2,7 @@ package com.xiaohypercleaner.util
 
 import com.xiaohypercleaner.engine.OptimizationReport
 import com.xiaohypercleaner.engine.OptimizationStep
+import com.xiaohypercleaner.engine.OptimizationStepStatus
 
 /**
  * Централизованный форматировщик отчётов оптимизации.
@@ -37,7 +38,7 @@ object OptimizationReportFormatter {
 
             if (report.errorCount > 0) {
                 appendLine("⚠️ ОШИБКИ:")
-                report.steps.filter { it.status == OptimizationStep.Status.ERROR }.forEach { step ->
+                report.steps.filter { it.status == OptimizationStepStatus.ERROR }.forEach { step ->
                     appendLine("• ${step.name}: ${step.message}")
                 }
                 appendLine()
@@ -49,11 +50,11 @@ object OptimizationReportFormatter {
 
     private fun formatStatus(step: OptimizationStep): String {
         return when (step.status) {
-            OptimizationStep.Status.SUCCESS -> "✅ Успешно"
-            OptimizationStep.Status.ERROR -> "❌ Ошибка"
-            OptimizationStep.Status.SKIPPED -> "⏭️ Пропущено"
-            OptimizationStep.Status.ROLLED_BACK -> "🔄 Откачено"
-            OptimizationStep.Status.IN_PROGRESS -> "⏳ Выполняется"
+            OptimizationStepStatus.SUCCESS -> "✅ Успешно"
+            OptimizationStepStatus.ERROR -> "❌ Ошибка"
+            OptimizationStepStatus.SKIPPED -> "⏭️ Пропущено"
+            OptimizationStepStatus.ROLLED_BACK -> "🔄 Откачено"
+            OptimizationStepStatus.IN_PROGRESS -> "⏳ Выполняется"
         }
     }
 
