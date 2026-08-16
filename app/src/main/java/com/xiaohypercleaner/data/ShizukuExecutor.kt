@@ -104,19 +104,19 @@ class ShizukuExecutor : AdbExecutor {
         }
     }
 
-    override suspend fun executeCommand(command: String): String = withContext(Dispatchers.IO) {
+    override suspend fun executeCommand(command: String): Result<String> = withContext(Dispatchers.IO) {
         val maskedCmd = LogMasker.mask(command)
         AppLog.i(TAG, "executeCommand: $maskedCmd")
 
         val method = newProcessMethod
-            ?: throw AdbException("Shizuku.newProcess method not available")
+            ?: return@withContext Result.failure(AdbException("Shizuku.newProcess method not available"))
 
         try {
             val stripped = command.trim().removePrefix("shell ")
             val cmd = arrayOf("sh", "-c", stripped)
 
             val process = method.invoke(null, cmd, null, null) as? ShizukuRemoteProcess
-                ?: throw AdbException("Shizuku.newProcess returned null")
+                ?: return@withContext Result.failure(AdbException("Shizuku.newProcess returned null"))
 
             val reader = BufferedReader(InputStreamReader(process.inputStream))
             val sb = StringBuilder()
@@ -143,10 +143,15 @@ class ShizukuExecutor : AdbExecutor {
             val result = sb.toString().trimEnd()
             val exitCode = runCatching { process.exitValue() }.getOrNull()
             AppLog.i(TAG, "executeCommand: exit=$exitCode (${result.length} chars)")
-            result
+            
+            if (exitCode == 0) {
+                Result.success(result)
+            } else {
+                Result.failure(AdbException("Command failed with exit code $exitCode"))
+            }
         } catch (e: Throwable) {
             AppLog.e(TAG, "executeCommand failed: ${LogMasker.mask(e.message ?: "")}")
-            throw AdbException("Shizuku command failed: ${e.message}")
+            Result.failure(AdbException("Shizuku command failed: ${e.message}"))
         }
     }
 

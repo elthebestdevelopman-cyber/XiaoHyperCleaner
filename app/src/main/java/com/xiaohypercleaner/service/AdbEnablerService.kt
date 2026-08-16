@@ -22,6 +22,10 @@ class AdbEnablerService : AccessibilityService() {
         private const val TAG = "AdbEnablerService"
         private const val DEV_WATCHDOG_MS = 15_000L
 
+        const val ACTION_SIMPLE_STEP = "com.xiaohypercleaner.ACTION_SIMPLE_STEP"
+        const val ACTION_RETRY_DEV = "com.xiaohypercleaner.ACTION_RETRY_DEV"
+        const val ACTION_START_CHAIN = "com.xiaohypercleaner.ACTION_START_CHAIN"
+
         // Тексты для поиска UI элементов на разных языках
         private val DEV_OPTIONS_TEXTS = arrayOf(
             "Developer options", "Параметры разработчика", "Для разработчиков",
