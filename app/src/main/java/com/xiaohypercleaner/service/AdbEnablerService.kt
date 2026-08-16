@@ -94,6 +94,7 @@ class AdbEnablerService : AccessibilityService() {
         val node = findNodeByTexts(root, WIRELESS_DEBUG_TEXTS) ?: return false
 
         // Проверяем, включена ли уже
+        @Suppress("DEPRECATION")
         if (node.isChecked) {
             recycleNode(node)
             return false
@@ -145,6 +146,7 @@ class AdbEnablerService : AccessibilityService() {
                 val node = nodes[0]
                 // Рециклируем остальные ноды (важно для API < R)
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                    @Suppress("DEPRECATION")
                     for (i in 1 until nodes.size) {
                         nodes[i].recycle()
                     }
@@ -174,6 +176,7 @@ class AdbEnablerService : AccessibilityService() {
     private fun recycleNode(node: AccessibilityNodeInfo?) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             try {
+                @Suppress("DEPRECATION")
                 node?.recycle()
             } catch (e: Exception) {
                 // Игнорируем — нода могла быть уже рециклирована

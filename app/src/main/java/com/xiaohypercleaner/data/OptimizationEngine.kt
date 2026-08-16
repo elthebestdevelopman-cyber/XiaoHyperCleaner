@@ -4,6 +4,7 @@ import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.LogMasker
 import kotlinx.coroutines.delay
+import java.io.IOException
 
 data class OptimizationOptions(
     val dnsFilter: Boolean = false,
@@ -289,9 +290,17 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         return try {
             if (!connect()) return false
             delay(AppConstants.DELAY_BEFORE_REBOOT_MS)
-            adb.executeCommand("shell reboot")
-            AppLog.i(TAG, "OptimizationEngine: reboot command sent")
-            true
+            val result = adb.executeCommand("shell reboot")
+            if (result.isSuccess) {
+                AppLog.i(TAG, "OptimizationEngine: reboot command sent")
+                true
+            } else {
+                AppLog.e(
+                    TAG,
+                    "OptimizationEngine: reboot failed: ${result.exceptionOrNull()?.message}"
+                )
+                false
+            }
         } catch (e: Exception) {
             AppLog.e(TAG, "OptimizationEngine: reboot failed: ${LogMasker.mask(e.message ?: "")}")
             false
@@ -307,7 +316,16 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 val getCmd = "shell settings get $key"
                 val putCmd = "shell settings put $key $value"
                 val original = adb.executeCommand(getCmd).getOrNull()?.trim() ?: ""
-                adb.executeCommand(putCmd)
+
+                val putResult = adb.executeCommand(putCmd)
+                if (putResult.isFailure) {
+                    AppLog.w(
+                        TAG,
+                        "OptimizationEngine: put command failed: $key - ${putResult.exceptionOrNull()?.message}"
+                    )
+                    continue
+                }
+
                 transaction.appliedSettings[putCmd] = original
                 applied.add(key.substringAfterLast(" "))
                 delay(AppConstants.COMMAND_DELAY_MS)
@@ -342,7 +360,16 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 val getCmd = "shell settings get $key"
                 val putCmd = "shell settings put $key $value"
                 val original = adb.executeCommand(getCmd).getOrNull()?.trim() ?: ""
-                adb.executeCommand(putCmd)
+
+                val putResult = adb.executeCommand(putCmd)
+                if (putResult.isFailure) {
+                    AppLog.w(
+                        TAG,
+                        "OptimizationEngine: hidden key put failed: $key - ${putResult.exceptionOrNull()?.message}"
+                    )
+                    continue
+                }
+
                 transaction.appliedSettings[putCmd] = original
                 applied.add(key.substringAfterLast(" "))
                 delay(AppConstants.COMMAND_DELAY_MS)
@@ -369,7 +396,15 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 transaction.originalRegion =
                     if (original == "null" || original.isEmpty()) null else original
 
-                adb.executeCommand(putCmd)
+                val putResult = adb.executeCommand(putCmd)
+                if (putResult.isFailure) {
+                    AppLog.w(
+                        TAG,
+                        "OptimizationEngine: regional key put failed: $key - ${putResult.exceptionOrNull()?.message}"
+                    )
+                    continue
+                }
+
                 transaction.appliedSettings[putCmd] = original
                 applied.add(key.substringAfterLast(" "))
                 AppLog.i(TAG, "OptimizationEngine: regional key applied, original=$original")
@@ -399,16 +434,38 @@ class OptimizationEngine(private val adb: AdbExecutor) {
     private suspend fun applyDnsFilter(transaction: Transaction): Boolean {
         AppLog.i(TAG, "OptimizationEngine: applying DNS filter (AdGuard)")
         return try {
-            val prevMode = adb.executeCommand("settings get ${ServiceRegistry.Dns.MODE_KEY}").getOrNull()?.trim() ?: ""
+            val prevMode =
+                adb.executeCommand("settings get ${ServiceRegistry.Dns.MODE_KEY}").getOrNull()
+                    ?.trim() ?: ""
             val prevHost =
-                adb.executeCommand("settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}").getOrNull()?.trim() ?: ""
+                adb.executeCommand("settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}").getOrNull()
+                    ?.trim() ?: ""
             transaction.previousDnsMode = prevMode
             transaction.previousDnsHost = prevHost
             transaction.enabledDns = true
 
-            adb.executeCommand("settings put ${ServiceRegistry.Dns.MODE_KEY} ${ServiceRegistry.Dns.MODE_VALUE}")
+            val modeResult =
+                adb.executeCommand("settings put ${ServiceRegistry.Dns.MODE_KEY} ${ServiceRegistry.Dns.MODE_VALUE}")
+            if (modeResult.isFailure) {
+                AppLog.w(
+                    TAG,
+                    "OptimizationEngine: DNS mode put failed: ${modeResult.exceptionOrNull()?.message}"
+                )
+                return false
+            }
+
             delay(AppConstants.COMMAND_DELAY_MS)
-            adb.executeCommand("settings put ${ServiceRegistry.Dns.SPECIFIER_KEY} ${ServiceRegistry.Dns.SPECIFIER_VALUE}")
+
+            val hostResult =
+                adb.executeCommand("settings put ${ServiceRegistry.Dns.SPECIFIER_KEY} ${ServiceRegistry.Dns.SPECIFIER_VALUE}")
+            if (hostResult.isFailure) {
+                AppLog.w(
+                    TAG,
+                    "OptimizationEngine: DNS host put failed: ${hostResult.exceptionOrNull()?.message}"
+                )
+                return false
+            }
+
             delay(AppConstants.COMMAND_DELAY_MS)
 
             AppLog.i(TAG, "OptimizationEngine: DNS filter applied")
@@ -484,15 +541,38 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         if (transaction.enabledDns) {
             try {
                 val mode = transaction.previousDnsMode ?: ServiceRegistry.Dns.RESTORE_MODE
-                if (mode == "off" || mode == "null" || mode.isEmpty()) {
-                    adb.executeCommand("settings put ${ServiceRegistry.Dns.MODE_KEY} ${ServiceRegistry.Dns.RESTORE_MODE}")
+                val modeCmd = if (mode == "off" || mode == "null" || mode.isEmpty()) {
+                    "settings put ${ServiceRegistry.Dns.MODE_KEY} ${ServiceRegistry.Dns.RESTORE_MODE}"
                 } else {
-                    adb.executeCommand("settings put ${ServiceRegistry.Dns.MODE_KEY} $mode")
+                    "settings put ${ServiceRegistry.Dns.MODE_KEY} $mode"
+                }
+
+                val modeResult = adb.executeCommand(modeCmd)
+                if (modeResult.isFailure) {
+                    failedDns = modeResult.exceptionOrNull()?.message ?: "Unknown"
+                    AppLog.w(
+                        TAG,
+                        "OptimizationEngine: DNS mode rollback failed: ${LogMasker.mask(failedDns)}"
+                    )
+                } else {
                     if (!transaction.previousDnsHost.isNullOrEmpty() && transaction.previousDnsHost != "null") {
-                        adb.executeCommand("settings put ${ServiceRegistry.Dns.SPECIFIER_KEY} ${transaction.previousDnsHost}")
+                        val hostResult =
+                            adb.executeCommand("settings put ${ServiceRegistry.Dns.SPECIFIER_KEY} ${transaction.previousDnsHost}")
+                        if (hostResult.isFailure) {
+                            failedDns = hostResult.exceptionOrNull()?.message ?: "Unknown"
+                            AppLog.w(
+                                TAG,
+                                "OptimizationEngine: DNS host rollback failed: ${
+                                    LogMasker.mask(failedDns)
+                                }"
+                            )
+                        } else {
+                            restoredDns = true
+                        }
+                    } else {
+                        restoredDns = true
                     }
                 }
-                restoredDns = true
             } catch (e: Exception) {
                 failedDns = e.message ?: "Unknown"
                 AppLog.w(
@@ -507,11 +587,23 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 val cmd = entry.key
                 val original = entry.value
                 val key = cmd.substringAfter("settings put ").substringBeforeLast(" ")
-                if (original.isNotEmpty() && original != "null") {
-                    adb.executeCommand("settings put $key $original")
+
+                val restoreCmd = if (original.isNotEmpty() && original != "null") {
+                    "settings put $key $original"
+                } else {
+                    "settings put $key \"\"" // Пустое значение
+                }
+
+                val result = adb.executeCommand(restoreCmd)
+                if (result.isSuccess) {
                     restoredSettings++
                 } else {
-                    restoredSettings++
+                    val keyName = cmd.substringAfterLast(" ")
+                    failedSettings.add(keyName)
+                    AppLog.w(
+                        TAG,
+                        "OptimizationEngine: settings rollback failed for $key: ${result.exceptionOrNull()?.message}"
+                    )
                 }
             } catch (e: Exception) {
                 val keyName = entry.key.substringAfterLast(" ")
@@ -525,8 +617,16 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
         for (pkg in transaction.disabledPackages) {
             try {
-                adb.executeCommand("shell pm enable $pkg")
-                restoredPackages++
+                val result = adb.executeCommand("shell pm enable $pkg")
+                if (result.isSuccess) {
+                    restoredPackages++
+                } else {
+                    failedPackages.add(pkg to (result.exceptionOrNull()?.message ?: "Unknown"))
+                    AppLog.w(
+                        TAG,
+                        "OptimizationEngine: package rollback failed for $pkg: ${result.exceptionOrNull()?.message}"
+                    )
+                }
             } catch (e: Exception) {
                 failedPackages.add(pkg to (e.message ?: "Unknown"))
                 AppLog.w(
@@ -598,9 +698,11 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
     private suspend fun verifyDnsFilter(): Boolean {
         return try {
-            val mode = adb.executeCommand("settings get ${ServiceRegistry.Dns.MODE_KEY}").getOrNull() ?: ""
+            val mode =
+                adb.executeCommand("settings get ${ServiceRegistry.Dns.MODE_KEY}").getOrNull() ?: ""
             val host =
-                adb.executeCommand("settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}").getOrNull() ?: ""
+                adb.executeCommand("settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}").getOrNull()
+                    ?: ""
             mode.contains(ServiceRegistry.Dns.MODE_VALUE) && host.contains("adguard")
         } catch (e: Exception) {
             AppLog.w(
@@ -623,7 +725,14 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                     key.contains("animation_scale") -> "1.0"
                     else -> "1"
                 }
-                adb.executeCommand("shell settings put $key $restoreValue")
+                val result = adb.executeCommand("shell settings put $key $restoreValue")
+                if (result.isFailure) {
+                    failed.add(key.substringAfterLast(" "))
+                    AppLog.w(
+                        TAG,
+                        "OptimizationEngine: restore command failed: $key - ${result.exceptionOrNull()?.message}"
+                    )
+                }
                 delay(AppConstants.COMMAND_DELAY_MS)
             } catch (e: Exception) {
                 failed.add(key.substringAfterLast(" "))
@@ -637,7 +746,14 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         val failed = mutableListOf<String>()
         for (pkg in ServiceRegistry.ANALYTICS_PACKAGES + ServiceRegistry.AD_SERVICES_PACKAGES) {
             try {
-                adb.executeCommand("shell pm enable $pkg")
+                val result = adb.executeCommand("shell pm enable $pkg")
+                if (result.isFailure) {
+                    failed.add(pkg)
+                    AppLog.w(
+                        TAG,
+                        "OptimizationEngine: failed to enable $pkg: ${result.exceptionOrNull()?.message}"
+                    )
+                }
                 delay(AppConstants.COMMAND_DELAY_MS)
             } catch (e: Exception) {
                 failed.add(pkg)
@@ -656,7 +772,14 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
         for ((key, value) in ServiceRegistry.HIDDEN_KEYS_RESTORE) {
             try {
-                adb.executeCommand("shell settings put $key $value")
+                val result = adb.executeCommand("shell settings put $key $value")
+                if (result.isFailure) {
+                    failed.add(key.substringAfterLast(" "))
+                    AppLog.w(
+                        TAG,
+                        "OptimizationEngine: hidden key restore failed: $key - ${result.exceptionOrNull()?.message}"
+                    )
+                }
                 delay(AppConstants.COMMAND_DELAY_MS)
             } catch (e: Exception) {
                 failed.add(key.substringAfterLast(" "))
@@ -671,7 +794,15 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
     private suspend fun restoreDnsWithReport(): String? {
         return try {
-            adb.executeCommand("settings put ${ServiceRegistry.Dns.MODE_KEY} ${ServiceRegistry.Dns.RESTORE_MODE}")
+            val result =
+                adb.executeCommand("settings put ${ServiceRegistry.Dns.MODE_KEY} ${ServiceRegistry.Dns.RESTORE_MODE}")
+            if (result.isFailure) {
+                AppLog.w(
+                    TAG,
+                    "OptimizationEngine: DNS restore failed: ${result.exceptionOrNull()?.message}"
+                )
+                return result.exceptionOrNull()?.message ?: "Unknown"
+            }
             delay(AppConstants.COMMAND_DELAY_MS)
             null
         } catch (e: Exception) {

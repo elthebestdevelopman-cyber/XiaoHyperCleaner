@@ -185,9 +185,8 @@
     <string name="shizuku_wizard_permission_granted">Разрешение получено!</string>
     <string name="shizuku_wizard_permission_denied">Разрешение не дано. Попробуйте снова.</string>
 
-    <!-- Простой режим: выбор уровня -->
     <string name="level_dialog_title">Выберите уровень оптимизации</string>
-    <string name="level_dialog_text">Чем выше уровень — тем больше настроек меняется. Простая оптимизация справится с большинством рекламы и подойдёт всем.</string>
+    <string name="level_dialog_text">Чем выше уровень — тем больше настроек меняется. Простая оптимизация справится с большинством нежелательных уведомлений и подойдёт всем.</string>
     <string name="level_simple_title">🟢 Простая (рекомендуется)</string>
     <string name="level_simple_desc">Без Wi-Fi и сложных настроек. Только переключатели в настройках телефона. Для всех.</string>
     <string name="level_advanced_title">🟡 Продвинутая</string>
@@ -196,14 +195,13 @@
     <string name="level_extreme_desc">Всё из продвинутой + смена региона. Только для опытных пользователей.</string>
 
     <string name="level_confirm_simple_title">Простая оптимизация</string>
-    <string name="level_confirm_simple_text">Приложение автоматически выключит переключатели в настройках телефона (реклама, рекомендации, телеметрия). Вам нужно будет только нажимать «Продолжить» на каждом шаге. Без Wi-Fi и сложных настроек.</string>
+    <string name="level_confirm_simple_text">Приложение автоматически выключит переключатели в настройках телефона (рекомендации, телеметрия, аналитика). Вам нужно будет только нажимать «Продолжить» на каждом шаге. Без Wi-Fi и сложных настроек.</string>
     <string name="level_confirm_advanced_title">Продвинутая оптимизация</string>
     <string name="level_confirm_advanced_text">Потребуется Shizuku или беспроводная отладка. Приложение применит больше настроек: системные сервисы, параметры производительности, DNS-фильтр. Все изменения обратимы.</string>
     <string name="level_confirm_extreme_title">Экстрим оптимизация</string>
-    <string name="level_confirm_extreme_text">Всё из продвинутой + смена региона для максимального удаления рекламы. Может повлиять на OTA-обновления и Mi-сервисы. Только для опытных пользователей.</string>
+    <string name="level_confirm_extreme_text">Всё из продвинутой + смена региона для максимального удаления нежелательных уведомлений. Может повлиять на OTA-обновления и Mi-сервисы. Только для опытных пользователей.</string>
     <string name="level_confirm_start">Начать</string>
 
-    <!-- Простой режим: шаги -->
     <string name="simple_step_of">Шаг %1$d из %2$d</string>
     <string name="simple_step_working">Отключаем…</string>
     <string name="simple_step_success">Готово! Переходим к следующему.</string>
@@ -215,7 +213,7 @@
     <string name="simple_step_manual_text">Найдите переключатель «%1$s» на открывшемся экране и выключите его. Затем вернитесь и нажмите «Продолжить».</string>
 
     <string name="simple_done_title">Оптимизация завершена!</string>
-    <string name="simple_done_text">Мы отключили рекламу в системных приложениях. Теперь Xiaomi будет показывать меньше рекламы и собирать меньше данных.\n\nЕсли приложение помогло — поддержите разработку или оставьте отзыв.</string>
+    <string name="simple_done_text">Мы настроили системные приложения. Теперь устройство будет отправлять меньше телеметрии и показывать меньше нежелательных рекомендаций.\n\nЕсли приложение помогло — поддержите разработку или оставьте отзыв.</string>
     <string name="simple_done_rate">Оценить приложение</string>
     <string name="simple_done_donate">Поддержать на чай ☕</string>
     <string name="simple_done_close">Закрыть</string>

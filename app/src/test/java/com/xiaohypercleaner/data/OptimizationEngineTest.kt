@@ -23,16 +23,16 @@ private open class FakeAdb : AdbExecutor {
         return true
     }
 
-    override suspend fun executeCommand(command: String): String {
+    override suspend fun executeCommand(command: String): Result<String> {
         commands.add(command)
         if (commands.size == failAtCommandNumber && !failedOnce) {
             failedOnce = true
             if (connect()) {
-                return executeCommandInternal(command)
+                return Result.success(executeCommandInternal(command))
             }
-            throw AdbException("timeout")
+            return Result.failure(AdbException("timeout"))
         }
-        return executeCommandInternal(command)
+        return Result.success(executeCommandInternal(command))
     }
 
     private fun executeCommandInternal(command: String): String {
