@@ -12,16 +12,19 @@ import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationEngine
 import com.xiaohypercleaner.data.OptimizationReport
+import com.xiaohypercleaner.data.PermissionFlowManager
 import com.xiaohypercleaner.data.ShizukuExecutor
-import com.xiaohypercleaner.data.SimpleSteps
+import com.xiaohypercleaner.data.ShizukuWizardManager
+import com.xiaohypercleaner.data.SimpleModeController
 import com.xiaohypercleaner.service.AdbEnablerService
+import com.xiaohypercleaner.service.ChainFlags
 import com.xiaohypercleaner.service.OverlayController
 import com.xiaohypercleaner.service.OverlayService
+import com.xiaohypercleaner.service.SimpleStepBridge
 import com.xiaohypercleaner.ui.components.OptimizationLevel
-import com.xiaohypercleaner.ui.components.SimpleStepState
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
-import com.xiaohypercleaner.util.ShizukuHelper
+import com.xiaohypercleaner.util.OptimizationReportFormatter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -91,13 +94,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _state = MutableStateFlow(MainUiState())
     val state: StateFlow<MainUiState> = _state.asStateFlow()
 
-    private var simpleStepIndex = 0
-    private var simpleCompletedCount = 0
-
     init {
         AppLog.i(TAG, "init started")
 
-        com.xiaohypercleaner.service.SimpleStepBridge.onResult = { success ->
+        SimpleStepBridge.onResult = { success ->
             AppLog.i(TAG, "SimpleStepBridge result: $success")
             onSimpleStepResult(success)
         }
@@ -200,46 +200,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun openAppInfoWithHint() {
         AppLog.i(TAG, "auto-redirect: opening app info with hint card")
-        try {
-            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.parse("package:${app.packageName}")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            app.startActivity(intent)
-            showHint(app.getString(R.string.hint_restricted))
-        } catch (e: Exception) {
-            AppLog.w(TAG, "auto-redirect to app info failed: ${e.message}")
-            _state.update { it.copy(showRestrictedDialog = true) }
-        }
+        permissionFlow.openAppInfoSettings()
+        showHint(app.getString(R.string.hint_restricted))
     }
 
     private fun openAccessibilityWithHint() {
         AppLog.i(TAG, "auto-redirect: opening accessibility services with hint card")
-        val component = ComponentName(app, AdbEnablerService::class.java).flattenToString()
-        val deep = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-        val args = android.os.Bundle()
-        args.putString("componentName", component)
-        deep.putExtra(
-            ":settings:show_fragment",
-            "com.android.settings.accessibility.ToggleAccessibilityServicePreferenceFragment"
-        )
-        deep.putExtra(":settings:show_fragment_args", args)
-        try {
-            deep.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            app.startActivity(deep)
-            showHint(app.getString(R.string.hint_accessibility))
-        } catch (e: Exception) {
-            try {
-                app.startActivity(
-                    Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                )
-                showHint(app.getString(R.string.hint_accessibility))
-            } catch (e2: Exception) {
-                AppLog.w(TAG, "auto-redirect to accessibility failed: ${e2.message}")
-                _state.update { it.copy(showAccessibilityDialog = true) }
-            }
-        }
+        permissionFlow.openAccessibilityWithHint()
+        showHint(app.getString(R.string.hint_accessibility))
     }
 
     fun refreshStatuses() {
@@ -801,7 +769,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             if (simpleModeActive) {
-                com.xiaohypercleaner.service.ChainFlags.waitingAccessibilityReturn = true
+                ChainFlags.waitingAccessibilityReturn = true
                 markAccessibilityOpened()
                 openAccessibilitySettings()
                 return
@@ -1006,24 +974,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     private fun buildReportSummary(report: OptimizationReport): String {
-        return buildString {
-            append("✅ Отключено сервисов: ${report.disabledPackages.size}\n")
-            append("✅ Применено параметров: ${report.appliedSettings.size}\n")
-            if (report.failedActions.isNotEmpty()) {
-                append("⚠️ Не удалось: ${report.failedActions.joinToString(", ")}\n")
-            }
-            append(if (report.success) "✅ Все проверки пройдены" else "❌ Проверка не пройдена")
-        }
+        return OptimizationReportFormatter.summary(report)
     }
 
     private fun openAccessibilitySettingsAutomatically() {
         AppLog.i(TAG, "openAccessibilitySettingsAutomatically: showing accessibility dialog")
-        ChainFlagsAutoReturn()
+        setAccessibilityWaitingFlag()
         _state.update { it.copy(showAccessibilityDialog = true) }
     }
 
-    private fun ChainFlagsAutoReturn() {
-        com.xiaohypercleaner.service.ChainFlags.waitingAccessibilityReturn = true
+    private fun setAccessibilityWaitingFlag() {
+        ChainFlags.waitingAccessibilityReturn = true
     }
 
     private fun openAccessibilitySettings() {

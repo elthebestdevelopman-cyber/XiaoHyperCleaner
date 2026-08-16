@@ -1,23 +1,28 @@
-# This is an example configuration file
-# To learn more, see the full config.yaml reference: https://docs.continue.dev/reference
-
-name: Example Config
+name: VSEGPT Config
 version: 1.0.0
 schema: v1
 
-# Define which models can be used
-# https://docs.continue.dev/customization/models
 models:
-  - name: my gpt-5
+  - name: Claude Sonnet 5
     provider: openai
-    model: gpt-5
-    apiKey: YOUR_OPENAI_API_KEY_HERE
-  - uses: ollama/qwen2.5-coder-7b
-  - uses: anthropic/claude-4-sonnet
-    with:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    model: anthropic/claude-sonnet-5
+    apiBase: https://api.vsegpt.ru/v1
+    defaultCompletionOptions:
+      contextLength: 1000000
 
-# MCP Servers that Continue can access
-# https://docs.continue.dev/customization/mcp-tools
-mcpServers:
-  - uses: anthropic/memory-mcp
+  - name: DeepSeek V4 Pro
+    provider: openai
+    model: deepseek/deepseek-v4-pro-0813-alt
+    apiBase: https://api.vsegpt.ru/v1
+    defaultCompletionOptions:
+      contextLength: 1000000
+
+  - name: Qwen3 Coder Next
+    provider: openai
+    model: qwen/qwen3-coder-next
+    apiBase: https://api.vsegpt.ru/v1
+
+  - name: DeepSeek Coder
+    provider: openai
+    model: deepseek/deepseek-coder
+    apiBase: https://api.vsegpt.ru/v1
