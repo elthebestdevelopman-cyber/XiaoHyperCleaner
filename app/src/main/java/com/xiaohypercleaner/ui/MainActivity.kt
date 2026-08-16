@@ -66,6 +66,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -252,9 +253,12 @@ private fun MainContent(
 
     // Экран текущего шага простой оптимизации
     if (state.simpleStep != null) {
+        val configuration = LocalConfiguration.current
+        val isEnglish = configuration.locales.get(0)?.language != "ru"
+
         SimpleStepScreen(
             state = state.simpleStep,
-            isEnglish = java.util.Locale.getDefault().language != "ru",
+            isEnglish = isEnglish,
             onStart = { vm.startCurrentSimpleStep() },
             onNext = { vm.nextSimpleStep() },
             onSkip = { vm.skipSimpleStep() },
@@ -309,6 +313,7 @@ private fun MainContent(
     // ===== ПРОДВИНУТЫЙ РЕЖИМ: разрешения =====
     if (state.showRestrictedDialog) {
         val isAndroid14Plus = Build.VERSION.SDK_INT >= 34
+        val hintRestricted = stringResource(R.string.hint_restricted) // ✅ Заранее
         InfoDialog(
             title = if (isAndroid14Plus) stringResource(R.string.forbidden_dialog_title)
             else stringResource(R.string.restricted_dialog_title),
@@ -321,7 +326,7 @@ private fun MainContent(
                 vm.restrictedDialogAgreed()
                 vm.markAppInfoOpened()
                 openAppInfoSettings(context)
-                showHintOverlay(context, context.getString(R.string.hint_restricted))
+                showHintOverlay(context, hintRestricted) // ✅ Используем переменную
             },
             onDismiss = {
                 AppLog.i("MainUI", "restricted dialog: cancelled")
@@ -331,6 +336,7 @@ private fun MainContent(
     }
 
     if (state.showAccessibilityDialog) {
+        val hintAccessibility = stringResource(R.string.hint_accessibility) // ✅ Заранее
         InfoDialog(
             title = stringResource(R.string.accessibility_explanation_title),
             text = stringResource(R.string.accessibility_explanation_text),
@@ -341,7 +347,7 @@ private fun MainContent(
                 com.xiaohypercleaner.service.ChainFlags.waitingAccessibilityReturn = true
                 vm.markAccessibilityOpened()
                 openAccessibilitySettings(context)
-                showHintOverlay(context, context.getString(R.string.hint_accessibility))
+                showHintOverlay(context, hintAccessibility) // ✅ Используем переменную
             },
             onDismiss = {
                 AppLog.i("MainUI", "accessibility dialog: cancelled")
@@ -351,6 +357,7 @@ private fun MainContent(
     }
 
     if (state.showOverlayDialog) {
+        val hintOverlay = stringResource(R.string.hint_overlay) // ✅ Заранее
         InfoDialog(
             title = stringResource(R.string.overlay_permission_title),
             text = stringResource(R.string.overlay_permission_text),
@@ -359,7 +366,7 @@ private fun MainContent(
                 AppLog.i("MainUI", "overlay dialog: agreed")
                 vm.dialogAgreed()
                 openOverlaySettings(context)
-                showHintOverlay(context, context.getString(R.string.hint_overlay))
+                showHintOverlay(context, hintOverlay) // ✅ Используем переменную
             },
             onDismiss = {
                 AppLog.i("MainUI", "overlay dialog: cancelled")

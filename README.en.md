@@ -8,8 +8,6 @@
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-success)](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/actions)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.4.10-purple)](https://kotlinlang.org/)
 
-<div align="center">
-
 **🇷🇺 [Русский](README.md)** | 🇬🇧 English
 
 </div>
@@ -408,11 +406,9 @@ All trademarks (Xiaomi, Redmi, Poco, MIUI, HyperOS) belong to their respective o
 application is not affiliated with Xiaomi Corporation.
 
 ---
-
-<div align="center">
-
 **Made with ❤️ for Xiaomi device owners**
 
 [Releases](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/releases) • [Issues](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/issues) • [Discussions](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/discussions)
 
 </div>
+---
