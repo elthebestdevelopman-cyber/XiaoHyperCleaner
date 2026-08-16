@@ -186,7 +186,7 @@
     <string name="shizuku_wizard_permission_denied">Permission denied. Please try again.</string>
 
     <string name="level_dialog_title">Choose optimization level</string>
-    <string name="level_dialog_text">Higher level = more changes. Simple optimization removes most ads and works for everyone.</string>
+    <string name="level_dialog_text">Higher level = more changes. Simple optimization handles most unwanted notifications and works for everyone.</string>
     <string name="level_simple_title">🟢 Simple (recommended)</string>
     <string name="level_simple_desc">No Wi-Fi or complex setup. Only toggles in phone settings. For everyone.</string>
     <string name="level_advanced_title">🟡 Advanced</string>
@@ -195,11 +195,11 @@
     <string name="level_extreme_desc">Everything from advanced + region change. For power users only.</string>
 
     <string name="level_confirm_simple_title">Simple optimization</string>
-    <string name="level_confirm_simple_text">The app will automatically turn off switches in phone settings (ads, recommendations, telemetry). You just tap "Continue" at each step. No Wi-Fi or complex setup required.</string>
+    <string name="level_confirm_simple_text">The app will automatically turn off switches in phone settings (recommendations, telemetry, analytics). You just tap "Continue" at each step. No Wi-Fi or complex setup required.</string>
     <string name="level_confirm_advanced_title">Advanced optimization</string>
     <string name="level_confirm_advanced_text">Requires Shizuku or wireless debugging. The app will apply more settings: system services, performance parameters, DNS filter. All changes are reversible.</string>
     <string name="level_confirm_extreme_title">Extreme optimization</string>
-    <string name="level_confirm_extreme_text">Everything from advanced + region change for maximum ad removal. May affect OTA updates and Mi services. For power users only.</string>
+    <string name="level_confirm_extreme_text">Everything from advanced + region change for maximum removal of unwanted notifications. May affect OTA updates and Mi services. For power users only.</string>
     <string name="level_confirm_start">Start</string>
 
     <string name="simple_step_of">Step %1$d of %2$d</string>
@@ -213,7 +213,7 @@
     <string name="simple_step_manual_text">Find the "%1$s" switch on the opened screen and turn it off. Then return and tap "Continue".</string>
 
     <string name="simple_done_title">Optimization complete!</string>
-    <string name="simple_done_text">We turned off ads in system apps. Xiaomi will now show less ads and collect less data.\n\nIf the app helped — please rate it or support development.</string>
+    <string name="simple_done_text">We configured system apps. Your device will now send less telemetry and show fewer unwanted recommendations.\n\nIf the app helped — please rate it or support development.</string>
     <string name="simple_done_rate">Rate the app</string>
     <string name="simple_done_donate">Support development ☕</string>
     <string name="simple_done_close">Close</string>
