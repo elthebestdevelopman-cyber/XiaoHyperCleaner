@@ -16,6 +16,8 @@ import com.xiaohypercleaner.data.PermissionFlowManager
 import com.xiaohypercleaner.data.ShizukuExecutor
 import com.xiaohypercleaner.data.ShizukuWizardManager
 import com.xiaohypercleaner.data.SimpleModeController
+import com.xiaohypercleaner.data.SimpleStepState
+import com.xiaohypercleaner.data.SimpleSteps
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.ChainFlags
 import com.xiaohypercleaner.service.OverlayController
@@ -25,6 +27,7 @@ import com.xiaohypercleaner.ui.components.OptimizationLevel
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
 import com.xiaohypercleaner.util.OptimizationReportFormatter
+import com.xiaohypercleaner.util.ShizukuHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
