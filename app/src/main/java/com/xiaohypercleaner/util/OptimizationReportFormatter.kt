@@ -1,6 +1,7 @@
 package com.xiaohypercleaner.util
 
-import com.xiaohypercleaner.engine.OptimizationReport
+import com.xiaohypercleaner.data.OptimizationReport as DataOptimizationReport
+import com.xiaohypercleaner.engine.OptimizationReport as EngineOptimizationReport
 import com.xiaohypercleaner.engine.OptimizationStep
 import com.xiaohypercleaner.engine.OptimizationStepStatus
 
@@ -10,7 +11,7 @@ import com.xiaohypercleaner.engine.OptimizationStepStatus
  */
 object OptimizationReportFormatter {
 
-    fun formatReport(report: OptimizationReport): String {
+    fun formatReport(report: EngineOptimizationReport): String {
         return buildString {
             appendLine("=== XIAO HYPER CLEANER - ОТЧЁТ ОБ ОПТИМИЗАЦИИ ===")
             appendLine()
@@ -58,7 +59,7 @@ object OptimizationReportFormatter {
         }
     }
 
-    fun summary(report: OptimizationReport): String {
+    fun summary(report: EngineOptimizationReport): String {
         val successRate = if (report.totalCount > 0) {
             (report.successCount * 100) / report.totalCount
         } else 0
@@ -71,6 +72,26 @@ object OptimizationReportFormatter {
             }
             if (report.skippedCount > 0) {
                 append(", пропущено: ${report.skippedCount}")
+            }
+        }
+    }
+
+    /**
+     * Адаптер для data.OptimizationReport из OptimizationEngine
+     */
+    fun summary(dataReport: DataOptimizationReport): String {
+        val total = dataReport.disabledPackages.size + dataReport.appliedSettings.size
+        val success = if (dataReport.success) total else total - dataReport.failedActions.size
+        val failed = dataReport.failedActions.size
+        
+        return buildString {
+            append("Отключено пакетов: ${dataReport.disabledPackages.size}, ")
+            append("применено настроек: ${dataReport.appliedSettings.size}")
+            if (failed > 0) {
+                append(", ошибок: $failed")
+            }
+            if (!dataReport.verificationResult.success) {
+                append(", проверка не пройдена")
             }
         }
     }

@@ -306,7 +306,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             try {
                 val getCmd = "shell settings get $key"
                 val putCmd = "shell settings put $key $value"
-                val original = adb.executeCommand(getCmd).trim()
+                val original = adb.executeCommand(getCmd).getOrNull()?.trim() ?: ""
                 adb.executeCommand(putCmd)
                 transaction.appliedSettings[putCmd] = original
                 applied.add(key.substringAfterLast(" "))
@@ -341,7 +341,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             try {
                 val getCmd = "shell settings get $key"
                 val putCmd = "shell settings put $key $value"
-                val original = adb.executeCommand(getCmd).trim()
+                val original = adb.executeCommand(getCmd).getOrNull()?.trim() ?: ""
                 adb.executeCommand(putCmd)
                 transaction.appliedSettings[putCmd] = original
                 applied.add(key.substringAfterLast(" "))
@@ -364,7 +364,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             try {
                 val getCmd = "shell settings get $key"
                 val putCmd = "shell settings put $key DE"
-                val original = adb.executeCommand(getCmd).trim()
+                val original = adb.executeCommand(getCmd).getOrNull()?.trim() ?: ""
 
                 transaction.originalRegion =
                     if (original == "null" || original.isEmpty()) null else original
@@ -399,9 +399,9 @@ class OptimizationEngine(private val adb: AdbExecutor) {
     private suspend fun applyDnsFilter(transaction: Transaction): Boolean {
         AppLog.i(TAG, "OptimizationEngine: applying DNS filter (AdGuard)")
         return try {
-            val prevMode = adb.executeCommand("settings get ${ServiceRegistry.Dns.MODE_KEY}").trim()
+            val prevMode = adb.executeCommand("settings get ${ServiceRegistry.Dns.MODE_KEY}").getOrNull()?.trim() ?: ""
             val prevHost =
-                adb.executeCommand("settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}").trim()
+                adb.executeCommand("settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}").getOrNull()?.trim() ?: ""
             transaction.previousDnsMode = prevMode
             transaction.previousDnsHost = prevHost
             transaction.enabledDns = true
@@ -426,7 +426,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         AppLog.i(TAG, "OptimizationEngine: trying to disable $pkg")
 
         try {
-            val result = adb.executeCommand("shell pm disable-user --user 0 $pkg")
+            val result = adb.executeCommand("shell pm disable-user --user 0 $pkg").getOrNull() ?: ""
             if (result.contains("Success")) {
                 delay(AppConstants.COMMAND_DELAY_MS)
                 AppLog.i(TAG, "OptimizationEngine: disabled $pkg via disable-user")
@@ -447,7 +447,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             try {
-                val result = adb.executeCommand("shell pm suspend $pkg")
+                val result = adb.executeCommand("shell pm suspend $pkg").getOrNull() ?: ""
                 if (result.contains("Success")) {
                     delay(AppConstants.COMMAND_DELAY_MS)
                     AppLog.i(TAG, "OptimizationEngine: suspended $pkg")
@@ -572,7 +572,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
     private suspend fun verifyAnalyticsDisabled(): Boolean {
         return try {
-            val result = adb.executeCommand("shell pm list packages -d").trim()
+            val result = adb.executeCommand("shell pm list packages -d").getOrNull() ?: ""
             ServiceRegistry.ANALYTICS_PACKAGES.take(2).any { pkg -> result.contains(pkg) }
         } catch (e: Exception) {
             AppLog.w(
@@ -585,7 +585,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
     private suspend fun verifyAdServicesDisabled(): Boolean {
         return try {
-            val result = adb.executeCommand("shell pm list packages -d").trim()
+            val result = adb.executeCommand("shell pm list packages -d").getOrNull() ?: ""
             ServiceRegistry.AD_SERVICES_PACKAGES.take(2).any { pkg -> result.contains(pkg) }
         } catch (e: Exception) {
             AppLog.w(
@@ -598,9 +598,9 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
     private suspend fun verifyDnsFilter(): Boolean {
         return try {
-            val mode = adb.executeCommand("settings get ${ServiceRegistry.Dns.MODE_KEY}").trim()
+            val mode = adb.executeCommand("settings get ${ServiceRegistry.Dns.MODE_KEY}").getOrNull() ?: ""
             val host =
-                adb.executeCommand("settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}").trim()
+                adb.executeCommand("settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}").getOrNull() ?: ""
             mode.contains(ServiceRegistry.Dns.MODE_VALUE) && host.contains("adguard")
         } catch (e: Exception) {
             AppLog.w(
