@@ -1,47 +1,4 @@
 ```
-# Compiled and build artifacts
-*.class
-*.o
-*.obj
-*.so
-*.a
-*.dll
-*.exe
-*.out
-build/
-dist/
-
-# Dependencies
 .gradle/
-target/
-__pycache__/
-.mypy_cache/
-.pytest_cache/
-node_modules/
-venv/
-.venv/
-
-# Logs and temp files
 *.log
-*.tmp
-*.swp
-
-# Environment
-.env
-.env.local
-*.env.*
-
-# Editors
-.vscode/
-.idea/
-
-# System files
-.DS_Store
-Thumbs.db
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
 ```
-new-config.yaml
