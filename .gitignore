@@ -40,3 +40,5 @@ coverage.xml
 .git/modules/
 .DS_Store
 ```
+/.continue
+/.gradle
