@@ -100,6 +100,7 @@
     <string name="hint_restricted">Tap 3 dots at the top → "Allow restricted settings"</string>
 
     <string name="forbidden_dialog_title">Forbidden settings</string>
+    <string name="hint_title">Hint</string>
     <string name="forbidden_dialog_text">On Android 14+ you must allow "Forbidden settings" in the app info screen.</string>
     <string name="forbidden_dialog_open">Open app settings</string>
 
