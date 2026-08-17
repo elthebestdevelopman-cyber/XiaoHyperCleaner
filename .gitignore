@@ -44,3 +44,11 @@ local.properties
 # Original rules preserved
 *.log
 ```
+# Coverage
+coverage/
+htmlcov/
+.coverage
+```
+.continue/agents/new-config.yaml
+.continue/prompts/new-prompt.md
+.continue/rules/new-rule.md
