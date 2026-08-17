@@ -272,6 +272,7 @@ private fun MainContent(
         SimpleDoneDialog(
             completedCount = state.simpleDone.first,
             totalCount = state.simpleDone.second,
+            failedSteps = emptyList(), // Можно добавить сбор неудачных шагов в MainViewModel
             onRate = { openRateApp(context) },
             onDonate = { openWebView(context, "https://yoomoney.ru/to/410011379195150", "ЮMoney") },
             onClose = { vm.closeSimpleMode() }

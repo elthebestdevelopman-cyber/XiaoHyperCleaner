@@ -159,6 +159,7 @@ fun SimpleStepScreen(
 fun SimpleDoneDialog(
     completedCount: Int,
     totalCount: Int,
+    failedSteps: List<String> = emptyList(),
     onRate: () -> Unit,
     onDonate: () -> Unit,
     onClose: () -> Unit
@@ -192,6 +193,50 @@ fun SimpleDoneDialog(
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Spacer(Modifier.height(16.dp))
+
+                // Честные преимущества без лжи
+                Text(
+                    stringResource(R.string.simple_done_benefits),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(8.dp))
+                
+                val showAdsBenefit = completedCount >= 3 || failedSteps.none { it.contains("msa") || it.contains("ads") }
+                val showTelemetryBenefit = completedCount >= 5 || failedSteps.none { it.contains("ux") || it.contains("analytics") }
+                val showSpamBenefit = completedCount >= 4 || failedSteps.none { it.contains("getapps") || it.contains("music") || it.contains("themes") }
+                val showStableBenefit = completedCount >= 6
+                
+                if (showAdsBenefit) {
+                    Text(
+                        stringResource(R.string.simple_done_benefit_ads),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(4.dp))
+                }
+                if (showTelemetryBenefit) {
+                    Text(
+                        stringResource(R.string.simple_done_benefit_telemetry),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(4.dp))
+                }
+                if (showSpamBenefit) {
+                    Text(
+                        stringResource(R.string.simple_done_benefit_spam),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(4.dp))
+                }
+                if (showStableBenefit) {
+                    Text(
+                        stringResource(R.string.simple_done_benefit_stable),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                Spacer(Modifier.height(8.dp))
 
                 Button(
                     onClick = onRate,

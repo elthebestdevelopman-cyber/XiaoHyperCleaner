@@ -1,47 +1,49 @@
 ```
-# Local configuration
-local.properties
-
-# Compiled files
+# Compiled and build artifacts
 *.class
-*.o
-*.obj
+*.dex
 *.so
-*.dll
-*.exe
-*.out
-
-# Build directories
-build/
-dist/
-target/
+*.aar
+*.apk
+*.jar
 
 # Dependencies
-node_modules/
-venv/
-.venv/
-__pycache__/
-.mypy_cache/
-.pytest_cache/
+libs/
+build/
 .gradle/
+node_modules/
 
-# IDE files
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Editors
 .vscode/
 .idea/
-*.swp
-*.swo
-*.tmp
+*.iml
+*.iws
 
 # System files
 .DS_Store
 Thumbs.db
-.env
-.env.local
-*.env.*
 
-# Logs
+# Gradle
+.gradle/
+!gradle.properties
+
+# Android specific
+*.ap_
+*.apks
+*.aab
+intermediates/
+outputs/
+.externalNativeBuild/
+local.properties
+
+# Original rules preserved
 *.log
-
+```
 # Coverage
 coverage/
 htmlcov/
