@@ -19,7 +19,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.automirrored.filled.Tune
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Settings
 import com.xiaohypercleaner.data.OptimizationMode
 
 @Composable
@@ -119,7 +120,7 @@ private fun ModeCard(
 
     Card(
         modifier = Modifier
-            .weight(1f)
+            .fillMaxWidth()
             .heightIn(min = 180.dp)
             .scale(scale)
             .clickable(onClick = onClick),
@@ -191,7 +192,7 @@ private fun ModeCard(
 @Composable
 private fun SimpleIcon(color: Color) {
     Icon(
-        imageVector = Icons.AutoMirrored.Filled.Tune,
+        imageVector = Icons.Filled.Tune,
         contentDescription = "Simple Mode",
         modifier = Modifier.size(40.dp),
         tint = color
@@ -201,7 +202,7 @@ private fun SimpleIcon(color: Color) {
 @Composable
 private fun ProIcon(color: Color) {
     Icon(
-        imageVector = Icons.Filled.Star,
+        imageVector = Icons.Filled.Settings,
         contentDescription = "Pro Mode",
         modifier = Modifier.size(40.dp),
         tint = color

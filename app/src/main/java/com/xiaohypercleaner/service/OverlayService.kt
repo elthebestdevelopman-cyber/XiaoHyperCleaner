@@ -184,7 +184,7 @@ class OverlayService : Service() {
         if (::root.isInitialized && root.isAttachedToWindow) {
             runCatching { windowManager.removeView(root) }
         }
-        OverlayController.registerService(null)
+        OverlayController.registerService(this)
         super.onDestroy()
     }
 
@@ -409,30 +409,30 @@ class OverlayService : Service() {
                         // Стрелка снизу текста, указывает вверх на target
                         val textY = targetRect.top - dp(60)
                         path.moveTo(targetRect.centerX().toFloat(), (targetRect.top - gap).toFloat())
-                        path.lineTo((targetRect.centerX() - arrowSize).toFloat(), textY)
-                        path.lineTo((targetRect.centerX() + arrowSize).toFloat(), textY)
+                        path.lineTo((targetRect.centerX() - arrowSize).toFloat(), textY.toFloat())
+                        path.lineTo((targetRect.centerX() + arrowSize).toFloat(), textY.toFloat())
                         path.close()
                     }
                     ArrowPosition.BOTTOM -> {
                         // Стрелка сверху текста, указывает вниз на target
                         val textY = targetRect.bottom + dp(60)
                         path.moveTo(targetRect.centerX().toFloat(), (targetRect.bottom + gap).toFloat())
-                        path.lineTo((targetRect.centerX() - arrowSize).toFloat(), textY)
-                        path.lineTo((targetRect.centerX() + arrowSize).toFloat(), textY)
+                        path.lineTo((targetRect.centerX() - arrowSize).toFloat(), textY.toFloat())
+                        path.lineTo((targetRect.centerX() + arrowSize).toFloat(), textY.toFloat())
                         path.close()
                     }
                     ArrowPosition.LEFT -> {
                         val textX = targetRect.left - dp(60)
                         path.moveTo((targetRect.left - gap).toFloat(), targetRect.centerY().toFloat())
-                        path.lineTo(textX, (targetRect.centerY() - arrowSize).toFloat())
-                        path.lineTo(textX, (targetRect.centerY() + arrowSize).toFloat())
+                        path.lineTo(textX.toFloat(), (targetRect.centerY() - arrowSize).toFloat())
+                        path.lineTo(textX.toFloat(), (targetRect.centerY() + arrowSize).toFloat())
                         path.close()
                     }
                     ArrowPosition.RIGHT -> {
                         val textX = targetRect.right + dp(60)
                         path.moveTo((targetRect.right + gap).toFloat(), targetRect.centerY().toFloat())
-                        path.lineTo(textX, (targetRect.centerY() - arrowSize).toFloat())
-                        path.lineTo(textX, (targetRect.centerY() + arrowSize).toFloat())
+                        path.lineTo(textX.toFloat(), (targetRect.centerY() - arrowSize).toFloat())
+                        path.lineTo(textX.toFloat(), (targetRect.centerY() + arrowSize).toFloat())
                         path.close()
                     }
                 }
