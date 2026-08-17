@@ -6,6 +6,15 @@ import android.provider.Settings
 
 object SimpleSteps {
 
+    /**
+     * Уровень риска отключения уведомлений/функций
+     */
+    enum class RiskLevel {
+        SAFE,           // ✅ Безопасно — никаких последствий
+        CONDITIONAL,    // ⚠️ Условно безопасно — есть нюансы
+        HIGH            // 🔴 Высокий риск — требует подтверждения
+    }
+
     data class Step(
         val id: String,
         val titleRu: String,
@@ -16,7 +25,10 @@ object SimpleSteps {
         val searchTexts: List<String>,
         val targetChecked: Boolean = false,
         val manualHintRu: String,
-        val manualHintEn: String
+        val manualHintEn: String,
+        val riskLevel: RiskLevel = RiskLevel.SAFE,
+        val warningRu: String? = null,  // Текст предупреждения для CONDITIONAL/HIGH
+        val warningEn: String? = null
     )
 
     /**
@@ -133,6 +145,7 @@ object SimpleSteps {
 
         // ═══════════════════════════════════════════════════════════════
         // 4. GetApps — уведомления-спам от магазина
+        // ✅ Безопасно: обновления приложений идут через системный механизм
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "getapps",
@@ -154,11 +167,16 @@ object SimpleSteps {
             ),
             targetChecked = false,
             manualHintRu = "Откроются уведомления GetApps. Выключите переключатель «Разрешить уведомления».",
-            manualHintEn = "GetApps notification settings will open. Turn off \"Allow notifications\"."
+            manualHintEn = "GetApps notification settings will open. Turn off \"Allow notifications\".",
+            riskLevel = RiskLevel.SAFE,
+            warningRu = null,
+            warningEn = null
         ),
 
         // ═══════════════════════════════════════════════════════════════
         // 5. Mi Music — рекламные уведомления
+        // ⚠️ Условно безопасно: если используете Mi Music как основной плеер,
+        //    потеряете уведомления о новых плейлистах/альбомах (но музыка работает)
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "music",
@@ -173,16 +191,20 @@ object SimpleSteps {
             searchTexts = listOf(
                 "Уведомления", "Notifications",
                 "Allow notifications", "Разрешить уведомления",
-                "Show notifications", "Показывать уведомления",
+                "Show notifications", "Показывать уведомлений",
                 "Allow Mi Music to send notifications"
             ),
             targetChecked = false,
             manualHintRu = "Откроются уведомления Mi Music. Выключите переключатель «Разрешить уведомления».",
-            manualHintEn = "Mi Music notification settings will open. Turn off \"Allow notifications\"."
+            manualHintEn = "Mi Music notification settings will open. Turn off \"Allow notifications\".",
+            riskLevel = RiskLevel.CONDITIONAL,
+            warningRu = "⚠️ Если вы используете Mi Music как основной плеер, вы потеряете уведомления о новых плейлистах и альбомах. Сама музыка будет работать нормально.",
+            warningEn = "⚠️ If you use Mi Music as your main player, you will lose notifications about new playlists and albums. Music playback will work normally."
         ),
 
         // ═══════════════════════════════════════════════════════════════
         // 6. Themes — рекламные уведомления
+        // ✅ Безопасно: темы можно применять вручную через приложение
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "themes",
@@ -201,11 +223,15 @@ object SimpleSteps {
             ),
             targetChecked = false,
             manualHintRu = "Откроются уведомления Темы. Выключите переключатель «Разрешить уведомления».",
-            manualHintEn = "Themes notification settings will open. Turn off \"Allow notifications\"."
+            manualHintEn = "Themes notification settings will open. Turn off \"Allow notifications\".",
+            riskLevel = RiskLevel.SAFE,
+            warningRu = null,
+            warningEn = null
         ),
 
         // ═══════════════════════════════════════════════════════════════
         // 7. File Manager — уведомления-спам
+        // ✅ Безопасно: файловый менеджер работает полностью без уведомлений
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "filemanager",
@@ -226,11 +252,15 @@ object SimpleSteps {
             ),
             targetChecked = false,
             manualHintRu = "Откроются уведомления Проводника. Выключите переключатель «Разрешить уведомления».",
-            manualHintEn = "File Manager notification settings will open. Turn off \"Allow notifications\"."
+            manualHintEn = "File Manager notification settings will open. Turn off \"Allow notifications\".",
+            riskLevel = RiskLevel.SAFE,
+            warningRu = null,
+            warningEn = null
         ),
 
         // ═══════════════════════════════════════════════════════════════
         // 8. Xiaomi Service Framework (MSF) — сервисы Xiaomi
+        // ✅ Безопасно: отключаем только уведомления, сервисы работают
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "msf",
@@ -250,11 +280,15 @@ object SimpleSteps {
             ),
             targetChecked = false,
             manualHintRu = "Откроются уведомления Xiaomi Service Framework. Выключите переключатель «Разрешить уведомления».",
-            manualHintEn = "Xiaomi Service Framework notification settings will open. Turn off \"Allow notifications\"."
+            manualHintEn = "Xiaomi Service Framework notification settings will open. Turn off \"Allow notifications\".",
+            riskLevel = RiskLevel.SAFE,
+            warningRu = null,
+            warningEn = null
         ),
 
         // ═══════════════════════════════════════════════════════════════
         // 9. Системная аналитика — приватность
+        // ✅ Безопасно: отключаем сбор данных, система работает нормально
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "analytics",
@@ -276,11 +310,15 @@ object SimpleSteps {
             ),
             targetChecked = false,
             manualHintRu = "Настройки → Пароли и безопасность → Конфиденциальность → Отключите сбор аналитики.",
-            manualHintEn = "Settings → Passwords & security → Privacy → Turn off analytics collection."
+            manualHintEn = "Settings → Passwords & security → Privacy → Turn off analytics collection.",
+            riskLevel = RiskLevel.SAFE,
+            warningRu = null,
+            warningEn = null
         ),
 
         // ═══════════════════════════════════════════════════════════════
         // 10. Рекламный ID — сброс Google Ads
+        // ✅ Безопасно: можно сбросить или отключить без последствий
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "ads_id",
@@ -301,11 +339,15 @@ object SimpleSteps {
             ),
             targetChecked = false,
             manualHintRu = "Настройки → Google → Реклама → Удалить рекламный ID или отключить персонализацию.",
-            manualHintEn = "Settings → Google → Ads → Delete advertising ID or turn off ad personalization."
+            manualHintEn = "Settings → Google → Ads → Delete advertising ID or turn off ad personalization.",
+            riskLevel = RiskLevel.SAFE,
+            warningRu = null,
+            warningEn = null
         ),
 
         // ═══════════════════════════════════════════════════════════════
         // 11. Smart Assistant (Mi AI) — голосовой помощник
+        // ⚠️ Условно безопасно: если используете голосовые команды, потеряете уведомления
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "smart_assistant",
@@ -326,11 +368,15 @@ object SimpleSteps {
             ),
             targetChecked = false,
             manualHintRu = "Откроются уведомления Smart Assistant. Выключите переключатель «Разрешить уведомления».",
-            manualHintEn = "Smart Assistant notification settings will open. Turn off \"Allow notifications\"."
+            manualHintEn = "Smart Assistant notification settings will open. Turn off \"Allow notifications\".",
+            riskLevel = RiskLevel.CONDITIONAL,
+            warningRu = "⚠️ Если вы используете голосовые команды Mi AI, вы можете потерять некоторые уведомления. Голосовое управление продолжит работать.",
+            warningEn = "⚠️ If you use Mi AI voice commands, you may lose some notifications. Voice control will continue to work."
         ),
 
         // ═══════════════════════════════════════════════════════════════
         // 12. Game Turbo реклама — игровые уведомления
+        // ✅ Безопасно: игровой режим работает, отключаем только рекламу
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "game_turbo",
@@ -345,13 +391,17 @@ object SimpleSteps {
             searchTexts = listOf(
                 "Уведомления", "Notifications",
                 "Allow notifications", "Разрешить уведомления",
+                "Show notifications", "Показывать уведомления",
                 "Game Turbo", "Игровой режим",
                 "Game Booster", "Игры",
                 "Recommendations", "Рекомендации"
             ),
             targetChecked = false,
             manualHintRu = "Откроются уведомления Game Turbo. Выключите переключатель «Разрешить уведомления».",
-            manualHintEn = "Game Turbo notification settings will open. Turn off \"Allow notifications\"."
+            manualHintEn = "Game Turbo notification settings will open. Turn off \"Allow notifications\".",
+            riskLevel = RiskLevel.SAFE,
+            warningRu = null,
+            warningEn = null
         )
     )
 

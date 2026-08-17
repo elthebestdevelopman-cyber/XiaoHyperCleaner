@@ -1,17 +1,18 @@
 ```
 # Compiled and build artifacts
 *.class
-*.dex
+*.o
+*.obj
 *.so
-*.aar
-*.apk
-*.jar
+*.dll
+*.exe
+*.a
+*.out
 
 # Dependencies
-libs/
-build/
 .gradle/
-node_modules/
+build/
+target/
 
 # Logs and temp files
 *.log
@@ -19,36 +20,17 @@ node_modules/
 *.swp
 
 # Editors
-.vscode/
 .idea/
 *.iml
 *.iws
+.vscode/
 
 # System files
 .DS_Store
 Thumbs.db
 
-# Gradle
-.gradle/
-!gradle.properties
-
-# Android specific
-*.ap_
-*.apks
-*.aab
-intermediates/
-outputs/
-.externalNativeBuild/
-local.properties
-
-# Original rules preserved
-*.log
+# Environment
+.env
+.env.local
+*.env.*
 ```
-# Coverage
-coverage/
-htmlcov/
-.coverage
-```
-.continue/agents/new-config.yaml
-.continue/prompts/new-prompt.md
-.continue/rules/new-rule.md
