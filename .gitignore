@@ -52,4 +52,5 @@ build/
 *.lzo
 ```
 .continue
-.gradle
+local.properties
+/.gradle
