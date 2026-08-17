@@ -51,3 +51,8 @@ build/
 *.lz
 *.lzo
 ```
+/.continue
+/.gradle
+/.gradle
+*.properties
+/.gradle
