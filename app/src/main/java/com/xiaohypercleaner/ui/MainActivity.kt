@@ -85,9 +85,9 @@ import com.xiaohypercleaner.data.SimpleStepState
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.ui.components.InfoDialog
-import com.xiaohypercleaner.ui.components.LevelConfirmDialog
 import com.xiaohypercleaner.ui.components.MenuDialog
 import com.xiaohypercleaner.ui.components.OptimizationLevelDialog
+import com.xiaohypercleaner.data.OptimizationMode
 import com.xiaohypercleaner.ui.components.ShizukuSetupWizard
 import com.xiaohypercleaner.ui.components.ShizukuSourcesDialog
 import com.xiaohypercleaner.ui.components.SimpleDoneDialog
@@ -238,18 +238,11 @@ private fun MainContent(
     // ===== ПРОСТОЙ РЕЖИМ: выбор уровня =====
     if (state.showLevelDialog) {
         OptimizationLevelDialog(
-            onChoose = { level -> vm.onLevelChosen(level) }
+            currentMode = OptimizationMode.SIMPLE, onModeSelected = { mode -> vm.startSimpleMode() }, onDismiss = { vm.closeSimpleMode() }
         )
     }
 
     // Подтверждение выбранного уровня — даёт время прочитать
-    if (state.showLevelConfirm && state.selectedLevel != null) {
-        LevelConfirmDialog(
-            level = state.selectedLevel,
-            onConfirm = { vm.confirmLevelStart() },
-            onCancel = { vm.cancelLevelConfirm() }
-        )
-    }
 
     // Экран текущего шага простой оптимизации
     if (state.simpleStep != null) {

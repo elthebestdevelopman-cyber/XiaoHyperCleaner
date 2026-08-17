@@ -128,7 +128,7 @@ class OverlayService : Service() {
      */
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        if (::root.isInitialized && root.isAttachedToWindow) {
+        if (this::root.isInitialized && root.isAttachedToWindow) {
             runCatching {
                 val params = baseParams().apply {
                     gravity = if (hintMode) Gravity.TOP or Gravity.CENTER_HORIZONTAL
@@ -181,7 +181,7 @@ class OverlayService : Service() {
         pulseAnimator?.cancel()
         pulseAnimator = null
         hideInteractiveHint()
-        if (::root.isInitialized && root.isAttachedToWindow) {
+        if (this::root.isInitialized && root.isAttachedToWindow) {
             runCatching { windowManager.removeView(root) }
         }
         OverlayController.registerService(null)
@@ -464,10 +464,10 @@ class OverlayService : Service() {
                     // Для LEFT/RIGHT позиций смещаем текст
                     if (position == ArrowPosition.LEFT) {
                         textPaint.textAlign = Paint.Align.RIGHT
-                        canvas.drawText(line, targetRect.left - dp(20), y, textPaint)
+                        canvas.drawText(line, (targetRect.left - dp(20)).toFloat(), y, textPaint)
                     } else if (position == ArrowPosition.RIGHT) {
                         textPaint.textAlign = Paint.Align.LEFT
-                        canvas.drawText(line, targetRect.right + dp(20), y, textPaint)
+                        canvas.drawText(line, (targetRect.right + dp(20)).toFloat(), y, textPaint)
                     } else {
                         textPaint.textAlign = Paint.Align.CENTER
                         canvas.drawText(line, textX, y, textPaint)
