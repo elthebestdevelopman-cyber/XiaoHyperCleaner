@@ -1,18 +1,3 @@
-```
-# Compiled and build artifacts
-*.class
-*.o
-*.obj
-*.exe
-*.dll
-*.so
-*.a
-*.out
-build/
-target/
-
-# Dependencies
-.gradle/
 node_modules/
 venv/
 .venv/
@@ -41,6 +26,10 @@ Thumbs.db
 coverage/
 htmlcov/
 .coverage
+
+# Dependencies
+.gradle/
+build/
 
 # Compressed files
 *.zip
