@@ -1,221 +1,123 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- ========== ОБЩИЕ ========== -->
     <string name="app_name">XiaoHyperCleaner</string>
-    <string name="splash_tagline">Без root. Без лишнего. Без твоих данных.</string>
+    <string name="app_description_short">Отключаем рекламу, телеметрию и спам на Xiaomi / MIUI / HyperOS. Работает через ADB и Accessibility, без root.</string>
+    <string name="cancel">Отмена</string>
+    <string name="allow">Разрешить</string>
+    <string name="agree_and_open">Согласиться и открыть</string>
+
+    <!-- ========== ГЛАВНЫЙ ЭКРАН ========== -->
+    <string name="features_title">Что делает приложение</string>
+    <string name="feature_processes">Отключение рекламных и системных сервисов</string>
+    <string name="feature_speed">Ускорение интерфейса и оптимизация анимаций</string>
+    <string name="feature_battery">Улучшение автономности за счёт отключения сборщиков данных</string>
 
     <string name="btn_optimize">Оптимизировать</string>
-    <string name="btn_restore">Отменить оптимизацию</string>
-    <string name="reboot_now">Перезагрузить</string>
+    <string name="btn_restore">Откатить изменения</string>
+    <string name="status_working">Выполняется оптимизация…</string>
+    <string name="status_done">Оптимизация завершена</string>
+    <string name="status_done_description">Реклама отключена, телеметрия остановлена, система работает быстрее.</string>
+    <string name="reboot_now">Перезагрузить сейчас</string>
 
-    <string name="menu_about">О приложении</string>
-    <string name="menu_dark_theme">Тёмная тема</string>
-    <string name="close">Закрыть</string>
-    <string name="cancel">Отмена</string>
-    <string name="allow">Продолжить</string>
+    <!-- ========== ВЫБОР УРОВНЯ ========== -->
+    <string name="simple_level_title">Выберите уровень оптимизации</string>
+    <string name="simple_level_simple_title">Простая</string>
+    <string name="simple_level_simple_desc">Приложение само выключит переключатели в настройках телефона (рекомендации, телеметрия, аналитика). Выдайте разрешения, нажмите «Начать» и просто подождите — всё выполнится автоматически. Если шаг не получится, приложение проверит причину и повторит попытку. Без Wi‑Fi и сложных настроек.</string>
+    <string name="simple_level_advanced_title">Продвинутая</string>
+    <string name="simple_level_advanced_desc">Через Shizuku и Wireless ADB — глубже и надёжнее, но требует настройки.</string>
+    <string name="simple_level_extreme_title">Экстремальная</string>
+    <string name="simple_level_extreme_desc">Плюс смена региона на DE и агрессивные настройки. Может сломать OTA-обновления.</string>
 
-    <string name="about_title">О приложении</string>
-    <string name="about_version">Версия 1.0</string>
-    <string name="about_author">Автор: ElthebestDevelopman</string>
-    <string name="about_text">Инструмент настройки для Xiaomi, Redmi и Poco. Применяет оптимизирующие параметры MIUI / HyperOS через локальный ADB. Все изменения обратимы. Результат зависит от модели устройства и версии прошивки.</string>
+    <!-- ========== ПРОСТОЙ РЕЖИМ: ШАГИ ========== -->
+    <string name="simple_step_of">Шаг %1$d из %2$d</string>
+    <string name="simple_step_start">Начать</string>
+    <string name="simple_step_working">Выполняется…</string>
+    <string name="simple_step_attempt">Попытка %1$d из %2$d</string>
+    <string name="simple_step_success">Готово</string>
+    <string name="simple_step_auto_next">Готово — переходим дальше…</string>
+    <string name="simple_step_failed">Не получилось сделать автоматически</string>
+    <string name="simple_step_next">Далее</string>
+    <string name="simple_step_skip">Пропустить шаг</string>
+    <string name="simple_step_retry">Повторить попытку</string>
 
-    <string name="support_title">Поддержать разработку:</string>
-    <string name="support_yoomoney">Поддержать (ЮMoney)</string>
-    <string name="support_cloudtips">Поддержать (CloudTips)</string>
-    <string name="rate_app">Оценить приложение</string>
-    <string name="log_share">Поделиться логом</string>
+    <!-- ========== ПРОСТОЙ РЕЖИМ: ФИНАЛ ========== -->
+    <string name="simple_done_title">Всё готово!</string>
+    <string name="simple_done_text">Реклама, телеметрия и спам отключены. Перезагрузка не требуется.</string>
+    <string name="simple_done_steps_done">Выполнено %1$d из %2$d шагов</string>
+    <string name="simple_done_rate">Оценить приложение</string>
+    <string name="simple_done_donate">Поддержать автора</string>
+    <string name="simple_done_close">Закрыть</string>
 
-    <string name="app_description_short">Безопасная оптимизация для Xiaomi, Redmi, Poco. Настраивает системные сервисы и параметры производительности.</string>
-    <string name="features_title">Что делает приложение</string>
-    <string name="feature_processes">Оптимизирует системные сервисы</string>
-    <string name="feature_speed">Применяет параметры производительности MIUI / HyperOS</string>
-    <string name="feature_battery">Работает без root-прав</string>
+    <!-- ========== SHIZUKU ДИАЛОГИ ========== -->
+    <string name="shizuku_dialog_title">Для продвинутого режима нужен Shizuku</string>
+    <string name="shizuku_dialog_not_installed">Shizuku не установлен. Установите его из магазина приложений.</string>
+    <string name="shizuku_dialog_not_running">Shizuku установлен, но не запущен. Откройте приложение и выполните шаги 1–5.</string>
+    <string name="shizuku_dialog_permission">Shizuku работает, но нужно дать разрешение нашему приложению.</string>
+    <string name="shizuku_dialog_install">Установить</string>
+    <string name="shizuku_dialog_howto">Как запустить</string>
+    <string name="shizuku_dialog_later">Позже</string>
+    <string name="shizuku_card_other_sources">Другие источники установки</string>
 
-    <string name="options_dialog_title">Опции оптимизации</string>
-    <string name="options_dialog_text">Приложение применит оптимизирующие параметры MIUI / HyperOS и настроит системные сервисы. Все изменения обратимы — их можно отменить в любой момент.</string>
+    <string name="shizuku_wizard_not_ready">Shizuku ещё не готов. Повторите шаги 1–5 в приложении Shizuku и нажмите «Проверить» снова.</string>
+    <string name="shizuku_wizard_step6">Shizuku запущен. Теперь нажмите «Запросить разрешение» ниже.</string>
+    <string name="shizuku_wizard_permission_denied">Разрешение Shizuku отклонено. Откройте Shizuku и разрешите вручную.</string>
+
+    <!-- ========== ОПЦИИ (DNS, AGGRESSIVE) ========== -->
+    <string name="options_dialog_title">Параметры оптимизации</string>
+    <string name="options_dialog_text">Выберите дополнительные опции. Их можно изменить позже.</string>
+    <string name="dns_option_title">DNS-фильтр</string>
+    <string name="dns_option_description">Блокировка рекламы и трекеров на сетевом уровне через AdGuard DNS.</string>
+    <string name="aggressive_option_title">Агрессивный режим</string>
+    <string name="aggressive_option_description">⚠ Смена региона на DE. Может сломать OTA-обновления и некоторые сервисы Xiaomi.</string>
     <string name="options_dialog_start">Начать оптимизацию</string>
 
-    <string name="dns_option_title">DNS-фильтр</string>
-    <string name="dns_option_description">Использует AdGuard DNS для фильтрации нежелательных доменов на уровне DNS. Может незначительно повлиять на скорость интернета.</string>
-
-    <string name="aggressive_option_title">Расширенный режим</string>
-    <string name="aggressive_option_description">Изменяет дополнительные параметры системы. Может повлиять на получение OTA-обновлений и работу Mi-сервисов. Рекомендуется только для опытных пользователей.</string>
-
-    <string name="dns_warning_title">Предупреждение: DNS-фильтр</string>
-    <string name="dns_warning_text">Изменение DNS может повлиять на скорость интернета. В редких случаях некоторые сайты или приложения могут открываться медленнее или не открываться.\n\nЕсли после оптимизации вы заметите проблемы с интернетом, просто отмените оптимизацию — DNS вернётся к исходным настройкам.\n\nПродолжить с DNS-фильтром?</string>
+    <!-- ========== DNS ПРЕДУПРЕЖДЕНИЕ ========== -->
+    <string name="dns_warning_title">Внимание: DNS-фильтр</string>
+    <string name="dns_warning_text">Будет установлен приватный DNS AdGuard. Это отключит рекламу в браузере и приложениях, но может заблокировать некоторые сайты. Отключить можно в любой момент в настройках Android.</string>
     <string name="dns_warning_accept">Понятно, продолжить</string>
 
-    <string name="accessibility_explanation_title">Служба специальных возможностей</string>
-    <string name="accessibility_explanation_text">Для автоматической настройки приложения необходимо включить службу «XiaoHyperCleaner» в меню специальных возможностей. Она обычно находится в подменю «Скачанные приложения» / «Установленные службы».\n\nПосле нажатия «Включить» откроется список служб — найдите «XiaoHyperCleaner», включите переключатель и подтвердите предупреждение системы.</string>
-    <string name="agree_and_open">Включить</string>
+    <!-- ========== DEV MODE ========== -->
+    <string name="dev_mode_dialog_title">Нужен режим разработчика</string>
+    <string name="dev_mode_dialog_text">Для продолжения нужно включить режим разработчика. Откройте «О телефоне» и 7 раз нажмите «Версия MIUI».</string>
+    <string name="dev_mode_dialog_open_about">Открыть «О телефоне»</string>
+    <string name="dev_mode_dialog_retry">Попробовать снова</string>
 
-    <string name="overlay_permission_title">Поверх других окон</string>
-    <string name="overlay_permission_text">Это разрешение нужно для отображения прогресса. Переключатель включится автоматически — вам останется подтвердить действие.</string>
+    <!-- ========== ACCESSIBILITY ========== -->
+    <string name="accessibility_explanation_title">Нужны специальные возможности</string>
+    <string name="accessibility_explanation_text">Приложению нужен доступ к специальным возможностям, чтобы автоматически нажимать кнопки в настройках. Доступ используется только для оптимизации и не передаётся наружу.</string>
+    <string name="hint_accessibility">Включите «XiaoHyperCleaner» в списке служб</string>
 
-    <string name="restricted_dialog_title">Требуется дополнительное разрешение</string>
-    <string name="restricted_dialog_text">Android блокирует службу, потому что приложение установлено не из магазина.\n\nЧтобы продолжить:\n\n1. Нажмите кнопку ниже («Открыть настройки приложения»)\n2. В открывшемся окне пролистайте вниз до конца и найдите «Ограниченные настройки»\n3. Разрешите доступ, переключив переключатель\n4. Если пункта нет внизу — нажмите ⋮ (три точки) в правом верхнем углу, он будет там\n5. Вернитесь в приложение</string>
+    <!-- ========== OVERLAY ========== -->
+    <string name="overlay_permission_title">Разрешение «Поверх других окон»</string>
+    <string name="overlay_permission_text">Нужно, чтобы показывать подсказки во время настройки в других приложениях.</string>
+    <string name="hint_overlay">Разрешите отображение поверх других окон</string>
+
+    <!-- ========== RESTRICTED / FORBIDDEN (Android 13+ sideload) ========== -->
+    <string name="restricted_dialog_title">Ограниченные настройки</string>
+    <string name="restricted_dialog_text">Для включения службы специальных возможностей нужно сначала разрешить «Ограниченные настройки» в карточке приложения.</string>
     <string name="restricted_dialog_open">Открыть настройки приложения</string>
+    <string name="hint_restricted">Нажмите 3 точки сверху → «Разрешить ограниченные настройки»</string>
 
-    <string name="forbidden_dialog_title">Требуется дополнительное разрешение</string>
-    <string name="forbidden_dialog_text">Android блокирует службу, потому что приложение установлено не из магазина.\n\nЧтобы продолжить:\n\n1. Нажмите кнопку ниже («Открыть настройки приложения»)\n2. В открывшемся окне пролистайте вниз до конца и найдите «Запрещённые настройки»\n3. Разрешите доступ, переключив переключатель\n4. Если пункта нет внизу — нажмите ⋮ (три точки) в правом верхнем углу, он будет там\n5. Вернитесь в приложение</string>
+    <string name="forbidden_dialog_title">Запрещённые настройки</string>
+    <string name="forbidden_dialog_text">На Android 14+ нужно разрешить «Запрещённые настройки» в карточке приложения.</string>
     <string name="forbidden_dialog_open">Открыть настройки приложения</string>
 
-    <string name="status_working">Выполняется…</string>
-    <string name="status_done">Оптимизация завершена!</string>
-    <string name="status_done_description">Системные параметры применены.</string>
+    <!-- ========== ВОССТАНОВЛЕНИЕ / ПЕРЕЗАГРУЗКА ========== -->
+    <string name="restore_dialog_title">Откатить изменения?</string>
+    <string name="restore_dialog_text">Все настройки вернутся в исходное состояние, отключённые приложения будут включены.</string>
+    <string name="restore_confirm">Откатить</string>
+    <string name="restore_failed_text">Не удалось полностью откатить изменения. Часть настроек осталась изменённой.</string>
 
-    <string name="restore_dialog_title">Отменить оптимизацию</string>
-    <string name="restore_dialog_text">Все параметры и сервисы будут возвращены к исходному состоянию, устройство будет работать как раньше. Восстановить?</string>
-    <string name="restore_confirm">Да, восстановить</string>
-    <string name="restore_failed_text">Не удалось вернуть изменения. Убедитесь, что беспроводная отладка включена, и повторите попытку.</string>
-
-    <string name="reboot_dialog_title">Перезагрузить устройство</string>
-    <string name="reboot_dialog_text">Устройство будет перезагружено через ADB. Несохранённые данные могут быть потеряны. Продолжить?</string>
+    <string name="reboot_dialog_title">Перезагрузка</string>
+    <string name="reboot_dialog_text">Перезагрузите устройство, чтобы все оптимизации вступили в силу.</string>
     <string name="reboot_confirm">Перезагрузить</string>
-    <string name="reboot_failed_text">Не удалось отправить команду перезагрузки через ADB.</string>
+    <string name="reboot_failed_text">Не удалось отправить команду перезагрузки. Перезагрузите устройство вручную.</string>
 
-    <string name="final_dialog_title">Настройка завершена</string>
-    <string name="final_dialog_success_text">Все параметры применены успешно. Если всё работает хорошо, оставьте отзыв — это помогает другим пользователям найти приложение.</string>
-    <string name="final_dialog_failed_text">Не удалось применить все изменения. Отправьте лог разработчику, чтобы разобраться в проблеме.</string>
+    <!-- ========== ФИНАЛЬНЫЙ ДИАЛОГ (продвинутый режим) ========== -->
+    <string name="final_dialog_title">Результат оптимизации</string>
+    <string name="final_dialog_success_text">Оптимизация успешно завершена. Все рекламные и телеметрические сервисы отключены.</string>
+    <string name="final_dialog_failed_text">Оптимизация завершилась с ошибками. Пожалуйста, отправьте лог разработчику.</string>
     <string name="final_dialog_rate">Оценить приложение</string>
     <string name="final_dialog_send_log">Отправить лог</string>
-
-    <string name="onboarding_skip">Пропустить</string>
-    <string name="onboarding_next">Далее</string>
-    <string name="onboarding_start">Начать</string>
-
-    <string name="onboarding_page1_title">Добро пожаловать!</string>
-    <string name="onboarding_page1_text">XiaoHyperCleaner применяет оптимизирующие параметры и настраивает системные сервисы на Xiaomi, Redmi и Poco. Приложение работает без root через локальный ADB.</string>
-
-    <string name="onboarding_page2_title">Нужные разрешения</string>
-    <string name="onboarding_page2_text">Приложению нужна служба специальных возможностей (для автоматической настройки) и показ поверх других окон (для отображения прогресса). Мы не собираем и не отправляем ваши данные.</string>
-
-    <string name="onboarding_page3_title">Всё обратимо</string>
-    <string name="onboarding_page3_text">Все изменения можно отменить в любой момент кнопкой «Отменить оптимизацию». Если что-то пойдёт не так, приложение автоматически вернёт исходные настройки.</string>
-
-    <string name="allow_button_ru">Разрешить</string>
-    <string name="allow_button_en">Allow</string>
-    <string-array name="wireless_debugging_texts">
-        <item>Wireless debugging</item>
-        <item>Беспроводная отладка</item>
-        <item>Отладка по Wi-Fi</item>
-        <item>Отладка по беспроводной сети</item>
-        <item>Wireless ADB</item>
-        <item>Wi-Fi debugging</item>
-        <item>Wi-Fi ADB</item>
-    </string-array>
-
-    <string name="overlay_cancel">Отмена</string>
-    <string name="overlay_preparing">Подготовка…</string>
-    <string name="overlay_connecting">Подключение к ADB…</string>
-    <string name="overlay_method1">Применение системных параметров…</string>
-    <string name="overlay_method2">Настройка системных сервисов…</string>
-    <string name="overlay_method3">Настройка параметров производительности…</string>
-    <string name="overlay_method4">Оптимизация фоновых процессов…</string>
-    <string name="overlay_method5">Настройка DNS-фильтра…</string>
-    <string name="overlay_verifying">Финальная проверка…</string>
-    <string name="overlay_done">Настройка завершена</string>
-    <string name="overlay_failed">Не удалось применить изменения</string>
-    <string name="overlay_connect_failed">Не удалось подключиться к ADB</string>
-    <string name="overlay_searching_overlay_switch">Ищем переключатель поверх окон…</string>
-    <string name="overlay_searching_toggle">Ищем настройки беспроводной отладки…</string>
-    <string name="overlay_clicking_allow">Нажимаем «Разрешить»…</string>
-    <string name="overlay_dev_mode_required">Включите режим разработчика — инструкция в приложении</string>
-
-    <string name="overlay_verify_method1_failed">Не удалось проверить системные настройки</string>
-    <string name="overlay_verify_method2_failed">Не удалось проверить настройку сервисов</string>
-    <string name="overlay_verify_method3_failed">Не удалось проверить параметры производительности</string>
-    <string name="overlay_verify_method4_failed">Не удалось проверить оптимизацию процессов</string>
-    <string name="overlay_final_verification_failed">Финальная проверка не пройдена</string>
-
-    <string name="dev_mode_dialog_title">Нужен режим разработчика</string>
-    <string name="dev_mode_dialog_text">Беспроводная отладка находится в меню «Для разработчиков», которое сейчас выключено.\n\nВключите его один раз:\n\n1. Нажмите «Открыть "О телефоне"»\n2. Нажимайте «Номер сборки» 7 раз, пока не появится надпись «Вы стали разработчиком»\n3. Вернитесь в приложение и нажмите «Продолжить»</string>
-    <string name="dev_mode_dialog_open_about">Открыть «О телефоне»</string>
-    <string name="dev_mode_dialog_retry">Продолжить</string>
-
-    <string name="hint_title">Подсказка</string>
-    <string name="hint_accessibility">В меню «Специальные возможности» найдите службу «XiaoHyperCleaner» (подменю «Скачанные приложения/службы»), включите переключатель и подтвердите предупреждение.</string>
-    <string name="hint_restricted">Пролистайте настройки приложения до самого низа и найдите «Ограниченные/Запрещённые настройки» — включите переключатель. Если пункта нет внизу, нажмите ⋮ (три точки) в правом верхнем углу.</string>
-    <string name="hint_overlay">Включите переключатель «Поверх других приложений» для XiaoHyperCleaner.</string>
-    <string name="hint_dev">Включите «Беспроводная отладка». Если её нет — сначала включите «Отладка по USB», затем включите беспроводную. Подтвердите все предупреждения.</string>
-    <string name="hint_allow">Нажмите «Разрешить» в появившемся системном диалоге.</string>
-
-    <string name="shizuku_dialog_title">Быстрая оптимизация</string>
-    <string name="shizuku_dialog_not_installed">Для мгновенной оптимизации без Wi-Fi и цепочек разрешений установите бесплатное приложение Shizuku. Это займёт 30 секунд, и больше ничего настраивать не придётся.</string>
-    <string name="shizuku_dialog_not_running">Приложение Shizuku установлено, но не запущено. Откройте его и нажмите «Запустить» — после этого оптимизация будет работать без Wi-Fi.</string>
-    <string name="shizuku_dialog_permission">Откройте Shizuku и разрешите XiaoHyperCleaner использовать API. Это делается один раз.</string>
-    <string name="shizuku_dialog_install">Скачать Shizuku</string>
-    <string name="shizuku_dialog_open_app">Открыть Shizuku</string>
-    <string name="shizuku_dialog_later">Позже, использовать беспроводную отладку</string>
-    <string name="shizuku_attribution">Используется Shizuku API (MIT License, © Rikka)\ngithub.com/RikkaApps/Shizuku-API</string>
-
-    <string name="shizuku_card_other_sources">Google Play не даёт? Другие источники</string>
-    <string name="shizuku_sources_title">Скачать Shizuku</string>
-    <string name="shizuku_sources_text">Если Google Play не разрешает установку, выберите другой источник:</string>
-    <string name="shizuku_sources_play">Google Play</string>
-    <string name="shizuku_sources_aurora">Aurora Store</string>
-    <string name="shizuku_sources_getapps">GetApps (Xiaomi)</string>
-    <string name="shizuku_sources_github">GitHub (APK напрямую)</string>
-    <string name="shizuku_sources_apkpure">APKPure</string>
-
-    <string name="shizuku_dialog_howto">Как запустить Shizuku?</string>
-    <string name="shizuku_wizard_title">Быстрая оптимизация через Shizuku</string>
-    <string name="shizuku_wizard_intro">Shizuku позволяет оптимизировать устройство быстрее, но требует сложной настройки. Если не получится — можно пропустить и использовать обычную оптимизацию.</string>
-    <string name="shizuku_wizard_skip_top">Пропустить и использовать обычную оптимизацию</string>
-    <string name="shizuku_wizard_or">или настройте Shizuku:</string>
-    <string name="shizuku_wizard_step1_title">Шаг 1: Включите режим разработчика</string>
-    <string name="shizuku_wizard_step1_desc">В открывшемся окне нажимайте "Номер сборки" 7 раз, пока не появится надпись "Вы стали разработчиком".</string>
-    <string name="shizuku_wizard_step2_title">Шаг 2: Включите беспроводную отладку</string>
-    <string name="shizuku_wizard_step2_desc">Найдите "Беспроводная отладка" и включите переключатель.</string>
-    <string name="shizuku_wizard_step3_title">Шаг 3: Получите код сопряжения</string>
-    <string name="shizuku_wizard_step3_desc">В настройках беспроводной отладки нажмите "Сопрячь устройство с помощью кода" и скопируйте 6-значный код.</string>
-    <string name="shizuku_wizard_step4_title">Шаг 4: Запустите Shizuku</string>
-    <string name="shizuku_wizard_step4_desc">Откройте Shizuku, нажмите "Start via Wireless debugging", вставьте код и нажмите OK.</string>
-    <string name="shizuku_wizard_step5_title">Шаг 5: Проверьте готовность</string>
-    <string name="shizuku_wizard_step5_desc">Вернитесь сюда и нажмите "Проверить готовность".</string>
-    <string name="shizuku_wizard_open_about">Открыть "О телефоне"</string>
-    <string name="shizuku_wizard_open_dev">Открыть "Для разработчиков"</string>
-    <string name="shizuku_wizard_open_shizuku">Открыть Shizuku</string>
-    <string name="shizuku_wizard_check">Проверить готовность</string>
-    <string name="shizuku_wizard_skip">Не получается? Использовать обычную оптимизацию</string>
-    <string name="shizuku_wizard_success">Shizuku готов!</string>
-    <string name="shizuku_wizard_not_ready">Shizuku ещё не запущен.\n\nЕсли не получается — нажмите "Пропустить" и используйте обычную оптимизацию.</string>
-    <string name="shizuku_wizard_close">Закрыть</string>
-    <string name="shizuku_wizard_step6">Разрешите XiaoHyperCleaner использовать Shizuku.</string>
-    <string name="shizuku_wizard_request_permission">Разрешить доступ к Shizuku</string>
-    <string name="shizuku_wizard_permission_granted">Разрешение получено!</string>
-    <string name="shizuku_wizard_permission_denied">Разрешение не дано. Попробуйте снова.</string>
-
-    <string name="level_dialog_title">Выберите уровень оптимизации</string>
-    <string name="level_dialog_text">Чем выше уровень — тем больше настроек меняется. Простая оптимизация справится с большинством нежелательных уведомлений и подойдёт всем.</string>
-    <string name="level_simple_title">🟢 Простая (рекомендуется)</string>
-    <string name="level_simple_desc">Без Wi-Fi и сложных настроек. Только переключатели в настройках телефона. Для всех.</string>
-    <string name="level_advanced_title">🟡 Продвинутая</string>
-    <string name="level_advanced_desc">Требует Shizuku или беспроводную отладку. Больше возможностей.</string>
-    <string name="level_extreme_title">🔴 Экстрим</string>
-    <string name="level_extreme_desc">Всё из продвинутой + смена региона. Только для опытных пользователей.</string>
-
-    <string name="level_confirm_simple_title">Простая оптимизация</string>
-    <string name="level_confirm_simple_text">Приложение автоматически выключит переключатели в настройках телефона (рекомендации, телеметрия, аналитика). Вам нужно будет только нажимать «Продолжить» на каждом шаге. Без Wi-Fi и сложных настроек.</string>
-    <string name="level_confirm_advanced_title">Продвинутая оптимизация</string>
-    <string name="level_confirm_advanced_text">Потребуется Shizuku или беспроводная отладка. Приложение применит больше настроек: системные сервисы, параметры производительности, DNS-фильтр. Все изменения обратимы.</string>
-    <string name="level_confirm_extreme_title">Экстрим оптимизация</string>
-    <string name="level_confirm_extreme_text">Всё из продвинутой + смена региона для максимального удаления нежелательных уведомлений. Может повлиять на OTA-обновления и Mi-сервисы. Только для опытных пользователей.</string>
-    <string name="level_confirm_start">Начать</string>
-
-    <string name="simple_step_of">Шаг %1$d из %2$d</string>
-    <string name="simple_step_working">Отключаем…</string>
-    <string name="simple_step_success">Готово! Переходим к следующему.</string>
-    <string name="simple_step_failed">Не удалось отключить автоматически. Попробуйте вручную или пропустите.</string>
-    <string name="simple_step_skip">Пропустить этот шаг</string>
-    <string name="simple_step_next">Продолжить</string>
-    <string name="simple_step_start">Отключить автоматически</string>
-    <string name="simple_step_manual">Не получается? Инструкция</string>
-    <string name="simple_step_manual_text">Найдите переключатель «%1$s» на открывшемся экране и выключите его. Затем вернитесь и нажмите «Продолжить».</string>
-
-    <string name="simple_done_title">Оптимизация завершена!</string>
-    <string name="simple_done_text">Мы настроили системные приложения. Теперь устройство будет отправлять меньше телеметрии и показывать меньше нежелательных рекомендаций.\n\nЕсли приложение помогло — поддержите разработку или оставьте отзыв.</string>
-    <string name="simple_done_rate">Оценить приложение</string>
-    <string name="simple_done_donate">Поддержать на чай ☕</string>
-    <string name="simple_done_close">Закрыть</string>
-    <string name="simple_done_steps_done">Выполнено шагов: %1$d из %2$d</string>
 </resources>

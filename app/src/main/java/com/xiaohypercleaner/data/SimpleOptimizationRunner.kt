@@ -15,6 +15,8 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
 
     companion object {
         private const val TAG = "SimpleRunner"
+        private const val RETRY_DELAY_MS = 1500L
+        private const val AUTO_ADVANCE_DELAY_MS = 700L
         private const val WAIT_FOR_SCREEN_MS = 1500L
         private const val WAIT_AFTER_CLICK_MS = 600L
         private const val MAX_TREE_VISITED = 1000
@@ -43,19 +45,26 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
     suspend fun executeStep(step: SimpleSteps.Step): StepResult {
         AppLog.i(TAG, "Executing step: ${step.id}")
 
-        // 1. Пробуем открыть экран — перебираем все intent-ы
-        if (!tryOpenScreen(step)) {
+        // 1. Открываем экран; запоминаем, КАКОЙ intent сработал
+        val openedIndex = tryOpenScreen(step)
+        if (openedIndex < 0) {
             AppLog.e(TAG, "Step ${step.id}: ALL intents failed to open screen")
             return StepResult(step.id, false, reason = "all_intents_failed")
         }
+        // Fallback «первый switch» разрешён ТОЛЬКО если открылся целевой экран.
+        // На общих настройках он может переключить чужой параметр.
+        val openedSpecificScreen = openedIndex < step.intents.lastIndex
 
         delay(WAIT_FOR_SCREEN_MS)
 
-        // 2. Ищем switch: по тексту → первый на странице → первый Toggle
+        // 2. Ищем switch: по тексту → (fallback только на целевом экране)
         val switchNode = findSwitchNode(step.searchTexts)
-            ?: run {
+            ?: if (openedSpecificScreen) {
                 AppLog.w(TAG, "Step ${step.id}: switch not found by texts, trying fallback")
                 findFirstSwitchOnPage()
+            } else {
+                AppLog.w(TAG, "Step ${step.id}: generic settings opened, fallback disabled")
+                null
             }
 
         if (switchNode == null) {
@@ -68,13 +77,13 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
             "Step ${step.id}: found switch, isChecked=${switchNode.isChecked}, clickable=${switchNode.isClickable}"
         )
 
-        // 3. Уже в целевом состоянии — шаг выполнен
+        // 3. Уже в целевом состоянии
         if (switchNode.isChecked == step.targetChecked) {
             AppLog.i(TAG, "Step ${step.id}: already in target state")
             return StepResult(step.id, true)
         }
 
-        // 4. Кликаем — с множеством fallback-ов
+        // 4. Кликаем с fallback-ами
         if (!clickSwitch(switchNode)) {
             AppLog.w(TAG, "Step ${step.id}: all click attempts failed")
             return StepResult(step.id, false, reason = "click_failed")
@@ -95,18 +104,16 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         return StepResult(step.id, success, reason = if (!success) "state_not_changed" else null)
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // ОТКРЫТИЕ ЭКРАНА — перебирает все intent-ы шага
-    // ═══════════════════════════════════════════════════════════════
-    private fun tryOpenScreen(step: SimpleSteps.Step): Boolean {
-        for (intent in step.intents) {
+    /** Возвращает индекс сработавшего intent или -1. */
+    private fun tryOpenScreen(step: SimpleSteps.Step): Int {
+        step.intents.forEachIndexed { index, intent ->
             try {
                 service.startActivity(intent)
                 AppLog.i(
                     TAG,
                     "Step ${step.id}: opened screen with intent ${intent.action ?: intent.component}"
                 )
-                return true
+                return index
             } catch (e: ActivityNotFoundException) {
                 AppLog.w(
                     TAG,
@@ -116,7 +123,7 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
                 AppLog.w(TAG, "Step ${step.id}: intent failed: ${e.message}")
             }
         }
-        return false
+        return -1
     }
 
     // ═══════════════════════════════════════════════════════════════

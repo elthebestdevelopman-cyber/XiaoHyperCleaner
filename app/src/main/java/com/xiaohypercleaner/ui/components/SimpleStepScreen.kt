@@ -21,14 +21,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xiaohypercleaner.R
-import com.xiaohypercleaner.data.SimpleSteps
+import com.xiaohypercleaner.data.SimpleStepState
 
 @Composable
 fun SimpleStepScreen(
-    state: com.xiaohypercleaner.data.SimpleStepState,
+    state: SimpleStepState,
     isEnglish: Boolean,
     onStart: () -> Unit,
-    onNext: () -> Unit,
+    onRetry: () -> Unit,
     onSkip: () -> Unit,
     onCancel: () -> Unit
 ) {
@@ -51,7 +51,7 @@ fun SimpleStepScreen(
                 )
                 Spacer(Modifier.height(8.dp))
                 LinearProgressIndicator(
-                    progress = { (state.completedCount.toFloat() / state.totalSteps) },
+                    progress = { state.completedCount.toFloat() / state.totalSteps },
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -71,7 +71,8 @@ fun SimpleStepScreen(
                 Spacer(Modifier.height(20.dp))
 
                 when (state.status) {
-                    com.xiaohypercleaner.data.SimpleStepState.Status.READY -> {
+                    SimpleStepState.Status.READY -> {
+                        // Единственная кнопка за весь прогон — дальше всё само
                         Button(
                             onClick = onStart,
                             modifier = Modifier
@@ -81,33 +82,36 @@ fun SimpleStepScreen(
                         ) { Text(stringResource(R.string.simple_step_start)) }
                     }
 
-                    com.xiaohypercleaner.data.SimpleStepState.Status.WORKING -> {
+                    SimpleStepState.Status.WORKING -> {
                         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            stringResource(R.string.simple_step_working),
+                            buildString {
+                                append(stringResource(R.string.simple_step_working))
+                                if (state.attempt > 1) {
+                                    append(" · ")
+                                    append(
+                                        stringResource(
+                                            R.string.simple_step_attempt,
+                                            state.attempt, state.maxAttempts
+                                        )
+                                    )
+                                }
+                            },
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
 
-                    com.xiaohypercleaner.data.SimpleStepState.Status.SUCCESS -> {
+                    SimpleStepState.Status.SUCCESS -> {
+                        // Кнопки нет — автопереход через ~0.7 сек
                         Text(
-                            "✅ " + stringResource(R.string.simple_step_success),
+                            "✅ " + stringResource(R.string.simple_step_auto_next),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        Spacer(Modifier.height(12.dp))
-                        Button(
-                            onClick = onNext,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp),
-                            shape = RoundedCornerShape(12.dp)
-                        ) { Text(stringResource(R.string.simple_step_next)) }
                     }
 
-                    com.xiaohypercleaner.data.SimpleStepState.Status.FAILED -> {
-                        // Показываем ручную инструкцию
+                    SimpleStepState.Status.FAILED -> {
                         Text(
                             "⚠️ " + stringResource(R.string.simple_step_failed),
                             style = MaterialTheme.typography.bodyMedium,
@@ -128,12 +132,12 @@ fun SimpleStepScreen(
 
                         Spacer(Modifier.height(12.dp))
                         Button(
-                            onClick = onNext,
+                            onClick = onRetry,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(48.dp),
                             shape = RoundedCornerShape(12.dp)
-                        ) { Text(stringResource(R.string.simple_step_next)) }
+                        ) { Text(stringResource(R.string.simple_step_retry)) }
                         Spacer(Modifier.height(8.dp))
                         TextButton(
                             onClick = onSkip,

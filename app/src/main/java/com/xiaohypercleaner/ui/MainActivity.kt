@@ -262,6 +262,7 @@ private fun MainContent(
             onStart = { vm.startCurrentSimpleStep() },
             onNext = { vm.nextSimpleStep() },
             onSkip = { vm.skipSimpleStep() },
+            onRetry = { vm.retrySimpleStep() },
             onCancel = { vm.closeSimpleMode() }
         )
     }

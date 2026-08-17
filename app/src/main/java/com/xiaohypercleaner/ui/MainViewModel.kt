@@ -89,6 +89,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var simpleModeActive = false
     private var simpleStepIndex = 0
     private var simpleCompletedCount = 0
+    private var stepAttempt = 1
+    private var autoFlowJob: kotlinx.coroutines.Job? = null
 
     private var pendingSourceSuggestion = false
 
@@ -475,10 +477,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ===== Простая оптимизация: автопрогон с ретраями =====
+
     fun startCurrentSimpleStep() {
-        AppLog.i(TAG, "startCurrentSimpleStep: index=$simpleStepIndex")
+        val current = _state.value.simpleStep ?: return
+        if (current.status == SimpleStepState.Status.WORKING) {
+            AppLog.w(TAG, "startCurrentSimpleStep: already WORKING, ignoring double-tap")
+            return
+        }
+        stepAttempt = 1
+        launchStep()
+    }
+
+    fun retrySimpleStep() {
+        AppLog.i(TAG, "retrySimpleStep: manual retry by user")
+        stepAttempt = 1
+        launchStep()
+    }
+
+    private fun launchStep() {
+        autoFlowJob?.cancel()
         _state.update {
-            it.copy(simpleStep = it.simpleStep?.copy(status = SimpleStepState.Status.WORKING))
+            it.copy(
+                simpleStep = it.simpleStep?.copy(
+                    status = SimpleStepState.Status.WORKING,
+                    attempt = stepAttempt
+                )
+            )
         }
         val intent = Intent(app, AdbEnablerService::class.java).apply {
             action = AdbEnablerService.ACTION_SIMPLE_STEP
@@ -488,32 +513,63 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onSimpleStepResult(success: Boolean) {
-        AppLog.i(TAG, "onSimpleStepResult: success=$success")
+        AppLog.i(TAG, "onSimpleStepResult: success=$success, attempt=$stepAttempt")
+        val step = _state.value.simpleStep ?: return
+
         if (success) {
             simpleCompletedCount++
             _state.update {
-                it.copy(simpleStep = it.simpleStep?.copy(status = SimpleStepState.Status.SUCCESS))
+                it.copy(
+                    simpleStep = step.copy(
+                        status = SimpleStepState.Status.SUCCESS,
+                        completedCount = simpleCompletedCount
+                    )
+                )
+            }
+            // АВТОпереход: кнопок нет — машина работает сама
+            autoFlowJob = viewModelScope.launch {
+                delay(AUTO_ADVANCE_DELAY_MS)
+                advanceToNextStep(autoStart = true)
+            }
+            return
+        }
+
+        // Не получилось → проверяем почему (лог) и пробуем повторно
+        if (stepAttempt < step.maxAttempts) {
+            stepAttempt++
+            AppLog.i(TAG, "onSimpleStepResult: auto-retry $stepAttempt/${step.maxAttempts}")
+            autoFlowJob = viewModelScope.launch {
+                delay(RETRY_DELAY_MS)
+                launchStep()
             }
         } else {
+            // Исчерпали попытки → показываем ручную подсказку + «Повторить»
+            AppLog.w(TAG, "onSimpleStepResult: all attempts exhausted for step $simpleStepIndex")
             _state.update {
-                it.copy(simpleStep = it.simpleStep?.copy(status = SimpleStepState.Status.FAILED))
+                it.copy(simpleStep = step.copy(status = SimpleStepState.Status.FAILED))
             }
         }
     }
 
-    fun nextSimpleStep() {
-        simpleStepIndex++
-        showSimpleStep()
-    }
+    fun nextSimpleStep() = advanceToNextStep(autoStart = false)
 
     fun skipSimpleStep() {
         AppLog.i(TAG, "skipSimpleStep: index=$simpleStepIndex")
+        advanceToNextStep(autoStart = true)
+    }
+
+    private fun advanceToNextStep(autoStart: Boolean) {
         simpleStepIndex++
         showSimpleStep()
+        if (autoStart && _state.value.simpleStep != null) {
+            stepAttempt = 1
+            launchStep()
+        }
     }
 
     fun closeSimpleMode() {
         AppLog.i(TAG, "closeSimpleMode")
+        autoFlowJob?.cancel()
         simpleModeActive = false
         _state.update {
             it.copy(
