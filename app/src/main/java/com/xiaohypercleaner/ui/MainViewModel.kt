@@ -25,7 +25,7 @@ import com.xiaohypercleaner.service.ChainFlags
 import com.xiaohypercleaner.service.OverlayController
 import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.service.SimpleStepBridge
-import com.xiaohypercleaner.ui.components.OptimizationLevel
+// import removed - using OptimizationMode instead
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
 import com.xiaohypercleaner.util.OptimizationReportFormatter
@@ -360,13 +360,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun confirmLevelStart() {
-        val level = _state.value.selectedLevel ?: OptimizationLevel.SIMPLE
+        val level = _state.value.selectedLevel ?: OptimizationMode.SIMPLE
         AppLog.i(TAG, "confirmLevelStart: $level")
         _state.update { it.copy(showLevelConfirm = false, selectedLevel = null) }
         when (level) {
-            OptimizationLevel.SIMPLE -> startSimpleMode()
-            OptimizationLevel.ADVANCED -> startAdvancedFlow()
-            OptimizationLevel.EXTREME -> {
+            OptimizationMode.SIMPLE -> startSimpleMode()
+            OptimizationMode.ADVANCED -> startAdvancedFlow()
+            OptimizationMode.EXTREME -> {
                 _state.update { it.copy(aggressiveMode = true) }
                 startAdvancedFlow()
             }
