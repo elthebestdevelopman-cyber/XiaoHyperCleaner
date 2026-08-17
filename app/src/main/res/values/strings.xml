@@ -135,4 +135,63 @@
     <string name="final_dialog_failed_text">Оптимизация завершилась с ошибками. Пожалуйста, отправьте лог разработчику.</string>
     <string name="final_dialog_rate">Оценить приложение</string>
     <string name="final_dialog_send_log">Отправить лог</string>
+
+    <!-- ========== ONBOARDING ========== -->
+    <string name="onboarding_page1_title">Добро пожаловать</string>
+    <string name="onboarding_page1_text">XiaoHyperCleaner поможет отключить рекламу, телеметрию и спам на вашем Xiaomi устройстве.</string>
+    <string name="onboarding_page2_title">Безопасно и просто</string>
+    <string name="onboarding_page2_text">Приложение автоматически выполнит все настройки. Вы можете пропустить любой шаг.</string>
+    <string name="onboarding_page3_title">Честный результат</string>
+    <string name="onboarding_page3_text">Никаких ложных обещаний. Только реальная оптимизация системы.</string>
+    <string name="onboarding_skip">Пропустить</string>
+    <string name="onboarding_next">Далее</string>
+    <string name="onboarding_start">Начать</string>
+
+    <!-- ========== SPLASH ========== -->
+    <string name="splash_tagline">Очистка системы без лишних слов</string>
+
+    <!-- ========== MENU DIALOG ========== -->
+    <string name="menu_about">О приложении</string>
+    <string name="menu_dark_theme">Тёмная тема</string>
+    <string name="rate_app">Оценить приложение</string>
+    <string name="support_yoomoney">Поддержать (ЮMoney)</string>
+    <string name="support_cloudtips">Поддержать (CloudTips)</string>
+    <string name="log_share">Поделиться логом</string>
+    <string name="about_title">О приложении</string>
+    <string name="about_author">Автор</string>
+    <string name="about_text">XiaoHyperCleaner — инструмент для безопасной оптимизации MIUI/HyperOS.</string>
+    <string name="shizuku_attribution">Shizuku используется с благодарностью к разработчикам.</string>
+    <string name="close">Закрыть</string>
+
+    <!-- ========== SHIZUKU WIZARD ========== -->
+    <string name="shizuku_wizard_title">Настройка Shizuku</string>
+    <string name="shizuku_wizard_intro">Следуйте шагам для настройки Shizuku</string>
+    <string name="shizuku_wizard_skip_top">Пропустить настройку</string>
+    <string name="shizuku_wizard_or">или</string>
+    <string name="shizuku_wizard_step1_title">Шаг 1: Установите Shizuku</string>
+    <string name="shizuku_wizard_step1_desc">Скачайте и установите приложение Shizuku из магазина.</string>
+    <string name="shizuku_wizard_open_about">Открыть о телефоне</string>
+    <string name="shizuku_wizard_step2_title">Шаг 2: Откройте Shizuku</string>
+    <string name="shizuku_wizard_step2_desc">Запустите приложение Shizuku.</string>
+    <string name="shizuku_wizard_step3_title">Шаг 3: Режим разработчика</string>
+    <string name="shizuku_wizard_step3_desc">Включите режим разработчика в настройках телефона.</string>
+    <string name="shizuku_wizard_open_dev">Открыть для разработчиков</string>
+    <string name="shizuku_wizard_step4_title">Шаг 4: Беспроводная отладка</string>
+    <string name="shizuku_wizard_step4_desc">Включите беспроводную отладку.</string>
+    <string name="shizuku_wizard_open_shizuku">Открыть Shizuku</string>
+    <string name="shizuku_wizard_step5_title">Шаг 5: Запуск через беспроводную отладку</string>
+    <string name="shizuku_wizard_step5_desc">В Shizuku выберите запуск через беспроводную отладку.</string>
+    <string name="shizuku_wizard_check">Проверить</string>
+    <string name="shizuku_wizard_request_permission">Запросить разрешение</string>
+    <string name="shizuku_wizard_skip">Пропустить</string>
+    <string name="shizuku_wizard_close">Закрыть</string>
+
+    <!-- ========== SHIZUKU SOURCES ========== -->
+    <string name="shizuku_sources_title">Источники установки Shizuku</string>
+    <string name="shizuku_sources_text">Выберите удобный способ установки Shizuku:</string>
+    <string name="shizuku_sources_play">Google Play</string>
+    <string name="shizuku_sources_aurora">Aurora Store</string>
+    <string name="shizuku_sources_getapps">GetApps</string>
+    <string name="shizuku_sources_github">GitHub</string>
+    <string name="shizuku_sources_apkpure">APKPure</string>
 </resources>
