@@ -181,7 +181,7 @@ class OverlayService : Service() {
         pulseAnimator?.cancel()
         pulseAnimator = null
         hideInteractiveHint()
-        if (this::root.isInitialized && root.isAttachedToWindow) {
+        if (::root.isInitialized && root.isAttachedToWindow) {
             runCatching { windowManager.removeView(root) }
         }
         OverlayController.registerService(null)
