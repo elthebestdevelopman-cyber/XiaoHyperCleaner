@@ -227,6 +227,131 @@ object SimpleSteps {
             targetChecked = false,
             manualHintRu = "Откроются уведомления Проводника. Выключите переключатель «Разрешить уведомления».",
             manualHintEn = "File Manager notification settings will open. Turn off \"Allow notifications\"."
+        ),
+
+        // ═══════════════════════════════════════════════════════════════
+        // 8. Xiaomi Service Framework (MSF) — сервисы Xiaomi
+        // ═══════════════════════════════════════════════════════════════
+        Step(
+            id = "msf",
+            titleRu = "Xiaomi Service Framework",
+            titleEn = "Xiaomi Service Framework",
+            descRu = "Служба сбора данных Xiaomi. Ограничиваем её возможности.",
+            descEn = "Xiaomi data collection service. Limiting its capabilities.",
+            intents = listOf(
+                notificationsIntent("com.xiaomi.xmsf"),
+                appDetailsIntent("com.xiaomi.xmsf")
+            ),
+            searchTexts = listOf(
+                "Уведомления", "Notifications",
+                "Allow notifications", "Разрешить уведомления",
+                "Show notifications", "Показывать уведомления",
+                "Xiaomi Service Framework", "Службы Xiaomi"
+            ),
+            targetChecked = false,
+            manualHintRu = "Откроются уведомления Xiaomi Service Framework. Выключите переключатель «Разрешить уведомления».",
+            manualHintEn = "Xiaomi Service Framework notification settings will open. Turn off \"Allow notifications\"."
+        ),
+
+        // ═══════════════════════════════════════════════════════════════
+        // 9. Системная аналитика — приватность
+        // ═══════════════════════════════════════════════════════════════
+        Step(
+            id = "analytics",
+            titleRu = "Системная аналитика",
+            titleEn = "System Analytics",
+            descRu = "Сбор статистики использования системы. Отключаем.",
+            descEn = "System usage statistics collection. Turning off.",
+            intents = listOf(
+                Intent(Settings.ACTION_PRIVACY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                Intent("miui.intent.action.PRIVACY_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ),
+            searchTexts = listOf(
+                "Аналитика", "Analytics",
+                "Диагностика", "Diagnostics",
+                "Использование", "Usage",
+                "Статистика", "Statistics",
+                "Отправлять данные", "Send data",
+                "Конфиденциальность", "Privacy"
+            ),
+            targetChecked = false,
+            manualHintRu = "Настройки → Пароли и безопасность → Конфиденциальность → Отключите сбор аналитики.",
+            manualHintEn = "Settings → Passwords & security → Privacy → Turn off analytics collection."
+        ),
+
+        // ═══════════════════════════════════════════════════════════════
+        // 10. Рекламный ID — сброс Google Ads
+        // ═══════════════════════════════════════════════════════════════
+        Step(
+            id = "ads_id",
+            titleRu = "Рекламный ID Google",
+            titleEn = "Google Ads ID",
+            descRu = "Идентификатор для таргетированной рекламы. Сбрасываем или отключаем.",
+            descEn = "Identifier for targeted ads. Resetting or disabling.",
+            intents = listOf(
+                Intent("android.settings.ADS_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                Intent(Settings.ACTION_PRIVACY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ),
+            searchTexts = listOf(
+                "Ads", "Реклама",
+                "Advertising ID", "Рекламный идентификатор",
+                "Reset advertising ID", "Сбросить рекламный ID",
+                "Delete advertising ID", "Удалить рекламный ID",
+                "Opt out of Ads Personalization", "Отказаться от персонализации рекламы"
+            ),
+            targetChecked = false,
+            manualHintRu = "Настройки → Google → Реклама → Удалить рекламный ID или отключить персонализацию.",
+            manualHintEn = "Settings → Google → Ads → Delete advertising ID or turn off ad personalization."
+        ),
+
+        // ═══════════════════════════════════════════════════════════════
+        // 11. Smart Assistant (Mi AI) — голосовой помощник
+        // ═══════════════════════════════════════════════════════════════
+        Step(
+            id = "smart_assistant",
+            titleRu = "Smart Assistant (Mi AI)",
+            titleEn = "Smart Assistant (Mi AI)",
+            descRu = "Голосовой помощник Xiaomi. Отключаем уведомления и сбор данных.",
+            descEn = "Xiaomi voice assistant. Turning off notifications and data collection.",
+            intents = listOf(
+                notificationsIntent("com.miui.voiceassist"),
+                appDetailsIntent("com.miui.voiceassist")
+            ),
+            searchTexts = listOf(
+                "Уведомления", "Notifications",
+                "Allow notifications", "Разрешить уведомления",
+                "Smart Assistant", "Mi AI",
+                "Голосовой помощник", "Voice assistant",
+                "Mi AI", "小爱同学"
+            ),
+            targetChecked = false,
+            manualHintRu = "Откроются уведомления Smart Assistant. Выключите переключатель «Разрешить уведомления».",
+            manualHintEn = "Smart Assistant notification settings will open. Turn off \"Allow notifications\"."
+        ),
+
+        // ═══════════════════════════════════════════════════════════════
+        // 12. Game Turbo реклама — игровые уведомления
+        // ═══════════════════════════════════════════════════════════════
+        Step(
+            id = "game_turbo",
+            titleRu = "Game Turbo реклама",
+            titleEn = "Game Turbo ads",
+            descRu = "Game Turbo показывает рекламу и рекомендации. Отключаем.",
+            descEn = "Game Turbo shows ads and recommendations. Turning off.",
+            intents = listOf(
+                notificationsIntent("com.miui.gamebooster"),
+                appDetailsIntent("com.miui.gamebooster")
+            ),
+            searchTexts = listOf(
+                "Уведомления", "Notifications",
+                "Allow notifications", "Разрешить уведомления",
+                "Game Turbo", "Игровой режим",
+                "Game Booster", "Игры",
+                "Recommendations", "Рекомендации"
+            ),
+            targetChecked = false,
+            manualHintRu = "Откроются уведомления Game Turbo. Выключите переключатель «Разрешить уведомления».",
+            manualHintEn = "Game Turbo notification settings will open. Turn off \"Allow notifications\"."
         )
     )
 
