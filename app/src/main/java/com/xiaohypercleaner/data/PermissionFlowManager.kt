@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import com.xiaohypercleaner.service.ArrowPosition
+import com.xiaohypercleaner.service.InteractiveHint
+import com.xiaohypercleaner.service.OverlayController
 import com.xiaohypercleaner.util.AppLog
 
 /**
@@ -26,6 +29,14 @@ class PermissionFlowManager(
             }
             context.startActivity(intent)
             AppLog.i(TAG, "Opened accessibility settings")
+            // Показываем интерактивную подсказку
+            OverlayController.showInteractiveHint(
+                InteractiveHint(
+                    text = "Найдите «XiaoHyperCleaner» и включите его",
+                    targetRect = null,  // Будет найдено автоматически
+                    arrowPosition = ArrowPosition.BOTTOM
+                )
+            )
         } catch (e: Exception) {
             AppLog.e(TAG, "Failed to open accessibility settings", e)
         }
@@ -44,6 +55,14 @@ class PermissionFlowManager(
             }
             context.startActivity(intent)
             AppLog.i(TAG, "Opened accessibility with hint")
+            // Показываем интерактивную подсказку
+            OverlayController.showInteractiveHint(
+                InteractiveHint(
+                    text = "Включите «XiaoHyperCleaner»",
+                    targetRect = null,
+                    arrowPosition = ArrowPosition.BOTTOM
+                )
+            )
         } catch (e: Exception) {
             AppLog.w(TAG, "Hint deep link failed, falling back: ${e.message}")
             openAccessibilitySettings()

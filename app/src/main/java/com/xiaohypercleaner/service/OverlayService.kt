@@ -77,6 +77,8 @@ class OverlayService : Service() {
         }
         windowManager.addView(root, params)
         startBounce()
+        // Регистрируем сервис в OverlayController для доступа к интерактивным подсказкам
+        OverlayController.registerService(this)
     }
 
     private fun baseParams() = WindowManager.LayoutParams(
@@ -176,9 +178,13 @@ class OverlayService : Service() {
     override fun onDestroy() {
         bounce?.cancel()
         bounce = null
+        pulseAnimator?.cancel()
+        pulseAnimator = null
+        hideInteractiveHint()
         if (::root.isInitialized && root.isAttachedToWindow) {
             runCatching { windowManager.removeView(root) }
         }
+        OverlayController.registerService(null)
         super.onDestroy()
     }
 
