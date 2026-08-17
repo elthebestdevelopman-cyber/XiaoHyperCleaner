@@ -47,3 +47,6 @@ coverage/
 htmlcov/
 .coverage
 ```
+.continue/agents/new-config.yaml
+.continue/prompts/new-prompt.md
+.continue/rules/new-rule.md
