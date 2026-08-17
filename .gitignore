@@ -1,1 +1,53 @@
-Nothing should be ignored since only a Kotlin source file was modified and no build artifacts, dependencies, or temporary files were detected in the changes.
+# Built artifacts
+*.apk
+*.aar
+*.ap_
+*.aab
+
+# Files for the ART/Dalvik VM
+*.dex
+
+# Java class files
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+
+# Gradle files
+.gradle/
+build/
+/*/build/
+
+# Kotlin storage and cache
+.kotlin/
+
+# Android Studio / IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Local configuration file (contains local SDK paths, etc.)
+local.properties
+
+# Log files
+*.log
+
+# Secrets & Keys (Never commit your production keystore)
+*.jks
+*.keystore
+*.p12
+*.bks
+
+# Device crash reports
+/captures/
+
+# NDK/C++ build outputs
+.externalNativeBuild/
+.cxx/
+ndkBuild/
+
+# Google Services configuration (uncomment if you want to hide Firebase keys in public repo)
+# google-services.json
