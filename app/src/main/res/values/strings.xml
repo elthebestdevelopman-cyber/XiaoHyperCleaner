@@ -21,13 +21,22 @@
     <string name="reboot_now">Перезагрузить сейчас</string>
 
     <!-- ========== ВЫБОР УРОВНЯ ========== -->
-    <string name="simple_level_title">Выберите уровень оптимизации</string>
-    <string name="simple_level_simple_title">Простая</string>
-    <string name="simple_level_simple_desc">Приложение само выключит переключатели в настройках телефона (рекомендации, телеметрия, аналитика). Выдайте разрешения, нажмите «Начать» и просто подождите — всё выполнится автоматически. Если шаг не получится, приложение проверит причину и повторит попытку. Без Wi‑Fi и сложных настроек.</string>
-    <string name="simple_level_advanced_title">Продвинутая</string>
-    <string name="simple_level_advanced_desc">Через Shizuku и Wireless ADB — глубже и надёжнее, но требует настройки.</string>
-    <string name="simple_level_extreme_title">Экстремальная</string>
-    <string name="simple_level_extreme_desc">Плюс смена региона на DE и агрессивные настройки. Может сломать OTA-обновления.</string>
+    <string name="level_dialog_title">Выберите уровень оптимизации</string>
+    <string name="level_dialog_text">Простой режим подойдёт всем — приложение само выполнит настройки. Продвинутый требует Shizuku/ADB, но даёт больше контроля.</string>
+    <string name="level_simple_title">🟢 Простая</string>
+    <string name="level_simple_desc">Для всех пользователей. Приложение само настроит систему — просто выдайте разрешения и подождите.</string>
+    <string name="level_advanced_title">🔵 Продвинутая</string>
+    <string name="level_advanced_desc">Для опытных. Глубокая настройка через Shizuku или Wireless ADB. Надёжнее, но требует подготовки.</string>
+    <string name="level_extreme_title">🔴 Экстремальная</string>
+    <string name="level_extreme_desc">Максимальная очистка + смена региона. Может повлиять на OTA-обновления. Только для энтузиастов.</string>
+    
+    <string name="level_confirm_simple_title">Запустить простую оптимизацию?</string>
+    <string name="level_confirm_simple_text">Приложение откроет настройки и автоматически отключит рекламу, телеметрию и спам. Это займёт 2–3 минуты.</string>
+    <string name="level_confirm_advanced_title">Запустить продвинутую оптимизацию?</string>
+    <string name="level_confirm_advanced_text">Потребуется настроить Shizuku или Wireless ADB. Процесс глубже и надёжнее, но занимает больше времени.</string>
+    <string name="level_confirm_extreme_title">Запустить экстремальную оптимизацию?</string>
+    <string name="level_confirm_extreme_text">Внимание: смена региона на DE может нарушить работу OTA-обновлений. Продолжайте только если понимаете риски.</string>
+    <string name="level_confirm_start">Начать</string>
 
     <!-- ========== ПРОСТОЙ РЕЖИМ: ШАГИ ========== -->
     <string name="simple_step_of">Шаг %1$d из %2$d</string>
@@ -45,6 +54,11 @@
     <string name="simple_done_title">Всё готово!</string>
     <string name="simple_done_text">Реклама, телеметрия и спам отключены. Перезагрузка не требуется.</string>
     <string name="simple_done_steps_done">Выполнено %1$d из %2$d шагов</string>
+    <string name="simple_done_benefits">Что изменилось:</string>
+    <string name="simple_done_benefit_ads">✅ Меньше рекламы в системе</string>
+    <string name="simple_done_benefit_telemetry">✅ Отключена телеметрия</string>
+    <string name="simple_done_benefit_spam">✅ Спам от системных приложений остановлен</string>
+    <string name="simple_done_benefit_stable">✅ Система должна работать стабильнее</string>
     <string name="simple_done_rate">Оценить приложение</string>
     <string name="simple_done_donate">Поддержать автора</string>
     <string name="simple_done_close">Закрыть</string>
