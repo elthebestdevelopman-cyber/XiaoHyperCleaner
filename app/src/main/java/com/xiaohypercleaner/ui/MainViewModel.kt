@@ -515,7 +515,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onSimpleStepResult(success: Boolean) {
-        AppLog.i(TAG, "onSimpleStepResult: success=$success, attempt=$stepAttempt")
+        AppLog.i(TAG, "onSimpleStepResult: success=$success, attempt=$stepAttempt, step=$simpleStepIndex")
         val step = _state.value.simpleStep ?: return
 
         if (success) {
@@ -539,18 +539,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Не получилось → проверяем почему (лог) и пробуем повторно
         if (stepAttempt < step.maxAttempts) {
             stepAttempt++
-            AppLog.i(TAG, "onSimpleStepResult: auto-retry $stepAttempt/${step.maxAttempts}")
+            AppLog.w(TAG, "onSimpleStepResult: auto-retry $stepAttempt/${step.maxAttempts} for step ${step.id}")
+            // Обновляем UI с номером попытки
+            _state.update {
+                it.copy(
+                    simpleStep = step.copy(
+                        status = SimpleStepState.Status.WORKING,
+                        attempt = stepAttempt
+                    )
+                )
+            }
             autoFlowJob = viewModelScope.launch {
                 delay(RETRY_DELAY_MS)
                 launchStep()
             }
         } else {
             // Исчерпали попытки → показываем ручную подсказку + «Повторить»
-            AppLog.w(TAG, "onSimpleStepResult: all attempts exhausted for step $simpleStepIndex")
-            _state.update {
-                it.copy(simpleStep = step.copy(status = SimpleStepState.Status.FAILED))
-            }
+            AppLog.e(TAG, "onSimpleStepResult: all ${step.maxAttempts} attempts exhausted for step ${step.id}")
+            onStepExhausted(step)
         }
+    }
+
+    /** Вызывается когда все попытки исчерпаны */
+    private fun onStepExhausted(step: SimpleStepState) {
+        _state.update {
+            it.copy(simpleStep = step.copy(status = SimpleStepState.Status.FAILED))
+        }
+        // Логируем причину для диагностики
+        AppLog.w(TAG, "Step '${step.step.id}' (${step.step.titleRu}) failed after ${step.maxAttempts} attempts")
     }
 
     fun nextSimpleStep() = advanceToNextStep(autoStart = false)

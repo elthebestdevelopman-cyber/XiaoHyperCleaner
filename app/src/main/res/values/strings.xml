@@ -100,6 +100,7 @@
     <!-- ========== ACCESSIBILITY ========== -->
     <string name="accessibility_explanation_title">Нужны специальные возможности</string>
     <string name="accessibility_explanation_text">Приложению нужен доступ к специальным возможностям, чтобы автоматически нажимать кнопки в настройках. Доступ используется только для оптимизации и не передаётся наружу.</string>
+    <string name="hint_title">Подсказка</string>
     <string name="hint_accessibility">Включите «XiaoHyperCleaner» в списке служб</string>
 
     <!-- ========== OVERLAY ========== -->
