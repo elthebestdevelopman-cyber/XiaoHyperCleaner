@@ -71,3 +71,4 @@ htmlcov/
 *.tar.xz
 *.tar.zst
 ```
+/.continue
