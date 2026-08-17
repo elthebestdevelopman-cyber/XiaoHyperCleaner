@@ -1,52 +1,15 @@
-# ========== Gradle / сборка ==========
-.gradle/
-build/
-**/build/
-.kotlin/
-
-# ========== Android Studio / IntelliJ ==========
-.idea/
-*.iml
-captures/
-.externalNativeBuild/
-.cxx/
-local.properties
-
-# ========== Артефакты приложения ==========
-*.apk
-*.aab
-*.apks
-*.dex
+```
+# Compiled and build artifacts
 *.class
-*.aar
-*.hprof
-*.jar
-# Исключение: wrapper нужен в репозитории
-!gradle/wrapper/gradle-wrapper.jar
-
-# ========== Подписи и секреты ==========
-*.jks
-*.keystore
-secrets.properties
-signing.properties
-keystore.properties
-
-# ========== Окружение ==========
-.env
-.env.local
-.env.*
-
-# ========== Логи ==========
+*.o
+*.obj
+*.out
+build/
+# Dependencies
+.gradle/
+# Logs and temp files
 *.log
-logs/
-
-# ========== Continue (конфиги с API-ключами!) ==========
-.continue/
-.continuerc.json
-new-config.yaml
-
-# ========== Системный мусор ==========
-.DS_Store
-Thumbs.db
-desktop.ini
-.continue/agents/new-config.yaml
+*.tmp
+# Editors
+.idea/
+```

@@ -10,6 +10,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
+import com.xiaohypercleaner.AppConstants.AUTO_ADVANCE_DELAY_MS
+import com.xiaohypercleaner.AppConstants.RETRY_DELAY_MS
 import com.xiaohypercleaner.data.OptimizationEngine
 import com.xiaohypercleaner.data.OptimizationReport
 import com.xiaohypercleaner.data.PermissionFlowManager
