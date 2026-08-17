@@ -51,3 +51,4 @@ ndkBuild/
 
 # Google Services configuration (uncomment if you want to hide Firebase keys in public repo)
 # google-services.json
+/.continue
