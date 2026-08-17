@@ -28,14 +28,14 @@
     <string name="level_advanced_title">🔵 Продвинутая</string>
     <string name="level_advanced_desc">Для опытных. Глубокая настройка через Shizuku или Wireless ADB. Надёжнее, но требует подготовки.</string>
     <string name="level_extreme_title">🔴 Экстремальная</string>
-    <string name="level_extreme_desc">Максимальная очистка с расширенными настройками. Может повлиять на работу некоторых сервисов. Только для опытных пользователей.</string>
+    <string name="level_extreme_desc">Максимальная очистка с расширенными настройками системных сервисов. Может повлиять на работу некоторых функций Xiaomi. Только для опытных пользователей.</string>
     
     <string name="level_confirm_simple_title">Запустить простую оптимизацию?</string>
     <string name="level_confirm_simple_text">Приложение откроет настройки и автоматически отключит рекламу, телеметрию и спам. Это займёт 2–3 минуты.</string>
     <string name="level_confirm_advanced_title">Запустить продвинутую оптимизацию?</string>
     <string name="level_confirm_advanced_text">Потребуется настроить Shizuku или Wireless ADB. Процесс глубже и надёжнее, но занимает больше времени.</string>
     <string name="level_confirm_extreme_title">Запустить экстремальную оптимизацию?</string>
-    <string name="level_confirm_extreme_text">Внимание: расширенные настройки могут повлиять на работу некоторых сервисов Xiaomi. Продолжайте только если понимаете риски.</string>
+    <string name="level_confirm_extreme_text">Внимание: расширенные настройки системных сервисов могут повлиять на работу некоторых функций Xiaomi. Продолжайте только если понимаете риски.</string>
     <string name="level_confirm_start">Начать</string>
 
     <!-- ========== ПРОСТОЙ РЕЖИМ: ШАГИ ========== -->
