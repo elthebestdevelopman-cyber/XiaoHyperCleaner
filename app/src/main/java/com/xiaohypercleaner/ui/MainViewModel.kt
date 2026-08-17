@@ -25,7 +25,7 @@ import com.xiaohypercleaner.service.ChainFlags
 import com.xiaohypercleaner.service.OverlayController
 import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.service.SimpleStepBridge
-// import removed - using OptimizationMode instead
+import com.xiaohypercleaner.data.OptimizationMode
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
 import com.xiaohypercleaner.util.OptimizationReportFormatter
@@ -65,7 +65,7 @@ data class MainUiState(
     val shizukuCheckMessage: String? = null,
     val showLevelDialog: Boolean = false,
     val showLevelConfirm: Boolean = false,
-    val selectedLevel: OptimizationLevel? = null,
+    val selectedLevel: OptimizationMode? = null,
     val simpleModePhase: SimpleModePhase = SimpleModePhase.INACTIVE,
     val simpleStep: SimpleStepState? = null,
     val simpleDone: Pair<Int, Int>? = null,
@@ -348,7 +348,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(showLevelDialog = true) }
     }
 
-    fun onLevelChosen(level: OptimizationLevel) {
+    fun onLevelChosen(level: OptimizationMode) {
         AppLog.i(TAG, "onLevelChosen: $level")
         _state.update {
             it.copy(
@@ -365,11 +365,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(showLevelConfirm = false, selectedLevel = null) }
         when (level) {
             OptimizationMode.SIMPLE -> startSimpleMode()
-            OptimizationMode.ADVANCED -> startAdvancedFlow()
-            OptimizationMode.EXTREME -> {
-                _state.update { it.copy(aggressiveMode = true) }
-                startAdvancedFlow()
-            }
+            OptimizationMode.PRO -> startAdvancedFlow()
         }
     }
 
@@ -540,7 +536,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Не получилось → проверяем почему (лог) и пробуем повторно
         if (stepAttempt < step.maxAttempts) {
             stepAttempt++
-            AppLog.w(TAG, "onSimpleStepResult: auto-retry $stepAttempt/${step.maxAttempts} for step ${step.id}")
+            AppLog.w(TAG, "onSimpleStepResult: auto-retry $stepAttempt/${step.maxAttempts} for step ${step.stepIndex}")
             // Обновляем UI с номером попытки
             _state.update {
                 it.copy(
@@ -556,7 +552,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         } else {
             // Исчерпали попытки → показываем ручную подсказку + «Повторить»
-            AppLog.e(TAG, "onSimpleStepResult: all ${step.maxAttempts} attempts exhausted for step ${step.id}")
+            AppLog.e(TAG, "onSimpleStepResult: all ${step.maxAttempts} attempts exhausted for step ${step.stepIndex}")
             onStepExhausted(step)
         }
     }

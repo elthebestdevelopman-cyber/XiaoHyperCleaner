@@ -10,18 +10,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.automirrored.filled.Tune
 import com.xiaohypercleaner.data.OptimizationMode
 
 @Composable
@@ -134,13 +132,7 @@ private fun ModeCard(
         ),
         border = if (isSelected)
             CardDefaults.outlinedCardBorder().copy(
-                width = 2.dp,
-                brush = Brush.linearGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.primary,
-                        MaterialTheme.colorScheme.secondary
-                    )
-                )
+                width = 2.dp
             )
         else null
     ) {
@@ -186,7 +178,7 @@ private fun ModeCard(
             
             if (isSelected) {
                 Icon(
-                    imageVector = androidx.compose.material.icons.Icons.Filled.CheckCircle,
+                    imageVector = Icons.Filled.Star,
                     contentDescription = "Выбрано",
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(24.dp)
@@ -199,31 +191,7 @@ private fun ModeCard(
 @Composable
 private fun SimpleIcon(color: Color) {
     Icon(
-        imageVector = ImageVector.vectorBuilder(
-            width = 24.dp,
-            height = 24.dp,
-            viewportWidth = 24f,
-            viewportHeight = 24f
-        ) {
-            path(
-                fill = SolidColor(color),
-                stroke = null,
-                strokeLineWidth = 0f,
-                strokeLineCap = StrokeCap.Butt,
-                strokeLineJoin = StrokeJoin.Miter,
-                strokeLineMiter = 4f,
-                pathFillType = PathFillType.NonZero
-            ) {
-                moveTo(12f, 2.5f)
-                curveTo(12f, 2.5f, 17f, 8f, 17f, 13f)
-                curveTo(17f, 16f, 15f, 18f, 12f, 21f)
-                curveTo(9f, 18f, 7f, 16f, 7f, 13f)
-                curveTo(7f, 8f, 12f, 2.5f, 12f, 2.5f)
-                close()
-                moveTo(12f, 14f)
-                circle(12f, 14f, 1.5f)
-            }
-        }.build(),
+        imageVector = Icons.AutoMirrored.Filled.Tune,
         contentDescription = "Simple Mode",
         modifier = Modifier.size(40.dp),
         tint = color
@@ -233,71 +201,7 @@ private fun SimpleIcon(color: Color) {
 @Composable
 private fun ProIcon(color: Color) {
     Icon(
-        imageVector = ImageVector.vectorBuilder(
-            width = 24.dp,
-            height = 24.dp,
-            viewportWidth = 24f,
-            viewportHeight = 24f
-        ) {
-            path(
-                fill = SolidColor(color),
-                stroke = null,
-                strokeLineWidth = 0f,
-                strokeLineCap = StrokeCap.Butt,
-                strokeLineJoin = StrokeJoin.Miter,
-                strokeLineMiter = 4f,
-                pathFillType = PathFillType.NonZero
-            ) {
-                moveTo(9f, 3f)
-                lineTo(15f, 3f)
-                lineTo(15f, 5f)
-                lineTo(17f, 5f)
-                lineTo(17f, 3f)
-                lineTo(19f, 3f)
-                lineTo(19f, 5f)
-                lineTo(21f, 5f)
-                lineTo(21f, 9f)
-                lineTo(19f, 9f)
-                lineTo(19f, 11f)
-                lineTo(21f, 11f)
-                lineTo(21f, 15f)
-                lineTo(19f, 15f)
-                lineTo(19f, 17f)
-                lineTo(21f, 17f)
-                lineTo(21f, 21f)
-                lineTo(17f, 21f)
-                lineTo(17f, 19f)
-                lineTo(15f, 19f)
-                lineTo(15f, 21f)
-                lineTo(9f, 21f)
-                lineTo(9f, 19f)
-                lineTo(7f, 19f)
-                lineTo(7f, 21f)
-                lineTo(3f, 21f)
-                lineTo(3f, 17f)
-                lineTo(5f, 17f)
-                lineTo(5f, 15f)
-                lineTo(3f, 15f)
-                lineTo(3f, 11f)
-                lineTo(5f, 11f)
-                lineTo(5f, 9f)
-                lineTo(3f, 9f)
-                lineTo(3f, 5f)
-                lineTo(5f, 5f)
-                lineTo(5f, 3f)
-                lineTo(7f, 3f)
-                lineTo(7f, 5f)
-                lineTo(9f, 5f)
-                lineTo(9f, 3f)
-                close()
-                moveTo(9f, 9f)
-                lineTo(9f, 15f)
-                lineTo(15f, 15f)
-                lineTo(15f, 9f)
-                lineTo(9f, 9f)
-                close()
-            }
-        }.build(),
+        imageVector = Icons.Filled.Star,
         contentDescription = "Pro Mode",
         modifier = Modifier.size(40.dp),
         tint = color
