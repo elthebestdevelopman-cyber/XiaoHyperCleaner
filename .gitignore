@@ -1,3 +1,6 @@
 ```
 .gradle/
 ```
+/.continue
+/.idea
+/build
