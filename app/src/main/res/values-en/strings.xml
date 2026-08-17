@@ -121,4 +121,63 @@
     <string name="final_dialog_failed_text">Optimization finished with errors. Please send the log to the developer.</string>
     <string name="final_dialog_rate">Rate the app</string>
     <string name="final_dialog_send_log">Send log</string>
+
+    <!-- ========== ONBOARDING ========== -->
+    <string name="onboarding_page1_title">Welcome</string>
+    <string name="onboarding_page1_text">XiaoHyperCleaner will help you disable ads, telemetry and spam on your Xiaomi device.</string>
+    <string name="onboarding_page2_title">Safe and simple</string>
+    <string name="onboarding_page2_text">The app will automatically perform all settings. You can skip any step.</string>
+    <string name="onboarding_page3_title">Honest result</string>
+    <string name="onboarding_page3_text">No false promises. Only real system optimization.</string>
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_start">Start</string>
+
+    <!-- ========== SPLASH ========== -->
+    <string name="splash_tagline">System cleanup without extra words</string>
+
+    <!-- ========== MENU DIALOG ========== -->
+    <string name="menu_about">About</string>
+    <string name="menu_dark_theme">Dark theme</string>
+    <string name="rate_app">Rate the app</string>
+    <string name="support_yoomoney">Support (YuMoney)</string>
+    <string name="support_cloudtips">Support (CloudTips)</string>
+    <string name="log_share">Share log</string>
+    <string name="about_title">About the app</string>
+    <string name="about_author">Author</string>
+    <string name="about_text">XiaoHyperCleaner — a tool for safe MIUI/HyperOS optimization.</string>
+    <string name="shizuku_attribution">Shizuku is used with gratitude to the developers.</string>
+    <string name="close">Close</string>
+
+    <!-- ========== SHIZUKU WIZARD ========== -->
+    <string name="shizuku_wizard_title">Shizuku Setup</string>
+    <string name="shizuku_wizard_intro">Follow the steps to set up Shizuku</string>
+    <string name="shizuku_wizard_skip_top">Skip setup</string>
+    <string name="shizuku_wizard_or">or</string>
+    <string name="shizuku_wizard_step1_title">Step 1: Install Shizuku</string>
+    <string name="shizuku_wizard_step1_desc">Download and install Shizuku from a store.</string>
+    <string name="shizuku_wizard_open_about">Open About phone</string>
+    <string name="shizuku_wizard_step2_title">Step 2: Open Shizuku</string>
+    <string name="shizuku_wizard_step2_desc">Launch the Shizuku app.</string>
+    <string name="shizuku_wizard_step3_title">Step 3: Developer mode</string>
+    <string name="shizuku_wizard_step3_desc">Enable Developer mode in phone settings.</string>
+    <string name="shizuku_wizard_open_dev">Open Developer options</string>
+    <string name="shizuku_wizard_step4_title">Step 4: Wireless debugging</string>
+    <string name="shizuku_wizard_step4_desc">Enable wireless debugging.</string>
+    <string name="shizuku_wizard_open_shizuku">Open Shizuku</string>
+    <string name="shizuku_wizard_step5_title">Step 5: Start via wireless debugging</string>
+    <string name="shizuku_wizard_step5_desc">In Shizuku, select start via wireless debugging.</string>
+    <string name="shizuku_wizard_check">Check</string>
+    <string name="shizuku_wizard_request_permission">Request permission</string>
+    <string name="shizuku_wizard_skip">Skip</string>
+    <string name="shizuku_wizard_close">Close</string>
+
+    <!-- ========== SHIZUKU SOURCES ========== -->
+    <string name="shizuku_sources_title">Shizuku installation sources</string>
+    <string name="shizuku_sources_text">Choose a convenient way to install Shizuku:</string>
+    <string name="shizuku_sources_play">Google Play</string>
+    <string name="shizuku_sources_aurora">Aurora Store</string>
+    <string name="shizuku_sources_getapps">GetApps</string>
+    <string name="shizuku_sources_github">GitHub</string>
+    <string name="shizuku_sources_apkpure">APKPure</string>
 </resources>
