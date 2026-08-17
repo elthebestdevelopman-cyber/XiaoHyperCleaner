@@ -34,6 +34,7 @@ fun SimpleStepScreen(
     onStart: () -> Unit,
     onRetry: () -> Unit,
     onSkip: () -> Unit,
+    onNext: () -> Unit,
     onCancel: () -> Unit
 ) {
     androidx.compose.ui.window.Dialog(onDismissRequest = onCancel) {
@@ -156,12 +157,20 @@ fun SimpleStepScreen(
                     }
 
                     SimpleStepState.Status.SUCCESS -> {
-                        // Кнопки нет — автопереход через ~0.7 сек
+                        // Автопереход через ~0.7 сек, но дадим кнопку Next для ручного перехода
                         Text(
                             "✅ " + stringResource(R.string.simple_step_auto_next),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.primary
                         )
+                        Spacer(Modifier.height(12.dp))
+                        Button(
+                            onClick = onNext,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text(stringResource(R.string.simple_step_next)) }
                     }
 
                     SimpleStepState.Status.FAILED -> {
