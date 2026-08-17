@@ -27,7 +27,7 @@
     <string name="simple_level_advanced_title">Advanced</string>
     <string name="simple_level_advanced_desc">Via Shizuku and Wireless ADB — deeper and more reliable, but requires setup.</string>
     <string name="simple_level_extreme_title">Extreme</string>
-    <string name="simple_level_extreme_desc">Plus region change to DE and aggressive tweaks. May break OTA updates.</string>
+    <string name="simple_level_extreme_desc">Maximum cleanup with advanced system service tweaks. May affect some Xiaomi features.</string>
 
     <!-- ========== SIMPLE MODE: STEPS ========== -->
     <string name="simple_step_of">Step %1$d of %2$d</string>
@@ -69,7 +69,7 @@
     <string name="dns_option_title">DNS filter</string>
     <string name="dns_option_description">Block ads and trackers at the network level via AdGuard DNS.</string>
     <string name="aggressive_option_title">Aggressive mode</string>
-    <string name="aggressive_option_description">⚠ Changes region to DE. May break OTA updates and some Xiaomi services.</string>
+    <string name="aggressive_option_description">⚠ Advanced system service tweaks. May affect some Xiaomi features.</string>
     <string name="options_dialog_start">Start optimization</string>
 
     <!-- ========== DNS WARNING ========== -->
