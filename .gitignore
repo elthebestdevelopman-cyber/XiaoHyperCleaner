@@ -65,3 +65,14 @@ htmlcov/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git/modules/
+.DS_Store
+```
+/.continue
+/.gradle
