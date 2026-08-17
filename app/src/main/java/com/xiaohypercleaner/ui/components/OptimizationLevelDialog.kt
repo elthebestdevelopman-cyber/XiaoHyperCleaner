@@ -1,11 +1,12 @@
 package com.xiaohypercleaner.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,10 +17,13 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.graphics.vector.VectorBuilder
@@ -166,6 +170,17 @@ fun OptimizationLevelDialog(
     onModeSelected: (OptimizationMode) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val infiniteTransition = rememberInfiniteTransition(label = "robot_float")
+    val floatY by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 8f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = EaseInOutSine),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "float_y"
+    )
+    
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -174,36 +189,53 @@ fun OptimizationLevelDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            shape = RoundedCornerShape(28.dp),
-            color = Color(0xFF1E1E2E),
-            shadowElevation = 24.dp
+            shape = RoundedCornerShape(32.dp),
+            color = Color(0xFFFAFAFA),
+            shadowElevation = 32.dp
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(24.dp),
+                    .padding(28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Robocat Mascot - плавающая анимация
+                Box(
+                    modifier = Modifier
+                        .size(140.dp)
+                        .offset(y = (-floatY).dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    RobocatLarge(
+                        modifier = Modifier.size(120.dp),
+                        primaryColor = Color(0xFF4A90E2),
+                        secondaryColor = Color(0xFFFF6B6B)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 Text(
-                    text = "Выберите режим силы",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    text = "Выберите режим заботы",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF2D3436),
+                    textAlign = TextAlign.Center
                 )
+                
                 Text(
-                    text = "Мы подберем оптимальный баланс безопасности и мощности",
-                    fontSize = 14.sp,
-                    color = Color.Gray,
+                    text = "Робокот подскажет, что лучше для вашего телефона",
+                    fontSize = 15.sp,
+                    color = Color(0xFF636E72),
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(bottom = 24.dp)
+                    modifier = Modifier.padding(top = 8.dp, bottom = 28.dp)
                 )
 
-                ModeCard(
+                ModeCardModern(
                     mode = OptimizationMode.SIMPLE,
-                    title = "Лёгкий старт",
-                    description = "Безопасно для всех. Уберет рекламу и спам, не трогая важные функции.",
+                    title = "Лёгкий",
+                    subtitle = "Для всех",
+                    description = "Бережно уберёт спам и рекламу. Максимально безопасно — идеально для первого раза.",
                     icon = IcRocket,
                     gradient = Brush.linearGradient(
                         colors = listOf(Color(0xFF4facfe), Color(0xFF00f2fe))
@@ -215,24 +247,35 @@ fun OptimizationLevelDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                ModeCard(
+                ModeCardModern(
                     mode = OptimizationMode.PRO,
-                    title = "Глубокая очистка",
-                    description = "Для опытных. Максимальная оптимизация системы с умными проверками.",
+                    title = "Продвинутый",
+                    subtitle = "Для опытных",
+                    description = "Глубокая настройка системы. Потребуется дополнительная подготовка, но результат того стоит.",
                     icon = IcChip,
                     gradient = Brush.linearGradient(
-                        colors = listOf(Color(0xFFf093fb), Color(0xFFf5576c))
+                        colors = listOf(Color(0xFF667eea), Color(0xFF764ba2))
                     ),
                     isSelected = currentMode == OptimizationMode.PRO,
                     onClick = { onModeSelected(OptimizationMode.PRO) },
                     modifier = Modifier.weight(1f)
                 )
 
+                Spacer(modifier = Modifier.height(24.dp))
+
                 TextButton(
                     onClick = onDismiss,
-                    modifier = Modifier.padding(top = 16.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
                 ) {
-                    Text("Назад", color = Color.Gray)
+                    Text(
+                        "Назад",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF636E72)
+                    )
                 }
             }
         }
@@ -240,9 +283,10 @@ fun OptimizationLevelDialog(
 }
 
 @Composable
-private fun ModeCard(
+private fun ModeCardModern(
     mode: OptimizationMode,
     title: String,
+    subtitle: String,
     description: String,
     icon: ImageVector,
     gradient: Brush,
@@ -252,8 +296,8 @@ private fun ModeCard(
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
-        animationSpec = tween(durationMillis = 150)
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = tween(durationMillis = 120)
     )
 
     Box(
@@ -261,16 +305,21 @@ private fun ModeCard(
             .fillMaxWidth()
             .scale(scale)
             .shadow(
-                elevation = if (isSelected) 16.dp else 8.dp,
-                shape = RoundedCornerShape(20.dp),
-                ambientColor = if (isSelected) gradient.colors[0] else Color.Black.copy(alpha = 0.2f),
-                spotColor = if (isSelected) gradient.colors[0] else Color.Black.copy(alpha = 0.2f)
+                elevation = if (isSelected) 20.dp else 12.dp,
+                shape = RoundedCornerShape(24.dp),
+                ambientColor = if (isSelected) gradient.colors[0].copy(alpha = 0.4f) else Color.Black.copy(alpha = 0.08f),
+                spotColor = if (isSelected) gradient.colors[0].copy(alpha = 0.4f) else Color.Black.copy(alpha = 0.08f)
             )
             .background(
-                color = Color(0xFF2A2A3A),
-                shape = RoundedCornerShape(20.dp)
+                brush = if (isSelected) gradient else Brush.linearGradient(colors = listOf(Color.White, Color.White)),
+                shape = RoundedCornerShape(24.dp)
             )
-            .clip(RoundedCornerShape(20.dp))
+            .border(
+                width = 2.dp,
+                brush = if (isSelected) gradient else Brush.linearGradient(colors = listOf(Color(0xFFE8E8E8), Color(0xFFF5F5F5))),
+                shape = RoundedCornerShape(24.dp)
+            )
+            .clip(RoundedCornerShape(24.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -279,46 +328,62 @@ private fun ModeCard(
                 onClick()
                 isPressed = false
             }
-            .padding(20.dp),
+            .padding(22.dp),
         contentAlignment = Alignment.CenterStart
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Icon with glow effect
             Box(
                 modifier = Modifier
-                    .size(56.dp)
+                    .size(64.dp)
+                    .shadow(
+                        elevation = 8.dp,
+                        shape = CircleShape,
+                        ambientColor = gradient.colors[0].copy(alpha = 0.3f),
+                        spotColor = gradient.colors[0].copy(alpha = 0.3f)
+                    )
                     .background(
                         brush = gradient,
-                        shape = RoundedCornerShape(16.dp)
+                        shape = CircleShape
                     )
-                    .padding(14.dp),
+                    .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(32.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(18.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isSelected) gradient.colors[0] else Color.White
-                )
-                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = title,
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (isSelected) Color.White else Color(0xFF2D3436)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Badge(
+                        containerColor = if (isSelected) Color.White.copy(alpha = 0.25f) else Color(0xFFF0F0F5),
+                        contentColor = if (isSelected) Color.White else Color(0xFF636E72)
+                    ) {
+                        Text(subtitle, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = description,
-                    fontSize = 13.sp,
-                    color = Color(0xFFB0B0C0),
-                    lineHeight = 18.sp
+                    fontSize = 14.sp,
+                    color = if (isSelected) Color.White.copy(alpha = 0.95f) else Color(0xFF636E72),
+                    lineHeight = 20.sp
                 )
             }
 
@@ -326,24 +391,145 @@ private fun ModeCard(
                 Icon(
                     imageVector = androidx.compose.material.icons.filled.CheckCircle,
                     contentDescription = "Выбрано",
-                    tint = gradient.colors[0],
-                    modifier = Modifier.size(24.dp)
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .shadow(
+                            elevation = 4.dp,
+                            shape = CircleShape,
+                            ambientColor = Color.Black.copy(alpha = 0.2f),
+                            spotColor = Color.Black.copy(alpha = 0.2f)
+                        )
                 )
             }
         }
         
+        // Press ripple effect
         if (isPressed) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         brush = Brush.radialGradient(
-                            colors = listOf(Color.White.copy(alpha = 0.1f), Color.Transparent),
+                            colors = listOf(Color.White.copy(alpha = 0.2f), Color.Transparent),
                             center = Offset(0f, 0f),
-                            radius = 300f
+                            radius = 400f
                         )
                     )
             )
         }
+    }
+}
+
+@Composable
+private fun RobocatLarge(
+    modifier: Modifier = Modifier,
+    primaryColor: Color,
+    secondaryColor: Color
+) {
+    Canvas(modifier = modifier) {
+        val centerX = size.width / 2
+        val centerY = size.height / 2
+        val radius = size.minDimension / 2
+
+        // Antenna ball
+        drawCircle(
+            color = secondaryColor,
+            radius = radius * 0.08f,
+            center = Offset(centerX, centerY - radius * 1.15f)
+        )
+        
+        // Antenna stick
+        drawLine(
+            color = secondaryColor,
+            start = Offset(centerX, centerY - radius * 0.85f),
+            end = Offset(centerX, centerY - radius * 1.1f),
+            strokeWidth = radius * 0.04f
+        )
+
+        // Left ear
+        val leftEarPath = Path().apply {
+            moveTo(centerX - radius * 0.5f, centerY - radius * 0.5f)
+            lineTo(centerX - radius * 0.85f, centerY - radius * 0.95f)
+            lineTo(centerX - radius * 0.25f, centerY - radius * 0.65f)
+            close()
+        }
+        drawPath(leftEarPath, primaryColor, style = Fill)
+        
+        // Right ear
+        val rightEarPath = Path().apply {
+            moveTo(centerX + radius * 0.5f, centerY - radius * 0.5f)
+            lineTo(centerX + radius * 0.85f, centerY - radius * 0.95f)
+            lineTo(centerX + radius * 0.25f, centerY - radius * 0.65f)
+            close()
+        }
+        drawPath(rightEarPath, primaryColor, style = Fill)
+
+        // Main head
+        drawCircle(
+            color = primaryColor,
+            radius = radius * 0.85f,
+            center = Offset(centerX, centerY)
+        )
+
+        // Face area (lighter)
+        drawCircle(
+            color = primaryColor.copy(alpha = 0.85f),
+            radius = radius * 0.65f,
+            center = Offset(centerX, centerY + radius * 0.1f)
+        )
+
+        // Eyes with shine
+        drawCircle(
+            color = Color(0xFF2D3436),
+            radius = radius * 0.13f,
+            center = Offset(centerX - radius * 0.28f, centerY + radius * 0.05f)
+        )
+        drawCircle(
+            color = Color(0xFF2D3436),
+            radius = radius * 0.13f,
+            center = Offset(centerX + radius * 0.28f, centerY + radius * 0.05f)
+        )
+        // Eye shine
+        drawCircle(
+            color = Color.White,
+            radius = radius * 0.05f,
+            center = Offset(centerX - radius * 0.24f, centerY + radius * 0.02f)
+        )
+        drawCircle(
+            color = Color.White,
+            radius = radius * 0.05f,
+            center = Offset(centerX + radius * 0.32f, centerY + radius * 0.02f)
+        )
+
+        // Nose
+        drawCircle(
+            color = secondaryColor,
+            radius = radius * 0.09f,
+            center = Offset(centerX, centerY + radius * 0.28f)
+        )
+
+        // Smile
+        drawArc(
+            color = Color(0xFF2D3436),
+            startAngle = 20f,
+            sweepAngle = 140f,
+            useCenter = false,
+            topLeft = Offset(centerX - radius * 0.25f, centerY + radius * 0.35f),
+            size = androidx.compose.ui.geometry.Size(radius * 0.5f, radius * 0.25f),
+            style = Stroke(width = radius * 0.04f, cap = StrokeCap.Round)
+        )
+        
+        // Cheeks
+        drawCircle(
+            color = secondaryColor.copy(alpha = 0.3f),
+            radius = radius * 0.12f,
+            center = Offset(centerX - radius * 0.45f, centerY + radius * 0.25f)
+        )
+        drawCircle(
+            color = secondaryColor.copy(alpha = 0.3f),
+            radius = radius * 0.12f,
+            center = Offset(centerX + radius * 0.45f, centerY + radius * 0.25f)
+        )
     }
 }
