@@ -1,54 +1,73 @@
-# Built artifacts
-*.apk
-*.aar
-*.ap_
-*.aab
-
-# Files for the ART/Dalvik VM
-*.dex
-
-# Java class files
+```
+# Compiled and build artifacts
 *.class
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out
 
-# Generated files
-bin/
-gen/
-out/
-
-# Gradle files
+# Dependencies
+node_modules/
+venv/
+.venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+target/
 .gradle/
+
+# Build directories (common in Android/Kotlin projects)
 build/
-/*/build/
+app/build/
 
-# Kotlin storage and cache
-.kotlin/
-
-# Android Studio / IntelliJ IDEA
+# Editors
+.vscode/
 .idea/
-*.iml
-*.ipr
-*.iws
+*.swp
+*.swo
+*.tmp
 
-# Local configuration file (contains local SDK paths, etc.)
-local.properties
-
-# Log files
+# Logs
 *.log
 
-# Secrets & Keys (Never commit your production keystore)
-*.jks
-*.keystore
-*.p12
-*.bks
+# Environment
+.env
+.env.local
+*.env.*
 
-# Device crash reports
-/captures/
+# System files
+.DS_Store
+Thumbs.db
 
-# NDK/C++ build outputs
-.externalNativeBuild/
-.cxx/
-ndkBuild/
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
 
-# Google Services configuration (uncomment if you want to hide Firebase keys in public repo)
-# google-services.json
-/.continue
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+```
