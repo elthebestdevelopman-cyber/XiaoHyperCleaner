@@ -384,39 +384,9 @@ class OptimizationEngine(private val adb: AdbExecutor) {
     }
 
     private suspend fun applyRegionalKeys(transaction: Transaction): List<String> {
-        AppLog.i(TAG, "OptimizationEngine: applying regional keys (aggressive mode)")
-        val applied = mutableListOf<String>()
-
-        for (key in ServiceRegistry.REGIONAL_KEYS) {
-            try {
-                val getCmd = "shell settings get $key"
-                val putCmd = "shell settings put $key DE"
-                val original = adb.executeCommand(getCmd).getOrNull()?.trim() ?: ""
-
-                transaction.originalRegion =
-                    if (original == "null" || original.isEmpty()) null else original
-
-                val putResult = adb.executeCommand(putCmd)
-                if (putResult.isFailure) {
-                    AppLog.w(
-                        TAG,
-                        "OptimizationEngine: regional key put failed: $key - ${putResult.exceptionOrNull()?.message}"
-                    )
-                    continue
-                }
-
-                transaction.appliedSettings[putCmd] = original
-                applied.add(key.substringAfterLast(" "))
-                AppLog.i(TAG, "OptimizationEngine: regional key applied, original=$original")
-                delay(AppConstants.COMMAND_DELAY_MS)
-            } catch (e: Exception) {
-                AppLog.w(
-                    TAG,
-                    "OptimizationEngine: regional key failed: $key - ${LogMasker.mask(e.message ?: "")}"
-                )
-            }
-        }
-        return applied
+        // УДАЛЕНО: Изменение региона удалено из-за риска нарушения работы системных сервисов
+        // Эта функция теперь возвращает пустой список для обратной совместимости
+        return emptyList()
     }
 
     private suspend fun disableAdServices(transaction: Transaction): List<String> {

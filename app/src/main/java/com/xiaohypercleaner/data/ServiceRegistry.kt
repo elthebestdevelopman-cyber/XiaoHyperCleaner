@@ -61,10 +61,9 @@ object ServiceRegistry {
         "global animator_duration_scale" to "0.5"
     )
 
-    // ===== 5. ОПЦИОНАЛЬНО: Регион (только в aggressive mode) =====
-    // ВАЖНО: OptimizationEngine сохраняет оригинальный регион в transaction.originalRegion
-    // и восстанавливает его при rollback — не хардкодит RU
-    val REGIONAL_KEYS = listOf("secure miui_region")
+    // ===== 5. ОПЦИОНАЛЬНО: Регион (УДАЛЕНО - небезопасно) =====
+    // REGIONAL_KEYS удалён из-за риска нарушения работы системных сервисов
+    val REGIONAL_KEYS = emptyList<String>()
 
     // ===== DNS =====
     object Dns {
