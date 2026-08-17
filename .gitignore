@@ -13,3 +13,7 @@ build/
 # Editors
 .idea/
 ```
+*.yaml
+.continue/rules/new-rule.md
+.continue/prompts/new-prompt.md
+local.properties
