@@ -1,10 +1,12 @@
 package com.xiaohypercleaner.ui.components
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -16,12 +18,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.data.SimpleStepState
+import com.xiaohypercleaner.data.SimpleSteps
 
 @Composable
 fun SimpleStepScreen(
@@ -57,17 +61,53 @@ fun SimpleStepScreen(
                 )
                 Spacer(Modifier.height(16.dp))
 
-                Text(
-                    if (isEnglish) state.step.titleEn else state.step.titleRu,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Иконка риска если есть
+                    when (state.step.riskLevel) {
+                        SimpleSteps.RiskLevel.CONDITIONAL -> {
+                            Text("⚠️", style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        SimpleSteps.RiskLevel.HIGH -> {
+                            Text("🔴", style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        SimpleSteps.RiskLevel.SAFE -> {
+                            // Без иконки
+                        }
+                    }
+                    
+                    Text(
+                        if (isEnglish) state.step.titleEn else state.step.titleRu,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
                 Spacer(Modifier.height(8.dp))
                 Text(
                     if (isEnglish) state.step.descEn else state.step.descRu,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                
+                // Блок предупреждения для CONDITIONAL/HIGH
+                val warningText = if (isEnglish) state.step.warningEn else state.step.warningRu
+                if (warningText != null && state.step.riskLevel != SimpleSteps.RiskLevel.SAFE) {
+                    Spacer(Modifier.height(12.dp))
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                    ) {
+                        Text(
+                            text = warningText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                }
+                
                 Spacer(Modifier.height(20.dp))
 
                 when (state.status) {
@@ -80,6 +120,19 @@ fun SimpleStepScreen(
                                 .height(52.dp),
                             shape = RoundedCornerShape(12.dp)
                         ) { Text(stringResource(R.string.simple_step_start)) }
+                        
+                        // Кнопка "Пропустить" доступна сразу
+                        Spacer(Modifier.height(8.dp))
+                        TextButton(
+                            onClick = onSkip,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { 
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("⚠️ ")
+                                Spacer(Modifier.width(4.dp))
+                                Text(stringResource(R.string.simple_step_skip))
+                            }
+                        }
                     }
 
                     SimpleStepState.Status.WORKING -> {
@@ -142,7 +195,13 @@ fun SimpleStepScreen(
                         TextButton(
                             onClick = onSkip,
                             modifier = Modifier.fillMaxWidth()
-                        ) { Text(stringResource(R.string.simple_step_skip)) }
+                        ) { 
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("⚠️ ")
+                                Spacer(Modifier.width(4.dp))
+                                Text(stringResource(R.string.simple_step_skip))
+                            }
+                        }
                     }
                 }
 
