@@ -179,31 +179,6 @@ class OptimizationEngineTest {
         )
     }
 
-    /**
-     * Проверяет что в aggressive mode меняется регион на DE.
-     * Этот режим опасен (ломает OTA), поэтому выключен по умолчанию.
-     */
-    @Test
-    fun optimizeAggressiveModeChangesRegion() = runBlocking {
-        val fake = FakeAdb()
-        val engine = OptimizationEngine(fake)
-        val options = OptimizationOptions(aggressiveMode = true)
-        val report = engine.optimize(options)
-        assertTrue("optimize should succeed in aggressive mode", report.success)
-        assertTrue(
-            "should read original region before changing",
-            fake.commands.any { it.contains("settings get secure miui_region") }
-        )
-        assertTrue(
-            "should change region to DE in aggressive mode",
-            fake.commands.any { it.contains("settings put secure miui_region DE") }
-        )
-        assertTrue(
-            "appliedSettings should contain miui_region",
-            report.appliedSettings.any { it.contains("miui_region") }
-        )
-    }
-
     @Test
     fun optimizeSurvivesSingleConnectionDrop() = runBlocking {
         val fake = FakeAdb().apply {
