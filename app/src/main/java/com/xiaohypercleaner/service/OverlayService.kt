@@ -4,7 +4,6 @@ import android.animation.ObjectAnimator
 import android.app.Service
 import android.content.Intent
 import android.content.res.Configuration
-import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -63,6 +62,8 @@ class OverlayService : Service() {
 
     companion object {
         private const val TAG = "OverlayService"
+        private const val AUTO_HIDE_DELAY_MS = 10_000L
+        private const val PULSE_DURATION_MS = 1200L
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -77,7 +78,6 @@ class OverlayService : Service() {
         }
         windowManager.addView(root, params)
         startBounce()
-        // Регистрируем сервис в OverlayController для доступа к интерактивным подсказкам
         OverlayController.registerService(this)
     }
 
@@ -95,7 +95,7 @@ class OverlayService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         intent?.let {
-            // Режим подсказки: полупрозрачная карточка с инструкцией поверх настроек
+            // Режим подсказки: полупрозрачная карточка с инструкцией
             it.getStringExtra("hint")?.let { hint ->
                 enterHintMode(hint)
                 return START_NOT_STICKY
@@ -122,13 +122,9 @@ class OverlayService : Service() {
         return START_NOT_STICKY
     }
 
-    /**
-     * При повороте экрана обновляем позицию оверлея,
-     * чтобы он не "улетал" вверх/вниз при смене ориентации.
-     */
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        if (this::root.isInitialized && root.isAttachedToWindow) {
+        if (::root.isInitialized && root.isAttachedToWindow) {
             runCatching {
                 val params = baseParams().apply {
                     gravity = if (hintMode) Gravity.TOP or Gravity.CENTER_HORIZONTAL
@@ -140,10 +136,6 @@ class OverlayService : Service() {
         }
     }
 
-    /**
-     * Включает режим подсказки: карточка поднимается вверх,
-     * скрываются прогресс и кнопка отмены — остаётся только инструкция.
-     */
     private fun enterHintMode(text: String) {
         hintMode = true
         titleView.text = getString(R.string.hint_title)
@@ -181,10 +173,12 @@ class OverlayService : Service() {
         pulseAnimator?.cancel()
         pulseAnimator = null
         hideInteractiveHint()
+        handler.removeCallbacksAndMessages(null)
         if (::root.isInitialized && root.isAttachedToWindow) {
             runCatching { windowManager.removeView(root) }
         }
-        OverlayController.registerService(this)
+        // ✅ ИСПРАВЛЕНО: было registerService(this) — теперь очистка
+        OverlayController.clear()
         super.onDestroy()
     }
 
@@ -271,12 +265,8 @@ class OverlayService : Service() {
     // ИНТЕРАКТИВНЫЕ ПОДСКАЗКИ — поверх настроек Android
     // ═══════════════════════════════════════════════════════════════
 
-    /**
-     * Показывает интерактивную подсказку с полупрозрачным фоном,
-     * мигающей рамкой вокруг целевого элемента и стрелкой.
-     */
     fun showInteractiveHint(hint: InteractiveHint) {
-        hideInteractiveHint()  // Скрыть предыдущую
+        hideInteractiveHint()
         currentHint = hint
 
         val overlay = createInteractiveOverlay(hint)
@@ -298,15 +288,12 @@ class OverlayService : Service() {
         try {
             windowManager.addView(overlay, params)
             startPulseAnimation(overlay)
-
-            // Авто-скрытие через 10 секунд
-            handler.postDelayed({ hideInteractiveHint() }, 10000L)
+            handler.postDelayed({ hideInteractiveHint() }, AUTO_HIDE_DELAY_MS)
         } catch (e: Exception) {
             AppLog.w(TAG, "Failed to show interactive hint: ${e.message}")
         }
     }
 
-    /** Скрывает интерактивную подсказку */
     fun hideInteractiveHint() {
         pulseAnimator?.cancel()
         pulseAnimator = null
@@ -324,11 +311,11 @@ class OverlayService : Service() {
         currentHint = null
     }
 
-    /** Создаёт View для интерактивной подсказки */
     private fun createInteractiveOverlay(hint: InteractiveHint): View {
         return object : View(this) {
+
             private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#CC000000")  // Полупрозрачный чёрный
+                color = Color.parseColor("#CC000000")
             }
             private val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
@@ -346,86 +333,89 @@ class OverlayService : Service() {
             private val arrowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = hint.highlightColor
             }
-            private val rectForClearing = Rect()
-            private var pulseAlpha = 255
+
+            // ✅ ИСПРАВЛЕНО #2: делаем публичным — ObjectAnimator ищет сеттер через reflection
+            @Suppress("PropertyName")
+            var pulseAlpha: Int = 255
+
+            // Переиспользуемые Rect (нет аллокаций в onDraw)
+            private val clearRect = Rect()
+            private val clampedRect = Rect()
 
             override fun onDraw(canvas: Canvas) {
                 super.onDraw(canvas)
 
-                // 1. Рисуем полупрозрачный фон
-                canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), backgroundPaint)
+                val w = width.toFloat()
+                val h = height.toFloat()
 
-                // 2. Определяем целевой прямоугольник
+                // Определяем целевой прямоугольник (или fallback в центр экрана)
                 val targetRect = hint.targetRect ?: run {
-                    // Если targetRect не указан, используем центр экрана как fallback
                     Rect(width / 4, height / 3, width * 3 / 4, height / 2)
                 }
 
-                // Сохраняем для анимации пульсации
-                rectForClearing.set(targetRect)
-
-                // 3. Вырезаем «дырку» в фоне (с небольшим отступом)
+                // Вычисляем прямоугольник для «дырки»
                 val margin = dp(8)
-                val clearRect = Rect(
+                clearRect.set(
                     targetRect.left - margin,
                     targetRect.top - margin,
                     targetRect.right + margin,
                     targetRect.bottom + margin
                 )
 
-                // Ограничиваем размер дырки
+                // Ограничиваем максимальный размер дырки
                 val maxHoleSize = dp(120)
                 val centerX = clearRect.centerX()
                 val centerY = clearRect.centerY()
-                val clampedRect = Rect(
-                    (centerX - (clearRect.width() / 2).coerceAtMost(maxHoleSize / 2)).toInt(),
-                    (centerY - (clearRect.height() / 2).coerceAtMost(maxHoleSize / 2)).toInt(),
-                    (centerX + (clearRect.width() / 2).coerceAtMost(maxHoleSize / 2)).toInt(),
-                    (centerY + (clearRect.height() / 2).coerceAtMost(maxHoleSize / 2)).toInt()
+                val halfW = (clearRect.width() / 2).coerceAtMost(maxHoleSize / 2)
+                val halfH = (clearRect.height() / 2).coerceAtMost(maxHoleSize / 2)
+                clampedRect.set(
+                    centerX - halfW,
+                    centerY - halfH,
+                    centerX + halfW,
+                    centerY + halfH
                 )
 
-                canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
-                canvas.drawRect(clampedRect, clearPaint)
+                // ✅ ИСПРАВЛЕНО #3: фон рисуется ВНУТРИ saveLayer,
+                // чтобы PorterDuff.CLEAR правильно вырезал дырку
+                canvas.saveLayer(0f, 0f, w, h, null)
+                canvas.drawRect(0f, 0f, w, h, backgroundPaint)  // фон
+                canvas.drawRect(clampedRect, clearPaint)         // вырезать дырку
                 canvas.restore()
 
-                // 4. Рисуем мигающую рамку вокруг целевого элемента
+                // Мигающая рамка
                 borderPaint.alpha = pulseAlpha
                 canvas.drawRect(clampedRect, borderPaint)
 
-                // 5. Рисуем стрелку от текста к целевому элементу
+                // Стрелка и текст
                 drawArrow(canvas, clampedRect, hint.arrowPosition)
-
-                // 6. Рисуем текст инструкции
                 drawInstructionText(canvas, clampedRect, hint.text, hint.arrowPosition)
             }
 
             private fun drawArrow(canvas: Canvas, targetRect: Rect, position: ArrowPosition) {
                 val path = Path()
                 val arrowSize = dp(12).toFloat()
-                val gap = dp(8).toFloat()  // Отступ от рамки
+                val gap = dp(8).toFloat()
 
                 when (position) {
                     ArrowPosition.TOP -> {
-                        // Стрелка снизу текста, указывает вверх на target
                         val textY = targetRect.top - dp(60)
                         path.moveTo(
                             targetRect.centerX().toFloat(),
                             (targetRect.top - gap).toFloat()
                         )
-                        path.lineTo((targetRect.centerX() - arrowSize).toFloat(), textY.toFloat())
-                        path.lineTo((targetRect.centerX() + arrowSize).toFloat(), textY.toFloat())
+                        path.lineTo((targetRect.centerX() - arrowSize), textY.toFloat())
+                        path.lineTo((targetRect.centerX() + arrowSize), textY.toFloat())
                         path.close()
                     }
 
                     ArrowPosition.BOTTOM -> {
-                        // Стрелка сверху текста, указывает вниз на target
                         val textY = targetRect.bottom + dp(60)
                         path.moveTo(
                             targetRect.centerX().toFloat(),
                             (targetRect.bottom + gap).toFloat()
                         )
-                        path.lineTo((targetRect.centerX() - arrowSize).toFloat(), textY.toFloat())
-                        path.lineTo((targetRect.centerX() + arrowSize).toFloat(), textY.toFloat())
+                        path.lineTo((targetRect.centerX() - arrowSize), textY.toFloat())
+                        path.lineTo((targetRect.centerX() + arrowSize), textY.toFloat())
                         path.close()
                     }
 
@@ -435,8 +425,8 @@ class OverlayService : Service() {
                             (targetRect.left - gap).toFloat(),
                             targetRect.centerY().toFloat()
                         )
-                        path.lineTo(textX.toFloat(), (targetRect.centerY() - arrowSize).toFloat())
-                        path.lineTo(textX.toFloat(), (targetRect.centerY() + arrowSize).toFloat())
+                        path.lineTo(textX.toFloat(), (targetRect.centerY() - arrowSize))
+                        path.lineTo(textX.toFloat(), (targetRect.centerY() + arrowSize))
                         path.close()
                     }
 
@@ -446,8 +436,8 @@ class OverlayService : Service() {
                             (targetRect.right + gap).toFloat(),
                             targetRect.centerY().toFloat()
                         )
-                        path.lineTo(textX.toFloat(), (targetRect.centerY() - arrowSize).toFloat())
-                        path.lineTo(textX.toFloat(), (targetRect.centerY() + arrowSize).toFloat())
+                        path.lineTo(textX.toFloat(), (targetRect.centerY() - arrowSize))
+                        path.lineTo(textX.toFloat(), (targetRect.centerY() + arrowSize))
                         path.close()
                     }
                 }
@@ -461,47 +451,55 @@ class OverlayService : Service() {
                 position: ArrowPosition
             ) {
                 val lines = text.split("\n")
-                val maxWidth = dp(280).toFloat()
 
-                // Позиция текста зависит от направления стрелки
-                val textX = targetRect.centerX().toFloat()
-                val textY = when (position) {
-                    ArrowPosition.TOP -> targetRect.top - dp(70)
-                    ArrowPosition.BOTTOM -> targetRect.bottom + dp(80)
+                // ✅ ИСПРАВЛЕНО #1: textY теперь Float, а не Int
+                val textY: Float = when (position) {
+                    ArrowPosition.TOP -> (targetRect.top - dp(70)).toFloat()
+                    ArrowPosition.BOTTOM -> (targetRect.bottom + dp(80)).toFloat()
                     ArrowPosition.LEFT -> targetRect.centerY().toFloat()
                     ArrowPosition.RIGHT -> targetRect.centerY().toFloat()
                 }
 
-                // Рисуем каждую строку
                 lines.forEachIndexed { index, line ->
                     val y = textY + (index - lines.size / 2f) * dp(20).toFloat()
 
-                    // Для LEFT/RIGHT позиций смещаем текст
-                    if (position == ArrowPosition.LEFT) {
-                        textPaint.textAlign = Paint.Align.RIGHT
-                        canvas.drawText(line, (targetRect.left - dp(20)).toFloat(), y, textPaint)
-                    } else if (position == ArrowPosition.RIGHT) {
-                        textPaint.textAlign = Paint.Align.LEFT
-                        canvas.drawText(line, (targetRect.right + dp(20)).toFloat(), y, textPaint)
-                    } else {
-                        textPaint.textAlign = Paint.Align.CENTER
-                        canvas.drawText(line, textX, y, textPaint)
+                    when (position) {
+                        ArrowPosition.LEFT -> {
+                            textPaint.textAlign = Paint.Align.RIGHT
+                            canvas.drawText(
+                                line,
+                                (targetRect.left - dp(20)).toFloat(),
+                                y,
+                                textPaint
+                            )
+                        }
+
+                        ArrowPosition.RIGHT -> {
+                            textPaint.textAlign = Paint.Align.LEFT
+                            canvas.drawText(
+                                line,
+                                (targetRect.right + dp(20)).toFloat(),
+                                y,
+                                textPaint
+                            )
+                        }
+
+                        else -> {
+                            textPaint.textAlign = Paint.Align.CENTER
+                            canvas.drawText(line, targetRect.centerX().toFloat(), y, textPaint)
+                        }
                     }
                 }
             }
         }
     }
 
-    /** Запускает анимацию пульсации рамки */
     private fun startPulseAnimation(overlay: View) {
         pulseAnimator = ObjectAnimator.ofInt(overlay, "pulseAlpha", 255, 128, 255).apply {
-            duration = 1200
+            duration = PULSE_DURATION_MS
             repeatCount = ObjectAnimator.INFINITE
             interpolator = AccelerateDecelerateInterpolator()
-            addUpdateListener { animation ->
-                val value = animation.animatedValue as Int
-                overlay.invalidate()  // Перерисовать с новым alpha
-            }
+            addUpdateListener { overlay.invalidate() }
             start()
         }
     }
