@@ -3,16 +3,16 @@ package com.xiaohypercleaner.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -20,13 +20,12 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Settings
 import com.xiaohypercleaner.data.OptimizationMode
 
 @Composable
 fun OptimizationLevelDialog(
-    currentMode: OptimizationMode,
     onModeSelected: (OptimizationMode) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -53,9 +52,9 @@ fun OptimizationLevelDialog(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 Text(
                     text = "Режим можно изменить позже в настройках",
                     style = MaterialTheme.typography.bodyMedium,
@@ -65,30 +64,31 @@ fun OptimizationLevelDialog(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                // ✅ ВАЖНО: ModeCard вызывается ВНУТРИ Row — это даёт RowScope
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     ModeCard(
-                        mode = OptimizationMode.SIMPLE,
-                        isSelected = currentMode == OptimizationMode.SIMPLE,
+                        isSelected = false,
                         onClick = { onModeSelected(OptimizationMode.SIMPLE) },
                         iconContent = {
                             SimpleIcon(color = MaterialTheme.colorScheme.primary)
                         },
                         title = "Простой",
-                        desc = "Безопасно для всех. Автоматическая очистка без сложных настроек."
+                        desc = "Безопасно для всех. Автоматическая очистка без сложных настроек.",
+                        modifier = Modifier.weight(1f)  // ✅ weight здесь работает
                     )
 
                     ModeCard(
-                        mode = OptimizationMode.PRO,
-                        isSelected = currentMode == OptimizationMode.PRO,
+                        isSelected = false,
                         onClick = { onModeSelected(OptimizationMode.PRO) },
                         iconContent = {
                             ProIcon(color = MaterialTheme.colorScheme.secondary)
                         },
                         title = "Продвинутый",
-                        desc = "Глубокая оптимизация. Требует дополнительной настройки прав."
+                        desc = "Глубокая оптимизация. Требует дополнительной настройки прав.",
+                        modifier = Modifier.weight(1f)  // ✅ weight здесь работает
                     )
                 }
 
@@ -107,12 +107,12 @@ fun OptimizationLevelDialog(
 
 @Composable
 private fun ModeCard(
-    mode: OptimizationMode,
     isSelected: Boolean,
     onClick: () -> Unit,
     iconContent: @Composable () -> Unit,
     title: String,
-    desc: String
+    desc: String,
+    modifier: Modifier = Modifier  // ✅ modifier передаётся снаружи из RowScope
 ) {
     val scale by animateFloatAsState(
         targetValue = if (isSelected) 1.02f else 1f,
@@ -120,21 +120,23 @@ private fun ModeCard(
     )
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier  // ✅ используем переданный (с .weight(1f))
             .heightIn(min = 180.dp)
             .scale(scale)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) 
+            containerColor = if (isSelected)
                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            else 
+            else
                 MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         ),
+        // ✅ ИСПРАВЛЕНО: используем Modifier.border вместо CardDefaults.outlinedCardBorder()
+        // который ведёт себя по-разному в разных версиях Compose
         border = if (isSelected)
-            CardDefaults.outlinedCardBorder().copy(
-                width = 2.dp
+            androidx.compose.foundation.BorderStroke(
+                2.dp,
+                MaterialTheme.colorScheme.primary
             )
         else null
     ) {
@@ -149,9 +151,9 @@ private fun ModeCard(
                 modifier = Modifier
                     .size(64.dp)
                     .background(
-                        color = if (isSelected) 
+                        color = if (isSelected)
                             MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                        else 
+                        else
                             Color.Transparent,
                         shape = RoundedCornerShape(16.dp)
                     ),
@@ -177,7 +179,7 @@ private fun ModeCard(
                     maxLines = 4
                 )
             }
-            
+
             if (isSelected) {
                 Icon(
                     imageVector = Icons.Filled.Star,
@@ -193,7 +195,7 @@ private fun ModeCard(
 @Composable
 private fun SimpleIcon(color: Color) {
     Icon(
-        imageVector = Icons.Filled.Tune,
+        imageVector = Icons.Filled.AutoAwesome,
         contentDescription = "Simple Mode",
         modifier = Modifier.size(40.dp),
         tint = color

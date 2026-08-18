@@ -190,4 +190,7 @@
     <string name="shizuku_sources_getapps">GetApps</string>
     <string name="shizuku_sources_github">GitHub</string>
     <string name="shizuku_sources_apkpure">APKPure</string>
+    <string name="menu_privacy_policy">Политика приватности</string>
+    <string name="privacy_policy_url" translatable="false">https://elthebestdevelopman-cyber.github.io/privacy-policy/index.html</string>
+    <string name="onboarding_privacy_text">Я принимаю политику приватности</string>
 </resources>

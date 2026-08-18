@@ -92,6 +92,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var simpleModeActive = false
     private var simpleStepIndex = 0
     private var simpleCompletedCount = 0
+    private val failedSimpleStepIds = mutableListOf<String>()
     private var stepAttempt = 1
     private var autoFlowJob: kotlinx.coroutines.Job? = null
 
@@ -392,6 +393,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         simpleModeActive = true
         simpleStepIndex = 0
         simpleCompletedCount = 0
+        failedSimpleStepIds.clear()  // ← ДОБАВИТЬ
 
         _state.update { it.copy(simpleModePhase = SimpleModePhase.PERMISSIONS) }
         advanceSimpleMode()
@@ -476,20 +478,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Проверяем что ключевые переключатели действительно выключены.
      */
     private fun performFinalVerification() {
-        AppLog.i(TAG, "performFinalVerification: completed $simpleCompletedCount of ${SimpleSteps.ALL.size} steps")
-        
+        AppLog.i(
+            TAG,
+            "performFinalVerification: completed $simpleCompletedCount of ${SimpleSteps.ALL.size} steps"
+        )
+
         // Для простой оптимизации показываем финальный экран сразу
         // Полная верификация через повторный проход по шагам может занять много времени
         // и потребует дополнительных разрешений
-        
+
         // Логируем статистику для диагностики
         val skippedCount = SimpleSteps.ALL.size - simpleCompletedCount
         if (skippedCount > 0) {
             AppLog.w(TAG, "Final verification: $skippedCount steps were skipped or failed")
         } else {
-            AppLog.i(TAG, "Final verification: all ${SimpleSteps.ALL.size} steps completed successfully")
+            AppLog.i(
+                TAG,
+                "Final verification: all ${SimpleSteps.ALL.size} steps completed successfully"
+            )
         }
-        
+
         _state.update {
             it.copy(
                 simpleStep = null,
@@ -535,7 +543,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onSimpleStepResult(success: Boolean) {
-        AppLog.i(TAG, "onSimpleStepResult: success=$success, attempt=$stepAttempt, step=$simpleStepIndex")
+        AppLog.i(
+            TAG,
+            "onSimpleStepResult: success=$success, attempt=$stepAttempt, step=$simpleStepIndex"
+        )
         val step = _state.value.simpleStep ?: return
 
         if (success) {
@@ -559,7 +570,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Не получилось → проверяем почему (лог) и пробуем повторно
         if (stepAttempt < step.maxAttempts) {
             stepAttempt++
-            AppLog.w(TAG, "onSimpleStepResult: auto-retry $stepAttempt/${step.maxAttempts} for step ${step.stepIndex}")
+            AppLog.w(
+                TAG,
+                "onSimpleStepResult: auto-retry $stepAttempt/${step.maxAttempts} for step ${step.stepIndex}"
+            )
             // Обновляем UI с номером попытки
             _state.update {
                 it.copy(
@@ -575,18 +589,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         } else {
             // Исчерпали попытки → показываем ручную подсказку + «Повторить»
-            AppLog.e(TAG, "onSimpleStepResult: all ${step.maxAttempts} attempts exhausted for step ${step.stepIndex}")
+            AppLog.e(
+                TAG,
+                "onSimpleStepResult: all ${step.maxAttempts} attempts exhausted for step ${step.stepIndex}"
+            )
             onStepExhausted(step)
         }
     }
 
     /** Вызывается когда все попытки исчерпаны */
     private fun onStepExhausted(step: SimpleStepState) {
+        // Сохраняем ID неудачного шага для финального экрана
+        failedSimpleStepIds.add(step.step.id)
+
         _state.update {
             it.copy(simpleStep = step.copy(status = SimpleStepState.Status.FAILED))
         }
         // Логируем причину для диагностики с деталями из SimpleOptimizationRunner
-        AppLog.w(TAG, "Step '${step.step.id}' (${step.step.titleRu}) failed after ${step.maxAttempts} attempts - reason: switch not found or click failed")
+        AppLog.w(
+            TAG,
+            "Step '${step.step.id}' (${step.step.titleRu}) failed after ${step.maxAttempts} attempts - reason: switch not found or click failed"
+        )
     }
 
     fun nextSimpleStep() = advanceToNextStep(autoStart = false)
@@ -1132,6 +1155,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    fun getFailedStepIds(): List<String> = failedSimpleStepIds.toList()
 
     companion object {
         private const val TAG = "MainVM"

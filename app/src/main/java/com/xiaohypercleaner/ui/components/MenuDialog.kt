@@ -33,7 +33,8 @@ fun MenuDialog(
     onRate: () -> Unit,
     onYooMoney: () -> Unit,
     onCloudTips: () -> Unit,
-    onShareLog: () -> Unit
+    onShareLog: () -> Unit,
+    onPrivacyPolicyClick: () -> Unit  // ← ДОБАВЛЕНО
 ) {
     androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
         Surface(
@@ -82,7 +83,10 @@ fun MenuDialog(
                 TextButton(onClick = onShareLog, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.log_share))
                 }
-                TextButton(onClick = onPrivacyPolicyClick) {
+                TextButton(
+                    onClick = onPrivacyPolicyClick,
+                    modifier = Modifier.fillMaxWidth()  // ← ДОБАВЛЕНО для консистентности
+                ) {
                     Text(stringResource(R.string.menu_privacy_policy))
                 }
 

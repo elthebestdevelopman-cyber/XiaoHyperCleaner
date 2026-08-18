@@ -81,13 +81,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.ShizukuExecutor
-import com.xiaohypercleaner.data.SimpleStepState
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.ui.components.InfoDialog
 import com.xiaohypercleaner.ui.components.MenuDialog
 import com.xiaohypercleaner.ui.components.OptimizationLevelDialog
-import com.xiaohypercleaner.data.OptimizationMode
 import com.xiaohypercleaner.ui.components.ShizukuSetupWizard
 import com.xiaohypercleaner.ui.components.ShizukuSourcesDialog
 import com.xiaohypercleaner.ui.components.SimpleDoneDialog
@@ -235,14 +233,15 @@ private fun MainContent(
 
     AppLog.i("MainUI", "MainContent composed: state=$state")
 
-    // ===== ПРОСТОЙ РЕЖИМ: выбор уровня =====
+    // ===== ПРОСТОЙ/ПРОДВИНУТЫЙ РЕЖИМ: выбор уровня =====
     if (state.showLevelDialog) {
         OptimizationLevelDialog(
-            currentMode = OptimizationMode.SIMPLE, onModeSelected = { mode -> vm.startSimpleMode() }, onDismiss = { vm.closeSimpleMode() }
+            // ✅ ИСПРАВЛЕНО: убираем хардкод currentMode = SIMPLE
+            // теперь диалог корректно передаёт выбранный режим
+            onModeSelected = { mode -> vm.onLevelChosen(mode) },
+            onDismiss = { vm.closeSimpleMode() }
         )
     }
-
-    // Подтверждение выбранного уровня — даёт время прочитать
 
     // Экран текущего шага простой оптимизации
     if (state.simpleStep != null) {
@@ -265,7 +264,9 @@ private fun MainContent(
         SimpleDoneDialog(
             completedCount = state.simpleDone.first,
             totalCount = state.simpleDone.second,
-            failedSteps = emptyList(), // Можно добавить сбор неудачных шагов в MainViewModel
+            // ✅ ИСПРАВЛЕНО: передаём реальные failedSteps из ViewModel
+            // вместо emptyList() — чтобы экран показывал реальную пользу
+            failedSteps = vm.getFailedStepIds(),
             onRate = { openRateApp(context) },
             onDonate = { openWebView(context, "https://yoomoney.ru/to/410011379195150", "ЮMoney") },
             onClose = { vm.closeSimpleMode() }
@@ -308,7 +309,7 @@ private fun MainContent(
     // ===== ПРОДВИНУТЫЙ РЕЖИМ: разрешения =====
     if (state.showRestrictedDialog) {
         val isAndroid14Plus = Build.VERSION.SDK_INT >= 34
-        val hintRestricted = stringResource(R.string.hint_restricted) // ✅ Заранее
+        val hintRestricted = stringResource(R.string.hint_restricted)
         InfoDialog(
             title = if (isAndroid14Plus) stringResource(R.string.forbidden_dialog_title)
             else stringResource(R.string.restricted_dialog_title),
@@ -321,7 +322,7 @@ private fun MainContent(
                 vm.restrictedDialogAgreed()
                 vm.markAppInfoOpened()
                 openAppInfoSettings(context)
-                showHintOverlay(context, hintRestricted) // ✅ Используем переменную
+                showHintOverlay(context, hintRestricted)
             },
             onDismiss = {
                 AppLog.i("MainUI", "restricted dialog: cancelled")
@@ -331,7 +332,7 @@ private fun MainContent(
     }
 
     if (state.showAccessibilityDialog) {
-        val hintAccessibility = stringResource(R.string.hint_accessibility) // ✅ Заранее
+        val hintAccessibility = stringResource(R.string.hint_accessibility)
         InfoDialog(
             title = stringResource(R.string.accessibility_explanation_title),
             text = stringResource(R.string.accessibility_explanation_text),
@@ -342,7 +343,7 @@ private fun MainContent(
                 com.xiaohypercleaner.service.ChainFlags.waitingAccessibilityReturn = true
                 vm.markAccessibilityOpened()
                 openAccessibilitySettings(context)
-                showHintOverlay(context, hintAccessibility) // ✅ Используем переменную
+                showHintOverlay(context, hintAccessibility)
             },
             onDismiss = {
                 AppLog.i("MainUI", "accessibility dialog: cancelled")
@@ -352,7 +353,7 @@ private fun MainContent(
     }
 
     if (state.showOverlayDialog) {
-        val hintOverlay = stringResource(R.string.hint_overlay) // ✅ Заранее
+        val hintOverlay = stringResource(R.string.hint_overlay)
         InfoDialog(
             title = stringResource(R.string.overlay_permission_title),
             text = stringResource(R.string.overlay_permission_text),
@@ -361,7 +362,7 @@ private fun MainContent(
                 AppLog.i("MainUI", "overlay dialog: agreed")
                 vm.dialogAgreed()
                 openOverlaySettings(context)
-                showHintOverlay(context, hintOverlay) // ✅ Используем переменную
+                showHintOverlay(context, hintOverlay)
             },
             onDismiss = {
                 AppLog.i("MainUI", "overlay dialog: cancelled")
@@ -496,6 +497,9 @@ private fun MainContent(
     }
 
     if (menuOpen) {
+        // ✅ ПОЛУЧАЕМ URL В COMPOSABLE-КОНТЕКСТЕ (до передачи в лямбду)
+        val privacyUrl = stringResource(R.string.privacy_policy_url)
+
         MenuDialog(
             isDark = isDark,
             onDarkChange = onDarkChange,
@@ -518,6 +522,10 @@ private fun MainContent(
             onShareLog = {
                 AppLog.i("MainUI", "menu: share log clicked")
                 shareLog(context)
+            },
+            onPrivacyPolicyClick = {
+                AppLog.i("MainUI", "menu: privacy policy clicked")
+                openUrl(context, privacyUrl)  // ✅ используем уже полученную строку
             }
         )
     }

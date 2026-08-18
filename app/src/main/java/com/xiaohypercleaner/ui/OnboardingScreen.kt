@@ -2,6 +2,7 @@ package com.xiaohypercleaner.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,23 +13,36 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xiaohypercleaner.R
@@ -67,6 +81,11 @@ fun OnboardingScreen(
 
     val pagerState = rememberPagerState(pageCount = { pages.size })
     val scope = rememberCoroutineScope()
+    val uriHandler = LocalUriHandler.current
+
+    // Состояние согласия с политикой приватности (только для последней страницы)
+    var privacyAccepted by remember { mutableStateOf(false) }
+    val isLastPage = pagerState.currentPage == pages.size - 1
 
     Column(
         modifier = Modifier
@@ -101,7 +120,7 @@ fun OnboardingScreen(
             }
         }
 
-        // Pager с страницами
+        // Pager со страницами
         HorizontalPager(
             state = pagerState,
             modifier = Modifier
@@ -109,6 +128,25 @@ fun OnboardingScreen(
                 .fillMaxWidth()
         ) { page ->
             OnboardingPageContent(pages[page])
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // ЧЕКБОКС ПОЛИТИКИ ПРИВАТНОСТИ (только на последней странице)
+        // ═══════════════════════════════════════════════════════════════
+        if (isLastPage) {
+            PrivacyPolicyCheckbox(
+                accepted = privacyAccepted,
+                onAcceptedChange = { privacyAccepted = it },
+                onLinkClick = {
+                    try {
+                        uriHandler.openUri(PRIVACY_POLICY_URL)
+                        AppLog.i("Onboarding", "privacy policy link opened")
+                    } catch (e: Exception) {
+                        AppLog.w("Onboarding", "failed to open privacy policy: ${e.message}")
+                    }
+                }
+            )
+            Spacer(Modifier.height(16.dp))
         }
 
         // Индикаторы страниц
@@ -140,15 +178,16 @@ fun OnboardingScreen(
                         pagerState.animateScrollToPage(pagerState.currentPage + 1)
                     }
                 } else {
-                    AppLog.i("Onboarding", "completed")
+                    AppLog.i("Onboarding", "completed, privacyAccepted=$privacyAccepted")
                     onFinish()
                 }
             },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
+            enabled = !isLastPage || privacyAccepted,
             shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Blue500)
+            colors = ButtonDefaults.buttonColors(containerColor = Blue500)
         ) {
             Text(
                 if (pagerState.currentPage < pages.size - 1) {
@@ -160,6 +199,60 @@ fun OnboardingScreen(
                 fontWeight = FontWeight.Medium
             )
         }
+    }
+}
+
+/**
+ * Чекбокс согласия с политикой приватности.
+ * Показывается только на последней странице онбординга.
+ *
+ * Содержит:
+ * - Checkbox слева
+ * - Кликабельный текст со ссылкой на политику приватности
+ */
+@Composable
+private fun PrivacyPolicyCheckbox(
+    accepted: Boolean,
+    onAcceptedChange: (Boolean) -> Unit,
+    onLinkClick: () -> Unit
+) {
+    val annotatedText = buildAnnotatedString {
+        append("Я принимаю ")
+        pushStringAnnotation(tag = "URL", annotation = PRIVACY_POLICY_URL)
+        withStyle(
+            style = SpanStyle(
+                color = Blue500,
+                textDecoration = TextDecoration.Underline,
+                fontWeight = FontWeight.Medium
+            )
+        ) {
+            append("политику приватности")
+        }
+        pop()
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onAcceptedChange(!accepted) }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(
+            checked = accepted,
+            onCheckedChange = onAcceptedChange,
+            colors = CheckboxDefaults.colors(
+                checkedColor = Blue500,
+                uncheckedColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text = annotatedText,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.clickable { onLinkClick() }
+        )
     }
 }
 
@@ -194,3 +287,7 @@ private fun OnboardingPageContent(page: OnboardingPage) {
         )
     }
 }
+
+/** URL политики приватности (RU). Замените на values-en/... для английской версии. */
+private const val PRIVACY_POLICY_URL =
+    "https://elthebestdevelopman-cyber.github.io/privacy-policy/index.html"

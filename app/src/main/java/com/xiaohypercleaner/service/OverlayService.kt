@@ -177,7 +177,6 @@ class OverlayService : Service() {
         if (::root.isInitialized && root.isAttachedToWindow) {
             runCatching { windowManager.removeView(root) }
         }
-        // ✅ ИСПРАВЛЕНО: было registerService(this) — теперь очистка
         OverlayController.clear()
         super.onDestroy()
     }
@@ -334,7 +333,7 @@ class OverlayService : Service() {
                 color = hint.highlightColor
             }
 
-            // ✅ ИСПРАВЛЕНО #2: делаем публичным — ObjectAnimator ищет сеттер через reflection
+            // ObjectAnimator ищет сеттер через reflection
             @Suppress("PropertyName")
             var pulseAlpha: Int = 255
 
@@ -375,11 +374,10 @@ class OverlayService : Service() {
                     centerY + halfH
                 )
 
-                // ✅ ИСПРАВЛЕНО #3: фон рисуется ВНУТРИ saveLayer,
-                // чтобы PorterDuff.CLEAR правильно вырезал дырку
+                // Фон рисуется ВНУТРИ saveLayer, чтобы PorterDuff.CLEAR вырезал дырку
                 canvas.saveLayer(0f, 0f, w, h, null)
-                canvas.drawRect(0f, 0f, w, h, backgroundPaint)  // фон
-                canvas.drawRect(clampedRect, clearPaint)         // вырезать дырку
+                canvas.drawRect(0f, 0f, w, h, backgroundPaint)
+                canvas.drawRect(clampedRect, clearPaint)
                 canvas.restore()
 
                 // Мигающая рамка
@@ -401,10 +399,10 @@ class OverlayService : Service() {
                         val textY = targetRect.top - dp(60)
                         path.moveTo(
                             targetRect.centerX().toFloat(),
-                            (targetRect.top - gap).toFloat()
+                            targetRect.top - gap
                         )
-                        path.lineTo((targetRect.centerX() - arrowSize), textY.toFloat())
-                        path.lineTo((targetRect.centerX() + arrowSize), textY.toFloat())
+                        path.lineTo(targetRect.centerX() - arrowSize, textY.toFloat())
+                        path.lineTo(targetRect.centerX() + arrowSize, textY.toFloat())
                         path.close()
                     }
 
@@ -412,32 +410,32 @@ class OverlayService : Service() {
                         val textY = targetRect.bottom + dp(60)
                         path.moveTo(
                             targetRect.centerX().toFloat(),
-                            (targetRect.bottom + gap).toFloat()
+                            targetRect.bottom + gap
                         )
-                        path.lineTo((targetRect.centerX() - arrowSize), textY.toFloat())
-                        path.lineTo((targetRect.centerX() + arrowSize), textY.toFloat())
+                        path.lineTo(targetRect.centerX() - arrowSize, textY.toFloat())
+                        path.lineTo(targetRect.centerX() + arrowSize, textY.toFloat())
                         path.close()
                     }
 
                     ArrowPosition.LEFT -> {
                         val textX = targetRect.left - dp(60)
                         path.moveTo(
-                            (targetRect.left - gap).toFloat(),
+                            targetRect.left - gap,
                             targetRect.centerY().toFloat()
                         )
-                        path.lineTo(textX.toFloat(), (targetRect.centerY() - arrowSize))
-                        path.lineTo(textX.toFloat(), (targetRect.centerY() + arrowSize))
+                        path.lineTo(textX.toFloat(), targetRect.centerY() - arrowSize)
+                        path.lineTo(textX.toFloat(), targetRect.centerY() + arrowSize)
                         path.close()
                     }
 
                     ArrowPosition.RIGHT -> {
                         val textX = targetRect.right + dp(60)
                         path.moveTo(
-                            (targetRect.right + gap).toFloat(),
+                            targetRect.right + gap,
                             targetRect.centerY().toFloat()
                         )
-                        path.lineTo(textX.toFloat(), (targetRect.centerY() - arrowSize))
-                        path.lineTo(textX.toFloat(), (targetRect.centerY() + arrowSize))
+                        path.lineTo(textX.toFloat(), targetRect.centerY() - arrowSize)
+                        path.lineTo(textX.toFloat(), targetRect.centerY() + arrowSize)
                         path.close()
                     }
                 }
@@ -452,16 +450,16 @@ class OverlayService : Service() {
             ) {
                 val lines = text.split("\n")
 
-                // ✅ ИСПРАВЛЕНО #1: textY теперь Float, а не Int
-                val textY: Float = when (position) {
-                    ArrowPosition.TOP -> (targetRect.top - dp(70)).toFloat()
-                    ArrowPosition.BOTTOM -> (targetRect.bottom + dp(80)).toFloat()
-                    ArrowPosition.LEFT -> targetRect.centerY().toFloat()
-                    ArrowPosition.RIGHT -> targetRect.centerY().toFloat()
+                val textY = when (position) {
+                    ArrowPosition.TOP -> targetRect.top - dp(70)
+                    ArrowPosition.BOTTOM -> targetRect.bottom + dp(80)
+                    ArrowPosition.LEFT -> targetRect.centerY()
+                    ArrowPosition.RIGHT -> targetRect.centerY()
                 }
 
                 lines.forEachIndexed { index, line ->
-                    val y = textY + (index - lines.size / 2f) * dp(20).toFloat()
+                    // y уже Float: Int + Float * Int даёт Float
+                    val y = textY + (index - lines.size / 2f) * dp(20)
 
                     when (position) {
                         ArrowPosition.LEFT -> {
@@ -486,7 +484,12 @@ class OverlayService : Service() {
 
                         else -> {
                             textPaint.textAlign = Paint.Align.CENTER
-                            canvas.drawText(line, targetRect.centerX().toFloat(), y, textPaint)
+                            canvas.drawText(
+                                line,
+                                targetRect.centerX().toFloat(),
+                                y,
+                                textPaint
+                            )
                         }
                     }
                 }
