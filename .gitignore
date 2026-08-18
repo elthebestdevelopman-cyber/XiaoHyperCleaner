@@ -1,33 +1,61 @@
-# Gradle
+# Compiled and build artifacts
+*.class
+*.o
+*.obj
+*.out
+*.dll
+*.so
+*.a
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+*.jar
+*.war
+*.zip
+*.tar.gz
+*.tar
+*.gz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+
+# Dependencies
+node_modules/
+venv/
+.venv/
+.env
+.env.local
+.env.*
+target/
 .gradle/
+.mypy_cache/
+.pytest_cache/
+coverage/
+htmlcov/
+.coverage
+dist/
 build/
-!gradle/wrapper/gradle-wrapper.jar
-!gradle/wrapper/gradle-wrapper.properties
 
-# Android Studio / IntelliJ
+# Editors
+.vscode/
 .idea/
-*.iml
-*.iws
-*.ipr
-.navigation/
-captures/
+*.swp
+*.swo
+*.tmp
 
-# JVM crash logs (именно они у тебя лезут как hs_err_pid314.log)
-hs_err_pid*.log
-java_pid*.log
-
-# Локальные конфиги
-local.properties
-*.jks
-*.keystore
-
-# OS
+# System
 .DS_Store
 Thumbs.db
-
-# Build outputs
-*.apk
-*.aab
-*.ap_
-*.dex
-/.continue
+*.log
