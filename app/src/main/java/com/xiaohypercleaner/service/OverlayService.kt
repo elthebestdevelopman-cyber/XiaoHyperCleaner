@@ -54,7 +54,7 @@ class OverlayService : Service() {
     private var bounce: ObjectAnimator? = null
     private var lastPercent = -1
     private var hintMode = false
-    
+
     // Интерактивные подсказки
     private var interactiveOverlayView: View? = null
     private var currentHint: InteractiveHint? = null
@@ -298,7 +298,7 @@ class OverlayService : Service() {
         try {
             windowManager.addView(overlay, params)
             startPulseAnimation(overlay)
-            
+
             // Авто-скрытие через 10 секунд
             handler.postDelayed({ hideInteractiveHint() }, 10000L)
         } catch (e: Exception) {
@@ -310,7 +310,7 @@ class OverlayService : Service() {
     fun hideInteractiveHint() {
         pulseAnimator?.cancel()
         pulseAnimator = null
-        
+
         interactiveOverlayView?.let { view ->
             try {
                 if (view.isAttachedToWindow) {
@@ -351,7 +351,7 @@ class OverlayService : Service() {
 
             override fun onDraw(canvas: Canvas) {
                 super.onDraw(canvas)
-                
+
                 // 1. Рисуем полупрозрачный фон
                 canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), backgroundPaint)
 
@@ -372,7 +372,7 @@ class OverlayService : Service() {
                     targetRect.right + margin,
                     targetRect.bottom + margin
                 )
-                
+
                 // Ограничиваем размер дырки
                 val maxHoleSize = dp(120)
                 val centerX = clearRect.centerX()
@@ -408,29 +408,44 @@ class OverlayService : Service() {
                     ArrowPosition.TOP -> {
                         // Стрелка снизу текста, указывает вверх на target
                         val textY = targetRect.top - dp(60)
-                        path.moveTo(targetRect.centerX().toFloat(), (targetRect.top - gap).toFloat())
+                        path.moveTo(
+                            targetRect.centerX().toFloat(),
+                            (targetRect.top - gap).toFloat()
+                        )
                         path.lineTo((targetRect.centerX() - arrowSize).toFloat(), textY.toFloat())
                         path.lineTo((targetRect.centerX() + arrowSize).toFloat(), textY.toFloat())
                         path.close()
                     }
+
                     ArrowPosition.BOTTOM -> {
                         // Стрелка сверху текста, указывает вниз на target
                         val textY = targetRect.bottom + dp(60)
-                        path.moveTo(targetRect.centerX().toFloat(), (targetRect.bottom + gap).toFloat())
+                        path.moveTo(
+                            targetRect.centerX().toFloat(),
+                            (targetRect.bottom + gap).toFloat()
+                        )
                         path.lineTo((targetRect.centerX() - arrowSize).toFloat(), textY.toFloat())
                         path.lineTo((targetRect.centerX() + arrowSize).toFloat(), textY.toFloat())
                         path.close()
                     }
+
                     ArrowPosition.LEFT -> {
                         val textX = targetRect.left - dp(60)
-                        path.moveTo((targetRect.left - gap).toFloat(), targetRect.centerY().toFloat())
+                        path.moveTo(
+                            (targetRect.left - gap).toFloat(),
+                            targetRect.centerY().toFloat()
+                        )
                         path.lineTo(textX.toFloat(), (targetRect.centerY() - arrowSize).toFloat())
                         path.lineTo(textX.toFloat(), (targetRect.centerY() + arrowSize).toFloat())
                         path.close()
                     }
+
                     ArrowPosition.RIGHT -> {
                         val textX = targetRect.right + dp(60)
-                        path.moveTo((targetRect.right + gap).toFloat(), targetRect.centerY().toFloat())
+                        path.moveTo(
+                            (targetRect.right + gap).toFloat(),
+                            targetRect.centerY().toFloat()
+                        )
                         path.lineTo(textX.toFloat(), (targetRect.centerY() - arrowSize).toFloat())
                         path.lineTo(textX.toFloat(), (targetRect.centerY() + arrowSize).toFloat())
                         path.close()
@@ -447,7 +462,7 @@ class OverlayService : Service() {
             ) {
                 val lines = text.split("\n")
                 val maxWidth = dp(280).toFloat()
-                
+
                 // Позиция текста зависит от направления стрелки
                 val textX = targetRect.centerX().toFloat()
                 val textY = when (position) {
@@ -459,8 +474,8 @@ class OverlayService : Service() {
 
                 // Рисуем каждую строку
                 lines.forEachIndexed { index, line ->
-                    val y = textY + (index - lines.size / 2f) * dp(20)
-                    
+                    val y = textY + (index - lines.size / 2f) * dp(20).toFloat()
+
                     // Для LEFT/RIGHT позиций смещаем текст
                     if (position == ArrowPosition.LEFT) {
                         textPaint.textAlign = Paint.Align.RIGHT
