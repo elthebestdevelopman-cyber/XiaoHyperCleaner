@@ -43,7 +43,7 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
     // ГЛАВНЫЙ МЕТОД — выполняет один шаг оптимизации
     // ═══════════════════════════════════════════════════════════════
     suspend fun executeStep(step: SimpleSteps.Step): StepResult {
-        AppLog.i(TAG, "Executing step: ${step.id}")
+        AppLog.i(TAG, "Executing step: ${step.id} - ${step.titleEn}")
 
         // 1. Открываем экран; запоминаем, КАКОЙ intent сработал
         val openedIndex = tryOpenScreen(step)
@@ -68,7 +68,7 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
             }
 
         if (switchNode == null) {
-            AppLog.w(TAG, "Step ${step.id}: no switch found at all")
+            AppLog.w(TAG, "Step ${step.id}: no switch found at all - search texts: ${step.searchTexts.joinToString(", ")}")
             return StepResult(step.id, false, reason = "switch_not_found")
         }
 
@@ -84,12 +84,13 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         }
 
         // 4. Кликаем с fallback-ами
-        if (!clickSwitch(switchNode)) {
+        val clickMethod = getClickMethod(switchNode)
+        if (clickMethod == ClickMethod.NONE) {
             AppLog.w(TAG, "Step ${step.id}: all click attempts failed")
             return StepResult(step.id, false, reason = "click_failed")
         }
 
-        AppLog.i(TAG, "Step ${step.id}: clicked")
+        AppLog.i(TAG, "Step ${step.id}: clicked using method $clickMethod")
         delay(WAIT_AFTER_CLICK_MS)
 
         // 5. Проверяем результат
@@ -102,6 +103,42 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
             "Step ${step.id}: new state=$newState, target=${step.targetChecked}, success=$success"
         )
         return StepResult(step.id, success, reason = if (!success) "state_not_changed" else null)
+    }
+
+    /** Метод клика который был использован */
+    enum class ClickMethod { SELF, PARENT, GESTURE, NONE }
+
+    private fun getClickMethod(node: AccessibilityNodeInfo): ClickMethod {
+        // Способ 1: клик на самом node
+        if (node.isClickable) {
+            val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            if (result) return ClickMethod.SELF
+        }
+
+        // Способ 2: клик на родителях (до 5 уровней)
+        var parent = node.parent
+        var depth = 0
+        while (parent != null && depth < 5) {
+            if (parent.isClickable) {
+                val result = parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                if (result) return ClickMethod.PARENT
+            }
+            parent = parent.parent
+            depth++
+        }
+
+        // Способ 3: КЛИК ПО КООРДИНАТАМ через dispatchGesture (последний шанс)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val result = clickByCoordinates(node)
+            if (result) return ClickMethod.GESTURE
+        }
+
+        return ClickMethod.NONE
+    }
+
+    private fun clickSwitch(node: AccessibilityNodeInfo): Boolean {
+        // Эта функция больше не используется напрямую — логику перенесли в getClickMethod()
+        return getClickMethod(node) != ClickMethod.NONE
     }
 
     /** Возвращает индекс сработавшего intent или -1. */
@@ -127,46 +164,8 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // КЛИК — множество способов, включая клик по координатам
+    // КЛИК ПО КООРДИНАТАМ — используется из getClickMethod()
     // ═══════════════════════════════════════════════════════════════
-    private fun clickSwitch(node: AccessibilityNodeInfo): Boolean {
-        // Способ 1: клик на самом node
-        if (node.isClickable) {
-            val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            if (result) {
-                AppLog.i(TAG, "clicked self")
-                return true
-            }
-        }
-
-        // Способ 2: клик на родителях (до 5 уровней)
-        var parent = node.parent
-        var depth = 0
-        while (parent != null && depth < 5) {
-            if (parent.isClickable) {
-                val result = parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                if (result) {
-                    AppLog.i(TAG, "clicked parent at depth $depth")
-                    return true
-                }
-            }
-            parent = parent.parent
-            depth++
-        }
-
-        // Способ 3: КЛИК ПО КООРДИНАТАМ через dispatchGesture (последний шанс)
-        // Работает даже когда clickable=false — эмулирует тап пальцем
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            val result = clickByCoordinates(node)
-            if (result) {
-                AppLog.i(TAG, "clicked by coordinates (gesture)")
-                return true
-            }
-        }
-
-        return false
-    }
-
     /**
      * Клик по координатам через AccessibilityService.dispatchGesture.
      * Эмулирует реальный тап пальцем по центру элемента.
@@ -187,6 +186,7 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
                 .build()
 
             service.dispatchGesture(gesture, null, null)
+            true
         } catch (e: Exception) {
             AppLog.w(TAG, "clickByCoordinates failed: ${e.message}")
             false

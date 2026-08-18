@@ -198,8 +198,8 @@ object SimpleSteps {
             manualHintRu = "Откроются уведомления Mi Music. Выключите переключатель «Разрешить уведомления».",
             manualHintEn = "Mi Music notification settings will open. Turn off \"Allow notifications\".",
             riskLevel = RiskLevel.CONDITIONAL,
-            warningRu = "⚠️ Если вы используете Mi Music как основной плеер, вы потеряете уведомления о новых плейлистах и альбомах. Сама музыка будет работать нормально.",
-            warningEn = "⚠️ If you use Mi Music as your main player, you will lose notifications about new playlists and albums. Music playback will work normally."
+            warningRu = "⚠️ Если вы используете Mi Music как основной плеер, вы потеряете уведомления о новых плейлистах и альбомах (но музыка будет работать).",
+            warningEn = "⚠️ If you use Mi Music as your main player, you will lose notifications about new playlists and albums (but music playback will work normally)."
         ),
 
         // ═══════════════════════════════════════════════════════════════
@@ -370,8 +370,8 @@ object SimpleSteps {
             manualHintRu = "Откроются уведомления Smart Assistant. Выключите переключатель «Разрешить уведомления».",
             manualHintEn = "Smart Assistant notification settings will open. Turn off \"Allow notifications\".",
             riskLevel = RiskLevel.CONDITIONAL,
-            warningRu = "⚠️ Если вы используете голосовые команды Mi AI, вы можете потерять некоторые уведомления. Голосовое управление продолжит работать.",
-            warningEn = "⚠️ If you use Mi AI voice commands, you may lose some notifications. Voice control will continue to work."
+            warningRu = "⚠️ Если вы используете голосовые команды Mi AI, вы можете потерять некоторые уведомления (но голосовое управление продолжит работать).",
+            warningEn = "⚠️ If you use Mi AI voice commands, you may lose some notifications (but voice control will continue to work)."
         ),
 
         // ═══════════════════════════════════════════════════════════════

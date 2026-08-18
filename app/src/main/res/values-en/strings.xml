@@ -45,6 +45,11 @@
     <string name="simple_done_title">All done!</string>
     <string name="simple_done_text">Ads, telemetry and spam are disabled. No reboot required.</string>
     <string name="simple_done_steps_done">Completed %1$d of %2$d steps</string>
+    <string name="simple_done_benefits">What changed:</string>
+    <string name="simple_done_benefit_ads">✅ Less ads in the system</string>
+    <string name="simple_done_benefit_telemetry">✅ Telemetry disabled</string>
+    <string name="simple_done_benefit_spam">✅ Spam from system apps stopped</string>
+    <string name="simple_done_benefit_stable">✅ System should work more stable</string>
     <string name="simple_done_rate">Rate the app</string>
     <string name="simple_done_donate">Support the author</string>
     <string name="simple_done_close">Close</string>
@@ -85,7 +90,7 @@
 
     <!-- ========== ACCESSIBILITY ========== -->
     <string name="accessibility_explanation_title">Accessibility service required</string>
-    <string name="accessibility_explanation_text">The app needs Accessibility access to automatically click buttons in settings. Access is used only for optimization and is never sent anywhere.</string>
+    <string name="accessibility_explanation_text">The app needs special accessibility features to help users with limited mobility automatically click buttons in settings. Access is used only for optimization and is never sent anywhere.</string>
     <string name="hint_accessibility">Enable "XiaoHyperCleaner" in the services list</string>
 
     <!-- ========== OVERLAY ========== -->
