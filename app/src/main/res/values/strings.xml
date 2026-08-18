@@ -27,15 +27,11 @@
     <string name="level_simple_desc">Для всех пользователей. Приложение само настроит систему — просто выдайте разрешения и подождите.</string>
     <string name="level_advanced_title">🔵 Продвинутая</string>
     <string name="level_advanced_desc">Для опытных. Глубокая настройка через Shizuku или Wireless ADB. Надёжнее, но требует подготовки.</string>
-    <string name="level_extreme_title">🔴 Экстремальная</string>
-    <string name="level_extreme_desc">Максимальная очистка с расширенными настройками системных сервисов. Может повлиять на работу некоторых функций Xiaomi. Только для опытных пользователей.</string>
-    
+
     <string name="level_confirm_simple_title">Запустить простую оптимизацию?</string>
     <string name="level_confirm_simple_text">Приложение откроет настройки и автоматически отключит рекламу, телеметрию и спам. Это займёт 2–3 минуты.</string>
     <string name="level_confirm_advanced_title">Запустить продвинутую оптимизацию?</string>
     <string name="level_confirm_advanced_text">Потребуется настроить Shizuku или Wireless ADB. Процесс глубже и надёжнее, но занимает больше времени.</string>
-    <string name="level_confirm_extreme_title">Запустить экстремальную оптимизацию?</string>
-    <string name="level_confirm_extreme_text">Внимание: расширенные настройки системных сервисов могут повлиять на работу некоторых функций Xiaomi. Продолжайте только если понимаете риски.</string>
     <string name="level_confirm_start">Начать</string>
 
     <!-- ========== ПРОСТОЙ РЕЖИМ: ШАГИ ========== -->
@@ -102,17 +98,17 @@
     <string name="accessibility_explanation_text">Приложению нужен доступ к специальным возможностям для помощи пользователям с ограниченными возможностями автоматически нажимать кнопки в настройках. Доступ используется только для оптимизации и не передаётся наружу.</string>
     <string name="hint_title">Подсказка</string>
     <string name="hint_accessibility">Включите «XiaoHyperCleaner» в списке служб</string>
+    <string name="hint_restricted">Нажмите 3 точки сверху → «Разрешить ограниченные настройки»</string>
+    <string name="hint_overlay">Разрешите отображение поверх других окон</string>
 
     <!-- ========== OVERLAY ========== -->
     <string name="overlay_permission_title">Разрешение «Поверх других окон»</string>
     <string name="overlay_permission_text">Нужно, чтобы показывать подсказки во время настройки в других приложениях.</string>
-    <string name="hint_overlay">Разрешите отображение поверх других окон</string>
 
     <!-- ========== RESTRICTED / FORBIDDEN (Android 13+ sideload) ========== -->
     <string name="restricted_dialog_title">Ограниченные настройки</string>
     <string name="restricted_dialog_text">Для включения службы специальных возможностей нужно сначала разрешить «Ограниченные настройки» в карточке приложения.</string>
     <string name="restricted_dialog_open">Открыть настройки приложения</string>
-    <string name="hint_restricted">Нажмите 3 точки сверху → «Разрешить ограниченные настройки»</string>
 
     <string name="forbidden_dialog_title">Запрещённые настройки</string>
     <string name="forbidden_dialog_text">На Android 14+ нужно разрешить «Запрещённые настройки» в карточке приложения.</string>

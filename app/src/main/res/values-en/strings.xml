@@ -21,13 +21,18 @@
     <string name="reboot_now">Reboot now</string>
 
     <!-- ========== LEVEL SELECTION ========== -->
-    <string name="simple_level_title">Choose optimization level</string>
-    <string name="simple_level_simple_title">Simple</string>
-    <string name="simple_level_simple_desc">The app will automatically toggle switches in phone settings (recommendations, telemetry, analytics). Grant permissions, press "Start" and just wait — everything runs automatically. If a step fails, the app will diagnose the issue and retry. No Wi‑Fi, no complicated setup.</string>
-    <string name="simple_level_advanced_title">Advanced</string>
-    <string name="simple_level_advanced_desc">Via Shizuku and Wireless ADB — deeper and more reliable, but requires setup.</string>
-    <string name="simple_level_extreme_title">Extreme</string>
-    <string name="simple_level_extreme_desc">Maximum cleanup with advanced system service tweaks. May affect some Xiaomi features.</string>
+    <string name="level_dialog_title">Choose optimization level</string>
+    <string name="level_dialog_text">Simple mode works for everyone — the app will configure everything automatically. Advanced mode requires Shizuku/ADB but gives more control.</string>
+    <string name="level_simple_title">🟢 Simple</string>
+    <string name="level_simple_desc">For all users. The app will configure the system automatically — just grant permissions and wait.</string>
+    <string name="level_advanced_title">🔵 Advanced</string>
+    <string name="level_advanced_desc">For experienced users. Deep configuration via Shizuku or Wireless ADB. More reliable but requires setup.</string>
+
+    <string name="level_confirm_simple_title">Start simple optimization?</string>
+    <string name="level_confirm_simple_text">The app will open settings and automatically disable ads, telemetry and spam. This will take 2–3 minutes.</string>
+    <string name="level_confirm_advanced_title">Start advanced optimization?</string>
+    <string name="level_confirm_advanced_text">Requires Shizuku or Wireless ADB setup. The process is deeper and more reliable but takes longer.</string>
+    <string name="level_confirm_start">Start</string>
 
     <!-- ========== SIMPLE MODE: STEPS ========== -->
     <string name="simple_step_of">Step %1$d of %2$d</string>
@@ -91,21 +96,21 @@
     <!-- ========== ACCESSIBILITY ========== -->
     <string name="accessibility_explanation_title">Accessibility service required</string>
     <string name="accessibility_explanation_text">The app needs special accessibility features to help users with limited mobility automatically click buttons in settings. Access is used only for optimization and is never sent anywhere.</string>
+    <string name="hint_title">Hint</string>
     <string name="hint_accessibility">Enable "XiaoHyperCleaner" in the services list</string>
+    <string name="hint_restricted">Tap 3 dots at the top → "Allow restricted settings"</string>
+    <string name="hint_overlay">Allow display over other apps</string>
 
     <!-- ========== OVERLAY ========== -->
     <string name="overlay_permission_title">"Display over other apps" permission</string>
     <string name="overlay_permission_text">Needed to show hints while setting up other apps.</string>
-    <string name="hint_overlay">Allow display over other apps</string>
 
     <!-- ========== RESTRICTED / FORBIDDEN (Android 13+ sideload) ========== -->
     <string name="restricted_dialog_title">Restricted settings</string>
     <string name="restricted_dialog_text">To enable the Accessibility service, you must first allow "Restricted settings" in the app info screen.</string>
     <string name="restricted_dialog_open">Open app settings</string>
-    <string name="hint_restricted">Tap 3 dots at the top → "Allow restricted settings"</string>
 
     <string name="forbidden_dialog_title">Forbidden settings</string>
-    <string name="hint_title">Hint</string>
     <string name="forbidden_dialog_text">On Android 14+ you must allow "Forbidden settings" in the app info screen.</string>
     <string name="forbidden_dialog_open">Open app settings</string>
 

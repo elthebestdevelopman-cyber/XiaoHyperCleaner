@@ -82,6 +82,9 @@ fun MenuDialog(
                 TextButton(onClick = onShareLog, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.log_share))
                 }
+                TextButton(onClick = onPrivacyPolicyClick) {
+                    Text(stringResource(R.string.menu_privacy_policy))
+                }
 
                 Spacer(Modifier.height(12.dp))
                 HorizontalDivider()
