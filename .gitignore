@@ -72,3 +72,4 @@ htmlcov/
 *.tar.zst
 ```
 /.continue
+local.properties
