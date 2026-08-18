@@ -32,6 +32,14 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         )
     }
 
+    /**
+     * Результат выполнения шага оптимизации.
+     * 
+     * @property stepId идентификатор шага (например, "msa", "personal_ads")
+     * @property success true если шаг выполнен успешно
+     * @property skipped true если шаг пропущен пользователем
+     * @property reason причина неудачи или пропуска (например, "switch_not_found", "click_failed")
+     */
     data class StepResult(
         val stepId: String,
         val success: Boolean,
@@ -42,6 +50,27 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
     // ═══════════════════════════════════════════════════════════════
     // ГЛАВНЫЙ МЕТОД — выполняет один шаг оптимизации
     // ═══════════════════════════════════════════════════════════════
+    /**
+     * Выполняет один шаг оптимизации: открывает настройки, находит переключатель,
+     * кликает его и проверяет результат.
+     * 
+     * Алгоритм:
+     * 1. Открывает экран настроек через intents (попытка нескольких вариантов)
+     * 2. Ждёт загрузки экрана (WAIT_FOR_SCREEN_MS)
+     * 3. Ищет switch по текстам из [SimpleSteps.Step.searchTexts]
+     * 4. Если не найден — пытается найти первый switch на странице (fallback)
+     * 5. Если уже в целевом состоянии — возвращает SUCCESS
+     * 6. Кликает switch (SELF → PARENT → GESTURE по координатам)
+     * 7. Проверяет что состояние изменилось на целевое
+     * 
+     * @param step шаг оптимизации для выполнения
+     * @return StepResult с результатом выполнения
+     * 
+     * @see SimpleSteps.Step
+     * @see tryOpenScreen
+     * @see findSwitchNode
+     * @see getClickMethod
+     */
     suspend fun executeStep(step: SimpleSteps.Step): StepResult {
         AppLog.i(TAG, "Executing step: ${step.id} - ${step.titleEn}")
 
