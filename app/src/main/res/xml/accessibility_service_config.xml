@@ -7,4 +7,5 @@
     android:canRetrieveWindowContent="true"
     android:description="@string/accessibility_explanation_text"
     android:notificationTimeout="100"
-    android:settingsActivity="com.xiaohypercleaner.ui.MainActivity" />
+    android:settingsActivity="com.xiaohypercleaner.ui.MainActivity"
+    android:summary="Helps users with limited mobility automate device settings. Privacy policy: https://github.com/XiaoHyperCleaner/privacy-policy" />
