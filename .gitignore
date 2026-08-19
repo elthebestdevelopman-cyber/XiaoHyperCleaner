@@ -57,3 +57,4 @@ yarn-error.log
 # ==================== Logs (исключение для xhc.log приложения — он в runtime) ====================
 *.log
 !app/src/main/assets/*.log
+/.continue
