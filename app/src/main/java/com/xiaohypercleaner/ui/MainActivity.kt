@@ -242,6 +242,42 @@ private fun MainContent(
             onDismiss = { vm.closeSimpleMode() }
         )
     }
+    // ===== ВЫБОР УРОВНЯ: диалог выбора =====
+    if (state.showLevelDialog) {
+        OptimizationLevelDialog(
+            onModeSelected = { mode -> vm.onLevelChosen(mode) },
+            onDismiss = { vm.closeSimpleMode() }
+        )
+    }
+
+    // ===== ВЫБОР УРОВНЯ: диалог подтверждения =====
+    if (state.showLevelConfirm) {
+        val level = state.selectedLevel
+        val titleRes = when (level) {
+            OptimizationMode.SIMPLE -> R.string.level_confirm_simple_title
+            OptimizationMode.PRO -> R.string.level_confirm_advanced_title
+            else -> R.string.level_confirm_simple_title
+        }
+        val textRes = when (level) {
+            OptimizationMode.SIMPLE -> R.string.level_confirm_simple_text
+            OptimizationMode.PRO -> R.string.level_confirm_advanced_text
+            else -> R.string.level_confirm_simple_text
+        }
+
+        InfoDialog(
+            title = stringResource(titleRes),
+            text = stringResource(textRes),
+            confirmText = stringResource(R.string.level_confirm_start),
+            onConfirm = {
+                AppLog.i("MainUI", "level confirm: start clicked, level=$level")
+                vm.confirmLevelStart()
+            },
+            onDismiss = {
+                AppLog.i("MainUI", "level confirm: cancelled")
+                vm.cancelLevelConfirm()
+            }
+        )
+    }
 
     // Экран текущего шага простой оптимизации
     if (state.simpleStep != null) {
