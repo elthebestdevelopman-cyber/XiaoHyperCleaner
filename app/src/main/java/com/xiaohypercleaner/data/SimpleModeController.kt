@@ -2,13 +2,10 @@ package com.xiaohypercleaner.data
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
-import android.provider.Settings
+import android.os.Build
 import com.xiaohypercleaner.AppConstants
-import com.xiaohypercleaner.R
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.ChainFlags
-import com.xiaohypercleaner.ui.SimpleModePhase
 import com.xiaohypercleaner.util.AppLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,14 +27,20 @@ class SimpleModeController(
     data class SimpleModeState(
         val active: Boolean = false,
         val phase: SimpleModePhase = SimpleModePhase.INACTIVE,
+        val permissionSubPhase: PermissionSubPhase = PermissionSubPhase.INACTIVE,
         val currentStepIndex: Int = 0,
         val completedCount: Int = 0,
         val step: SimpleStepState? = null,
         val done: Pair<Int, Int>? = null,
-        val showAccessibilityDialog: Boolean = false,
+        val showAppInfoDialog: Boolean = false,
         val showOverlayDialog: Boolean = false,
+        val showAccessibilityDialog: Boolean = false,
         val showRestrictedDialog: Boolean = false,
+        val showLocationDialog: Boolean = false,
         val restrictedSettingsShown: Boolean = false,
+        val accessibilityAttempts: Int = 0,
+        val overlayAttempts: Int = 0,
+        val appInfoAttempts: Int = 0,
         val failedStepIds: List<String> = emptyList()
     )
 
@@ -52,6 +55,12 @@ class SimpleModeController(
     private val failedIds = mutableListOf<String>()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    private var restrictedLocation: RestrictedLocation = RestrictedLocation.UNKNOWN
+
+    private val needsRestrictedUnlock: Boolean by lazy {
+        isSideloadedOnAndroid13Plus()
+    }
+
     fun setState(update: SimpleModeState.() -> SimpleModeState) {
         state = state.update()
         onStateChanged(state)
@@ -62,6 +71,31 @@ class SimpleModeController(
         scope.cancel()
     }
 
+    private fun isSideloadedOnAndroid13Plus(): Boolean {
+        if (Build.VERSION.SDK_INT < 33) return false
+        return try {
+            val pm = context.packageManager
+            val installer = if (Build.VERSION.SDK_INT >= 30) {
+                pm.getInstallSourceInfo(context.packageName).installingPackageName
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getInstallerPackageName(context.packageName)
+            } ?: "unknown"
+
+            val trustedInstallers = listOf(
+                "com.android.vending",
+                "com.google.android.packageinstaller",
+                "com.android.packageinstaller"
+            )
+            val sideloaded = installer !in trustedInstallers && installer != "preload"
+            AppLog.i(TAG, "isSideloaded: installer=$installer, sideloaded=$sideloaded")
+            sideloaded
+        } catch (e: Exception) {
+            AppLog.w(TAG, "isSideloaded check failed: ${e.message}")
+            false
+        }
+    }
+
     fun updatePermissionStatuses(accEnabled: Boolean, overlayGranted: Boolean) {
         val accJustEnabled = !isAccessibilityEnabled && accEnabled
         val overlayJustEnabled = !isOverlayGranted && overlayGranted
@@ -70,59 +104,131 @@ class SimpleModeController(
         isOverlayGranted = overlayGranted
 
         if (!state.active) return
+        if (state.phase != SimpleModePhase.PERMISSIONS) return
 
         if (accJustEnabled || overlayJustEnabled) {
             AppLog.i(
                 TAG,
-                "Permission granted (acc=$accJustEnabled, overlay=$overlayJustEnabled) — advancing"
+                "Permission changed (acc=$accJustEnabled, overlay=$overlayJustEnabled) — advancing"
             )
+            permissionFlow.hideOverlay()
+            advance()
+        }
+    }
+
+    fun onResumeAfterPermissionReturn() {
+        if (!state.active || state.phase != SimpleModePhase.PERMISSIONS) return
+        AppLog.i(TAG, "onResumeAfterPermissionReturn: subPhase=${state.permissionSubPhase}")
+        permissionFlow.hideOverlay()
+        scope.launch {
+            delay(300)
             advance()
         }
     }
 
     fun refresh() {
-        if (state.active) {
-            AppLog.d(TAG, "refresh() called while active — attempting advance")
+        if (state.active && state.phase == SimpleModePhase.PERMISSIONS) {
+            AppLog.d(TAG, "refresh() — re-checking current sub-phase")
             advance()
         }
     }
 
     fun start() {
-        AppLog.i(TAG, "Starting simple mode")
+        AppLog.i(TAG, "Starting simple mode, needsRestrictedUnlock=$needsRestrictedUnlock")
         failedIds.clear()
         stepAttempt = 1
-        state = SimpleModeState(active = true, phase = SimpleModePhase.PERMISSIONS)
+        restrictedLocation = RestrictedLocation.UNKNOWN
+        state = SimpleModeState(
+            active = true,
+            phase = SimpleModePhase.PERMISSIONS,
+            permissionSubPhase = if (needsRestrictedUnlock) {
+                PermissionSubPhase.APP_INFO
+            } else {
+                PermissionSubPhase.OVERLAY
+            }
+        )
         onStateChanged(state)
         advance()
     }
 
-    fun onDialogAgreed() {
-        AppLog.i(TAG, "Dialog agreed")
-
-        if (state.showAccessibilityDialog) {
-            setState {
-                copy(
-                    showAccessibilityDialog = false,
-                    showOverlayDialog = false,
-                    showRestrictedDialog = false
-                )
-            }
-            ChainFlags.waitingAccessibilityReturn = true
-            permissionFlow.openAccessibilityWithHint()
-            return
+    fun onAppInfoDialogAgreed() {
+        AppLog.i(TAG, "AppInfo dialog agreed, location=$restrictedLocation")
+        setState {
+            copy(
+                showAppInfoDialog = false,
+                appInfoAttempts = appInfoAttempts + 1
+            )
         }
+        ChainFlags.waitingAccessibilityReturn = true
+        permissionFlow.openAppInfoWithSmartPointer(restrictedLocation)
+    }
 
-        if (state.showOverlayDialog) {
-            setState {
-                copy(
-                    showAccessibilityDialog = false,
-                    showOverlayDialog = false,
-                    showRestrictedDialog = false
-                )
+    fun onAppInfoDialogCancelled() {
+        AppLog.i(TAG, "AppInfo dialog cancelled — resetting")
+        reset()
+    }
+
+    fun onAppInfoReturnWithoutSuccess() {
+        if (state.appInfoAttempts >= 1 && restrictedLocation == RestrictedLocation.UNKNOWN) {
+            AppLog.i(TAG, "User returned without success — asking for location")
+            setState { copy(showLocationDialog = true) }
+        }
+    }
+
+    fun onLocationChosen(location: RestrictedLocation) {
+        AppLog.i(TAG, "Location chosen: $location")
+        restrictedLocation = location
+        setState { copy(showLocationDialog = false) }
+
+        if (location == RestrictedLocation.ABSENT) {
+            AppLog.i(TAG, "User says no restricted item — skipping APP_INFO phase")
+            setState { copy(permissionSubPhase = PermissionSubPhase.OVERLAY) }
+            advance()
+        } else {
+            permissionFlow.openAppInfoWithSmartPointer(location)
+        }
+    }
+
+    fun onLocationDialogCancelled() {
+        AppLog.i(TAG, "Location dialog cancelled — resetting")
+        reset()
+    }
+
+    fun onDialogAgreed() {
+        AppLog.i(TAG, "Dialog agreed, subPhase=${state.permissionSubPhase}")
+
+        when (state.permissionSubPhase) {
+            PermissionSubPhase.ACCESSIBILITY -> {
+                setState {
+                    copy(
+                        showAccessibilityDialog = false,
+                        accessibilityAttempts = accessibilityAttempts + 1
+                    )
+                }
+                ChainFlags.waitingAccessibilityReturn = true
+                permissionFlow.openAccessibilityWithPointer()
             }
-            permissionFlow.openOverlaySettings()
-            showHint(context.getString(R.string.hint_overlay))
-            return
+
+            PermissionSubPhase.OVERLAY -> {
+                setState {
+                    copy(
+                        showOverlayDialog = false,
+                        overlayAttempts = overlayAttempts + 1
+                    )
+                }
+                permissionFlow.openOverlayWithPointer()
+            }
+
+            else -> {
+                setState {
+                    copy(
+                        showAccessibilityDialog = false,
+                        showOverlayDialog = false,
+                        showRestrictedDialog = false,
+                        showAppInfoDialog = false
+                    )
+                }
+            }
         }
     }
 
@@ -132,15 +238,17 @@ class SimpleModeController(
     }
 
     fun onRestrictedDialogAgreed() {
-        AppLog.i(TAG, "Restricted dialog agreed — opening app info")
+        AppLog.i(TAG, "Restricted dialog agreed — going back to APP_INFO")
         setState {
             copy(
                 showRestrictedDialog = false,
                 showAccessibilityDialog = false,
-                restrictedSettingsShown = true
+                permissionSubPhase = PermissionSubPhase.APP_INFO,
+                restrictedSettingsShown = true,
+                accessibilityAttempts = 0
             )
         }
-        openAppInfoWithHint()
+        permissionFlow.openAppInfoWithSmartPointer(restrictedLocation)
     }
 
     fun onRestrictedDialogCancelled() {
@@ -243,6 +351,7 @@ class SimpleModeController(
             setState {
                 copy(
                     phase = SimpleModePhase.DONE,
+                    permissionSubPhase = PermissionSubPhase.DONE,
                     step = null,
                     done = Pair(completedCount, steps.size)
                 )
@@ -272,61 +381,98 @@ class SimpleModeController(
 
     private fun advance() {
         if (!state.active) return
+        if (state.phase != SimpleModePhase.PERMISSIONS) return
 
-        when (state.phase) {
-            SimpleModePhase.PERMISSIONS -> checkPermissionsAndAdvance()
-            SimpleModePhase.STEPS -> {
-                if (state.step == null && autoFlowJob?.isActive != true) {
-                    nextStep(autoStart = true)
+        when (state.permissionSubPhase) {
+            PermissionSubPhase.INACTIVE -> return
+
+            PermissionSubPhase.APP_INFO -> {
+                if (isAccessibilityEnabled) {
+                    AppLog.i(
+                        TAG,
+                        "Accessibility already enabled after APP_INFO — jumping to OVERLAY"
+                    )
+                    setState { copy(permissionSubPhase = PermissionSubPhase.OVERLAY) }
+                    advance()
+                    return
                 }
+
+                if (state.appInfoAttempts >= AppConstants.MAX_ACCESSIBILITY_ATTEMPTS) {
+                    AppLog.w(TAG, "APP_INFO attempts exhausted — asking for location")
+                    setState {
+                        copy(
+                            showLocationDialog = true,
+                            showAppInfoDialog = false
+                        )
+                    }
+                    return
+                }
+
+                if (state.showAppInfoDialog || state.showLocationDialog) return
+                AppLog.d(
+                    TAG,
+                    "APP_INFO phase — showing dialog (attempt ${state.appInfoAttempts + 1})"
+                )
+                setState { copy(showAppInfoDialog = true) }
             }
 
-            SimpleModePhase.DONE -> {}
-            SimpleModePhase.INACTIVE -> {}
-        }
-    }
+            PermissionSubPhase.OVERLAY -> {
+                if (isOverlayGranted) {
+                    AppLog.d(TAG, "Overlay already granted — skipping to ACCESSIBILITY")
+                    setState { copy(permissionSubPhase = PermissionSubPhase.ACCESSIBILITY) }
+                    advance()
+                    return
+                }
+                if (state.showOverlayDialog) return
+                AppLog.d(TAG, "OVERLAY phase — showing dialog")
+                setState { copy(showOverlayDialog = true) }
+            }
 
-    private fun checkPermissionsAndAdvance() {
-        if (!isAccessibilityEnabled) {
-            AppLog.d(TAG, "Accessibility not enabled — showing dialog")
-            setState { copy(showAccessibilityDialog = true) }
-            return
-        }
+            PermissionSubPhase.ACCESSIBILITY -> {
+                if (isAccessibilityEnabled) {
+                    AppLog.i(TAG, "All permissions granted — switching to STEPS phase")
+                    setState {
+                        copy(
+                            phase = SimpleModePhase.STEPS,
+                            permissionSubPhase = PermissionSubPhase.DONE
+                        )
+                    }
+                    nextStep(autoStart = true)
+                    return
+                }
+                if (state.accessibilityAttempts >= AppConstants.MAX_ACCESSIBILITY_ATTEMPTS) {
+                    AppLog.w(
+                        TAG,
+                        "Accessibility stuck after ${AppConstants.MAX_ACCESSIBILITY_ATTEMPTS} attempts — showing restricted dialog"
+                    )
+                    setState {
+                        copy(
+                            showRestrictedDialog = true,
+                            showAccessibilityDialog = false
+                        )
+                    }
+                    return
+                }
+                if (state.showAccessibilityDialog) return
+                AppLog.d(
+                    TAG,
+                    "ACCESSIBILITY phase — showing dialog (attempt ${state.accessibilityAttempts + 1})"
+                )
+                setState { copy(showAccessibilityDialog = true) }
+            }
 
-        if (!isOverlayGranted) {
-            AppLog.d(TAG, "Overlay not granted — showing dialog")
-            setState { copy(showOverlayDialog = true) }
-            return
+            PermissionSubPhase.DONE -> {}
         }
-
-        AppLog.i(TAG, "All permissions granted — switching to STEPS phase")
-        setState { copy(phase = SimpleModePhase.STEPS) }
-        nextStep(autoStart = true)
     }
 
     private fun reset() {
         AppLog.i(TAG, "Resetting simple mode controller")
         autoFlowJob?.cancel()
+        permissionFlow.hideOverlay()
         failedIds.clear()
         stepAttempt = 1
+        restrictedLocation = RestrictedLocation.UNKNOWN
         state = SimpleModeState()
         onStateChanged(state)
-    }
-
-    private fun openAppInfoWithHint() {
-        try {
-            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.parse("package:${context.packageName}")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-            showHint(context.getString(R.string.hint_restricted))
-        } catch (e: Exception) {
-            AppLog.e(TAG, "Failed to open app info", e)
-        }
-    }
-
-    private fun showHint(text: String) {
-        AppLog.d(TAG, "Hint requested: $text")
     }
 }

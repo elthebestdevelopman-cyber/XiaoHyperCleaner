@@ -1,509 +1,358 @@
 package com.xiaohypercleaner.service
 
-import android.animation.ObjectAnimator
 import android.app.Service
 import android.content.Intent
-import android.content.res.Configuration
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.PixelFormat
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
-import android.graphics.Rect
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
 import android.view.Gravity
-import android.view.View
 import android.view.WindowManager
-import android.view.animation.AccelerateDecelerateInterpolator
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.ProgressBar
-import android.widget.TextView
-import com.xiaohypercleaner.R
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.xiaohypercleaner.util.AppLog
 
-/** Позиция стрелки относительно текста подсказки */
-enum class ArrowPosition { TOP, BOTTOM, LEFT, RIGHT }
-
-/** Данные для интерактивной подсказки */
-data class InteractiveHint(
-    val text: String,
-    val targetRect: Rect?,  // Координаты элемента (null = искать автоматически)
-    val highlightColor: Int = Color.YELLOW,
-    val arrowPosition: ArrowPosition = ArrowPosition.BOTTOM
-)
-
-@Suppress("DEPRECATION")
 class OverlayService : Service() {
 
-    private lateinit var windowManager: WindowManager
-    private lateinit var root: LinearLayout
-    private lateinit var robot: ImageView
-    private lateinit var titleView: TextView
-    private lateinit var detailView: TextView
-    private lateinit var progressBar: ProgressBar
-    private lateinit var percentView: TextView
-    private lateinit var cancelView: TextView
-    private var bounce: ObjectAnimator? = null
-    private var lastPercent = -1
-    private var hintMode = false
-
-    // Интерактивные подсказки
-    private var interactiveOverlayView: View? = null
-    private var currentHint: InteractiveHint? = null
-    private val handler = Handler(Looper.getMainLooper())
-    private var pulseAnimator: ObjectAnimator? = null
-
     companion object {
-        private const val TAG = "OverlayService"
-        private const val AUTO_HIDE_DELAY_MS = 10_000L
-        private const val PULSE_DURATION_MS = 1200L
+        private const val TAG = "OverlaySvc"
+        const val EXTRA_HINT = "hint"
+        const val EXTRA_POINTER_MODE = "pointer_mode"
+        const val EXTRA_POINTER_TEXT = "pointer_text"
     }
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    enum class PointerMode {
+        NONE,
+        GENERIC_BOTTOM,
+        TOP_RIGHT,
+        BOTTOM_LIST,
+        SWITCH_RIGHT,
+        LIST_ITEM_CENTER
+    }
+
+    private var windowManager: WindowManager? = null
+    private var hintView: ComposeView? = null
+    private var pointerView: ComposeView? = null
 
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        buildUi()
-        val params = baseParams().apply {
-            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            y = dp(32)
-        }
-        windowManager.addView(root, params)
-        startBounce()
-        OverlayController.registerService(this)
     }
 
-    private fun baseParams() = WindowManager.LayoutParams(
-        WindowManager.LayoutParams.MATCH_PARENT,
-        WindowManager.LayoutParams.WRAP_CONTENT,
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        else
-            WindowManager.LayoutParams.TYPE_PHONE,
-        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-        PixelFormat.TRANSLUCENT
-    )
-
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        intent?.let {
-            // Режим подсказки: полупрозрачная карточка с инструкцией
-            it.getStringExtra("hint")?.let { hint ->
-                enterHintMode(hint)
-                return START_NOT_STICKY
+        val hint = intent?.getStringExtra(EXTRA_HINT)
+        val pointerModeName = intent?.getStringExtra(EXTRA_POINTER_MODE)
+        val pointerText = intent?.getStringExtra(EXTRA_POINTER_TEXT)
+
+        val pointerMode = pointerModeName?.let {
+            try {
+                PointerMode.valueOf(it)
+            } catch (e: Exception) {
+                PointerMode.NONE
+            }
+        } ?: PointerMode.NONE
+
+        AppLog.i(TAG, "onStartCommand hint=$hint pointer=$pointerMode")
+
+        cleanup()
+
+        when {
+            pointerMode == PointerMode.GENERIC_BOTTOM && pointerText != null -> {
+                showGenericBottomCard(pointerText)
             }
 
-            // Обычный режим прогресса — выходим из hint, если были в нём
-            if (hintMode) exitHintMode()
-
-            it.getStringExtra("status")?.let { t -> titleView.text = t }
-            it.getStringExtra("detail")?.let { d ->
-                detailView.text = d
-                detailView.visibility = if (d.isEmpty()) View.GONE else View.VISIBLE
+            pointerMode != PointerMode.NONE && pointerText != null -> {
+                showPointer(pointerMode, pointerText)
             }
-            val p = it.getFloatExtra("progress", -1f)
-            if (p >= 0f) {
-                val pct = (p * 100).toInt().coerceIn(0, 100)
-                if (pct != lastPercent) {
-                    lastPercent = pct
-                    progressBar.progress = pct
-                    percentView.text = "$pct%"
-                }
+
+            hint != null -> {
+                showHint(hint)
             }
         }
+
         return START_NOT_STICKY
     }
 
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        if (::root.isInitialized && root.isAttachedToWindow) {
-            runCatching {
-                val params = baseParams().apply {
-                    gravity = if (hintMode) Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                    else Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                    y = dp(if (hintMode) 16 else 32)
+    private fun showHint(text: String) {
+        val view = ComposeView(this).apply {
+            setContent {
+                MaterialTheme {
+                    HintCard(text = text)
                 }
-                windowManager.updateViewLayout(root, params)
             }
         }
-    }
 
-    private fun enterHintMode(text: String) {
-        hintMode = true
-        titleView.text = getString(R.string.hint_title)
-        detailView.text = text
-        detailView.visibility = View.VISIBLE
-        progressBar.visibility = View.GONE
-        percentView.visibility = View.GONE
-        cancelView.visibility = View.GONE
-
-        val params = baseParams().apply {
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            y = dp(16)
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
         }
-        runCatching { windowManager.updateViewLayout(root, params) }
-        root.alpha = 0.92f
-    }
 
-    private fun exitHintMode() {
-        hintMode = false
-        progressBar.visibility = View.VISIBLE
-        percentView.visibility = View.VISIBLE
-        cancelView.visibility = View.VISIBLE
-
-        val params = baseParams().apply {
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            type,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            y = dp(32)
+            y = 120
         }
-        runCatching { windowManager.updateViewLayout(root, params) }
-        root.alpha = 1f
+
+        windowManager?.addView(view, params)
+        hintView = view
     }
 
-    override fun onDestroy() {
-        bounce?.cancel()
-        bounce = null
-        pulseAnimator?.cancel()
-        pulseAnimator = null
-        hideInteractiveHint()
-        handler.removeCallbacksAndMessages(null)
-        if (::root.isInitialized && root.isAttachedToWindow) {
-            runCatching { windowManager.removeView(root) }
-        }
-        OverlayController.clear()
-        super.onDestroy()
-    }
-
-    private fun buildUi() {
-        root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(dp(24), dp(20), dp(24), dp(20))
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#E6121212"))
-                cornerRadius = dp(24).toFloat()
+    private fun showGenericBottomCard(text: String) {
+        val view = ComposeView(this).apply {
+            setContent {
+                MaterialTheme {
+                    GenericBottomCard(text = text)
+                }
             }
         }
-        robot = ImageView(this).apply {
-            setImageResource(R.drawable.ic_robot_companion)
-            layoutParams = LinearLayout.LayoutParams(dp(110), dp(110))
+
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
         }
-        root.addView(robot)
-        titleView = TextView(this).apply {
-            text = getString(R.string.status_working)
-            textSize = 16f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            layoutParams = matchWrap(dp(8))
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            type,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            y = 100
         }
-        root.addView(titleView)
-        detailView = TextView(this).apply {
-            textSize = 13f
-            setTextColor(Color.parseColor("#B3FFFFFF"))
-            gravity = Gravity.CENTER
-            visibility = View.GONE
-            layoutParams = matchWrap(dp(4))
-        }
-        root.addView(detailView)
-        progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            max = 100
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(8)
-            ).apply { topMargin = dp(14) }
-        }
-        root.addView(progressBar)
-        percentView = TextView(this).apply {
-            text = "0%"
-            textSize = 12f
-            setTextColor(Color.parseColor("#B3FFFFFF"))
-            gravity = Gravity.CENTER
-            layoutParams = matchWrap(dp(4))
-        }
-        root.addView(percentView)
-        cancelView = TextView(this).apply {
-            text = getString(R.string.cancel)
-            textSize = 15f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            setPadding(0, dp(10), 0, dp(10))
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#E57373"))
-                cornerRadius = dp(24).toFloat()
+
+        windowManager?.addView(view, params)
+        pointerView = view
+    }
+
+    private fun showPointer(mode: PointerMode, text: String) {
+        val view = ComposeView(this).apply {
+            setContent {
+                MaterialTheme {
+                    PointerOverlay(mode = mode, text = text)
+                }
             }
-            layoutParams = matchWrap(dp(16))
-            setOnClickListener { OverlayController.triggerCancel() }
         }
-        root.addView(cancelView)
-    }
 
-    private fun startBounce() {
-        bounce = ObjectAnimator.ofFloat(robot, "translationY", 0f, -dp(6).toFloat(), 0f).apply {
-            duration = 900
-            repeatCount = ObjectAnimator.INFINITE
-            interpolator = AccelerateDecelerateInterpolator()
-            start()
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
         }
-    }
-
-    private fun matchWrap(topMargin: Int) = LinearLayout.LayoutParams(
-        LinearLayout.LayoutParams.MATCH_PARENT,
-        LinearLayout.LayoutParams.WRAP_CONTENT
-    ).apply { this.topMargin = topMargin }
-
-    private fun dp(value: Int): Int =
-        (value * resources.displayMetrics.density).toInt()
-
-    // ═══════════════════════════════════════════════════════════════
-    // ИНТЕРАКТИВНЫЕ ПОДСКАЗКИ — поверх настроек Android
-    // ═══════════════════════════════════════════════════════════════
-
-    fun showInteractiveHint(hint: InteractiveHint) {
-        hideInteractiveHint()
-        currentHint = hint
-
-        val overlay = createInteractiveOverlay(hint)
-        interactiveOverlayView = overlay
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else
-                WindowManager.LayoutParams.TYPE_PHONE,
+            type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         )
 
-        try {
-            windowManager.addView(overlay, params)
-            startPulseAnimation(overlay)
-            handler.postDelayed({ hideInteractiveHint() }, AUTO_HIDE_DELAY_MS)
-        } catch (e: Exception) {
-            AppLog.w(TAG, "Failed to show interactive hint: ${e.message}")
-        }
+        windowManager?.addView(view, params)
+        pointerView = view
     }
 
-    fun hideInteractiveHint() {
-        pulseAnimator?.cancel()
-        pulseAnimator = null
-
-        interactiveOverlayView?.let { view ->
+    private fun cleanup() {
+        hintView?.let {
             try {
-                if (view.isAttachedToWindow) {
-                    windowManager.removeView(view)
-                }
-            } catch (e: Exception) {
-                AppLog.w(TAG, "Failed to remove interactive overlay: ${e.message}")
+                windowManager?.removeView(it)
+            } catch (_: Exception) {
             }
         }
-        interactiveOverlayView = null
-        currentHint = null
+        pointerView?.let {
+            try {
+                windowManager?.removeView(it)
+            } catch (_: Exception) {
+            }
+        }
+        hintView = null
+        pointerView = null
     }
 
-    private fun createInteractiveOverlay(hint: InteractiveHint): View {
-        return object : View(this) {
+    override fun onDestroy() {
+        cleanup()
+        super.onDestroy()
+    }
 
-            private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#CC000000")
-            }
-            private val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
-            }
-            private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = hint.highlightColor
-                strokeWidth = dp(4).toFloat()
-                style = Paint.Style.STROKE
-            }
-            private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.WHITE
-                textSize = dp(16).toFloat()
-                textAlign = Paint.Align.CENTER
-            }
-            private val arrowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = hint.highlightColor
-            }
+    override fun onBind(intent: Intent?): IBinder? = null
+}
 
-            // ObjectAnimator ищет сеттер через reflection
-            @Suppress("PropertyName")
-            var pulseAlpha: Int = 255
-
-            // Переиспользуемые Rect (нет аллокаций в onDraw)
-            private val clearRect = Rect()
-            private val clampedRect = Rect()
-
-            override fun onDraw(canvas: Canvas) {
-                super.onDraw(canvas)
-
-                val w = width.toFloat()
-                val h = height.toFloat()
-
-                // Определяем целевой прямоугольник (или fallback в центр экрана)
-                val targetRect = hint.targetRect ?: run {
-                    Rect(width / 4, height / 3, width * 3 / 4, height / 2)
-                }
-
-                // Вычисляем прямоугольник для «дырки»
-                val margin = dp(8)
-                clearRect.set(
-                    targetRect.left - margin,
-                    targetRect.top - margin,
-                    targetRect.right + margin,
-                    targetRect.bottom + margin
+@Composable
+private fun HintCard(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    color = Color(0xFF1976D2),
+                    shape = RoundedCornerShape(16.dp)
                 )
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = text,
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
 
-                // Ограничиваем максимальный размер дырки
-                val maxHoleSize = dp(120)
-                val centerX = clearRect.centerX()
-                val centerY = clearRect.centerY()
-                val halfW = (clearRect.width() / 2).coerceAtMost(maxHoleSize / 2)
-                val halfH = (clearRect.height() / 2).coerceAtMost(maxHoleSize / 2)
-                clampedRect.set(
-                    centerX - halfW,
-                    centerY - halfH,
-                    centerX + halfW,
-                    centerY + halfH
+@Composable
+private fun GenericBottomCard(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    color = Color(0xFF1976D2),
+                    shape = RoundedCornerShape(16.dp)
                 )
+                .padding(16.dp)
+        ) {
+            Text(
+                text = text,
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 20.sp
+            )
+        }
+    }
+}
 
-                // Фон рисуется ВНУТРИ saveLayer, чтобы PorterDuff.CLEAR вырезал дырку
-                canvas.saveLayer(0f, 0f, w, h, null)
-                canvas.drawRect(0f, 0f, w, h, backgroundPaint)
-                canvas.drawRect(clampedRect, clearPaint)
-                canvas.restore()
+@Composable
+private fun PointerOverlay(mode: OverlayService.PointerMode, text: String) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        val arrowAlignment = when (mode) {
+            OverlayService.PointerMode.TOP_RIGHT -> Alignment.TopEnd
+            OverlayService.PointerMode.BOTTOM_LIST -> Alignment.BottomCenter
+            OverlayService.PointerMode.SWITCH_RIGHT -> Alignment.CenterEnd
+            OverlayService.PointerMode.LIST_ITEM_CENTER -> Alignment.CenterStart
+            else -> Alignment.Center
+        }
 
-                // Мигающая рамка
-                borderPaint.alpha = pulseAlpha
-                canvas.drawRect(clampedRect, borderPaint)
+        val icon = when (mode) {
+            OverlayService.PointerMode.TOP_RIGHT -> Icons.Filled.ArrowUpward
+            OverlayService.PointerMode.BOTTOM_LIST -> Icons.Filled.ArrowDownward
+            OverlayService.PointerMode.SWITCH_RIGHT -> Icons.AutoMirrored.Filled.ArrowForward
+            OverlayService.PointerMode.LIST_ITEM_CENTER -> Icons.AutoMirrored.Filled.ArrowBack
+            else -> Icons.Filled.ArrowUpward
+        }
 
-                // Стрелка и текст
-                drawArrow(canvas, clampedRect, hint.arrowPosition)
-                drawInstructionText(canvas, clampedRect, hint.text, hint.arrowPosition)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    start = if (mode == OverlayService.PointerMode.LIST_ITEM_CENTER) 24.dp else 0.dp,
+                    end = if (mode == OverlayService.PointerMode.SWITCH_RIGHT ||
+                        mode == OverlayService.PointerMode.TOP_RIGHT
+                    ) 24.dp else 0.dp,
+                    top = if (mode == OverlayService.PointerMode.TOP_RIGHT) 32.dp else 0.dp,
+                    bottom = if (mode == OverlayService.PointerMode.BOTTOM_LIST) 180.dp else 0.dp
+                ),
+            contentAlignment = arrowAlignment
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color(0xFFFFD600),
+                modifier = Modifier.size(56.dp)
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    start = if (mode == OverlayService.PointerMode.LIST_ITEM_CENTER) 16.dp else 0.dp,
+                    end = if (mode == OverlayService.PointerMode.SWITCH_RIGHT ||
+                        mode == OverlayService.PointerMode.TOP_RIGHT
+                    ) 16.dp else 0.dp,
+                    top = if (mode == OverlayService.PointerMode.TOP_RIGHT) 96.dp else 0.dp,
+                    bottom = if (mode == OverlayService.PointerMode.BOTTOM_LIST) 260.dp else 0.dp
+                ),
+            contentAlignment = when (mode) {
+                OverlayService.PointerMode.BOTTOM_LIST -> Alignment.BottomCenter
+                else -> arrowAlignment
             }
-
-            private fun drawArrow(canvas: Canvas, targetRect: Rect, position: ArrowPosition) {
-                val path = Path()
-                val arrowSize = dp(12).toFloat()
-                val gap = dp(8).toFloat()
-
-                when (position) {
-                    ArrowPosition.TOP -> {
-                        val textY = targetRect.top - dp(60)
-                        path.moveTo(
-                            targetRect.centerX().toFloat(),
-                            targetRect.top - gap
-                        )
-                        path.lineTo(targetRect.centerX() - arrowSize, textY.toFloat())
-                        path.lineTo(targetRect.centerX() + arrowSize, textY.toFloat())
-                        path.close()
-                    }
-
-                    ArrowPosition.BOTTOM -> {
-                        val textY = targetRect.bottom + dp(60)
-                        path.moveTo(
-                            targetRect.centerX().toFloat(),
-                            targetRect.bottom + gap
-                        )
-                        path.lineTo(targetRect.centerX() - arrowSize, textY.toFloat())
-                        path.lineTo(targetRect.centerX() + arrowSize, textY.toFloat())
-                        path.close()
-                    }
-
-                    ArrowPosition.LEFT -> {
-                        val textX = targetRect.left - dp(60)
-                        path.moveTo(
-                            targetRect.left - gap,
-                            targetRect.centerY().toFloat()
-                        )
-                        path.lineTo(textX.toFloat(), targetRect.centerY() - arrowSize)
-                        path.lineTo(textX.toFloat(), targetRect.centerY() + arrowSize)
-                        path.close()
-                    }
-
-                    ArrowPosition.RIGHT -> {
-                        val textX = targetRect.right + dp(60)
-                        path.moveTo(
-                            targetRect.right + gap,
-                            targetRect.centerY().toFloat()
-                        )
-                        path.lineTo(textX.toFloat(), targetRect.centerY() - arrowSize)
-                        path.lineTo(textX.toFloat(), targetRect.centerY() + arrowSize)
-                        path.close()
-                    }
-                }
-                canvas.drawPath(path, arrowPaint)
-            }
-
-            private fun drawInstructionText(
-                canvas: Canvas,
-                targetRect: Rect,
-                text: String,
-                position: ArrowPosition
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(300.dp)
+                    .background(
+                        color = Color(0xFF1976D2),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                    .padding(16.dp)
             ) {
-                val lines = text.split("\n")
-
-                val textY = when (position) {
-                    ArrowPosition.TOP -> targetRect.top - dp(70)
-                    ArrowPosition.BOTTOM -> targetRect.bottom + dp(80)
-                    ArrowPosition.LEFT -> targetRect.centerY()
-                    ArrowPosition.RIGHT -> targetRect.centerY()
-                }
-
-                lines.forEachIndexed { index, line ->
-                    // y уже Float: Int + Float * Int даёт Float
-                    val y = textY + (index - lines.size / 2f) * dp(20)
-
-                    when (position) {
-                        ArrowPosition.LEFT -> {
-                            textPaint.textAlign = Paint.Align.RIGHT
-                            canvas.drawText(
-                                line,
-                                (targetRect.left - dp(20)).toFloat(),
-                                y,
-                                textPaint
-                            )
-                        }
-
-                        ArrowPosition.RIGHT -> {
-                            textPaint.textAlign = Paint.Align.LEFT
-                            canvas.drawText(
-                                line,
-                                (targetRect.right + dp(20)).toFloat(),
-                                y,
-                                textPaint
-                            )
-                        }
-
-                        else -> {
-                            textPaint.textAlign = Paint.Align.CENTER
-                            canvas.drawText(
-                                line,
-                                targetRect.centerX().toFloat(),
-                                y,
-                                textPaint
-                            )
-                        }
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = Color(0xFFFFD600),
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = text,
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        lineHeight = 20.sp
+                    )
                 }
             }
-        }
-    }
-
-    private fun startPulseAnimation(overlay: View) {
-        pulseAnimator = ObjectAnimator.ofInt(overlay, "pulseAlpha", 255, 128, 255).apply {
-            duration = PULSE_DURATION_MS
-            repeatCount = ObjectAnimator.INFINITE
-            interpolator = AccelerateDecelerateInterpolator()
-            addUpdateListener { overlay.invalidate() }
-            start()
         }
     }
 }

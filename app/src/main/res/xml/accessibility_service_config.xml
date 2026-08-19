@@ -5,7 +5,7 @@
     android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows|flagReportViewIds|flagIncludeNotImportantViews"
     android:canPerformGestures="true"
     android:canRetrieveWindowContent="true"
-    android:description="@string/accessibility_explanation_text"
+    android:description="@string/accessibility_policy_description"
     android:notificationTimeout="300"
     android:settingsActivity="com.xiaohypercleaner.ui.MainActivity"
-    android:summary="Assists users with accessibility settings configuration" />
+    android:summary="@string/accessibility_policy_summary" />

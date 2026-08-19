@@ -54,7 +54,10 @@
     <!-- ========== SIMPLE MODE: FINAL ========== -->
     <string name="simple_done_title">All done!</string>
     <string name="simple_done_text">Privacy settings applied. No reboot required.</string>
-    <string name="simple_done_steps_done">Completed %1$d of %2$d steps</string>
+    <plurals name="simple_done_steps_done">
+        <item quantity="one">Completed %1$d of %2$d step</item>
+        <item quantity="other">Completed %1$d of %2$d steps</item>
+    </plurals>
     <string name="simple_done_benefits">What changed:</string>
     <string name="simple_done_benefit_ads">✅ Privacy settings applied for telemetry services</string>
     <string name="simple_done_benefit_telemetry">✅ Reduced telemetry data collection</string>
@@ -200,4 +203,33 @@
     <string name="shizuku_sources_getapps">GetApps</string>
     <string name="shizuku_sources_github">GitHub</string>
     <string name="shizuku_sources_apkpure">APKPure</string>
+
+    <!-- ========== POINTER HINTS (arrows to elements) ========== -->
+    <string name="pointer_menu">Tap the three dots ⋮ in the top-right corner</string>
+    <string name="pointer_allow_restricted">Select "Allow restricted settings" and confirm</string>
+    <string name="pointer_allow_forbidden">Select "Allow forbidden settings" and confirm</string>
+    <string name="pointer_overlay_switch">Turn on this switch</string>
+    <string name="pointer_accessibility_item">Find "XiaoHyperCleaner" in the list and turn on the switch</string>
+    <string name="pointer_restricted_blocked">Can\'t enable the service?</string>
+    <string name="pointer_restricted_explain">The system temporarily restricted access. Tap ⋮ in the app card and allow access — it takes 10 seconds.</string>
+
+    <!-- ========== LOCATION CLARIFICATION ========== -->
+    <string name="pointer_restricted_generic">Find "Allow restricted settings" — usually in the ⋮ menu at the top or at the bottom of this screen</string>
+    <string name="pointer_restricted_not_found_title">Can\'t find the item?</string>
+    <string name="pointer_restricted_location_question">Where is the restricted settings permission on your device?</string>
+    <string name="pointer_restricted_menu_option">In the ⋮ menu (top-right corner)</string>
+    <string name="pointer_restricted_bottom_option">At the bottom of the settings list</string>
+    <string name="pointer_restricted_absent_option">No such item</string>
+    <string name="pointer_restricted_top_hint">Tap ⋮ and select "Allow restricted settings"</string>
+    <string name="pointer_restricted_bottom_hint">Scroll down and enable "Allow restricted settings"</string>
+    <!-- ========== ACCESSIBILITY POLICY DECLARATION ========== -->
+    <string name="accessibility_policy_summary">Automates settings navigation to assist users with limited mobility</string>
+    <string name="accessibility_policy_description">The XiaoHyperCleaner accessibility service is used ONLY to automatically navigate Android system settings at the user\'s explicit request. The service DOES NOT bypass privacy controls, DOES NOT change settings without explicit consent, and DOES NOT collect user data. All actions are performed locally on the device. The service is activated only after explicit user consent and can be disabled at any time in Android settings. The service usage fully complies with the Accessibility Services API Policy.</string>
+
+    <!-- ========== CONSENT DIALOG ========== -->
+    <string name="consent_dialog_title">Service usage consent</string>
+    <string name="consent_dialog_text">To automatically configure the app, the accessibility service will click buttons in system settings on your behalf. The service:\n\n• Does NOT bypass privacy controls\n• Does NOT change settings without your consent\n• Does NOT send data externally\n• Can be disabled at any time</string>
+    <string name="consent_checkbox_label">I understand and consent to use the accessibility service to automate settings navigation</string>
+    <string name="consent_confirm_button">Agree and continue</string>
+    <string name="consent_cancel_button">Cancel</string>
 </resources>

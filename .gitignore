@@ -96,3 +96,4 @@ yarn-error.log
 *.log
 !app/src/main/assets/*.log
 /.continue
+/.kotlin

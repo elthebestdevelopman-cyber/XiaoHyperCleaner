@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.xiaohypercleaner.AppConstants.AUTO_ADVANCE_DELAY_MS
@@ -14,11 +15,13 @@ import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationEngine
 import com.xiaohypercleaner.data.OptimizationMode
-import com.xiaohypercleaner.data.OptimizationReport
 import com.xiaohypercleaner.data.PermissionFlowManager
+import com.xiaohypercleaner.data.PermissionSubPhase
+import com.xiaohypercleaner.data.RestrictedLocation
 import com.xiaohypercleaner.data.ShizukuExecutor
 import com.xiaohypercleaner.data.ShizukuWizardManager
 import com.xiaohypercleaner.data.SimpleModeController
+import com.xiaohypercleaner.data.SimpleModePhase
 import com.xiaohypercleaner.data.SimpleStepState
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.ChainFlags
@@ -27,7 +30,6 @@ import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.service.SimpleStepBridge
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
-import com.xiaohypercleaner.util.OptimizationReportFormatter
 import com.xiaohypercleaner.util.ShizukuHelper
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -37,13 +39,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-enum class SimpleModePhase {
-    INACTIVE,
-    PERMISSIONS,
-    STEPS,
-    DONE
-}
 
 data class MainUiState(
     val isOptimized: Boolean = false,
@@ -56,6 +51,8 @@ data class MainUiState(
     val showOptionsDialog: Boolean = false,
     val showDnsWarningDialog: Boolean = false,
     val showRestrictedDialog: Boolean = false,
+    val showAppInfoDialog: Boolean = false,
+    val showLocationDialog: Boolean = false,
     val dnsFilterEnabled: Boolean = false,
     val aggressiveMode: Boolean = false,
     val showShizukuDialog: Boolean = false,
@@ -67,6 +64,7 @@ data class MainUiState(
     val showLevelConfirm: Boolean = false,
     val selectedLevel: OptimizationMode? = null,
     val simpleModePhase: SimpleModePhase = SimpleModePhase.INACTIVE,
+    val permissionSubPhase: PermissionSubPhase = PermissionSubPhase.INACTIVE,
     val simpleStep: SimpleStepState? = null,
     val simpleDone: Pair<Int, Int>? = null,
     val showRebootDialog: Boolean = false,
@@ -77,21 +75,19 @@ data class MainUiState(
     val finalReport: String = "",
     val accessibilityAttempts: Int = 0,
     val overlayAttempts: Int = 0,
+    val appInfoAttempts: Int = 0,
     val previousAccessibility: Boolean = false,
     val previousOverlay: Boolean = false,
     val restrictedSettingsShown: Boolean = false,
     val showDevModeDialog: Boolean = false,
-    // Флаг активности простого режима для UI (может отличаться от внутренней переменной)
     val simpleModeActive: Boolean = false
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
-
     private val app = application as XiaoHyperApp
     private val prefs = app.preferencesManager
     private val permissionFlow = PermissionFlowManager(app)
 
-    // Менеджеры для делегирования логики
     private val simpleController =
         SimpleModeController(app, permissionFlow) { mergeSimpleState(it) }
     private val shizukuManager = ShizukuWizardManager(app) { mergeShizukuState(it) }
@@ -101,7 +97,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val failedSimpleStepIds = mutableListOf<String>()
     private var stepAttempt = 1
     private var autoFlowJob: Job? = null
-
     private var pendingSourceSuggestion = false
 
     private enum class Redirect { NONE, ACCESSIBILITY, APP_INFO }
@@ -178,24 +173,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
-
         AppLog.i(TAG, "init completed")
     }
 
     override fun onCleared() {
-        super.onCleared()
+        // super.onCleared() не вызываем — базовый метод пустой (Lint warning fix)
         simpleController.destroy()
         autoFlowJob?.cancel()
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // MERGE FUNCTIONS: Интеграция состояний менеджеров
-    // ═══════════════════════════════════════════════════════════════
-
-    /**
-     * Объединяет состояние SimpleModeController с MainUiState.
-     * Диалоговые флаги копируются ТОЛЬКО если режим активен.
-     */
     private fun mergeSimpleState(s: SimpleModeController.SimpleModeState) {
         val running =
             s.active || s.step != null || s.done != null || s.phase != SimpleModePhase.INACTIVE
@@ -203,26 +189,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { current ->
             current.copy(
                 simpleModePhase = s.phase,
+                permissionSubPhase = s.permissionSubPhase,
                 simpleStep = s.step,
                 simpleDone = s.done,
                 simpleModeActive = if (!running) false else current.simpleModeActive,
-                // Копируем диалоги только если режим активен, иначе сбрасываем
                 showAccessibilityDialog = if (running) s.showAccessibilityDialog else false,
                 showOverlayDialog = if (running) s.showOverlayDialog else false,
                 showRestrictedDialog = if (running) s.showRestrictedDialog else false,
+                showAppInfoDialog = if (running) s.showAppInfoDialog else false,
+                showLocationDialog = if (running) s.showLocationDialog else false,
+                appInfoAttempts = if (running) s.appInfoAttempts else 0,
                 restrictedSettingsShown = if (running) s.restrictedSettingsShown else false
             )
         }
 
-        // Синхронизируем внутренний флаг
         if (!running && simpleModeActive) {
             simpleModeActive = false
         }
     }
 
-    /**
-     * Объединяет состояние ShizukuWizardManager с MainUiState.
-     */
     private fun mergeShizukuState(s: ShizukuWizardManager.ShizukuWizardState) {
         _state.update {
             it.copy(
@@ -234,10 +219,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
     }
-
-    // ═══════════════════════════════════════════════════════════════
-    // HELPERS & OVERLAY
-    // ═══════════════════════════════════════════════════════════════
 
     private fun stopOverlayService() {
         try {
@@ -258,9 +239,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Методы открытия настроек остаются в VM, так как требуют контекста Activity/Intents
-    // Но вызываются либо из VM (для PRO), либо делегируются контроллером (через PermissionFlow)
-
     fun openAccessibilitySettings() {
         AppLog.i(TAG, "openAccessibilitySettings")
         val component = ComponentName(app, AdbEnablerService::class.java).flattenToString()
@@ -272,6 +250,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             "com.android.settings.accessibility.ToggleAccessibilityServicePreferenceFragment"
         )
         deep.putExtra(":settings:show_fragment_args", args)
+
         try {
             deep.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             app.startActivity(deep)
@@ -291,19 +270,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openOverlaySettings() {
         AppLog.i(TAG, "openOverlaySettings")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            try {
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:${app.packageName}")
-                ).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                app.startActivity(intent)
-                showHint(app.getString(R.string.hint_overlay))
-            } catch (e: Exception) {
-                AppLog.w(TAG, "openOverlaySettings failed: ${e.message}")
+        // minSdk=28, проверка на Build.VERSION_CODES.M (API 23) избыточна
+        try {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:${app.packageName}")
+            ).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
+            app.startActivity(intent)
+            showHint(app.getString(R.string.hint_overlay))
+        } catch (e: Exception) {
+            AppLog.w(TAG, "openOverlaySettings failed: ${e.message}")
         }
     }
 
@@ -319,19 +297,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         showHint(app.getString(R.string.hint_accessibility))
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // REFRESH & RESUME
-    // ═══════════════════════════════════════════════════════════════
-
     fun refreshStatuses() {
         AppLog.i(TAG, "refreshStatuses called")
+
         val component = ComponentName(app, AdbEnablerService::class.java).flattenToString()
         val acc = Settings.Secure.getString(
             app.contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         )?.contains(component) == true
-        val overlay = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
-                Settings.canDrawOverlays(app)
+        val overlay = Settings.canDrawOverlays(app)
 
         val prevState = _state.value
         val accessibilityJustChanged = !prevState.previousAccessibility && acc
@@ -360,16 +334,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Обновляем статусы в контроллере простого режима
         simpleController.updatePermissionStatuses(acc, overlay)
 
-        // Если простой режим активен — делегируем ему управление потоком
         if (simpleModeActive) {
-            simpleController.refresh()
+            if (!ChainFlags.waitingAccessibilityReturn) {
+                simpleController.onResumeAfterPermissionReturn()
+            } else {
+                simpleController.refresh()
+            }
             return
         }
 
-        // PRO режим: обработка редиректов и цепочки
         if (accessibilityJustChanged && flowActive) {
             AppLog.i(TAG, "refreshStatuses: accessibility just enabled, continuing chain")
             resetRedirectFlow()
@@ -441,26 +416,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i(TAG, "checkRestrictedSettingsOnResume called (no-op, handled by refreshStatuses)")
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // FLOW START & LEVEL SELECTION
-    // ═══════════════════════════════════════════════════════════════
-
     fun startFlow() {
         AppLog.i(TAG, "startFlow called, isWorking=${_state.value.isWorking}")
 
-        // Защита от повторного вызова во время работы
         if (_state.value.isWorking) {
             AppLog.i(TAG, "startFlow: already working, ignoring")
             return
         }
 
-        // Защита от повторного вызова если диалог уже показан
         if (_state.value.showLevelDialog || _state.value.showLevelConfirm) {
             AppLog.i(TAG, "startFlow: level dialog already shown, ignoring")
             return
         }
 
-        // Если уже идёт простая оптимизация — не начинаем заново
         if (_state.value.simpleStep != null || _state.value.simpleDone != null || simpleModeActive) {
             AppLog.i(TAG, "startFlow: simple mode already active, ignoring")
             return
@@ -484,6 +452,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val level = _state.value.selectedLevel ?: OptimizationMode.SIMPLE
         AppLog.i(TAG, "confirmLevelStart: $level")
         _state.update { it.copy(showLevelConfirm = false, selectedLevel = null) }
+
         when (level) {
             OptimizationMode.SIMPLE -> startSimpleMode()
             OptimizationMode.PRO -> startAdvancedFlow()
@@ -495,52 +464,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(showLevelConfirm = false, selectedLevel = null) }
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // SIMPLE MODE DELEGATION
-    // ═══════════════════════════════════════════════════════════════
-    fun startCurrentSimpleStep() {
-        simpleController.startCurrentStep()
-    }
-
-    fun nextSimpleStep() {
-        onSimpleStepResult(true)
-    }
-
-    fun skipSimpleStep() {
-        val stepId = _state.value.simpleStep?.step?.id ?: "unknown"
-        if (!failedSimpleStepIds.contains(stepId)) {
-            failedSimpleStepIds.add(stepId)
-        }
-        onSimpleStepResult(false)
-    }
-
-    fun retrySimpleStep() {
-        simpleController.retryStep()
-    }
-
-    private fun startSimpleMode() {
+    @VisibleForTesting
+    internal fun startSimpleMode() {
         AppLog.i(TAG, "startSimpleMode")
         simpleModeActive = true
         failedSimpleStepIds.clear()
         stepAttempt = 1
-
-        // Запускаем контроллер, который сам займется проверкой разрешений
         simpleController.start()
     }
 
-    /**
-     * Обработка результата шага.
-     * Retry и Auto-advance остаются здесь, так как требуют корутинных задержек.
-     */
     fun onSimpleStepResult(success: Boolean) {
         AppLog.i(TAG, "onSimpleStepResult: success=$success, attempt=$stepAttempt")
         val step = _state.value.simpleStep ?: return
 
         if (success) {
-            // Сообщаем контроллеру об успехе (он обновит счетчик и статус)
             simpleController.onStepResult(true)
-
-            // Автопереход с задержкой
             autoFlowJob = viewModelScope.launch {
                 delay(AUTO_ADVANCE_DELAY_MS)
                 advanceToNextStep(autoStart = true)
@@ -548,19 +486,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        // Неудача: ретрай или фиксация ошибки
         if (stepAttempt < step.maxAttempts) {
             stepAttempt++
             AppLog.w(TAG, "onSimpleStepResult: auto-retry $stepAttempt/${step.maxAttempts}")
-
-            // Перезапускаем тот же шаг через контроллер
-            simpleController.startCurrentStep()
-
-            // Но нам нужна задержка перед рестартом, поэтому используем локальный джоб
-            // Примечание: startCurrentStep сразу шлет интент, поэтому здесь небольшая хитрость:
-            // В идеале контроллер должен поддерживать delayed start, но пока оставим так:
-            // Мы просто ждем и потом говорим контроллеру стартовать.
-            // Чтобы избежать двойного старта, лучше сделать паузу ПЕРЕД вызовом startCurrentStep
             autoFlowJob?.cancel()
             autoFlowJob = viewModelScope.launch {
                 delay(RETRY_DELAY_MS)
@@ -585,24 +513,61 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i(TAG, "closeSimpleMode")
         autoFlowJob?.cancel()
         simpleModeActive = false
-        // Сбрасываем состояние через контроллер или напрямую
-        // Прямой сброс надежнее для мгновенного обновления UI
+
         _state.update {
             it.copy(
                 simpleStep = null,
                 simpleDone = null,
                 simpleModePhase = SimpleModePhase.INACTIVE,
+                permissionSubPhase = PermissionSubPhase.INACTIVE,
                 simpleModeActive = false,
                 showAccessibilityDialog = false,
                 showOverlayDialog = false,
-                showRestrictedDialog = false
+                showRestrictedDialog = false,
+                showAppInfoDialog = false,
+                showLocationDialog = false
             )
         }
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // SHIZUKU DELEGATION
+    // SIMPLE MODE UI CONTROLS (обёртки для MainActivity)
     // ═══════════════════════════════════════════════════════════════
+    fun startCurrentSimpleStep() {
+        simpleController.startCurrentStep()
+    }
+
+    fun nextSimpleStep() {
+        onSimpleStepResult(true)
+    }
+
+    fun skipSimpleStep() {
+        val stepId = _state.value.simpleStep?.step?.id ?: "unknown"
+        if (!failedSimpleStepIds.contains(stepId)) {
+            failedSimpleStepIds.add(stepId)
+        }
+        onSimpleStepResult(false)
+    }
+
+    fun retrySimpleStep() {
+        simpleController.retryStep()
+    }
+
+    fun simpleController_onAppInfoDialogAgreed() {
+        simpleController.onAppInfoDialogAgreed()
+    }
+
+    fun simpleController_onAppInfoDialogCancelled() {
+        simpleController.onAppInfoDialogCancelled()
+    }
+
+    fun onLocationChosen(location: RestrictedLocation) {
+        simpleController.onLocationChosen(location)
+    }
+
+    fun onLocationDialogCancelled() {
+        simpleController.onLocationDialogCancelled()
+    }
 
     private fun startAdvancedFlow() {
         val status = ShizukuExecutor.checkStatus(app)
@@ -614,8 +579,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _state.update { it.copy(showOptionsDialog = true) }
         }
     }
-
-    // Обертки над ShizukuManager для добавления специфики VM (showOptionsDialog)
 
     fun shizukuDialogInstall() {
         pendingSourceSuggestion = true
@@ -644,14 +607,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun wizardCheck() {
         shizukuManager.checkStatus()
-        // Если статус AVAILABLE, менеджер закроет wizard, но нам надо открыть options
-        if (shizukuManager.let {
-                // Проверяем текущее состояние менеджера косвенно через стейт VM,
-                // так как checkStatus асинхронен внутри менеджера? Нет, он синхронный.
-                // Но mergeShizukuState вызовется позже.
-                // Поэтому проверяем результат checkStatus напрямую
-                ShizukuExecutor.checkStatus(app) == ShizukuExecutor.Status.AVAILABLE
-            }) {
+        if (ShizukuExecutor.checkStatus(app) == ShizukuExecutor.Status.AVAILABLE) {
             _state.update { it.copy(showOptionsDialog = true) }
         }
     }
@@ -677,10 +633,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun closeShizukuWizard() {
         shizukuManager.closeWizard()
     }
-
-    // ═══════════════════════════════════════════════════════════════
-    // OPTIONS & CHAIN (PRO MODE)
-    // ═══════════════════════════════════════════════════════════════
 
     fun optionsDialogConfirmed() {
         AppLog.i(
@@ -749,6 +701,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun advance() {
         val s = _state.value
         AppLog.i(TAG, "advance: acc=${s.isAccessibilityEnabled}, overlay=${s.isOverlayGranted}")
+
         when {
             !s.isAccessibilityEnabled -> {
                 AppLog.i(TAG, "advance: showing accessibility dialog")
@@ -791,17 +744,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // DIALOG HANDLERS (DELEGATING TO CONTROLLERS)
-    // ═══════════════════════════════════════════════════════════════
-
     fun dialogAgreed() {
         AppLog.i(TAG, "dialogAgreed, simpleModeActive=$simpleModeActive")
 
         if (simpleModeActive) {
-            // Делегируем контроллеру, но открытие настроек делаем сами (или через permissionFlow в контроллере)
-            // В новой архитектуре SimpleModeController сам вызывает permissionFlow.openAccessibilityWithHint()
-            // Но нам нужно увеличить счетчик попыток в VM для статистики/редиректов
             val currentState = _state.value
             if (currentState.showAccessibilityDialog) {
                 _state.update { it.copy(accessibilityAttempts = it.accessibilityAttempts + 1) }
@@ -812,7 +758,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        // PRO режим
         val currentState = _state.value
         if (currentState.showAccessibilityDialog) {
             _state.update {
@@ -910,10 +855,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // REDIRECT TRACKING (PRO MODE)
-    // ═══════════════════════════════════════════════════════════════
-
     fun markAccessibilityOpened() {
         lastRedirect = Redirect.ACCESSIBILITY
         AppLog.i(TAG, "markAccessibilityOpened")
@@ -929,15 +870,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         restrictedFlowStarted = false
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // CHAIN EXECUTION & RESTORE
-    // ═══════════════════════════════════════════════════════════════
-
     private fun startChain() {
         AppLog.i(
             TAG,
             "startChain: setting pending flag, dnsFilter=${_state.value.dnsFilterEnabled}, aggressive=${_state.value.aggressiveMode}"
         )
+
         viewModelScope.launch {
             prefs.setPendingOptimization(true)
             prefs.setDnsFilterEnabled(_state.value.dnsFilterEnabled)
@@ -971,11 +909,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun restoreOptimization() {
         if (_state.value.isWorking) return
+
         viewModelScope.launch {
             try {
                 _state.update { it.copy(isWorking = true, progress = 0f) }
                 val deps = XiaoHyperApp.testDeps ?: app.deps
                 val ok = deps.newEngine().restore(callbacks())
+
                 if (ok) {
                     prefs.setHiddenSettingsApplied(false)
                     _state.update { it.copy(isWorking = false, isOptimized = false) }
@@ -988,10 +928,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
-
-    // ═══════════════════════════════════════════════════════════════
-    // FINAL DIALOGS & REBOOT
-    // ═══════════════════════════════════════════════════════════════
 
     fun dismissFinalDialog() {
         _state.update { it.copy(showFinalDialog = false) }
@@ -1033,6 +969,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun confirmReboot() {
         _state.update { it.copy(showRebootDialog = false, isWorking = true) }
+
         viewModelScope.launch {
             try {
                 val deps = XiaoHyperApp.testDeps ?: app.deps

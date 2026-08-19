@@ -1,13 +1,14 @@
 package com.xiaohypercleaner
 
 object AppConstants {
+
     // ADB хост и порты
     const val ADB_HOST = "127.0.0.1"
     const val ADB_DEFAULT_PORT = 5555
-    // ✅ УДАЛЕНО: ADB_PORT_FALLBACK (был дубликатом ADB_DEFAULT_PORT)
 
     // Таймауты
-    // ADB_TIMEOUT_MS — Int, потому что Socket.connect() и soTimeout принимают Int
+    // ADB_TIMEOUT_MS — Int, т.к. Socket.connect() и soTimeout требуют Int,
+    // остальные таймауты — Long для delay() в корутинах
     const val ADB_TIMEOUT_MS = 5000
     const val ADB_CONNECT_TIMEOUT_MS = 3000L
     const val ADB_COMMAND_TIMEOUT_MS = 5000L
@@ -17,18 +18,19 @@ object AppConstants {
     const val DEV_SETTINGS_FALLBACK_MS = 3000L
     const val UI_POLL_INTERVAL_MS = 500L
 
-    // Задержки между операциями (Long для delay() в корутинах)
+    // Задержки между операциями
     const val DELAY_AFTER_CONNECT_MS = 500L
     const val DELAY_BETWEEN_COMMANDS_MS = 150L
     const val DELAY_BEFORE_REBOOT_MS = 1500L
     const val COMMAND_DELAY_MS = 150L
     const val RETRY_DELAY_MS = 1500L
     const val AUTO_ADVANCE_DELAY_MS = 700L
-    const val MAX_STEP_ATTEMPTS = 3
-    // ✅ УДАЛЕНО: MAX_ATTEMPTS (был дубликатом MAX_STEP_ATTEMPTS)
 
-    // Попытки подключения
+    // Попытки и ретраи
     const val ADB_CONNECT_ATTEMPTS = 1
+    const val MAX_STEP_ATTEMPTS = 3
+    const val MAX_ACCESSIBILITY_ATTEMPTS = 3
+    const val MAX_OVERLAY_ATTEMPTS = 3
 
     // mDNS
     const val MDNS_SERVICE_TYPE = "_adb-tls._tcp."
@@ -47,6 +49,6 @@ object AppConstants {
     const val PROGRESS_DONE = 100f
     const val PROGRESS_FAIL = -1f
 
-    // ✅ ИСПРАВЛЕНО: имя совпадает с PreferencesManager (было "xhc_prefs")
+    // DataStore
     const val DATASTORE_NAME = "xhc_settings"
 }

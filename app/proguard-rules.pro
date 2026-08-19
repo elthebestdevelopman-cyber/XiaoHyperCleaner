@@ -10,7 +10,6 @@
 }
 -keep class rikka.shizuku.** { *; }
 
-# ✅ ИСПРАВЛЕНО: защищаем только то, что трогает reflection/сериализация/манифест.
 # UI-слой (ui.*) теперь обфусцируется — это безопасно для Compose.
 -keep public class com.xiaohypercleaner.data.** { *; }
 -keep public class com.xiaohypercleaner.service.** { *; }
@@ -27,6 +26,3 @@
 
 # DataStore
 -dontwarn androidx.datastore.**
-
-# Compose
--keep class androidx.compose.** { *; }

@@ -20,6 +20,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -75,7 +76,7 @@ fun SimpleStepScreen(
                         }
 
                         SimpleSteps.RiskLevel.SAFE -> {
-                            // Без иконки
+                            // Без иконки для безопасных шагов
                         }
                     }
 
@@ -230,6 +231,16 @@ fun SimpleDoneDialog(
     onDonate: () -> Unit,
     onClose: () -> Unit
 ) {
+    // Получаем плюрализованную строку для корректного склонения
+    // (RU: "шаг/шага/шагов", EN: "step/steps")
+    val context = LocalContext.current
+    val stepsDoneText = context.resources.getQuantityString(
+        R.plurals.simple_done_steps_done,
+        completedCount,
+        completedCount,
+        totalCount
+    )
+
     androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
         Surface(
             shape = RoundedCornerShape(20.dp),
@@ -249,7 +260,7 @@ fun SimpleDoneDialog(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    stringResource(R.string.simple_done_steps_done, completedCount, totalCount),
+                    stepsDoneText,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -267,6 +278,8 @@ fun SimpleDoneDialog(
                 )
                 Spacer(Modifier.height(8.dp))
 
+                // Показываем преимущество только если выполнены нужные шаги
+                // и при этом не провалились критические шаги
                 val adsStepsFailed =
                     failedSteps.any { it.contains("msa") || it.contains("personalized") }
                 val showAdsBenefit = completedCount >= 3 && !adsStepsFailed

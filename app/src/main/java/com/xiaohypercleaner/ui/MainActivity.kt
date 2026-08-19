@@ -52,6 +52,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -73,15 +74,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
+import com.xiaohypercleaner.data.OptimizationMode
+import com.xiaohypercleaner.data.RestrictedLocation
 import com.xiaohypercleaner.data.ShizukuExecutor
 import com.xiaohypercleaner.service.OverlayService
-import com.xiaohypercleaner.data.OptimizationMode
+import com.xiaohypercleaner.ui.components.AccessibilityConsentDialog
 import com.xiaohypercleaner.ui.components.InfoDialog
 import com.xiaohypercleaner.ui.components.MenuDialog
 import com.xiaohypercleaner.ui.components.OptimizationLevelDialog
@@ -124,6 +128,9 @@ class MainActivity : ComponentActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+
+        installSplashScreen()
+
         super.onCreate(savedInstanceState)
         AppLog.i(TAG, "onCreate started")
 
@@ -232,7 +239,6 @@ private fun MainContent(
 
     AppLog.i("MainUI", "MainContent composed: state=$state")
 
-    // ===== ВЫБОР УРОВНЯ: диалог выбора =====
     if (state.showLevelDialog) {
         OptimizationLevelDialog(
             onModeSelected = { mode -> vm.onLevelChosen(mode) },
@@ -240,7 +246,13 @@ private fun MainContent(
         )
     }
 
-    // ===== ВЫБОР УРОВНЯ: диалог подтверждения =====
+    if (state.showLocationDialog) {
+        LocationChoiceDialog(
+            onLocation = { location -> vm.onLocationChosen(location) },
+            onDismiss = { vm.onLocationDialogCancelled() }
+        )
+    }
+
     if (state.showLevelConfirm) {
         val level = state.selectedLevel
         val titleRes = when (level) {
@@ -269,7 +281,6 @@ private fun MainContent(
         )
     }
 
-    // Экран текущего шага простой оптимизации
     if (state.simpleStep != null) {
         val configuration = LocalConfiguration.current
         val isEnglish = configuration.locales.get(0)?.language != "ru"
@@ -285,12 +296,10 @@ private fun MainContent(
         )
     }
 
-    // Финальный экран после всех шагов простой оптимизации
     if (state.simpleDone != null) {
         SimpleDoneDialog(
             completedCount = state.simpleDone.first,
             totalCount = state.simpleDone.second,
-            // Передаём реальные failedSteps из ViewModel
             failedSteps = vm.getFailedStepIds(),
             onRate = { openRateApp(context) },
             onDonate = { openWebView(context, "https://yoomoney.ru/to/410011379195150", "ЮMoney") },
@@ -298,7 +307,6 @@ private fun MainContent(
         )
     }
 
-    // ===== SHIZUKU диалоги =====
     if (state.showShizukuDialog) {
         ShizukuGuideDialog(
             status = state.shizukuStatus,
@@ -309,7 +317,6 @@ private fun MainContent(
         )
     }
 
-    // Выбор альтернативного источника, если Google Play не дал установить
     if (state.showShizukuSources) {
         ShizukuSourcesDialog(
             onSource = { source -> vm.installFromSource(source) },
@@ -317,7 +324,6 @@ private fun MainContent(
         )
     }
 
-    // Мастер пошагового запуска Shizuku
     if (state.showShizukuWizard) {
         ShizukuSetupWizard(
             checkMessage = state.shizukuCheckMessage,
@@ -331,7 +337,6 @@ private fun MainContent(
         )
     }
 
-    // ===== ПРОДВИНУТЫЙ РЕЖИМ: разрешения =====
     if (state.showRestrictedDialog) {
         val isAndroid14Plus = Build.VERSION.SDK_INT >= 34
         InfoDialog(
@@ -352,17 +357,32 @@ private fun MainContent(
         )
     }
 
-    if (state.showAccessibilityDialog) {
+    if (state.showAppInfoDialog) {
+        val isAndroid14Plus = Build.VERSION.SDK_INT >= 34
         InfoDialog(
-            title = stringResource(R.string.accessibility_explanation_title),
-            text = stringResource(R.string.accessibility_explanation_text),
-            confirmText = stringResource(R.string.agree_and_open),
+            title = stringResource(R.string.pointer_restricted_blocked),
+            text = stringResource(R.string.pointer_restricted_explain),
+            confirmText = if (isAndroid14Plus) stringResource(R.string.forbidden_dialog_open)
+            else stringResource(R.string.restricted_dialog_open),
             onConfirm = {
-                AppLog.i("MainUI", "accessibility dialog: agreed")
+                AppLog.i("MainUI", "appInfo dialog: agreed")
+                vm.simpleController_onAppInfoDialogAgreed()
+            },
+            onDismiss = {
+                AppLog.i("MainUI", "appInfo dialog: cancelled")
+                vm.simpleController_onAppInfoDialogCancelled()
+            }
+        )
+    }
+
+    if (state.showAccessibilityDialog) {
+        AccessibilityConsentDialog(
+            onConfirm = {
+                AppLog.i("MainUI", "accessibility consent dialog: confirmed with explicit consent")
                 vm.dialogAgreed()
             },
             onDismiss = {
-                AppLog.i("MainUI", "accessibility dialog: cancelled")
+                AppLog.i("MainUI", "accessibility consent dialog: dismissed")
                 vm.dialogCancelled()
             }
         )
@@ -510,7 +530,6 @@ private fun MainContent(
     }
 
     if (menuOpen) {
-        // Получаем URL в Composable-контексте (до передачи в лямбду)
         val privacyUrl = stringResource(R.string.privacy_policy_url)
 
         MenuDialog(
@@ -691,9 +710,8 @@ private fun ShizukuGuideDialog(
                 }
                 Spacer(Modifier.height(8.dp))
 
-                // Только если Shizuku не установлен — предлагаем альтернативные магазины
                 if (status == ShizukuExecutor.Status.NOT_INSTALLED) {
-                    androidx.compose.material3.TextButton(
+                    TextButton(
                         onClick = onSources,
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -701,12 +719,68 @@ private fun ShizukuGuideDialog(
                     }
                 }
 
-                androidx.compose.material3.TextButton(
+                TextButton(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(stringResource(R.string.shizuku_dialog_later))
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LocationChoiceDialog(
+    onLocation: (RestrictedLocation) -> Unit,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    stringResource(R.string.pointer_restricted_not_found_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    stringResource(R.string.pointer_restricted_location_question),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = { onLocation(RestrictedLocation.TOP_MENU) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text(stringResource(R.string.pointer_restricted_menu_option)) }
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = { onLocation(RestrictedLocation.BOTTOM_LIST) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text(stringResource(R.string.pointer_restricted_bottom_option)) }
+                Spacer(Modifier.height(8.dp))
+                TextButton(
+                    onClick = { onLocation(RestrictedLocation.ABSENT) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(stringResource(R.string.pointer_restricted_absent_option)) }
             }
         }
     }
@@ -810,7 +884,7 @@ private fun OptionsDialog(
                     Text(stringResource(R.string.options_dialog_start))
                 }
                 Spacer(Modifier.height(8.dp))
-                androidx.compose.material3.TextButton(
+                TextButton(
                     onClick = onCancel,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -872,7 +946,7 @@ private fun DevModeDialog(
                     Text(stringResource(R.string.dev_mode_dialog_retry))
                 }
                 Spacer(Modifier.height(8.dp))
-                androidx.compose.material3.TextButton(
+                TextButton(
                     onClick = onCancel,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -1090,7 +1164,7 @@ private fun openUrl(context: Context, url: String) {
 }
 
 private fun openWebView(context: Context, url: String, title: String) {
-    AppLog.i("WebView", "opening WebView: $url")
+    AppLog.i("WebView", "opening webView: $url")
     try {
         val intent = Intent(context, WebViewActivity::class.java).apply {
             putExtra(WebViewActivity.EXTRA_URL, url)
@@ -1107,17 +1181,10 @@ private fun openWebView(context: Context, url: String, title: String) {
 private fun shareLog(context: Context) {
     AppLog.i("ShareLog", "shareLog requested")
     try {
-        AppLog.i("ShareLog", "preparing log file for sharing")
-
-        val logFile = AppLog.getLogFile()
-        if (logFile == null) {
+        val logFile = AppLog.getLogFile() ?: run {
             AppLog.w("ShareLog", "log file is null (beta logging not initialized)")
             return
         }
-        AppLog.i(
-            "ShareLog",
-            "log file: ${logFile.absolutePath}, exists=${logFile.exists()}, size=${logFile.length()}"
-        )
 
         if (!logFile.exists() || logFile.length() == 0L) {
             AppLog.w("ShareLog", "log file is empty or not exists")
@@ -1129,7 +1196,6 @@ private fun shareLog(context: Context) {
             "${context.packageName}.fileprovider",
             logFile
         )
-        AppLog.i("ShareLog", "FileProvider uri: $uri")
 
         val shareIntent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
@@ -1152,14 +1218,11 @@ private fun openDeviceInfoSettings(context: Context) {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
         )
-        AppLog.i("OpenSettings", "device info settings opened")
     } catch (e: Exception) {
         AppLog.w("OpenSettings", "device info failed: ${e.message}")
         try {
             context.startActivity(
-                Intent(Settings.ACTION_SETTINGS).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
+                Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
         } catch (_: Exception) {
         }
@@ -1178,9 +1241,7 @@ private fun openDevOptionsSettings(context: Context) {
         AppLog.w("OpenSettings", "dev options failed: ${e.message}")
         try {
             context.startActivity(
-                Intent(Settings.ACTION_SETTINGS).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
+                Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
         } catch (_: Exception) {
         }

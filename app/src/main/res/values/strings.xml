@@ -54,7 +54,12 @@
     <!-- ========== ПРОСТОЙ РЕЖИМ: ФИНАЛ ========== -->
     <string name="simple_done_title">Всё готово!</string>
     <string name="simple_done_text">Настройки приватности применены. Перезагрузка не требуется.</string>
-    <string name="simple_done_steps_done">Выполнено %1$d из %2$d шагов</string>
+    <plurals name="simple_done_steps_done">
+        <item quantity="one">Выполнен %1$d из %2$d шаг</item>
+        <item quantity="few">Выполнено %1$d из %2$d шага</item>
+        <item quantity="many">Выполнено %1$d из %2$d шагов</item>
+        <item quantity="other">Выполнено %1$d из %2$d шагов</item>
+    </plurals>
     <string name="simple_done_benefits">Что изменилось:</string>
     <string name="simple_done_benefit_ads">✅ Применены настройки приватности для сервисов сбора статистики</string>
     <string name="simple_done_benefit_telemetry">✅ Снижен объём передаваемой статистики</string>
@@ -200,4 +205,33 @@
     <string name="shizuku_sources_getapps">GetApps</string>
     <string name="shizuku_sources_github">GitHub</string>
     <string name="shizuku_sources_apkpure">APKPure</string>
+
+    <!-- ========== POINTER HINTS (стрелки к элементам) ========== -->
+    <string name="pointer_menu">Нажмите на три точки ⋮ в правом верхнем углу</string>
+    <string name="pointer_allow_restricted">Выберите «Разрешить ограниченные настройки» и подтвердите</string>
+    <string name="pointer_allow_forbidden">Выберите «Разрешить запрещённые настройки» и подтвердите</string>
+    <string name="pointer_overlay_switch">Включите этот переключатель</string>
+    <string name="pointer_accessibility_item">Найдите «XiaoHyperCleaner» в списке и включите переключатель</string>
+    <string name="pointer_restricted_blocked">Не получается включить службу?</string>
+    <string name="pointer_restricted_explain">Система временно ограничила доступ. Нажмите ⋮ в карточке приложения и разрешите доступ — это займёт 10 секунд.</string>
+
+    <!-- ========== УТОЧНЕНИЕ РАСПОЛОЖЕНИЯ ========== -->
+    <string name="pointer_restricted_generic">Найдите пункт «Разрешить ограниченные настройки» — обычно он в меню ⋮ сверху или внизу этого экрана</string>
+    <string name="pointer_restricted_not_found_title">Не нашли пункт?</string>
+    <string name="pointer_restricted_location_question">Подскажите, где у вас находится пункт разрешения ограниченных настроек?</string>
+    <string name="pointer_restricted_menu_option">В меню ⋮ в правом верхнем углу</string>
+    <string name="pointer_restricted_bottom_option">Внизу списка настроек</string>
+    <string name="pointer_restricted_absent_option">Такого пункта нет</string>
+    <string name="pointer_restricted_top_hint">Нажмите ⋮ и выберите «Разрешить ограниченные настройки»</string>
+    <string name="pointer_restricted_bottom_hint">Прокрутите вниз и включите «Разрешить ограниченные настройки»</string>
+    <!-- ========== ACCESSIBILITY POLICY DECLARATION ========== -->
+    <string name="accessibility_policy_summary">Автоматизация навигации по настройкам для экономии времени пользователей с ограниченной подвижностью</string>
+    <string name="accessibility_policy_description">Служба специальных возможностей XiaoHyperCleaner используется ТОЛЬКО для автоматической навигации по системным настройкам Android по прямому запросу пользователя. Служба НЕ обходит настройки приватности, НЕ изменяет системные параметры без явного согласия и НЕ собирает пользовательские данные. Все действия выполняются локально на устройстве. Служба активируется только после явного согласия пользователя и может быть отключена в любой момент в настройках Android. Использование службы полностью соответствует Accessibility Services API Policy.</string>
+
+    <!-- ========== CONSENT DIALOG (явное согласие) ========== -->
+    <string name="consent_dialog_title">Согласие на использование службы</string>
+    <string name="consent_dialog_text">Для автоматической настройки приложения служба специальных возможностей будет нажимать кнопки в системных настройках вместо вас. Служба:\n\n• НЕ обходит настройки приватности\n• НЕ изменяет настройки без вашего согласия\n• НЕ передаёт данные наружу\n• Может быть отключена в любой момент</string>
+    <string name="consent_checkbox_label">Я понимаю и даю согласие на использование службы специальных возможностей для автоматизации настроек</string>
+    <string name="consent_confirm_button">Согласиться и продолжить</string>
+    <string name="consent_cancel_button">Отмена</string>
 </resources>

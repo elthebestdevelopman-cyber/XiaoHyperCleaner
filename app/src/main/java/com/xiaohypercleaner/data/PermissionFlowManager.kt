@@ -1,84 +1,139 @@
 package com.xiaohypercleaner.data
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
-import com.xiaohypercleaner.service.ArrowPosition
-import com.xiaohypercleaner.service.InteractiveHint
-import com.xiaohypercleaner.service.OverlayController
+import com.xiaohypercleaner.R
+import com.xiaohypercleaner.service.AdbEnablerService
+import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.util.AppLog
 
-/**
- * Управляет потоком запроса разрешений: Accessibility, Overlay, Restricted Settings.
- * Вынесен из MainViewModel для уменьшения размера god-object.
- *
- * Положен в пакет `data` вместе с SimpleSteps и RootExecutor.
- */
-class PermissionFlowManager(
-    private val context: Context
-) {
+class PermissionFlowManager(private val context: Context) {
+
     companion object {
-        private const val TAG = "PermissionFlowManager"
+        private const val TAG = "PermissionFlow"
     }
 
-    fun openAccessibilitySettings() {
-        try {
-            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-            AppLog.i(TAG, "Opened accessibility settings")
-            // Показываем интерактивную подсказку
-            OverlayController.showInteractiveHint(
-                InteractiveHint(
-                    text = "Найдите «XiaoHyperCleaner» и включите его",
-                    targetRect = null,  // Будет найдено автоматически
-                    arrowPosition = ArrowPosition.BOTTOM
-                )
+    fun isSideloadedOnAndroid13Plus(): Boolean {
+        // Android 13+ ввёл блокировку sideload-приложений.
+        // На Android 10-12 (API 28-32) такой блокировки нет — возвращаем false.
+        if (Build.VERSION.SDK_INT < 33) return false
+        return try {
+            val pm = context.packageManager
+            // getInstallSourceInfo появился в API 30, на более старых — deprecated getInstallerPackageName
+            val installer = if (Build.VERSION.SDK_INT >= 30) {
+                pm.getInstallSourceInfo(context.packageName).installingPackageName
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getInstallerPackageName(context.packageName)
+            } ?: "unknown"
+
+            val trustedInstallers = listOf(
+                "com.android.vending",
+                "com.google.android.packageinstaller",
+                "com.android.packageinstaller"
             )
+            val sideloaded = installer !in trustedInstallers && installer != "preload"
+            AppLog.i(TAG, "isSideloaded: installer=$installer, sideloaded=$sideloaded")
+            sideloaded
         } catch (e: Exception) {
-            AppLog.e(TAG, "Failed to open accessibility settings", e)
+            AppLog.w(TAG, "isSideloaded check failed: ${e.message}")
+            false
         }
     }
 
     /**
-     * Открывает настройки accessibility с подсветкой нашего сервиса.
-     * На MIUI deep link может не сработать — fallback на обычный экран.
+     * Открывает App Info и показывает подсказку в зависимости от известной позиции пункта.
+     * Если позиция UNKNOWN — показываем общую карточку без стрелки.
      */
-    fun openAccessibilityWithHint() {
-        try {
-            val component = "${context.packageName}/${context.packageName}.service.AdbEnablerService"
-            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                putExtra(":settings:fragment_args_key", component)
-            }
-            context.startActivity(intent)
-            AppLog.i(TAG, "Opened accessibility with hint")
-            // Показываем интерактивную подсказку
-            OverlayController.showInteractiveHint(
-                InteractiveHint(
-                    text = "Включите «XiaoHyperCleaner»",
-                    targetRect = null,
-                    arrowPosition = ArrowPosition.BOTTOM
+    fun openAppInfoWithSmartPointer(location: RestrictedLocation) {
+        openAppInfoSettings()
+
+        when (location) {
+            RestrictedLocation.TOP_MENU -> {
+                showPointer(
+                    mode = OverlayService.PointerMode.TOP_RIGHT,
+                    text = context.getString(R.string.pointer_restricted_top_hint)
                 )
-            )
-        } catch (e: Exception) {
-            AppLog.w(TAG, "Hint deep link failed, falling back: ${e.message}")
-            openAccessibilitySettings()
+            }
+
+            RestrictedLocation.BOTTOM_LIST -> {
+                showPointer(
+                    mode = OverlayService.PointerMode.BOTTOM_LIST,
+                    text = context.getString(R.string.pointer_restricted_bottom_hint)
+                )
+            }
+
+            RestrictedLocation.UNKNOWN -> {
+                showGenericCard(context.getString(R.string.pointer_restricted_generic))
+            }
+
+            RestrictedLocation.ABSENT -> {
+                AppLog.i(TAG, "restricted location marked ABSENT — skipping hint")
+            }
         }
     }
 
+    fun openAccessibilityWithPointer() {
+        openAccessibilitySettings()
+        showPointer(
+            mode = OverlayService.PointerMode.LIST_ITEM_CENTER,
+            text = context.getString(R.string.pointer_accessibility_item)
+        )
+    }
+
+    fun openOverlayWithPointer() {
+        openOverlaySettings()
+        showPointer(
+            mode = OverlayService.PointerMode.SWITCH_RIGHT,
+            text = context.getString(R.string.pointer_overlay_switch)
+        )
+    }
+
+    fun openAccessibilityWithHint() {
+        openAccessibilitySettings()
+        showHint(context.getString(R.string.hint_accessibility))
+    }
+
     fun openOverlaySettings() {
+        // minSdk=28, проверка на Build.VERSION_CODES.M (API 23) избыточна — всегда >= M
         try {
-            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
-                data = Uri.parse("package:${context.packageName}")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:${context.packageName}")
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
-            AppLog.i(TAG, "Opened overlay settings")
         } catch (e: Exception) {
-            AppLog.e(TAG, "Failed to open overlay settings", e)
+            AppLog.w(TAG, "openOverlaySettings failed: ${e.message}")
+        }
+    }
+
+    fun openAccessibilitySettings() {
+        val component = ComponentName(context, AdbEnablerService::class.java).flattenToString()
+        val deep = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        val args = android.os.Bundle()
+        args.putString("componentName", component)
+        deep.putExtra(
+            ":settings:show_fragment",
+            "com.android.settings.accessibility.ToggleAccessibilityServicePreferenceFragment"
+        )
+        deep.putExtra(":settings:show_fragment_args", args)
+
+        try {
+            deep.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(deep)
+        } catch (e: Exception) {
+            try {
+                context.startActivity(
+                    Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            } catch (e2: Exception) {
+                AppLog.w(TAG, "openAccessibilitySettings failed: ${e2.message}")
+            }
         }
     }
 
@@ -89,33 +144,54 @@ class PermissionFlowManager(
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
-            AppLog.i(TAG, "Opened app info settings")
         } catch (e: Exception) {
-            AppLog.e(TAG, "Failed to open app info settings", e)
+            AppLog.w(TAG, "openAppInfoSettings failed: ${e.message}")
         }
     }
 
-    fun openDeveloperOptions() {
+    fun showHint(text: String) {
         try {
-            val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val intent = Intent(context, OverlayService::class.java).apply {
+                putExtra(OverlayService.EXTRA_HINT, text)
             }
-            context.startActivity(intent)
-            AppLog.i(TAG, "Opened developer options")
+            context.startService(intent)
         } catch (e: Exception) {
-            AppLog.e(TAG, "Failed to open developer options", e)
+            AppLog.w(TAG, "showHint failed: ${e.message}")
         }
     }
 
-    fun openDeviceInfoSettings() {
+    fun showGenericCard(text: String) {
         try {
-            val intent = Intent(Settings.ACTION_DEVICE_INFO_SETTINGS).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val intent = Intent(context, OverlayService::class.java).apply {
+                putExtra(
+                    OverlayService.EXTRA_POINTER_MODE,
+                    OverlayService.PointerMode.GENERIC_BOTTOM.name
+                )
+                putExtra(OverlayService.EXTRA_POINTER_TEXT, text)
             }
-            context.startActivity(intent)
-            AppLog.i(TAG, "Opened device info settings")
+            context.startService(intent)
         } catch (e: Exception) {
-            AppLog.e(TAG, "Failed to open device info settings", e)
+            AppLog.w(TAG, "showGenericCard failed: ${e.message}")
+        }
+    }
+
+    fun showPointer(mode: OverlayService.PointerMode, text: String) {
+        try {
+            val intent = Intent(context, OverlayService::class.java).apply {
+                putExtra(OverlayService.EXTRA_POINTER_MODE, mode.name)
+                putExtra(OverlayService.EXTRA_POINTER_TEXT, text)
+            }
+            context.startService(intent)
+        } catch (e: Exception) {
+            AppLog.w(TAG, "showPointer failed: ${e.message}")
+        }
+    }
+
+    fun hideOverlay() {
+        try {
+            context.stopService(Intent(context, OverlayService::class.java))
+        } catch (e: Exception) {
+            AppLog.w(TAG, "hideOverlay failed: ${e.message}")
         }
     }
 }
