@@ -338,7 +338,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun startFlow() {
         AppLog.i(TAG, "startFlow called, isWorking=${_state.value.isWorking}")
-        if (_state.value.isWorking) return
+        
+        // Защита от повторного вызова во время работы
+        if (_state.value.isWorking) {
+            AppLog.i(TAG, "startFlow: already working, ignoring")
+            return
+        }
+
+        // Защита от повторного вызова если диалог уже показан
+        if (_state.value.showLevelDialog || _state.value.showLevelConfirm) {
+            AppLog.i(TAG, "startFlow: level dialog already shown, ignoring")
+            return
+        }
 
         // Если уже идёт простая оптимизация — не начинаем заново
         if (_state.value.simpleStep != null || _state.value.simpleDone != null || simpleModeActive) {
@@ -1041,9 +1052,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun confirmReboot() {
         _state.update { it.copy(showRebootDialog = false, isWorking = true) }
         viewModelScope.launch {
-            val deps = XiaoHyperApp.testDeps ?: app.deps
-            val ok = deps.newEngine().reboot()
-            _state.update { it.copy(isWorking = false, rebootFailed = !ok) }
+            try {
+                val deps = XiaoHyperApp.testDeps ?: app.deps
+                val ok = deps.newEngine().reboot()
+                _state.update { it.copy(isWorking = false, rebootFailed = !ok) }
+            } catch (e: Exception) {
+                AppLog.e(TAG, "reboot failed: ${e.message}", e)
+                _state.update { it.copy(isWorking = false, rebootFailed = true) }
+            }
         }
     }
 
@@ -1076,13 +1092,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun restoreOptimization() {
         if (_state.value.isWorking) return
         viewModelScope.launch {
-            _state.update { it.copy(isWorking = true, progress = 0f) }
-            val deps = XiaoHyperApp.testDeps ?: app.deps
-            val ok = deps.newEngine().restore(callbacks())
-            if (ok) {
-                prefs.setHiddenSettingsApplied(false)
-                _state.update { it.copy(isWorking = false, isOptimized = false) }
-            } else {
+            try {
+                _state.update { it.copy(isWorking = true, progress = 0f) }
+                val deps = XiaoHyperApp.testDeps ?: app.deps
+                val ok = deps.newEngine().restore(callbacks())
+                if (ok) {
+                    prefs.setHiddenSettingsApplied(false)
+                    _state.update { it.copy(isWorking = false, isOptimized = false) }
+                } else {
+                    _state.update { it.copy(isWorking = false, restoreFailed = true) }
+                }
+            } catch (e: Exception) {
+                AppLog.e(TAG, "restore failed: ${e.message}", e)
                 _state.update { it.copy(isWorking = false, restoreFailed = true) }
             }
         }

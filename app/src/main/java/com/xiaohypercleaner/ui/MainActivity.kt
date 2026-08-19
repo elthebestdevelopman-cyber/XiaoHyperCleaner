@@ -236,10 +236,24 @@ private fun MainContent(
     // ===== ПРОСТОЙ/ПРОДВИНУТЫЙ РЕЖИМ: выбор уровня =====
     if (state.showLevelDialog) {
         OptimizationLevelDialog(
-            // ✅ ИСПРАВЛЕНО: убираем хардкод currentMode = SIMPLE
-            // теперь диалог корректно передаёт выбранный режим
             onModeSelected = { mode -> vm.onLevelChosen(mode) },
-            onDismiss = { vm.closeSimpleMode() }
+            onDismiss = { /* закрываем диалог без отмены — просто скрываем */ }
+        )
+    }
+
+    // Диалог подтверждения выбора режима
+    if (state.showLevelConfirm) {
+        val modeName = when (state.selectedLevel) {
+            com.xiaohypercleaner.data.OptimizationMode.SIMPLE -> "Простой"
+            com.xiaohypercleaner.data.OptimizationMode.PRO -> "Продвинутый"
+            null -> "Простой"
+        }
+        InfoDialog(
+            title = "Подтверждение режима",
+            text = "Вы выбрали $modeName режим оптимизации. Продолжить?",
+            confirmText = "Да",
+            onConfirm = { vm.confirmLevelStart() },
+            onDismiss = { vm.cancelLevelConfirm() }
         )
     }
 

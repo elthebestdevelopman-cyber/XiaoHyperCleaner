@@ -3,6 +3,7 @@ package com.xiaohypercleaner.data
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -119,7 +120,18 @@ class PreferencesManager(private val context: Context) {
     }
 
     val lastReportJson: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[androidx.datastore.preferences.core.stringPreferencesKey("last_report_json")] ?: ""
+        prefs[stringPreferencesKey("last_report_json")] ?: ""
+    }
+
+    // Сохранение выбранного режима оптимизации
+    val optimizationMode: Flow<OptimizationMode> = context.dataStore.data.map { prefs ->
+        OptimizationMode.fromString(prefs[stringPreferencesKey("optimization_mode")])
+    }
+
+    suspend fun setOptimizationMode(mode: OptimizationMode) {
+        context.dataStore.edit { prefs ->
+            prefs[stringPreferencesKey("optimization_mode")] = mode.name
+        }
     }
 
     private fun readBool(key: PreferenceKey, default: Boolean): Flow<Boolean> =

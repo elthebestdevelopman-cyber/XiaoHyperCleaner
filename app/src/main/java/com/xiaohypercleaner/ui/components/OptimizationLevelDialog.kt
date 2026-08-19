@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Settings
 import com.xiaohypercleaner.data.OptimizationMode
+import com.xiaohypercleaner.R
 
 @Composable
 fun OptimizationLevelDialog(
@@ -47,7 +48,7 @@ fun OptimizationLevelDialog(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Выберите режим",
+                    text = stringResource(R.string.level_dialog_title),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -56,7 +57,7 @@ fun OptimizationLevelDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Режим можно изменить позже в настройках",
+                    text = stringResource(R.string.level_dialog_text),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
@@ -64,7 +65,6 @@ fun OptimizationLevelDialog(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // ✅ ВАЖНО: ModeCard вызывается ВНУТРИ Row — это даёт RowScope
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -75,9 +75,9 @@ fun OptimizationLevelDialog(
                         iconContent = {
                             SimpleIcon(color = MaterialTheme.colorScheme.primary)
                         },
-                        title = "Простой",
-                        desc = "Безопасно для всех. Автоматическая очистка без сложных настроек.",
-                        modifier = Modifier.weight(1f)  // ✅ weight здесь работает
+                        title = stringResource(R.string.level_simple_title),
+                        desc = stringResource(R.string.level_simple_desc),
+                        modifier = Modifier.weight(1f)
                     )
 
                     ModeCard(
@@ -86,9 +86,9 @@ fun OptimizationLevelDialog(
                         iconContent = {
                             ProIcon(color = MaterialTheme.colorScheme.secondary)
                         },
-                        title = "Продвинутый",
-                        desc = "Глубокая оптимизация. Требует дополнительной настройки прав.",
-                        modifier = Modifier.weight(1f)  // ✅ weight здесь работает
+                        title = stringResource(R.string.level_advanced_title),
+                        desc = stringResource(R.string.level_advanced_desc),
+                        modifier = Modifier.weight(1f)
                     )
                 }
 
@@ -98,7 +98,7 @@ fun OptimizationLevelDialog(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Отмена")
+                    Text(text = stringResource(R.string.cancel))
                 }
             }
         }
