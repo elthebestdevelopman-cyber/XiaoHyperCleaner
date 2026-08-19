@@ -1,3 +1,41 @@
+```
+# Android build artifacts
+build/
+.gradle/
+*.apk
+*.aar
+*.jar
+*.class
+
+# Local configuration
+local.properties
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+```
 # ==================== Gradle ====================
 .gradle/
 build/
