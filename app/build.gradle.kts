@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.xiaohypercleaner"
-    compileSdk = 37
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.xiaohypercleaner"
         minSdk = 28
-        targetSdk = 36
+        targetSdk = 34
         versionCode = 2
         versionName = "1.0-beta2"
 

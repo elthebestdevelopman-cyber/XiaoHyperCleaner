@@ -83,6 +83,7 @@ import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.ShizukuExecutor
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.OverlayService
+import com.xiaohypercleaner.data.OptimizationMode
 import com.xiaohypercleaner.ui.components.InfoDialog
 import com.xiaohypercleaner.ui.components.MenuDialog
 import com.xiaohypercleaner.ui.components.OptimizationLevelDialog
