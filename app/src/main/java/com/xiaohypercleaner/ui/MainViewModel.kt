@@ -357,6 +357,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        // ✅ ЗАЩИТА: не открывать диалог если он уже открыт
+        if (_state.value.showLevelDialog || _state.value.showLevelConfirm) {
+            AppLog.i(TAG, "startFlow: level dialog already shown, ignoring")
+            return
+        }
+
         _state.update { it.copy(showLevelDialog = true) }
     }
 

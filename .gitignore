@@ -36,3 +36,63 @@ __pycache__/
 *.pyd
 .Python
 ```
+# ==================== Gradle ====================
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+# Локальные конфиги Gradle
+gradle-app.setting
+!gradle-wrapper.jar
+**/build/
+
+# ==================== Android Studio / IntelliJ ====================
+.idea/
+*.iml
+*.iws
+*.ipr
+.navigation/
+captures/
+output.json
+
+# ==================== JVM crash logs (именно они у тебя попадали в git) ====================
+hs_err_pid*.log
+java_pid*.log
+
+# ==================== Android ====================
+local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Keystore файлы (никогда в git)
+*.jks
+*.keystore
+!debug.keystore
+
+# ==================== OS ====================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ==================== Node / npm (если есть фронтенд) ====================
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# ==================== Kotlin ====================
+*.class
+*.log
+*.ctxt
+.mtj.tmp/
+
+# ==================== Logs (исключение для xhc.log приложения — он в runtime) ====================
+*.log
+!app/src/main/assets/*.log
+/.continue
