@@ -10,8 +10,16 @@
 }
 -keep class rikka.shizuku.** { *; }
 
-# Свой код не обфусцируем (маленький проект, проще отлаживать)
--keep class com.xiaohypercleaner.** { *; }
+# ✅ ИСПРАВЛЕНО: защищаем только то, что трогает reflection/сериализация/манифест.
+# UI-слой (ui.*) теперь обфусцируется — это безопасно для Compose.
+-keep public class com.xiaohypercleaner.data.** { *; }
+-keep public class com.xiaohypercleaner.service.** { *; }
+-keep public class com.xiaohypercleaner.engine.** { *; }
+
+# Data-классы отчётов (могут сериализоваться в JSON)
+-keep class com.xiaohypercleaner.data.OptimizationReport { *; }
+-keep class com.xiaohypercleaner.data.SimpleSteps$Step { *; }
+-keep class com.xiaohypercleaner.data.SimpleStepState { *; }
 
 # Coroutines
 -keepclassmembernames class kotlinx.coroutines.** { *; }

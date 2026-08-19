@@ -8,34 +8,34 @@ import android.os.Build
 import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.xiaohypercleaner.R
-import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.AppConstants.AUTO_ADVANCE_DELAY_MS
 import com.xiaohypercleaner.AppConstants.RETRY_DELAY_MS
+import com.xiaohypercleaner.R
+import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationEngine
+import com.xiaohypercleaner.data.OptimizationMode
 import com.xiaohypercleaner.data.OptimizationReport
 import com.xiaohypercleaner.data.PermissionFlowManager
 import com.xiaohypercleaner.data.ShizukuExecutor
 import com.xiaohypercleaner.data.ShizukuWizardManager
 import com.xiaohypercleaner.data.SimpleModeController
 import com.xiaohypercleaner.data.SimpleStepState
-import com.xiaohypercleaner.data.SimpleSteps
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.ChainFlags
 import com.xiaohypercleaner.service.OverlayController
 import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.service.SimpleStepBridge
-import com.xiaohypercleaner.data.OptimizationMode
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
 import com.xiaohypercleaner.util.OptimizationReportFormatter
 import com.xiaohypercleaner.util.ShizukuHelper
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 enum class SimpleModePhase {
@@ -80,7 +80,9 @@ data class MainUiState(
     val previousAccessibility: Boolean = false,
     val previousOverlay: Boolean = false,
     val restrictedSettingsShown: Boolean = false,
-    val showDevModeDialog: Boolean = false
+    val showDevModeDialog: Boolean = false,
+    // Флаг активности простого режима для UI (может отличаться от внутренней переменной)
+    val simpleModeActive: Boolean = false
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -88,13 +90,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as XiaoHyperApp
     private val prefs = app.preferencesManager
     private val permissionFlow = PermissionFlowManager(app)
+
+    // Менеджеры для делегирования логики
+    private val simpleController =
+        SimpleModeController(app, permissionFlow) { mergeSimpleState(it) }
+    private val shizukuManager = ShizukuWizardManager(app) { mergeShizukuState(it) }
+
     private var flowActive = false
     private var simpleModeActive = false
-    private var simpleStepIndex = 0
-    private var simpleCompletedCount = 0
     private val failedSimpleStepIds = mutableListOf<String>()
     private var stepAttempt = 1
-    private var autoFlowJob: kotlinx.coroutines.Job? = null
+    private var autoFlowJob: Job? = null
 
     private var pendingSourceSuggestion = false
 
@@ -176,6 +182,63 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i(TAG, "init completed")
     }
 
+    override fun onCleared() {
+        super.onCleared()
+        simpleController.destroy()
+        autoFlowJob?.cancel()
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // MERGE FUNCTIONS: Интеграция состояний менеджеров
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Объединяет состояние SimpleModeController с MainUiState.
+     * Диалоговые флаги копируются ТОЛЬКО если режим активен.
+     */
+    private fun mergeSimpleState(s: SimpleModeController.SimpleModeState) {
+        val running =
+            s.active || s.step != null || s.done != null || s.phase != SimpleModePhase.INACTIVE
+
+        _state.update { current ->
+            current.copy(
+                simpleModePhase = s.phase,
+                simpleStep = s.step,
+                simpleDone = s.done,
+                simpleModeActive = if (!running) false else current.simpleModeActive,
+                // Копируем диалоги только если режим активен, иначе сбрасываем
+                showAccessibilityDialog = if (running) s.showAccessibilityDialog else false,
+                showOverlayDialog = if (running) s.showOverlayDialog else false,
+                showRestrictedDialog = if (running) s.showRestrictedDialog else false,
+                restrictedSettingsShown = if (running) s.restrictedSettingsShown else false
+            )
+        }
+
+        // Синхронизируем внутренний флаг
+        if (!running && simpleModeActive) {
+            simpleModeActive = false
+        }
+    }
+
+    /**
+     * Объединяет состояние ShizukuWizardManager с MainUiState.
+     */
+    private fun mergeShizukuState(s: ShizukuWizardManager.ShizukuWizardState) {
+        _state.update {
+            it.copy(
+                showShizukuDialog = s.showShizukuDialog,
+                showShizukuWizard = s.showShizukuWizard,
+                showShizukuSources = s.showShizukuSources,
+                shizukuStatus = s.shizukuStatus,
+                shizukuCheckMessage = s.shizukuCheckMessage
+            )
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // HELPERS & OVERLAY
+    // ═══════════════════════════════════════════════════════════════
+
     private fun stopOverlayService() {
         try {
             app.stopService(Intent(app, OverlayService::class.java))
@@ -185,21 +248,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun markAccessibilityOpened() {
-        lastRedirect = Redirect.ACCESSIBILITY
-        AppLog.i(TAG, "markAccessibilityOpened")
-    }
-
-    fun markAppInfoOpened() {
-        lastRedirect = Redirect.APP_INFO
-        AppLog.i(TAG, "markAppInfoOpened")
-    }
-
-    private fun resetRedirectFlow() {
-        lastRedirect = Redirect.NONE
-        restrictedFlowStarted = false
-    }
-
     private fun showHint(text: String) {
         try {
             val intent = Intent(app, OverlayService::class.java)
@@ -207,6 +255,55 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             app.startService(intent)
         } catch (e: Exception) {
             AppLog.w(TAG, "failed to show hint: ${e.message}")
+        }
+    }
+
+    // Методы открытия настроек остаются в VM, так как требуют контекста Activity/Intents
+    // Но вызываются либо из VM (для PRO), либо делегируются контроллером (через PermissionFlow)
+
+    fun openAccessibilitySettings() {
+        AppLog.i(TAG, "openAccessibilitySettings")
+        val component = ComponentName(app, AdbEnablerService::class.java).flattenToString()
+        val deep = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        val args = android.os.Bundle()
+        args.putString("componentName", component)
+        deep.putExtra(
+            ":settings:show_fragment",
+            "com.android.settings.accessibility.ToggleAccessibilityServicePreferenceFragment"
+        )
+        deep.putExtra(":settings:show_fragment_args", args)
+        try {
+            deep.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            app.startActivity(deep)
+            showHint(app.getString(R.string.hint_accessibility))
+        } catch (e: Exception) {
+            try {
+                app.startActivity(
+                    Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+                showHint(app.getString(R.string.hint_accessibility))
+            } catch (e2: Exception) {
+                AppLog.w(TAG, "openAccessibilitySettings failed: ${e2.message}")
+            }
+        }
+    }
+
+    fun openOverlaySettings() {
+        AppLog.i(TAG, "openOverlaySettings")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:${app.packageName}")
+                ).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                app.startActivity(intent)
+                showHint(app.getString(R.string.hint_overlay))
+            } catch (e: Exception) {
+                AppLog.w(TAG, "openOverlaySettings failed: ${e.message}")
+            }
         }
     }
 
@@ -221,6 +318,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         permissionFlow.openAccessibilityWithHint()
         showHint(app.getString(R.string.hint_accessibility))
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // REFRESH & RESUME
+    // ═══════════════════════════════════════════════════════════════
 
     fun refreshStatuses() {
         AppLog.i(TAG, "refreshStatuses called")
@@ -238,7 +339,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         AppLog.i(
             TAG,
-            "refreshStatuses: accessibility=$acc (was ${prevState.previousAccessibility}), overlay=$overlay (was ${prevState.previousOverlay}), accAttempts=${prevState.accessibilityAttempts}, overlayAttempts=${prevState.overlayAttempts}, lastRedirect=$lastRedirect, simpleModeActive=$simpleModeActive"
+            "refreshStatuses: accessibility=$acc (was ${prevState.previousAccessibility}), overlay=$overlay (was ${prevState.previousOverlay}), simpleModeActive=$simpleModeActive"
         )
 
         _state.update {
@@ -259,12 +360,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Простой режим — продолжаем проверку разрешений
+        // Обновляем статусы в контроллере простого режима
+        simpleController.updatePermissionStatuses(acc, overlay)
+
+        // Если простой режим активен — делегируем ему управление потоком
         if (simpleModeActive) {
-            advanceSimpleMode()
+            simpleController.refresh()
             return
         }
 
+        // PRO режим: обработка редиректов и цепочки
         if (accessibilityJustChanged && flowActive) {
             AppLog.i(TAG, "refreshStatuses: accessibility just enabled, continuing chain")
             resetRedirectFlow()
@@ -336,9 +441,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i(TAG, "checkRestrictedSettingsOnResume called (no-op, handled by refreshStatuses)")
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // FLOW START & LEVEL SELECTION
+    // ═══════════════════════════════════════════════════════════════
+
     fun startFlow() {
         AppLog.i(TAG, "startFlow called, isWorking=${_state.value.isWorking}")
-        
+
         // Защита от повторного вызова во время работы
         if (_state.value.isWorking) {
             AppLog.i(TAG, "startFlow: already working, ignoring")
@@ -354,12 +463,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Если уже идёт простая оптимизация — не начинаем заново
         if (_state.value.simpleStep != null || _state.value.simpleDone != null || simpleModeActive) {
             AppLog.i(TAG, "startFlow: simple mode already active, ignoring")
-            return
-        }
-
-        // ✅ ЗАЩИТА: не открывать диалог если он уже открыт
-        if (_state.value.showLevelDialog || _state.value.showLevelConfirm) {
-            AppLog.i(TAG, "startFlow: level dialog already shown, ignoring")
             return
         }
 
@@ -392,191 +495,52 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(showLevelConfirm = false, selectedLevel = null) }
     }
 
-    private fun startAdvancedFlow() {
-        val status = ShizukuExecutor.checkStatus(app)
-        AppLog.i(TAG, "startAdvancedFlow: shizuku status=$status")
-
-        if (status != ShizukuExecutor.Status.AVAILABLE) {
-            _state.update { it.copy(showShizukuDialog = true, shizukuStatus = status) }
-        } else {
-            _state.update { it.copy(showOptionsDialog = true) }
-        }
-    }
-
-    // ===== Простая оптимизация =====
-
-    fun startSimpleMode() {
-        AppLog.i(TAG, "startSimpleMode")
-        simpleModeActive = true
-        simpleStepIndex = 0
-        simpleCompletedCount = 0
-        failedSimpleStepIds.clear()  // ← ДОБАВИТЬ
-
-        _state.update { it.copy(simpleModePhase = SimpleModePhase.PERMISSIONS) }
-        advanceSimpleMode()
-    }
-
-    private fun advanceSimpleMode() {
-        if (!simpleModeActive) return
-
-        val s = _state.value
-        AppLog.i(
-            TAG,
-            "advanceSimpleMode: restricted=${s.restrictedSettingsShown}, acc=${s.isAccessibilityEnabled}, overlay=${s.isOverlayGranted}"
-        )
-
-        // Фаза 1: Проверка restricted/forbidden settings (для Android 13+ sideload)
-        val isAndroid13Plus = Build.VERSION.SDK_INT >= 33
-        val installer = try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                app.packageManager.getInstallSourceInfo(app.packageName).installingPackageName
-            } else {
-                @Suppress("DEPRECATION")
-                app.packageManager.getInstallerPackageName(app.packageName)
-            }
-        } catch (e: Exception) {
-            null
-        }
-        val isFromKnownStore = installer in listOf(
-            "com.android.vending",
-            "com.xiaomi.market",
-            "ru.vk.store"
-        )
-
-        if (isAndroid13Plus && !isFromKnownStore && !s.restrictedSettingsShown) {
-            AppLog.i(TAG, "advanceSimpleMode: showing restricted/forbidden dialog")
-            _state.update { it.copy(showRestrictedDialog = true) }
-            return
-        }
-
-        // Фаза 2: Проверка Accessibility Service
-        if (!s.isAccessibilityEnabled) {
-            AppLog.i(TAG, "advanceSimpleMode: showing accessibility dialog")
-            _state.update { it.copy(showAccessibilityDialog = true) }
-            return
-        }
-
-        // Фаза 3: Проверка Overlay permission
-        if (!s.isOverlayGranted) {
-            AppLog.i(TAG, "advanceSimpleMode: showing overlay dialog")
-            _state.update { it.copy(showOverlayDialog = true) }
-            return
-        }
-
-        // Все разрешения получены — переходим к шагам
-        AppLog.i(TAG, "advanceSimpleMode: all permissions granted, starting steps")
-        simpleModeActive = false
-        _state.update { it.copy(simpleModePhase = SimpleModePhase.STEPS) }
-        showSimpleStep()
-    }
-
-    private fun showSimpleStep() {
-        if (simpleStepIndex >= SimpleSteps.ALL.size) {
-            // Все шаги выполнены — переходим к финальному экрану с верификацией
-            performFinalVerification()
-            return
-        }
-        _state.update {
-            it.copy(
-                simpleStep = SimpleStepState(
-                    stepIndex = simpleStepIndex,
-                    totalSteps = SimpleSteps.ALL.size,
-                    step = SimpleSteps.ALL[simpleStepIndex],
-                    status = SimpleStepState.Status.READY,
-                    completedCount = simpleCompletedCount
-                ),
-                simpleDone = null
-            )
-        }
-    }
-
-    /**
-     * Верификация результата после всех шагов перед показом финального экрана.
-     * Проверяем что ключевые переключатели действительно выключены.
-     */
-    private fun performFinalVerification() {
-        AppLog.i(
-            TAG,
-            "performFinalVerification: completed $simpleCompletedCount of ${SimpleSteps.ALL.size} steps"
-        )
-
-        // Для простой оптимизации показываем финальный экран сразу
-        // Полная верификация через повторный проход по шагам может занять много времени
-        // и потребует дополнительных разрешений
-
-        // Логируем статистику для диагностики
-        val skippedCount = SimpleSteps.ALL.size - simpleCompletedCount
-        if (skippedCount > 0) {
-            AppLog.w(TAG, "Final verification: $skippedCount steps were skipped or failed")
-        } else {
-            AppLog.i(
-                TAG,
-                "Final verification: all ${SimpleSteps.ALL.size} steps completed successfully"
-            )
-        }
-
-        _state.update {
-            it.copy(
-                simpleStep = null,
-                simpleDone = Pair(simpleCompletedCount, SimpleSteps.ALL.size),
-                simpleModePhase = SimpleModePhase.DONE
-            )
-        }
-    }
-
-    // ===== Простая оптимизация: автопрогон с ретраями =====
-
+    // ═══════════════════════════════════════════════════════════════
+    // SIMPLE MODE DELEGATION
+    // ═══════════════════════════════════════════════════════════════
     fun startCurrentSimpleStep() {
-        val current = _state.value.simpleStep ?: return
-        if (current.status == SimpleStepState.Status.WORKING) {
-            AppLog.w(TAG, "startCurrentSimpleStep: already WORKING, ignoring double-tap")
-            return
+        simpleController.startCurrentStep()
+    }
+
+    fun nextSimpleStep() {
+        onSimpleStepResult(true)
+    }
+
+    fun skipSimpleStep() {
+        val stepId = _state.value.simpleStep?.step?.id ?: "unknown"
+        if (!failedSimpleStepIds.contains(stepId)) {
+            failedSimpleStepIds.add(stepId)
         }
-        stepAttempt = 1
-        launchStep()
+        onSimpleStepResult(false)
     }
 
     fun retrySimpleStep() {
-        AppLog.i(TAG, "retrySimpleStep: manual retry by user")
+        simpleController.retryStep()
+    }
+
+    private fun startSimpleMode() {
+        AppLog.i(TAG, "startSimpleMode")
+        simpleModeActive = true
+        failedSimpleStepIds.clear()
         stepAttempt = 1
-        launchStep()
+
+        // Запускаем контроллер, который сам займется проверкой разрешений
+        simpleController.start()
     }
 
-    private fun launchStep() {
-        autoFlowJob?.cancel()
-        _state.update {
-            it.copy(
-                simpleStep = it.simpleStep?.copy(
-                    status = SimpleStepState.Status.WORKING,
-                    attempt = stepAttempt
-                )
-            )
-        }
-        val intent = Intent(app, AdbEnablerService::class.java).apply {
-            action = AdbEnablerService.ACTION_SIMPLE_STEP
-            putExtra("step_index", simpleStepIndex)
-        }
-        app.startService(intent)
-    }
-
+    /**
+     * Обработка результата шага.
+     * Retry и Auto-advance остаются здесь, так как требуют корутинных задержек.
+     */
     fun onSimpleStepResult(success: Boolean) {
-        AppLog.i(
-            TAG,
-            "onSimpleStepResult: success=$success, attempt=$stepAttempt, step=$simpleStepIndex"
-        )
+        AppLog.i(TAG, "onSimpleStepResult: success=$success, attempt=$stepAttempt")
         val step = _state.value.simpleStep ?: return
 
         if (success) {
-            simpleCompletedCount++
-            _state.update {
-                it.copy(
-                    simpleStep = step.copy(
-                        status = SimpleStepState.Status.SUCCESS,
-                        completedCount = simpleCompletedCount
-                    )
-                )
-            }
-            // АВТОпереход: кнопок нет — машина работает сама
+            // Сообщаем контроллеру об успехе (он обновит счетчик и статус)
+            simpleController.onStepResult(true)
+
+            // Автопереход с задержкой
             autoFlowJob = viewModelScope.launch {
                 delay(AUTO_ADVANCE_DELAY_MS)
                 advanceToNextStep(autoStart = true)
@@ -584,64 +548,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        // Не получилось → проверяем почему (лог) и пробуем повторно
+        // Неудача: ретрай или фиксация ошибки
         if (stepAttempt < step.maxAttempts) {
             stepAttempt++
-            AppLog.w(
-                TAG,
-                "onSimpleStepResult: auto-retry $stepAttempt/${step.maxAttempts} for step ${step.stepIndex}"
-            )
-            // Обновляем UI с номером попытки
-            _state.update {
-                it.copy(
-                    simpleStep = step.copy(
-                        status = SimpleStepState.Status.WORKING,
-                        attempt = stepAttempt
-                    )
-                )
-            }
+            AppLog.w(TAG, "onSimpleStepResult: auto-retry $stepAttempt/${step.maxAttempts}")
+
+            // Перезапускаем тот же шаг через контроллер
+            simpleController.startCurrentStep()
+
+            // Но нам нужна задержка перед рестартом, поэтому используем локальный джоб
+            // Примечание: startCurrentStep сразу шлет интент, поэтому здесь небольшая хитрость:
+            // В идеале контроллер должен поддерживать delayed start, но пока оставим так:
+            // Мы просто ждем и потом говорим контроллеру стартовать.
+            // Чтобы избежать двойного старта, лучше сделать паузу ПЕРЕД вызовом startCurrentStep
+            autoFlowJob?.cancel()
             autoFlowJob = viewModelScope.launch {
                 delay(RETRY_DELAY_MS)
-                launchStep()
+                simpleController.startCurrentStep()
             }
         } else {
-            // Исчерпали попытки → показываем ручную подсказку + «Повторить»
-            AppLog.e(
-                TAG,
-                "onSimpleStepResult: all ${step.maxAttempts} attempts exhausted for step ${step.stepIndex}"
-            )
-            onStepExhausted(step)
+            AppLog.e(TAG, "onSimpleStepResult: all attempts exhausted")
+            failedSimpleStepIds.add(step.step.id)
+            simpleController.onStepResult(false)
         }
-    }
-
-    /** Вызывается когда все попытки исчерпаны */
-    private fun onStepExhausted(step: SimpleStepState) {
-        // Сохраняем ID неудачного шага для финального экрана
-        failedSimpleStepIds.add(step.step.id)
-
-        _state.update {
-            it.copy(simpleStep = step.copy(status = SimpleStepState.Status.FAILED))
-        }
-        // Логируем причину для диагностики с деталями из SimpleOptimizationRunner
-        AppLog.w(
-            TAG,
-            "Step '${step.step.id}' (${step.step.titleRu}) failed after ${step.maxAttempts} attempts - reason: switch not found or click failed"
-        )
-    }
-
-    fun nextSimpleStep() = advanceToNextStep(autoStart = false)
-
-    fun skipSimpleStep() {
-        AppLog.i(TAG, "skipSimpleStep: index=$simpleStepIndex")
-        advanceToNextStep(autoStart = true)
     }
 
     private fun advanceToNextStep(autoStart: Boolean) {
-        simpleStepIndex++
-        showSimpleStep()
+        simpleController.nextStep()
         if (autoStart && _state.value.simpleStep != null) {
             stepAttempt = 1
-            launchStep()
+            simpleController.startCurrentStep()
         }
     }
 
@@ -649,142 +585,102 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i(TAG, "closeSimpleMode")
         autoFlowJob?.cancel()
         simpleModeActive = false
+        // Сбрасываем состояние через контроллер или напрямую
+        // Прямой сброс надежнее для мгновенного обновления UI
         _state.update {
             it.copy(
                 simpleStep = null,
                 simpleDone = null,
-                simpleModePhase = SimpleModePhase.INACTIVE
+                simpleModePhase = SimpleModePhase.INACTIVE,
+                simpleModeActive = false,
+                showAccessibilityDialog = false,
+                showOverlayDialog = false,
+                showRestrictedDialog = false
             )
         }
     }
 
-    // ===== Shizuku диалоги =====
+    // ═══════════════════════════════════════════════════════════════
+    // SHIZUKU DELEGATION
+    // ═══════════════════════════════════════════════════════════════
+
+    private fun startAdvancedFlow() {
+        val status = ShizukuExecutor.checkStatus(app)
+        AppLog.i(TAG, "startAdvancedFlow: shizuku status=$status")
+
+        if (status != ShizukuExecutor.Status.AVAILABLE) {
+            shizukuManager.showDialog(status)
+        } else {
+            _state.update { it.copy(showOptionsDialog = true) }
+        }
+    }
+
+    // Обертки над ShizukuManager для добавления специфики VM (showOptionsDialog)
 
     fun shizukuDialogInstall() {
-        AppLog.i(TAG, "shizuku dialog: install clicked")
         pendingSourceSuggestion = true
-        _state.update { it.copy(showShizukuDialog = false) }
-        ShizukuHelper.openShizukuInStore(app)
+        shizukuManager.onInstallClicked()
     }
 
     fun shizukuDialogOpenApp() {
-        AppLog.i(TAG, "shizuku dialog: open app clicked")
-        _state.update { it.copy(showShizukuDialog = false) }
-        openShizukuWizard()
-    }
-
-    fun openShizukuWizard() {
-        AppLog.i(TAG, "shizuku dialog: howto clicked — opening wizard")
-        _state.update {
-            it.copy(
-                showShizukuDialog = false,
-                showShizukuWizard = true,
-                shizukuCheckMessage = null
-            )
-        }
-    }
-
-    fun closeShizukuWizard() {
-        AppLog.i(TAG, "wizard: closed")
-        _state.update { it.copy(showShizukuWizard = false) }
+        shizukuManager.onOpenAppClicked()
     }
 
     fun wizardSkip() {
-        AppLog.i(TAG, "wizard: skip — proceeding to options dialog (wireless ADB path)")
-        _state.update {
-            it.copy(
-                showShizukuWizard = false,
-                shizukuCheckMessage = null,
-                showOptionsDialog = true
-            )
-        }
+        shizukuManager.onWizardSkip()
+        _state.update { it.copy(showOptionsDialog = true) }
     }
 
     fun requestShizukuPermission() {
-        AppLog.i(TAG, "wizardRequestPermission: requesting...")
-        ShizukuExecutor.requestPermission(SHIZUKU_PERMISSION_CODE)
+        shizukuManager.requestPermission(SHIZUKU_PERMISSION_CODE)
     }
 
     fun onShizukuPermissionResult(granted: Boolean) {
-        AppLog.i(TAG, "onShizukuPermissionResult: granted=$granted")
+        shizukuManager.onPermissionResult(granted)
         if (granted) {
-            _state.update {
-                it.copy(
-                    showShizukuWizard = false,
-                    shizukuCheckMessage = null,
-                    showOptionsDialog = true
-                )
-            }
-        } else {
-            _state.update {
-                it.copy(
-                    shizukuCheckMessage = app.getString(R.string.shizuku_wizard_permission_denied)
-                )
-            }
+            _state.update { it.copy(showOptionsDialog = true) }
         }
     }
 
     fun wizardCheck() {
-        val status = ShizukuExecutor.checkStatus(app)
-        AppLog.i(TAG, "wizardCheck: status=$status")
-        when (status) {
-            ShizukuExecutor.Status.AVAILABLE -> {
-                AppLog.i(TAG, "wizardCheck: SUCCESS — proceeding to options")
-                _state.update {
-                    it.copy(
-                        showShizukuWizard = false,
-                        shizukuCheckMessage = null,
-                        showOptionsDialog = true
-                    )
-                }
-            }
-
-            ShizukuExecutor.Status.PERMISSION_REQUIRED -> {
-                _state.update {
-                    it.copy(
-                        shizukuCheckMessage = app.getString(R.string.shizuku_wizard_step6)
-                    )
-                }
-            }
-
-            else -> {
-                _state.update {
-                    it.copy(
-                        shizukuCheckMessage = app.getString(R.string.shizuku_wizard_not_ready)
-                    )
-                }
-            }
+        shizukuManager.checkStatus()
+        // Если статус AVAILABLE, менеджер закроет wizard, но нам надо открыть options
+        if (shizukuManager.let {
+                // Проверяем текущее состояние менеджера косвенно через стейт VM,
+                // так как checkStatus асинхронен внутри менеджера? Нет, он синхронный.
+                // Но mergeShizukuState вызовется позже.
+                // Поэтому проверяем результат checkStatus напрямую
+                ShizukuExecutor.checkStatus(app) == ShizukuExecutor.Status.AVAILABLE
+            }) {
+            _state.update { it.copy(showOptionsDialog = true) }
         }
     }
 
     fun openShizukuSources() {
-        AppLog.i(TAG, "shizuku dialog: other sources clicked")
-        _state.update { it.copy(showShizukuDialog = false, showShizukuSources = true) }
+        shizukuManager.onOpenSources()
     }
 
     fun closeShizukuSources() {
-        _state.update { it.copy(showShizukuSources = false) }
+        shizukuManager.closeSources()
     }
 
     fun installFromSource(source: String) {
-        AppLog.i(TAG, "sources dialog: chosen=$source")
         pendingSourceSuggestion = true
-        _state.update { it.copy(showShizukuSources = false) }
-        when (source) {
-            "play" -> ShizukuHelper.openPlay(app)
-            "aurora" -> ShizukuHelper.openAurora(app)
-            "getapps" -> ShizukuHelper.openGetApps(app)
-            "github" -> ShizukuHelper.openGithub(app)
-            "apkpure" -> ShizukuHelper.openApkPure(app)
-        }
+        shizukuManager.installFromSource(source)
     }
 
     fun shizukuDialogLater() {
-        AppLog.i(TAG, "shizuku dialog: later — proceeding to options dialog")
-        _state.update {
-            it.copy(showShizukuDialog = false, showOptionsDialog = true)
-        }
+        shizukuManager.onLater()
+        _state.update { it.copy(showOptionsDialog = true) }
     }
+
+    fun closeShizukuWizard() {
+        shizukuManager.closeWizard()
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // OPTIONS & CHAIN (PRO MODE)
+    // ═══════════════════════════════════════════════════════════════
 
     fun optionsDialogConfirmed() {
         AppLog.i(
@@ -895,10 +791,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // DIALOG HANDLERS (DELEGATING TO CONTROLLERS)
+    // ═══════════════════════════════════════════════════════════════
+
     fun dialogAgreed() {
         AppLog.i(TAG, "dialogAgreed, simpleModeActive=$simpleModeActive")
-        val currentState = _state.value
 
+        if (simpleModeActive) {
+            // Делегируем контроллеру, но открытие настроек делаем сами (или через permissionFlow в контроллере)
+            // В новой архитектуре SimpleModeController сам вызывает permissionFlow.openAccessibilityWithHint()
+            // Но нам нужно увеличить счетчик попыток в VM для статистики/редиректов
+            val currentState = _state.value
+            if (currentState.showAccessibilityDialog) {
+                _state.update { it.copy(accessibilityAttempts = it.accessibilityAttempts + 1) }
+            } else if (currentState.showOverlayDialog) {
+                _state.update { it.copy(overlayAttempts = it.overlayAttempts + 1) }
+            }
+            simpleController.onDialogAgreed()
+            return
+        }
+
+        // PRO режим
+        val currentState = _state.value
         if (currentState.showAccessibilityDialog) {
             _state.update {
                 it.copy(
@@ -908,12 +823,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     accessibilityAttempts = it.accessibilityAttempts + 1
                 )
             }
-            if (simpleModeActive) {
-                ChainFlags.waitingAccessibilityReturn = true
-                markAccessibilityOpened()
-                openAccessibilitySettings()
-                return
-            }
+            ChainFlags.waitingAccessibilityReturn = true
+            markAccessibilityOpened()
+            openAccessibilitySettings()
         } else if (currentState.showOverlayDialog) {
             _state.update {
                 it.copy(
@@ -923,10 +835,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     overlayAttempts = it.overlayAttempts + 1
                 )
             }
-            if (simpleModeActive) {
-                openOverlaySettings()
-                return
-            }
+            openOverlaySettings()
         } else {
             _state.update {
                 it.copy(
@@ -936,29 +845,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         }
-
-        if (simpleModeActive) {
-            advanceSimpleMode()
-        }
     }
 
     fun dialogCancelled() {
         AppLog.i(TAG, "dialogCancelled, simpleModeActive=$simpleModeActive")
 
-        // В простом режиме — отменяем весь режим
         if (simpleModeActive) {
             simpleModeActive = false
-            _state.update {
-                it.copy(
-                    showAccessibilityDialog = false,
-                    showOverlayDialog = false,
-                    showRestrictedDialog = false,
-                    accessibilityAttempts = 0,
-                    overlayAttempts = 0,
-                    restrictedSettingsShown = false,
-                    simpleModePhase = SimpleModePhase.INACTIVE
-                )
-            }
+            simpleController.onDialogCancelled()
             return
         }
 
@@ -977,7 +871,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun restrictedDialogAgreed() {
-        AppLog.i(TAG, "restrictedDialogAgreed — opening app info settings")
+        AppLog.i(TAG, "restrictedDialogAgreed")
+
+        if (simpleModeActive) {
+            simpleController.onRestrictedDialogAgreed()
+            return
+        }
+
         _state.update {
             it.copy(
                 showRestrictedDialog = false,
@@ -985,27 +885,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 restrictedSettingsShown = true
             )
         }
-
-        if (simpleModeActive) {
-            markAppInfoOpened()
-            openAppInfoWithHint()
-        }
+        markAppInfoOpened()
+        openAppInfoWithHint()
     }
 
     fun restrictedDialogCancelled() {
-        AppLog.i(TAG, "restrictedDialogCancelled, simpleModeActive=$simpleModeActive")
+        AppLog.i(TAG, "restrictedDialogCancelled")
 
         if (simpleModeActive) {
             simpleModeActive = false
-            _state.update {
-                it.copy(
-                    showRestrictedDialog = false,
-                    showAccessibilityDialog = false,
-                    accessibilityAttempts = 0,
-                    restrictedSettingsShown = false,
-                    simpleModePhase = SimpleModePhase.INACTIVE
-                )
-            }
+            simpleController.onRestrictedDialogCancelled()
             return
         }
 
@@ -1019,6 +908,93 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 restrictedSettingsShown = false
             )
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // REDIRECT TRACKING (PRO MODE)
+    // ═══════════════════════════════════════════════════════════════
+
+    fun markAccessibilityOpened() {
+        lastRedirect = Redirect.ACCESSIBILITY
+        AppLog.i(TAG, "markAccessibilityOpened")
+    }
+
+    fun markAppInfoOpened() {
+        lastRedirect = Redirect.APP_INFO
+        AppLog.i(TAG, "markAppInfoOpened")
+    }
+
+    private fun resetRedirectFlow() {
+        lastRedirect = Redirect.NONE
+        restrictedFlowStarted = false
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // CHAIN EXECUTION & RESTORE
+    // ═══════════════════════════════════════════════════════════════
+
+    private fun startChain() {
+        AppLog.i(
+            TAG,
+            "startChain: setting pending flag, dnsFilter=${_state.value.dnsFilterEnabled}, aggressive=${_state.value.aggressiveMode}"
+        )
+        viewModelScope.launch {
+            prefs.setPendingOptimization(true)
+            prefs.setDnsFilterEnabled(_state.value.dnsFilterEnabled)
+            prefs.setAggressiveMode(_state.value.aggressiveMode)
+            AppLog.i(TAG, "startChain: pending flag set")
+
+            if (_state.value.isAccessibilityEnabled) {
+                AppLog.i(
+                    TAG,
+                    "startChain: accessibility already enabled, starting service directly"
+                )
+                val intent = Intent(app, AdbEnablerService::class.java)
+                intent.action = AdbEnablerService.ACTION_START_CHAIN
+                app.startService(intent)
+            } else {
+                AppLog.i(TAG, "startChain: opening accessibility settings")
+                openAccessibilitySettingsAutomatically()
+            }
+        }
+    }
+
+    private fun openAccessibilitySettingsAutomatically() {
+        AppLog.i(TAG, "openAccessibilitySettingsAutomatically: showing accessibility dialog")
+        setAccessibilityWaitingFlag()
+        _state.update { it.copy(showAccessibilityDialog = true) }
+    }
+
+    private fun setAccessibilityWaitingFlag() {
+        ChainFlags.waitingAccessibilityReturn = true
+    }
+
+    fun restoreOptimization() {
+        if (_state.value.isWorking) return
+        viewModelScope.launch {
+            try {
+                _state.update { it.copy(isWorking = true, progress = 0f) }
+                val deps = XiaoHyperApp.testDeps ?: app.deps
+                val ok = deps.newEngine().restore(callbacks())
+                if (ok) {
+                    prefs.setHiddenSettingsApplied(false)
+                    _state.update { it.copy(isWorking = false, isOptimized = false) }
+                } else {
+                    _state.update { it.copy(isWorking = false, restoreFailed = true) }
+                }
+            } catch (e: Exception) {
+                AppLog.e(TAG, "restore failed: ${e.message}", e)
+                _state.update { it.copy(isWorking = false, restoreFailed = true) }
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // FINAL DIALOGS & REBOOT
+    // ═══════════════════════════════════════════════════════════════
+
+    fun dismissFinalDialog() {
+        _state.update { it.copy(showFinalDialog = false) }
     }
 
     fun devModeDialogOpenAbout() {
@@ -1069,121 +1045,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun startChain() {
-        AppLog.i(
-            TAG,
-            "startChain: setting pending flag, dnsFilter=${_state.value.dnsFilterEnabled}, aggressive=${_state.value.aggressiveMode}"
-        )
-        viewModelScope.launch {
-            prefs.setPendingOptimization(true)
-            prefs.setDnsFilterEnabled(_state.value.dnsFilterEnabled)
-            prefs.setAggressiveMode(_state.value.aggressiveMode)
-            AppLog.i(TAG, "startChain: pending flag set")
-
-            if (_state.value.isAccessibilityEnabled) {
-                AppLog.i(
-                    TAG,
-                    "startChain: accessibility already enabled, starting service directly"
-                )
-                val intent = Intent(app, AdbEnablerService::class.java)
-                intent.action = AdbEnablerService.ACTION_START_CHAIN
-                app.startService(intent)
-            } else {
-                AppLog.i(TAG, "startChain: opening accessibility settings")
-                openAccessibilitySettingsAutomatically()
-            }
-        }
-    }
-
-    fun restoreOptimization() {
-        if (_state.value.isWorking) return
-        viewModelScope.launch {
-            try {
-                _state.update { it.copy(isWorking = true, progress = 0f) }
-                val deps = XiaoHyperApp.testDeps ?: app.deps
-                val ok = deps.newEngine().restore(callbacks())
-                if (ok) {
-                    prefs.setHiddenSettingsApplied(false)
-                    _state.update { it.copy(isWorking = false, isOptimized = false) }
-                } else {
-                    _state.update { it.copy(isWorking = false, restoreFailed = true) }
-                }
-            } catch (e: Exception) {
-                AppLog.e(TAG, "restore failed: ${e.message}", e)
-                _state.update { it.copy(isWorking = false, restoreFailed = true) }
-            }
-        }
-    }
-
-    fun dismissFinalDialog() {
-        _state.update { it.copy(showFinalDialog = false) }
-    }
+    fun getFailedStepIds(): List<String> = failedSimpleStepIds.toList()
 
     private fun callbacks() = OptimizationEngine.Callbacks(
         onProgress = { p -> _state.update { it.copy(progress = p) } }
     )
-
-    private fun buildReportSummary(report: OptimizationReport): String {
-        return OptimizationReportFormatter.summary(report)
-    }
-
-    private fun openAccessibilitySettingsAutomatically() {
-        AppLog.i(TAG, "openAccessibilitySettingsAutomatically: showing accessibility dialog")
-        setAccessibilityWaitingFlag()
-        _state.update { it.copy(showAccessibilityDialog = true) }
-    }
-
-    private fun setAccessibilityWaitingFlag() {
-        ChainFlags.waitingAccessibilityReturn = true
-    }
-
-    private fun openAccessibilitySettings() {
-        AppLog.i(TAG, "openAccessibilitySettings for simple mode")
-        val component = ComponentName(app, AdbEnablerService::class.java).flattenToString()
-        val deep = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-        val args = android.os.Bundle()
-        args.putString("componentName", component)
-        deep.putExtra(
-            ":settings:show_fragment",
-            "com.android.settings.accessibility.ToggleAccessibilityServicePreferenceFragment"
-        )
-        deep.putExtra(":settings:show_fragment_args", args)
-        try {
-            deep.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            app.startActivity(deep)
-            showHint(app.getString(R.string.hint_accessibility))
-        } catch (e: Exception) {
-            try {
-                app.startActivity(
-                    Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                )
-                showHint(app.getString(R.string.hint_accessibility))
-            } catch (e2: Exception) {
-                AppLog.w(TAG, "openAccessibilitySettings failed: ${e2.message}")
-            }
-        }
-    }
-
-    private fun openOverlaySettings() {
-        AppLog.i(TAG, "openOverlaySettings for simple mode")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            try {
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:${app.packageName}")
-                ).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                app.startActivity(intent)
-                showHint(app.getString(R.string.hint_overlay))
-            } catch (e: Exception) {
-                AppLog.w(TAG, "openOverlaySettings failed: ${e.message}")
-            }
-        }
-    }
-
-    fun getFailedStepIds(): List<String> = failedSimpleStepIds.toList()
 
     companion object {
         private const val TAG = "MainVM"

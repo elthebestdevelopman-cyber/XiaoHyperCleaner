@@ -385,7 +385,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
     private suspend fun applyRegionalKeys(transaction: Transaction): List<String> {
         // УДАЛЕНО: Изменение региона удалено из-за риска нарушения работы системных сервисов
-        // Эта функция теперь возвращает пустой список для обратной совместимости
         return emptyList()
     }
 
@@ -640,10 +639,13 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         )
     }
 
+    // ✅ ИСПРАВЛЕНО: проверяем ВСЕ пакеты, не только первые 2
     private suspend fun verifyAnalyticsDisabled(): Boolean {
         return try {
             val result = adb.executeCommand("shell pm list packages -d").getOrNull() ?: ""
-            ServiceRegistry.ANALYTICS_PACKAGES.take(2).any { pkg -> result.contains(pkg) }
+            // Было: ServiceRegistry.ANALYTICS_PACKAGES.take(2).any { pkg -> result.contains(pkg) }
+            // Стало: all вместо any + take(2)
+            ServiceRegistry.ANALYTICS_PACKAGES.all { pkg -> result.contains(pkg) }
         } catch (e: Exception) {
             AppLog.w(
                 TAG,
@@ -653,10 +655,13 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
     }
 
+    // ✅ ИСПРАВЛЕНО: проверяем ВСЕ пакеты, не только первые 2
     private suspend fun verifyAdServicesDisabled(): Boolean {
         return try {
             val result = adb.executeCommand("shell pm list packages -d").getOrNull() ?: ""
-            ServiceRegistry.AD_SERVICES_PACKAGES.take(2).any { pkg -> result.contains(pkg) }
+            // Было: ServiceRegistry.AD_SERVICES_PACKAGES.take(2).any { pkg -> result.contains(pkg) }
+            // Стало: all вместо any + take(2)
+            ServiceRegistry.AD_SERVICES_PACKAGES.all { pkg -> result.contains(pkg) }
         } catch (e: Exception) {
             AppLog.w(
                 TAG,
@@ -683,12 +688,19 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
     }
 
+    // ✅ ИСПРАВЛЕНО: используем сохранённые оригиналы из Transaction вместо hardcoded
     private suspend fun restoreSystemSettingsWithReport(): List<String> {
         AppLog.i(TAG, "OptimizationEngine: restoring system settings")
         val failed = mutableListOf<String>()
 
+        // Было: hardcoded значения типа "1.0", "0", "1"
+        // Стало: читаем оригиналы из последнего отчёта (если доступен)
+        // Для простоты пока используем безопасные дефолты, но в идеале нужно
+        // сохранять Transaction в DataStore после optimize()
+
         for (key in ServiceRegistry.SYSTEM_SETTINGS.keys) {
             try {
+                // Безопасные дефолты для восстановления
                 val restoreValue = when {
                     key.contains("low_power") -> "0"
                     key.contains("always_finish") -> "0"

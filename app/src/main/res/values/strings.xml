@@ -2,34 +2,39 @@
 <resources>
     <!-- ========== ОБЩИЕ ========== -->
     <string name="app_name">XiaoHyperCleaner</string>
-    <string name="app_description_short">Отключаем рекламу, телеметрию и спам на Xiaomi / MIUI / HyperOS. Работает через ADB и Accessibility, без root.</string>
+    <string name="app_description_short">Настраивает параметры приватности и снижает фоновую нагрузку на Xiaomi / MIUI / HyperOS. Работает через стандартные настройки Android, без root.</string>
     <string name="cancel">Отмена</string>
     <string name="allow">Разрешить</string>
     <string name="agree_and_open">Согласиться и открыть</string>
 
     <!-- ========== ГЛАВНЫЙ ЭКРАН ========== -->
     <string name="features_title">Что делает приложение</string>
-    <string name="feature_processes">Отключение рекламных и системных сервисов</string>
+    <string name="feature_processes">Настройка системных параметров для улучшения приватности</string>
     <string name="feature_speed">Ускорение интерфейса и оптимизация анимаций</string>
-    <string name="feature_battery">Улучшение автономности за счёт отключения сборщиков данных</string>
+    <string name="feature_battery">Снижение фоновой активности для экономии батареи</string>
 
     <string name="btn_optimize">Оптимизировать</string>
     <string name="btn_restore">Откатить изменения</string>
     <string name="status_working">Выполняется оптимизация…</string>
     <string name="status_done">Оптимизация завершена</string>
-    <string name="status_done_description">Реклама отключена, телеметрия остановлена, система работает быстрее.</string>
+    <string name="status_done_description">Настройки приватности применены. Все изменения можно откатить.</string>
     <string name="reboot_now">Перезагрузить сейчас</string>
 
     <!-- ========== ВЫБОР УРОВНЯ ========== -->
     <string name="level_dialog_title">Выберите уровень оптимизации</string>
+    <string name="level_dialog_subtitle">Можно изменить позже в настройках</string>
     <string name="level_dialog_text">Простой режим подойдёт всем — приложение само выполнит настройки. Продвинутый требует Shizuku/ADB, но даёт больше контроля.</string>
     <string name="level_simple_title">🟢 Простая</string>
     <string name="level_simple_desc">Для всех пользователей. Приложение само настроит систему — просто выдайте разрешения и подождите.</string>
+    <string name="level_pro_title">🔵 Продвинутая</string>
+    <string name="level_pro_desc">Для опытных. Глубокая настройка через Shizuku или Wireless ADB. Надёжнее, но требует подготовки.</string>
     <string name="level_advanced_title">🔵 Продвинутая</string>
     <string name="level_advanced_desc">Для опытных. Глубокая настройка через Shizuku или Wireless ADB. Надёжнее, но требует подготовки.</string>
+    <string name="level_dialog_continue">Продолжить</string>
+    <string name="robocat_caption">Робокот помогает настраивать систему</string>
 
     <string name="level_confirm_simple_title">Запустить простую оптимизацию?</string>
-    <string name="level_confirm_simple_text">Приложение откроет настройки и автоматически отключит рекламу, телеметрию и спам. Это займёт 2–3 минуты.</string>
+    <string name="level_confirm_simple_text">Приложение откроет настройки и применит параметры приватности. Это займёт 2–3 минуты.</string>
     <string name="level_confirm_advanced_title">Запустить продвинутую оптимизацию?</string>
     <string name="level_confirm_advanced_text">Потребуется настроить Shizuku или Wireless ADB. Процесс глубже и надёжнее, но занимает больше времени.</string>
     <string name="level_confirm_start">Начать</string>
@@ -48,13 +53,13 @@
 
     <!-- ========== ПРОСТОЙ РЕЖИМ: ФИНАЛ ========== -->
     <string name="simple_done_title">Всё готово!</string>
-    <string name="simple_done_text">Реклама, телеметрия и спам отключены. Перезагрузка не требуется.</string>
+    <string name="simple_done_text">Настройки приватности применены. Перезагрузка не требуется.</string>
     <string name="simple_done_steps_done">Выполнено %1$d из %2$d шагов</string>
     <string name="simple_done_benefits">Что изменилось:</string>
-    <string name="simple_done_benefit_ads">✅ Меньше рекламы в системе</string>
-    <string name="simple_done_benefit_telemetry">✅ Отключена телеметрия</string>
-    <string name="simple_done_benefit_spam">✅ Спам от системных приложений остановлен</string>
-    <string name="simple_done_benefit_stable">✅ Система должна работать стабильнее</string>
+    <string name="simple_done_benefit_ads">✅ Применены настройки приватности для сервисов сбора статистики</string>
+    <string name="simple_done_benefit_telemetry">✅ Снижен объём передаваемой статистики</string>
+    <string name="simple_done_benefit_spam">✅ Уменьшены уведомления от системных приложений</string>
+    <string name="simple_done_benefit_stable">✅ Снижена фоновая нагрузка на систему</string>
     <string name="simple_done_rate">Оценить приложение</string>
     <string name="simple_done_donate">Поддержать автора</string>
     <string name="simple_done_close">Закрыть</string>
@@ -77,14 +82,14 @@
     <string name="options_dialog_title">Параметры оптимизации</string>
     <string name="options_dialog_text">Выберите дополнительные опции. Их можно изменить позже.</string>
     <string name="dns_option_title">DNS-фильтр</string>
-    <string name="dns_option_description">Блокировка рекламы и трекеров на сетевом уровне через AdGuard DNS.</string>
+    <string name="dns_option_description">Блокировка сетевых запросов к нежелательным доменам через AdGuard DNS.</string>
     <string name="aggressive_option_title">Расширенная оптимизация</string>
-    <string name="aggressive_option_description">⚠ Дополнительные настройки системных сервисов. Может повлиять на работу некоторых функций Xiaomi.</string>
+    <string name="aggressive_option_description">Дополнительные настройки для опытных пользователей. Некоторые функции Xiaomi могут работать иначе.</string>
     <string name="options_dialog_start">Начать оптимизацию</string>
 
     <!-- ========== DNS ПРЕДУПРЕЖДЕНИЕ ========== -->
     <string name="dns_warning_title">Внимание: DNS-фильтр</string>
-    <string name="dns_warning_text">Будет установлен приватный DNS AdGuard. Это отключит рекламу в браузере и приложениях, но может заблокировать некоторые сайты. Отключить можно в любой момент в настройках Android.</string>
+    <string name="dns_warning_text">Будет установлен приватный DNS AdGuard. Это снизит количество сетевых запросов к нежелательным доменам, но может заблокировать некоторые сайты. Отключить можно в любой момент в настройках Android.</string>
     <string name="dns_warning_accept">Понятно, продолжить</string>
 
     <!-- ========== DEV MODE ========== -->
@@ -95,7 +100,7 @@
 
     <!-- ========== ACCESSIBILITY ========== -->
     <string name="accessibility_explanation_title">Нужны специальные возможности</string>
-    <string name="accessibility_explanation_text">Приложению нужен доступ к специальным возможностям для помощи пользователям с ограниченными возможностями автоматически нажимать кнопки в настройках. Доступ используется только для оптимизации и не передаётся наружу.</string>
+    <string name="accessibility_explanation_text">Приложению нужен доступ к службе специальных возможностей, чтобы автоматически нажимать кнопки в настройках. Доступ используется только для навигации по системным экранам и не передаётся наружу. Данные не собираются и не отправляются на серверы.</string>
     <string name="hint_title">Подсказка</string>
     <string name="hint_accessibility">Включите «XiaoHyperCleaner» в списке служб</string>
     <string name="hint_restricted">Нажмите 3 точки сверху → «Разрешить ограниченные настройки»</string>
@@ -116,48 +121,53 @@
 
     <!-- ========== ВОССТАНОВЛЕНИЕ / ПЕРЕЗАГРУЗКА ========== -->
     <string name="restore_dialog_title">Откатить изменения?</string>
-    <string name="restore_dialog_text">Все настройки вернутся в исходное состояние, отключённые приложения будут включены.</string>
+    <string name="restore_dialog_text">Все настройки вернутся в исходное состояние. Изменения полностью обратимы.</string>
     <string name="restore_confirm">Откатить</string>
     <string name="restore_failed_text">Не удалось полностью откатить изменения. Часть настроек осталась изменённой.</string>
 
     <string name="reboot_dialog_title">Перезагрузка</string>
-    <string name="reboot_dialog_text">Перезагрузите устройство, чтобы все оптимизации вступили в силу.</string>
+    <string name="reboot_dialog_text">Перезагрузите устройство, чтобы все настройки вступили в силу.</string>
     <string name="reboot_confirm">Перезагрузить</string>
     <string name="reboot_failed_text">Не удалось отправить команду перезагрузки. Перезагрузите устройство вручную.</string>
 
     <!-- ========== ФИНАЛЬНЫЙ ДИАЛОГ (продвинутый режим) ========== -->
     <string name="final_dialog_title">Результат оптимизации</string>
-    <string name="final_dialog_success_text">Оптимизация успешно завершена. Все рекламные и телеметрические сервисы отключены.</string>
+    <string name="final_dialog_success_text">Оптимизация успешно завершена. Настройки приватности применены.</string>
     <string name="final_dialog_failed_text">Оптимизация завершилась с ошибками. Пожалуйста, отправьте лог разработчику.</string>
     <string name="final_dialog_rate">Оценить приложение</string>
     <string name="final_dialog_send_log">Отправить лог</string>
 
     <!-- ========== ONBOARDING ========== -->
     <string name="onboarding_page1_title">Добро пожаловать</string>
-    <string name="onboarding_page1_text">XiaoHyperCleaner поможет отключить рекламу, телеметрию и спам на вашем Xiaomi устройстве.</string>
+    <string name="onboarding_page1_text">XiaoHyperCleaner поможет настроить приватность и снизить фоновую нагрузку на вашем Xiaomi устройстве.</string>
     <string name="onboarding_page2_title">Безопасно и просто</string>
-    <string name="onboarding_page2_text">Приложение автоматически выполнит все настройки. Вы можете пропустить любой шаг.</string>
-    <string name="onboarding_page3_title">Честный результат</string>
-    <string name="onboarding_page3_text">Никаких ложных обещаний. Только реальная оптимизация системы.</string>
+    <string name="onboarding_page2_text">Приложение с вашего разрешения выполнит настройки системы. Вы можете пропустить любой шаг.</string>
+    <string name="onboarding_page3_title">Прозрачный процесс</string>
+    <string name="onboarding_page3_text">Вы видите каждый шаг. Все изменения можно откатить в любой момент.</string>
     <string name="onboarding_skip">Пропустить</string>
     <string name="onboarding_next">Далее</string>
     <string name="onboarding_start">Начать</string>
+    <string name="onboarding_privacy_prefix">Я принимаю </string>
+    <string name="onboarding_privacy_link">политику приватности</string>
+    <string name="onboarding_privacy_text">Я принимаю политику приватности</string>
 
     <!-- ========== SPLASH ========== -->
-    <string name="splash_tagline">Очистка системы без лишних слов</string>
+    <string name="splash_tagline">Настройка приватности без лишних слов</string>
 
     <!-- ========== MENU DIALOG ========== -->
     <string name="menu_about">О приложении</string>
     <string name="menu_dark_theme">Тёмная тема</string>
+    <string name="menu_privacy_policy">Политика приватности</string>
     <string name="rate_app">Оценить приложение</string>
     <string name="support_yoomoney">Поддержать (ЮMoney)</string>
     <string name="support_cloudtips">Поддержать (CloudTips)</string>
     <string name="log_share">Поделиться логом</string>
     <string name="about_title">О приложении</string>
     <string name="about_author">Автор</string>
-    <string name="about_text">XiaoHyperCleaner — инструмент для безопасной оптимизации MIUI/HyperOS.</string>
+    <string name="about_text">XiaoHyperCleaner — инструмент для безопасной настройки приватности на MIUI/HyperOS. Работает только локально на вашем устройстве.</string>
     <string name="shizuku_attribution">Shizuku используется с благодарностью к разработчикам.</string>
     <string name="close">Закрыть</string>
+    <string name="privacy_policy_url" translatable="false">https://elthebestdevelopman-cyber.github.io/privacy-policy/index.html</string>
 
     <!-- ========== SHIZUKU WIZARD ========== -->
     <string name="shizuku_wizard_title">Настройка Shizuku</string>
@@ -190,7 +200,4 @@
     <string name="shizuku_sources_getapps">GetApps</string>
     <string name="shizuku_sources_github">GitHub</string>
     <string name="shizuku_sources_apkpure">APKPure</string>
-    <string name="menu_privacy_policy">Политика приватности</string>
-    <string name="privacy_policy_url" translatable="false">https://elthebestdevelopman-cyber.github.io/privacy-policy/index.html</string>
-    <string name="onboarding_privacy_text">Я принимаю политику приватности</string>
 </resources>

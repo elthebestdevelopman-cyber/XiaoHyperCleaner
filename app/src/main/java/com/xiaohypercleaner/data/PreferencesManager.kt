@@ -5,18 +5,20 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.xiaohypercleaner.AppConstants
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-private val Context.dataStore by preferencesDataStore(name = "xhc_settings")
+// ✅ ИСПРАВЛЕНО: имя берётся из AppConstants (было захардкожено "xhc_settings")
+private val Context.dataStore by preferencesDataStore(name = AppConstants.DATASTORE_NAME)
 
 sealed interface PreferenceKey {
+    val name: String
+
     data object HasCompletedOnboarding : PreferenceKey {
         override val name = "has_completed_onboarding"
     }
-
-    val name: String
 
     data object DarkTheme : PreferenceKey {
         override val name = "dark_theme"
@@ -52,6 +54,10 @@ sealed interface PreferenceKey {
 
     data object LastReportJson : PreferenceKey {
         override val name = "last_report_json"
+    }
+
+    data object OptimizationModeKey : PreferenceKey {
+        override val name = "optimization_mode"
     }
 }
 
@@ -112,25 +118,24 @@ class PreferencesManager(private val context: Context) {
     suspend fun getDnsFilterEnabled(): Boolean =
         dnsFilterEnabled.first()
 
+    // ✅ ИСПРАВЛЕНО: используем PreferenceKey вместо захардкоженной строки
     suspend fun setLastReportJson(json: String) {
         context.dataStore.edit { prefs ->
-            prefs[androidx.datastore.preferences.core.stringPreferencesKey("last_report_json")] =
-                json
+            prefs[stringPreferencesKey(PreferenceKey.LastReportJson.name)] = json
         }
     }
 
     val lastReportJson: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[stringPreferencesKey("last_report_json")] ?: ""
+        prefs[stringPreferencesKey(PreferenceKey.LastReportJson.name)] ?: ""
     }
 
-    // Сохранение выбранного режима оптимизации
     val optimizationMode: Flow<OptimizationMode> = context.dataStore.data.map { prefs ->
-        OptimizationMode.fromString(prefs[stringPreferencesKey("optimization_mode")])
+        OptimizationMode.fromString(prefs[stringPreferencesKey(PreferenceKey.OptimizationModeKey.name)])
     }
 
     suspend fun setOptimizationMode(mode: OptimizationMode) {
         context.dataStore.edit { prefs ->
-            prefs[stringPreferencesKey("optimization_mode")] = mode.name
+            prefs[stringPreferencesKey(PreferenceKey.OptimizationModeKey.name)] = mode.name
         }
     }
 

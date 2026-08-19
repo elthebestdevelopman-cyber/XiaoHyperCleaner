@@ -1,19 +1,46 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
--->
+<?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <!-- Исключаем настройки приватности из облачного бэкапа -->
+        <exclude
+            domain="sharedpref"
+            path="." />
+        <exclude
+            domain="file"
+            path="xhc_settings" />
+        <exclude
+            domain="file"
+            path="xhc_prefs" />
+        <exclude
+            domain="file"
+            path="xhc.log" />
+        <exclude
+            domain="file"
+            path="xhc.log.1" />
+        <exclude
+            domain="file"
+            path="xhc.log.2" />
     </cloud-backup>
-    <!--
+
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <!-- Исключаем настройки приватности при переносе данных между устройствами -->
+        <exclude
+            domain="sharedpref"
+            path="." />
+        <exclude
+            domain="file"
+            path="xhc_settings" />
+        <exclude
+            domain="file"
+            path="xhc_prefs" />
+        <exclude
+            domain="file"
+            path="xhc.log" />
+        <exclude
+            domain="file"
+            path="xhc.log.1" />
+        <exclude
+            domain="file"
+            path="xhc.log.2" />
     </device-transfer>
-    -->
 </data-extraction-rules>

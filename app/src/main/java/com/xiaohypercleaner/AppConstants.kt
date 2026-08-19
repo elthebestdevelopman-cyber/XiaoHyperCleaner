@@ -4,7 +4,7 @@ object AppConstants {
     // ADB хост и порты
     const val ADB_HOST = "127.0.0.1"
     const val ADB_DEFAULT_PORT = 5555
-    const val ADB_PORT_FALLBACK = 5555
+    // ✅ УДАЛЕНО: ADB_PORT_FALLBACK (был дубликатом ADB_DEFAULT_PORT)
 
     // Таймауты
     // ADB_TIMEOUT_MS — Int, потому что Socket.connect() и soTimeout принимают Int
@@ -25,7 +25,7 @@ object AppConstants {
     const val RETRY_DELAY_MS = 1500L
     const val AUTO_ADVANCE_DELAY_MS = 700L
     const val MAX_STEP_ATTEMPTS = 3
-    const val MAX_ATTEMPTS = 3
+    // ✅ УДАЛЕНО: MAX_ATTEMPTS (был дубликатом MAX_STEP_ATTEMPTS)
 
     // Попытки подключения
     const val ADB_CONNECT_ATTEMPTS = 1
@@ -47,6 +47,6 @@ object AppConstants {
     const val PROGRESS_DONE = 100f
     const val PROGRESS_FAIL = -1f
 
-    // Ключ хранилища
-    const val DATASTORE_NAME = "xhc_prefs"
+    // ✅ ИСПРАВЛЕНО: имя совпадает с PreferencesManager (было "xhc_prefs")
+    const val DATASTORE_NAME = "xhc_settings"
 }

@@ -1,6 +1,5 @@
 package com.xiaohypercleaner.ui
 
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -81,7 +80,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.ShizukuExecutor
-import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.data.OptimizationMode
 import com.xiaohypercleaner.ui.components.InfoDialog
@@ -234,29 +232,6 @@ private fun MainContent(
 
     AppLog.i("MainUI", "MainContent composed: state=$state")
 
-    // ===== ПРОСТОЙ/ПРОДВИНУТЫЙ РЕЖИМ: выбор уровня =====
-    if (state.showLevelDialog) {
-        OptimizationLevelDialog(
-            onModeSelected = { mode -> vm.onLevelChosen(mode) },
-            onDismiss = { /* закрываем диалог без отмены — просто скрываем */ }
-        )
-    }
-
-    // Диалог подтверждения выбора режима
-    if (state.showLevelConfirm) {
-        val modeName = when (state.selectedLevel) {
-            com.xiaohypercleaner.data.OptimizationMode.SIMPLE -> "Простой"
-            com.xiaohypercleaner.data.OptimizationMode.PRO -> "Продвинутый"
-            null -> "Простой"
-        }
-        InfoDialog(
-            title = "Подтверждение режима",
-            text = "Вы выбрали $modeName режим оптимизации. Продолжить?",
-            confirmText = "Да",
-            onConfirm = { vm.confirmLevelStart() },
-            onDismiss = { vm.cancelLevelConfirm() }
-        )
-    }
     // ===== ВЫБОР УРОВНЯ: диалог выбора =====
     if (state.showLevelDialog) {
         OptimizationLevelDialog(
@@ -315,8 +290,7 @@ private fun MainContent(
         SimpleDoneDialog(
             completedCount = state.simpleDone.first,
             totalCount = state.simpleDone.second,
-            // ✅ ИСПРАВЛЕНО: передаём реальные failedSteps из ViewModel
-            // вместо emptyList() — чтобы экран показывал реальную пользу
+            // Передаём реальные failedSteps из ViewModel
             failedSteps = vm.getFailedStepIds(),
             onRate = { openRateApp(context) },
             onDonate = { openWebView(context, "https://yoomoney.ru/to/410011379195150", "ЮMoney") },
@@ -360,7 +334,6 @@ private fun MainContent(
     // ===== ПРОДВИНУТЫЙ РЕЖИМ: разрешения =====
     if (state.showRestrictedDialog) {
         val isAndroid14Plus = Build.VERSION.SDK_INT >= 34
-        val hintRestricted = stringResource(R.string.hint_restricted)
         InfoDialog(
             title = if (isAndroid14Plus) stringResource(R.string.forbidden_dialog_title)
             else stringResource(R.string.restricted_dialog_title),
@@ -371,9 +344,6 @@ private fun MainContent(
             onConfirm = {
                 AppLog.i("MainUI", "restricted dialog: open settings clicked")
                 vm.restrictedDialogAgreed()
-                vm.markAppInfoOpened()
-                openAppInfoSettings(context)
-                showHintOverlay(context, hintRestricted)
             },
             onDismiss = {
                 AppLog.i("MainUI", "restricted dialog: cancelled")
@@ -383,7 +353,6 @@ private fun MainContent(
     }
 
     if (state.showAccessibilityDialog) {
-        val hintAccessibility = stringResource(R.string.hint_accessibility)
         InfoDialog(
             title = stringResource(R.string.accessibility_explanation_title),
             text = stringResource(R.string.accessibility_explanation_text),
@@ -391,10 +360,6 @@ private fun MainContent(
             onConfirm = {
                 AppLog.i("MainUI", "accessibility dialog: agreed")
                 vm.dialogAgreed()
-                com.xiaohypercleaner.service.ChainFlags.waitingAccessibilityReturn = true
-                vm.markAccessibilityOpened()
-                openAccessibilitySettings(context)
-                showHintOverlay(context, hintAccessibility)
             },
             onDismiss = {
                 AppLog.i("MainUI", "accessibility dialog: cancelled")
@@ -404,7 +369,6 @@ private fun MainContent(
     }
 
     if (state.showOverlayDialog) {
-        val hintOverlay = stringResource(R.string.hint_overlay)
         InfoDialog(
             title = stringResource(R.string.overlay_permission_title),
             text = stringResource(R.string.overlay_permission_text),
@@ -412,8 +376,6 @@ private fun MainContent(
             onConfirm = {
                 AppLog.i("MainUI", "overlay dialog: agreed")
                 vm.dialogAgreed()
-                openOverlaySettings(context)
-                showHintOverlay(context, hintOverlay)
             },
             onDismiss = {
                 AppLog.i("MainUI", "overlay dialog: cancelled")
@@ -548,7 +510,7 @@ private fun MainContent(
     }
 
     if (menuOpen) {
-        // ✅ ПОЛУЧАЕМ URL В COMPOSABLE-КОНТЕКСТЕ (до передачи в лямбду)
+        // Получаем URL в Composable-контексте (до передачи в лямбду)
         val privacyUrl = stringResource(R.string.privacy_policy_url)
 
         MenuDialog(
@@ -576,7 +538,7 @@ private fun MainContent(
             },
             onPrivacyPolicyClick = {
                 AppLog.i("MainUI", "menu: privacy policy clicked")
-                openUrl(context, privacyUrl)  // ✅ используем уже полученную строку
+                openUrl(context, privacyUrl)
             }
         )
     }
@@ -1118,17 +1080,6 @@ private fun DoneView(onRestore: () -> Unit, onReboot: () -> Unit) {
     ) { Text(stringResource(R.string.reboot_now)) }
 }
 
-private fun showHintOverlay(context: Context, text: String) {
-    AppLog.i("Overlay", "showing hint overlay")
-    try {
-        val intent = Intent(context, OverlayService::class.java)
-        intent.putExtra("hint", text)
-        context.startService(intent)
-    } catch (e: Exception) {
-        AppLog.w("Overlay", "failed to show hint: ${e.message}")
-    }
-}
-
 private fun openUrl(context: Context, url: String) {
     AppLog.i("OpenUrl", "opening url: $url")
     try {
@@ -1193,37 +1144,6 @@ private fun shareLog(context: Context) {
     }
 }
 
-private fun openAppInfoSettings(context: Context) {
-    AppLog.i("OpenSettings", "opening app info settings for restricted/forbidden settings")
-    try {
-        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-            data = Uri.parse("package:${context.packageName}")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        }
-        context.startActivity(intent)
-        AppLog.i("OpenSettings", "app info settings opened successfully")
-    } catch (e: Exception) {
-        AppLog.w("OpenSettings", "app info failed, trying alternative: ${e.message}")
-        try {
-            val intent = Intent("android.settings.APPLICATION_DETAILS_SETTINGS").apply {
-                data = Uri.parse("package:${context.packageName}")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-            AppLog.i("OpenSettings", "alternative app info opened")
-        } catch (e2: Exception) {
-            AppLog.w("OpenSettings", "alternative also failed, fallback: ${e2.message}")
-            try {
-                context.startActivity(Intent(Settings.ACTION_SETTINGS).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                })
-            } catch (_: Exception) {
-            }
-        }
-    }
-}
-
 private fun openDeviceInfoSettings(context: Context) {
     AppLog.i("OpenSettings", "opening device info settings (to enable developer mode)")
     try {
@@ -1264,50 +1184,6 @@ private fun openDevOptionsSettings(context: Context) {
             )
         } catch (_: Exception) {
         }
-    }
-}
-
-private fun openOverlaySettings(context: Context) {
-    AppLog.i("OpenSettings", "opening overlay settings")
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        try {
-            val intent = Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:${context.packageName}")
-            )
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            AppLog.w("OpenSettings", "overlay settings failed: ${e.message}")
-        }
-    }
-}
-
-private fun openAccessibilitySettings(context: Context) {
-    AppLog.i("OpenSettings", "opening accessibility settings")
-    val component = ComponentName(context, AdbEnablerService::class.java)
-    val flattened = component.flattenToString()
-    AppLog.i("OpenSettings", "component flattened: $flattened")
-
-    val deep = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-    val args = Bundle()
-    args.putString("componentName", flattened)
-    deep.putExtra(
-        ":settings:show_fragment",
-        "com.android.settings.accessibility.ToggleAccessibilityServicePreferenceFragment"
-    )
-    deep.putExtra(":settings:show_fragment_args", args)
-    try {
-        context.startActivity(deep)
-        AppLog.i("OpenSettings", "deep link to accessibility opened")
-        return
-    } catch (e: Exception) {
-        AppLog.w("OpenSettings", "deep link failed: ${e.message}")
-    }
-    try {
-        context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-        AppLog.i("OpenSettings", "fallback to general accessibility settings")
-    } catch (e: Exception) {
-        AppLog.e("OpenSettings", "all accessibility open attempts failed", e)
     }
 }
 

@@ -1,31 +1,25 @@
 package com.xiaohypercleaner.data
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings
+import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.ChainFlags
 import com.xiaohypercleaner.ui.SimpleModePhase
-import com.xiaohypercleaner.data.SimpleStepState
 import com.xiaohypercleaner.util.AppLog
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
-/**
- * Контроллер простого режима оптимизации (пошаговый мастер).
- * Вынесен из MainViewModel для уменьшения размера god-object.
- *
- * Отвечает за:
- * - Проверку разрешений (restricted, accessibility, overlay)
- * - Управление шагами (переходы, завершение, пропуск)
- * - Открытие соответствующих системных настроек
- *
- * @param context Контекст приложения
- * @param permissionFlow Менеджер потока разрешений
- * @param onStateChanged Колбэк для обновления UI-состояния
- */
 class SimpleModeController(
-    private val context: android.content.Context,
+    private val context: Context,
     private val permissionFlow: PermissionFlowManager,
     private val onStateChanged: (SimpleModeState) -> Unit
 ) {
@@ -35,8 +29,7 @@ class SimpleModeController(
 
     data class SimpleModeState(
         val active: Boolean = false,
-        val         phase: SimpleModePhase =
-            SimpleModePhase.INACTIVE,
+        val phase: SimpleModePhase = SimpleModePhase.INACTIVE,
         val currentStepIndex: Int = 0,
         val completedCount: Int = 0,
         val step: SimpleStepState? = null,
@@ -44,23 +37,31 @@ class SimpleModeController(
         val showAccessibilityDialog: Boolean = false,
         val showOverlayDialog: Boolean = false,
         val showRestrictedDialog: Boolean = false,
-        val restrictedSettingsShown: Boolean = false
+        val restrictedSettingsShown: Boolean = false,
+        val failedStepIds: List<String> = emptyList()
     )
+
+    val isActive: Boolean get() = state.active
+    val failedStepIds: List<String> get() = state.failedStepIds
 
     private var state = SimpleModeState()
     private var isAccessibilityEnabled = false
     private var isOverlayGranted = false
-    private var lastRedirect = Redirect.NONE
-    private var restrictedFlowStarted = false
-
-    private enum class Redirect { NONE, ACCESSIBILITY, APP_INFO }
+    private var stepAttempt = 1
+    private var autoFlowJob: Job? = null
+    private val failedIds = mutableListOf<String>()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     fun setState(update: SimpleModeState.() -> SimpleModeState) {
         state = state.update()
         onStateChanged(state)
     }
 
-    /** Обновить статусы разрешений (вызывается из ViewModel при onResume) */
+    fun destroy() {
+        autoFlowJob?.cancel()
+        scope.cancel()
+    }
+
     fun updatePermissionStatuses(accEnabled: Boolean, overlayGranted: Boolean) {
         val accJustEnabled = !isAccessibilityEnabled && accEnabled
         val overlayJustEnabled = !isOverlayGranted && overlayGranted
@@ -70,7 +71,6 @@ class SimpleModeController(
 
         if (!state.active) return
 
-        // Простой режим — продвигаемся по шагам
         if (accJustEnabled || overlayJustEnabled) {
             AppLog.i(
                 TAG,
@@ -80,47 +80,57 @@ class SimpleModeController(
         }
     }
 
-    /** Запустить простой режим */
+    fun refresh() {
+        if (state.active) {
+            AppLog.d(TAG, "refresh() called while active — attempting advance")
+            advance()
+        }
+    }
+
     fun start() {
         AppLog.i(TAG, "Starting simple mode")
-        state = SimpleModeState(
-            active = true,
-            phase = SimpleModePhase.PERMISSIONS
-        )
+        failedIds.clear()
+        stepAttempt = 1
+        state = SimpleModeState(active = true, phase = SimpleModePhase.PERMISSIONS)
         onStateChanged(state)
         advance()
     }
 
-    /** Пользователь согласился с диалогом */
     fun onDialogAgreed() {
         AppLog.i(TAG, "Dialog agreed")
 
         if (state.showAccessibilityDialog) {
             setState {
-                copy(showAccessibilityDialog = false, showOverlayDialog = false, showRestrictedDialog = false)
+                copy(
+                    showAccessibilityDialog = false,
+                    showOverlayDialog = false,
+                    showRestrictedDialog = false
+                )
             }
             ChainFlags.waitingAccessibilityReturn = true
-            lastRedirect = Redirect.ACCESSIBILITY
-            permissionFlow.openAccessibilitySettings()
+            permissionFlow.openAccessibilityWithHint()
             return
         }
 
         if (state.showOverlayDialog) {
             setState {
-                copy(showAccessibilityDialog = false, showOverlayDialog = false, showRestrictedDialog = false)
+                copy(
+                    showAccessibilityDialog = false,
+                    showOverlayDialog = false,
+                    showRestrictedDialog = false
+                )
             }
             permissionFlow.openOverlaySettings()
+            showHint(context.getString(R.string.hint_overlay))
             return
         }
     }
 
-    /** Пользователь отменил диалог */
     fun onDialogCancelled() {
         AppLog.i(TAG, "Dialog cancelled — resetting simple mode")
         reset()
     }
 
-    /** Пользователь согласился с предупреждением о restricted settings */
     fun onRestrictedDialogAgreed() {
         AppLog.i(TAG, "Restricted dialog agreed — opening app info")
         setState {
@@ -130,175 +140,180 @@ class SimpleModeController(
                 restrictedSettingsShown = true
             )
         }
-        lastRedirect = Redirect.APP_INFO
         openAppInfoWithHint()
     }
 
-    /** Пользователь отменил предупреждение о restricted settings */
     fun onRestrictedDialogCancelled() {
         AppLog.i(TAG, "Restricted dialog cancelled — resetting simple mode")
         reset()
     }
 
-    /** Начать текущий шаг (запускает AdbEnablerService) */
     fun startCurrentStep() {
-        val stepIndex = state.currentStepIndex
-        AppLog.i(TAG, "Starting simple step: $stepIndex")
-
-        setState {
-            copy(step = step?.copy(status = SimpleStepState.Status.WORKING))
+        val current = state.step ?: return
+        if (current.status == SimpleStepState.Status.WORKING) {
+            AppLog.w(TAG, "startCurrentStep: already WORKING, ignoring double-tap")
+            return
         }
+        stepAttempt = 1
+        launchStep()
+    }
 
+    fun retryStep() {
+        AppLog.i(TAG, "retryStep: manual retry by user")
+        stepAttempt = 1
+        launchStep()
+    }
+
+    private fun launchStep() {
+        autoFlowJob?.cancel()
+        setState {
+            copy(step = step?.copy(status = SimpleStepState.Status.WORKING, attempt = stepAttempt))
+        }
         val intent = Intent(context, AdbEnablerService::class.java).apply {
             action = AdbEnablerService.ACTION_SIMPLE_STEP
-            putExtra("step_index", stepIndex)
+            putExtra("step_index", state.currentStepIndex)
         }
         context.startService(intent)
     }
 
-    /** Обработать результат текущего шага */
     fun onStepResult(success: Boolean) {
-        AppLog.i(TAG, "Step result: $success")
-
-        if (success) {
-            val newCompleted = state.completedCount + 1
-            setState {
-                copy(
-                    completedCount = newCompleted,
-                    step = step?.copy(status = SimpleStepState.Status.SUCCESS)
-                )
-            }
-        } else {
-            setState {
-                copy(step = step?.copy(status = SimpleStepState.Status.FAILED))
-            }
-        }
-    }
-
-    /** Перейти к следующему шагу */
-    fun nextStep() {
-        val nextIndex = state.currentStepIndex + 1
-        AppLog.i(TAG, "Next step: $nextIndex")
-
-        if (nextIndex >= SimpleSteps.ALL.size) {
-            setState {
-                copy(
-                    step = null,
-                    done = Pair(completedCount, SimpleSteps.ALL.size),
-                    phase = SimpleModePhase.DONE
-                )
-            }
-        } else {
-            setState {
-                copy(
-                    currentStepIndex = nextIndex,
-                    step = SimpleStepState(
-                        stepIndex = nextIndex,
-                        totalSteps = SimpleSteps.ALL.size,
-                        step = SimpleSteps.ALL[nextIndex],
-                        status = SimpleStepState.Status.READY,
-                        completedCount = completedCount
-                    ),
-                    done = null
-                )
-            }
-        }
-    }
-
-    /** Пропустить текущий шаг */
-    fun skipStep() {
-        AppLog.i(TAG, "Skipping step ${state.currentStepIndex}")
-        nextStep()
-    }
-
-    /** Закрыть простой режим */
-    fun close() {
-        AppLog.i(TAG, "Closing simple mode")
-        reset()
-    }
-
-    /** Сбросить всё состояние */
-    private fun reset() {
-        state = SimpleModeState()
-        restrictedFlowStarted = false
-        lastRedirect = Redirect.NONE
-        onStateChanged(state)
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // ВНУТРЕННЯЯ ЛОГИКА ПРОДВИЖЕНИЯ ПО ШАГАМ
-    // ═══════════════════════════════════════════════════════════════
-
-    /** Проверяет разрешения и продвигается по шагам */
-    private fun advance() {
-        if (!state.active) return
-
         AppLog.i(
             TAG,
-            "advance: restricted=${state.restrictedSettingsShown}, acc=$isAccessibilityEnabled, overlay=$isOverlayGranted"
+            "onStepResult: success=$success, attempt=$stepAttempt, step=${state.currentStepIndex}"
         )
+        val step = state.step ?: return
 
-        // Фаза 1: Проверка restricted/forbidden settings (для Android 13+ sideload)
-        val isAndroid13Plus = Build.VERSION.SDK_INT >= 33
-        val installer = try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                context.packageManager.getInstallSourceInfo(context.packageName)
-                    .installingPackageName
-            } else {
-                @Suppress("DEPRECATION")
-                context.packageManager.getInstallerPackageName(context.packageName)
+        if (success) {
+            val newCount = state.completedCount + 1
+            setState {
+                copy(
+                    completedCount = newCount,
+                    step = step.copy(
+                        status = SimpleStepState.Status.SUCCESS,
+                        completedCount = newCount
+                    )
+                )
             }
-        } catch (e: Exception) {
-            null
-        }
-        val isFromKnownStore = installer in listOf(
-            "com.android.vending",
-            "com.xiaomi.market",
-            "ru.vk.store"
-        )
-
-        if (isAndroid13Plus && !isFromKnownStore && !state.restrictedSettingsShown) {
-            AppLog.i(TAG, "Showing restricted dialog")
-            setState { copy(showRestrictedDialog = true) }
+            autoFlowJob = scope.launch {
+                delay(AppConstants.AUTO_ADVANCE_DELAY_MS)
+                nextStep(autoStart = true)
+            }
             return
         }
 
-        // Фаза 2: Проверка Accessibility
+        if (stepAttempt < step.maxAttempts) {
+            stepAttempt++
+            AppLog.w(TAG, "onStepResult: auto-retry $stepAttempt/${step.maxAttempts}")
+            setState {
+                copy(
+                    step = step.copy(
+                        status = SimpleStepState.Status.WORKING,
+                        attempt = stepAttempt
+                    )
+                )
+            }
+            autoFlowJob = scope.launch {
+                delay(AppConstants.RETRY_DELAY_MS)
+                launchStep()
+            }
+        } else {
+            AppLog.e(TAG, "onStepResult: all attempts exhausted for step ${state.currentStepIndex}")
+            failedIds.add(step.step.id)
+            setState {
+                copy(
+                    failedStepIds = failedIds.toList(),
+                    step = step.copy(status = SimpleStepState.Status.FAILED)
+                )
+            }
+            autoFlowJob = scope.launch {
+                delay(AppConstants.AUTO_ADVANCE_DELAY_MS)
+                nextStep(autoStart = true)
+            }
+        }
+    }
+
+    fun nextStep(autoStart: Boolean = false) {
+        autoFlowJob?.cancel()
+
+        val nextIndex = state.currentStepIndex + 1
+        val steps = SimpleSteps.ALL
+
+        if (nextIndex >= steps.size) {
+            AppLog.i(TAG, "All simple steps completed")
+            setState {
+                copy(
+                    phase = SimpleModePhase.DONE,
+                    step = null,
+                    done = Pair(completedCount, steps.size)
+                )
+            }
+            return
+        }
+
+        val nextStepObj = steps[nextIndex]
+        setState {
+            copy(
+                currentStepIndex = nextIndex,
+                step = SimpleStepState(
+                    step = nextStepObj,
+                    status = SimpleStepState.Status.IDLE,
+                    attempt = 1,
+                    completedCount = completedCount,
+                    stepIndex = nextIndex,
+                    totalSteps = steps.size
+                )
+            )
+        }
+
+        if (autoStart) {
+            startCurrentStep()
+        }
+    }
+
+    private fun advance() {
+        if (!state.active) return
+
+        when (state.phase) {
+            SimpleModePhase.PERMISSIONS -> checkPermissionsAndAdvance()
+            SimpleModePhase.STEPS -> {
+                if (state.step == null && autoFlowJob?.isActive != true) {
+                    nextStep(autoStart = true)
+                }
+            }
+
+            SimpleModePhase.DONE -> {}
+            SimpleModePhase.INACTIVE -> {}
+        }
+    }
+
+    private fun checkPermissionsAndAdvance() {
         if (!isAccessibilityEnabled) {
-            AppLog.i(TAG, "Showing accessibility dialog")
+            AppLog.d(TAG, "Accessibility not enabled — showing dialog")
             setState { copy(showAccessibilityDialog = true) }
             return
         }
 
-        // Фаза 3: Проверка Overlay
         if (!isOverlayGranted) {
-            AppLog.i(TAG, "Showing overlay dialog")
+            AppLog.d(TAG, "Overlay not granted — showing dialog")
             setState { copy(showOverlayDialog = true) }
             return
         }
 
-        // Все разрешения получены — переходим к шагам
-        AppLog.i(TAG, "All permissions granted — starting steps")
-        val totalSteps = SimpleSteps.ALL.size
-        setState {
-            copy(
-                active = false,
-                phase = SimpleModePhase.STEPS,
-                step = if (totalSteps > 0) {
-                    SimpleStepState(
-                        stepIndex = 0,
-                        totalSteps = totalSteps,
-                        step = SimpleSteps.ALL[0],
-                        status = SimpleStepState.Status.READY,
-                        completedCount = 0
-                    )
-                } else null
-            )
-        }
+        AppLog.i(TAG, "All permissions granted — switching to STEPS phase")
+        setState { copy(phase = SimpleModePhase.STEPS) }
+        nextStep(autoStart = true)
+    }
+
+    private fun reset() {
+        AppLog.i(TAG, "Resetting simple mode controller")
+        autoFlowJob?.cancel()
+        failedIds.clear()
+        stepAttempt = 1
+        state = SimpleModeState()
+        onStateChanged(state)
     }
 
     private fun openAppInfoWithHint() {
-        AppLog.i(TAG, "Opening app info with hint")
         try {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = Uri.parse("package:${context.packageName}")
@@ -307,18 +322,11 @@ class SimpleModeController(
             context.startActivity(intent)
             showHint(context.getString(R.string.hint_restricted))
         } catch (e: Exception) {
-            AppLog.w(TAG, "Failed to open app info: ${e.message}")
-            setState { copy(showRestrictedDialog = true) }
+            AppLog.e(TAG, "Failed to open app info", e)
         }
     }
 
     private fun showHint(text: String) {
-        try {
-            val intent = Intent(context, com.xiaohypercleaner.service.OverlayService::class.java)
-            intent.putExtra("hint", text)
-            context.startService(intent)
-        } catch (e: Exception) {
-            AppLog.w(TAG, "Failed to show hint: ${e.message}")
-        }
+        AppLog.d(TAG, "Hint requested: $text")
     }
 }

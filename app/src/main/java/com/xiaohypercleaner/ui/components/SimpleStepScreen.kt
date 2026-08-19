@@ -63,36 +63,36 @@ fun SimpleStepScreen(
                 Spacer(Modifier.height(16.dp))
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Иконка риска если есть
                     when (state.step.riskLevel) {
                         SimpleSteps.RiskLevel.CONDITIONAL -> {
                             Text("⚠️", style = MaterialTheme.typography.titleMedium)
                             Spacer(Modifier.width(8.dp))
                         }
+
                         SimpleSteps.RiskLevel.HIGH -> {
                             Text("🔴", style = MaterialTheme.typography.titleMedium)
                             Spacer(Modifier.width(8.dp))
                         }
+
                         SimpleSteps.RiskLevel.SAFE -> {
                             // Без иконки
                         }
                     }
-                    
+
                     Text(
                         if (isEnglish) state.step.titleEn else state.step.titleRu,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                 }
-                
+
                 Spacer(Modifier.height(8.dp))
                 Text(
                     if (isEnglish) state.step.descEn else state.step.descRu,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                
-                // Блок предупреждения для CONDITIONAL/HIGH
+
                 val warningText = if (isEnglish) state.step.warningEn else state.step.warningRu
                 if (warningText != null && state.step.riskLevel != SimpleSteps.RiskLevel.SAFE) {
                     Spacer(Modifier.height(12.dp))
@@ -108,12 +108,12 @@ fun SimpleStepScreen(
                         )
                     }
                 }
-                
+
                 Spacer(Modifier.height(20.dp))
 
                 when (state.status) {
+                    SimpleStepState.Status.IDLE,
                     SimpleStepState.Status.READY -> {
-                        // Единственная кнопка за весь прогон — дальше всё само
                         Button(
                             onClick = onStart,
                             modifier = Modifier
@@ -121,13 +121,12 @@ fun SimpleStepScreen(
                                 .height(52.dp),
                             shape = RoundedCornerShape(12.dp)
                         ) { Text(stringResource(R.string.simple_step_start)) }
-                        
-                        // Кнопка "Пропустить" доступна сразу
+
                         Spacer(Modifier.height(8.dp))
                         TextButton(
                             onClick = onSkip,
                             modifier = Modifier.fillMaxWidth()
-                        ) { 
+                        ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("⚠️ ")
                                 Spacer(Modifier.width(4.dp))
@@ -157,7 +156,6 @@ fun SimpleStepScreen(
                     }
 
                     SimpleStepState.Status.SUCCESS -> {
-                        // Автопереход через ~0.7 сек, но дадим кнопку Next для ручного перехода
                         Text(
                             "✅ " + stringResource(R.string.simple_step_auto_next),
                             style = MaterialTheme.typography.bodyMedium,
@@ -204,7 +202,7 @@ fun SimpleStepScreen(
                         TextButton(
                             onClick = onSkip,
                             modifier = Modifier.fillMaxWidth()
-                        ) { 
+                        ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("⚠️ ")
                                 Spacer(Modifier.width(4.dp))
@@ -262,19 +260,30 @@ fun SimpleDoneDialog(
                 )
                 Spacer(Modifier.height(16.dp))
 
-                // Честные преимущества без лжи
                 Text(
                     stringResource(R.string.simple_done_benefits),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
                 Spacer(Modifier.height(8.dp))
-                
-                val showAdsBenefit = completedCount >= 3 || failedSteps.none { it.contains("msa") || it.contains("ads") }
-                val showTelemetryBenefit = completedCount >= 5 || failedSteps.none { it.contains("ux") || it.contains("analytics") }
-                val showSpamBenefit = completedCount >= 4 || failedSteps.none { it.contains("getapps") || it.contains("music") || it.contains("themes") }
+
+                val adsStepsFailed =
+                    failedSteps.any { it.contains("msa") || it.contains("personalized") }
+                val showAdsBenefit = completedCount >= 3 && !adsStepsFailed
+
+                val telemetryStepsFailed =
+                    failedSteps.any { it.contains("ux_program") || it.contains("analytics") }
+                val showTelemetryBenefit = completedCount >= 5 && !telemetryStepsFailed
+
+                val spamStepsFailed = failedSteps.any {
+                    it.contains("getapps") || it.contains("music") || it.contains("themes") || it.contains(
+                        "filemanager"
+                    )
+                }
+                val showSpamBenefit = completedCount >= 4 && !spamStepsFailed
+
                 val showStableBenefit = completedCount >= 6
-                
+
                 if (showAdsBenefit) {
                     Text(
                         stringResource(R.string.simple_done_benefit_ads),

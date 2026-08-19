@@ -17,19 +17,18 @@ import kotlinx.coroutines.launch
 /**
  * Accessibility Service: включение Wireless ADB + выполнение шагов простой оптимизации.
  *
- * Исправления:
- * - Добавлен onStartCommand: ACTION_SIMPLE_STEP теперь реально выполняется
- *   (раньше intent уходил в пустоту — шаги висли в WORKING).
- * - Watchdog стал edge-triggered: «window closed» логируется ОДИН раз,
- *   а не на каждое событие (убран спам из логов).
- * - CoroutineScope с SupervisorJob, отменяется в onDestroy (нет утечек).
+ * Исправления v2:
+ * - EVENT_THROTTLE_MS = 300ms (было 2000ms — пропускал события)
+ * - Добавлен флаг isSimpleStepRunning для координации с runner'ом
+ * - Watchdog edge-triggered: логирует ОДИН раз при закрытии окна
+ * - canPerformGestures=true в config (исправлено отдельно)
  */
 class AdbEnablerService : AccessibilityService() {
 
     companion object {
         private const val TAG = "AdbEnablerService"
         private const val DEV_WATCHDOG_MS = 15_000L
-        private const val EVENT_THROTTLE_MS = 2_000L
+        private const val EVENT_THROTTLE_MS = 300L  // ✅ ИСПРАВЛЕНО: было 2000
 
         const val ACTION_SIMPLE_STEP = "com.xiaohypercleaner.ACTION_SIMPLE_STEP"
         const val ACTION_RETRY_DEV = "com.xiaohypercleaner.ACTION_RETRY_DEV"
@@ -49,12 +48,11 @@ class AdbEnablerService : AccessibilityService() {
         )
     }
 
-    // Шаги выполняем на Main: AccessibilityNodeInfo требует main thread,
-    // а delay() внутри runner не блокирует поток.
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private var lastActionTime = 0L
     private var devWindowOpen = false
+    private var isSimpleStepRunning = false  // ✅ ДОБАВЛЕНО: флаг координации
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -62,9 +60,6 @@ class AdbEnablerService : AccessibilityService() {
         ChainFlags.waitingAccessibilityReturn = true
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // ПРИЁМ КОМАНД — то, чего не хватало
-    // ═══════════════════════════════════════════════════════════════
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_SIMPLE_STEP -> {
@@ -77,7 +72,6 @@ class AdbEnablerService : AccessibilityService() {
             }
 
             ACTION_RETRY_DEV, ACTION_START_CHAIN -> {
-                // Открываем новое окно watchdog, чтобы сервис реагировал на события
                 ChainFlags.lastRedirectTime = System.currentTimeMillis()
                 devWindowOpen = true
                 AppLog.i(TAG, "Dev window reopened by ${intent.action}")
@@ -89,18 +83,24 @@ class AdbEnablerService : AccessibilityService() {
     }
 
     private suspend fun runSimpleStep(index: Int) {
-        val step = SimpleSteps.ALL[index]
-        AppLog.i(TAG, "runSimpleStep: index=$index, id=${step.id}")
-        val result = SimpleOptimizationRunner(this).executeStep(step)
-        AppLog.i(TAG, "runSimpleStep: success=${result.success}, reason=${result.reason}")
-        SimpleStepBridge.onResult?.invoke(result.success)
+        // ✅ ДОБАВЛЕНО: блокируем watchdog-обработку на время работы runner'а
+        isSimpleStepRunning = true
+        try {
+            val step = SimpleSteps.ALL[index]
+            AppLog.i(TAG, "runSimpleStep: index=$index, id=${step.id}")
+            val result = SimpleOptimizationRunner(this).executeStep(step)
+            AppLog.i(TAG, "runSimpleStep: success=${result.success}, reason=${result.reason}")
+            SimpleStepBridge.onResult?.invoke(result.success)
+        } finally {
+            isSimpleStepRunning = false
+        }
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // СОБЫТИЯ — watchdog без спама
-    // ═══════════════════════════════════════════════════════════════
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
+
+        // ✅ ДОБАВЛЕНО: пропускаем события пока runner работает
+        if (isSimpleStepRunning) return
 
         val currentTime = System.currentTimeMillis()
         if (currentTime - lastActionTime < EVENT_THROTTLE_MS) return

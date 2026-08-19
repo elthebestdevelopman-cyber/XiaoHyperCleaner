@@ -15,16 +15,13 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
 
     companion object {
         private const val TAG = "SimpleRunner"
-        private const val RETRY_DELAY_MS = 1500L
-        private const val AUTO_ADVANCE_DELAY_MS = 700L
+
+        // ✅ УДАЛЕНО: RETRY_DELAY_MS и AUTO_ADVANCE_DELAY_MS (дубликаты из AppConstants,
+        // логика ретраев живёт в MainViewModel)
         private const val WAIT_FOR_SCREEN_MS = 1500L
         private const val WAIT_AFTER_CLICK_MS = 600L
         private const val MAX_TREE_VISITED = 1000
 
-        /**
-         * Все возможные имена Switch-элементов на MIUI/HyperOS/AOSP.
-         * Включены кастомные Xiaomi классы, которые часто используются.
-         */
         private val SWITCH_CLASS_KEYWORDS = listOf(
             "Switch", "Toggle", "CheckBox",
             "SwitchCompat", "AppCompatSwitch", "ToggleSwitch",
@@ -32,14 +29,6 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         )
     }
 
-    /**
-     * Результат выполнения шага оптимизации.
-     * 
-     * @property stepId идентификатор шага (например, "msa", "personal_ads")
-     * @property success true если шаг выполнен успешно
-     * @property skipped true если шаг пропущен пользователем
-     * @property reason причина неудачи или пропуска (например, "switch_not_found", "click_failed")
-     */
     data class StepResult(
         val stepId: String,
         val success: Boolean,
@@ -47,30 +36,6 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         val reason: String? = null
     )
 
-    // ═══════════════════════════════════════════════════════════════
-    // ГЛАВНЫЙ МЕТОД — выполняет один шаг оптимизации
-    // ═══════════════════════════════════════════════════════════════
-    /**
-     * Выполняет один шаг оптимизации: открывает настройки, находит переключатель,
-     * кликает его и проверяет результат.
-     * 
-     * Алгоритм:
-     * 1. Открывает экран настроек через intents (попытка нескольких вариантов)
-     * 2. Ждёт загрузки экрана (WAIT_FOR_SCREEN_MS)
-     * 3. Ищет switch по текстам из [SimpleSteps.Step.searchTexts]
-     * 4. Если не найден — пытается найти первый switch на странице (fallback)
-     * 5. Если уже в целевом состоянии — возвращает SUCCESS
-     * 6. Кликает switch (SELF → PARENT → GESTURE по координатам)
-     * 7. Проверяет что состояние изменилось на целевое
-     * 
-     * @param step шаг оптимизации для выполнения
-     * @return StepResult с результатом выполнения
-     * 
-     * @see SimpleSteps.Step
-     * @see tryOpenScreen
-     * @see findSwitchNode
-     * @see getClickMethod
-     */
     suspend fun executeStep(step: SimpleSteps.Step): StepResult {
         AppLog.i(TAG, "Executing step: ${step.id} - ${step.titleEn}")
 
@@ -80,8 +45,10 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
             AppLog.e(TAG, "Step ${step.id}: ALL intents failed to open screen")
             return StepResult(step.id, false, reason = "all_intents_failed")
         }
-        // Fallback «первый switch» разрешён ТОЛЬКО если открылся целевой экран.
-        // На общих настройках он может переключить чужой параметр.
+
+        // ✅ ЗАЩИТА (возвращена): fallback «первый switch» разрешён ТОЛЬКО если
+        // открылся ЦЕЛЕВОЙ экран. Последний intent в списке — общие Настройки,
+        // там fallback может переключить ЧУЖОЙ параметр, поэтому запрещён.
         val openedSpecificScreen = openedIndex < step.intents.lastIndex
 
         delay(WAIT_FOR_SCREEN_MS)
@@ -97,7 +64,12 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
             }
 
         if (switchNode == null) {
-            AppLog.w(TAG, "Step ${step.id}: no switch found at all - search texts: ${step.searchTexts.joinToString(", ")}")
+            AppLog.w(
+                TAG,
+                "Step ${step.id}: no switch found at all - search texts: ${
+                    step.searchTexts.joinToString(", ")
+                }"
+            )
             return StepResult(step.id, false, reason = "switch_not_found")
         }
 
@@ -122,8 +94,8 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         AppLog.i(TAG, "Step ${step.id}: clicked using method $clickMethod")
         delay(WAIT_AFTER_CLICK_MS)
 
-        // 5. Проверяем результат
-        val switchedNode = findSwitchNode(step.searchTexts) ?: findFirstSwitchOnPage()
+        // 5. Проверяем результат (только по текстам, чтобы не найти чужой switch)
+        val switchedNode = findSwitchNode(step.searchTexts)
         val newState = switchedNode?.isChecked ?: !switchNode.isChecked
         val success = newState == step.targetChecked
 
@@ -134,7 +106,6 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         return StepResult(step.id, success, reason = if (!success) "state_not_changed" else null)
     }
 
-    /** Метод клика который был использован */
     enum class ClickMethod { SELF, PARENT, GESTURE, NONE }
 
     private fun getClickMethod(node: AccessibilityNodeInfo): ClickMethod {
@@ -156,7 +127,7 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
             depth++
         }
 
-        // Способ 3: КЛИК ПО КООРДИНАТАМ через dispatchGesture (последний шанс)
+        // Способ 3: КЛИК ПО КООРДИНАТАМ через dispatchGesture (требует canPerformGestures=true)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             val result = clickByCoordinates(node)
             if (result) return ClickMethod.GESTURE
@@ -165,10 +136,7 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         return ClickMethod.NONE
     }
 
-    private fun clickSwitch(node: AccessibilityNodeInfo): Boolean {
-        // Эта функция больше не используется напрямую — логику перенесли в getClickMethod()
-        return getClickMethod(node) != ClickMethod.NONE
-    }
+    // ✅ УДАЛЕНО: мёртвый метод clickSwitch() (логика в getClickMethod)
 
     /** Возвращает индекс сработавшего intent или -1. */
     private fun tryOpenScreen(step: SimpleSteps.Step): Int {
@@ -192,14 +160,6 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         return -1
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // КЛИК ПО КООРДИНАТАМ — используется из getClickMethod()
-    // ═══════════════════════════════════════════════════════════════
-    /**
-     * Клик по координатам через AccessibilityService.dispatchGesture.
-     * Эмулирует реальный тап пальцем по центру элемента.
-     * Это "последняя линия обороны" когда node не clickable.
-     */
     private fun clickByCoordinates(node: AccessibilityNodeInfo): Boolean {
         return try {
             val rect = Rect()
@@ -222,9 +182,6 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // ПОИСК SWITCH ПО ТЕКСТАМ
-    // ═══════════════════════════════════════════════════════════════
     private fun findSwitchNode(texts: List<String>): AccessibilityNodeInfo? {
         val root = service.rootInActiveWindow ?: return null
         return try {
@@ -242,11 +199,6 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         }
     }
 
-    /**
-     * FALLBACK: находит первый Switch/Toggle на странице.
-     * Критично для MIUI где главный switch уведомлений всегда первый.
-     * Ищет по ключевым словам в className (расширенный список).
-     */
     private fun findFirstSwitchOnPage(): AccessibilityNodeInfo? {
         val root = service.rootInActiveWindow ?: return null
         return try {
@@ -257,20 +209,14 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         }
     }
 
-    /**
-     * Ищет Switch поднимаясь по иерархии от найденного по тексту узла.
-     * Ищет среди детей родителей (до 5 уровней вверх).
-     */
     private fun findSwitchInHierarchy(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
         var current = node
         var depth = 0
         while (current != null && depth < 5) {
             val className = current.className?.toString() ?: ""
 
-            // Сам узел — switch?
             if (isSwitchClass(className)) return current
 
-            // Ищем среди детей родителя
             val parent = current.parent ?: break
             for (i in 0 until parent.childCount) {
                 val child = parent.getChild(i) ?: continue
@@ -284,21 +230,12 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         return null
     }
 
-    /**
-     * Проверяет, является ли className switch/toggle.
-     * Работает со всеми вариантами включая кастомные MIUI.
-     */
     private fun isSwitchClass(className: String): Boolean {
         return SWITCH_CLASS_KEYWORDS.any { keyword ->
             className.contains(keyword, ignoreCase = true)
         }
     }
 
-    /**
-     * Поиск по дереву элементов. Ищет первый узел, чей className
-     * содержит любое из ключевых слов (Switch, Toggle, CheckBox, etc).
-     * Использует DFS с ограничением на количество посещённых узлов.
-     */
     private fun findByClassName(
         root: AccessibilityNodeInfo,
         keywords: List<String>

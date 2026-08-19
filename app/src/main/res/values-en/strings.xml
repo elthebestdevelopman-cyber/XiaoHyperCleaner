@@ -2,34 +2,39 @@
 <resources>
     <!-- ========== COMMON ========== -->
     <string name="app_name">XiaoHyperCleaner</string>
-    <string name="app_description_short">Disable ads, telemetry and spam on Xiaomi / MIUI / HyperOS. Works via ADB and Accessibility, no root required.</string>
+    <string name="app_description_short">Configures privacy settings and reduces background load on Xiaomi / MIUI / HyperOS. Works via standard Android settings, no root required.</string>
     <string name="cancel">Cancel</string>
     <string name="allow">Allow</string>
     <string name="agree_and_open">Agree and open</string>
 
     <!-- ========== MAIN SCREEN ========== -->
     <string name="features_title">What the app does</string>
-    <string name="feature_processes">Disables ad and system services</string>
+    <string name="feature_processes">Configures system settings to improve privacy</string>
     <string name="feature_speed">Speeds up UI and optimizes animations</string>
-    <string name="feature_battery">Improves battery life by disabling data collectors</string>
+    <string name="feature_battery">Reduces background activity to save battery</string>
 
     <string name="btn_optimize">Optimize</string>
     <string name="btn_restore">Restore changes</string>
     <string name="status_working">Optimizing…</string>
     <string name="status_done">Optimization complete</string>
-    <string name="status_done_description">Ads disabled, telemetry stopped, system runs faster.</string>
+    <string name="status_done_description">Privacy settings applied. All changes can be reverted.</string>
     <string name="reboot_now">Reboot now</string>
 
     <!-- ========== LEVEL SELECTION ========== -->
     <string name="level_dialog_title">Choose optimization level</string>
+    <string name="level_dialog_subtitle">You can change the mode later in settings</string>
     <string name="level_dialog_text">Simple mode works for everyone — the app will configure everything automatically. Advanced mode requires Shizuku/ADB but gives more control.</string>
-    <string name="level_simple_title">🟢 Simple</string>
-    <string name="level_simple_desc">For all users. The app will configure the system automatically — just grant permissions and wait.</string>
-    <string name="level_advanced_title">🔵 Advanced</string>
-    <string name="level_advanced_desc">For experienced users. Deep configuration via Shizuku or Wireless ADB. More reliable but requires setup.</string>
+    <string name="level_simple_title">Simple</string>
+    <string name="level_simple_desc">Safe for everyone. Automatic cleanup with no complex setup.</string>
+    <string name="level_pro_title">Advanced</string>
+    <string name="level_pro_desc">Deep optimization. Requires additional setup (Shizuku / ADB).</string>
+    <string name="level_advanced_title">Advanced</string>
+    <string name="level_advanced_desc">Deep optimization. Requires additional setup (Shizuku / ADB).</string>
+    <string name="level_dialog_continue">Continue</string>
+    <string name="robocat_caption">Robo-cat is washing up and keeping things clean</string>
 
     <string name="level_confirm_simple_title">Start simple optimization?</string>
-    <string name="level_confirm_simple_text">The app will open settings and automatically disable ads, telemetry and spam. This will take 2–3 minutes.</string>
+    <string name="level_confirm_simple_text">The app will open settings and apply privacy parameters. This will take 2–3 minutes.</string>
     <string name="level_confirm_advanced_title">Start advanced optimization?</string>
     <string name="level_confirm_advanced_text">Requires Shizuku or Wireless ADB setup. The process is deeper and more reliable but takes longer.</string>
     <string name="level_confirm_start">Start</string>
@@ -48,13 +53,13 @@
 
     <!-- ========== SIMPLE MODE: FINAL ========== -->
     <string name="simple_done_title">All done!</string>
-    <string name="simple_done_text">Ads, telemetry and spam are disabled. No reboot required.</string>
+    <string name="simple_done_text">Privacy settings applied. No reboot required.</string>
     <string name="simple_done_steps_done">Completed %1$d of %2$d steps</string>
     <string name="simple_done_benefits">What changed:</string>
-    <string name="simple_done_benefit_ads">✅ Less ads in the system</string>
-    <string name="simple_done_benefit_telemetry">✅ Telemetry disabled</string>
-    <string name="simple_done_benefit_spam">✅ Spam from system apps stopped</string>
-    <string name="simple_done_benefit_stable">✅ System should work more stable</string>
+    <string name="simple_done_benefit_ads">✅ Privacy settings applied for telemetry services</string>
+    <string name="simple_done_benefit_telemetry">✅ Reduced telemetry data collection</string>
+    <string name="simple_done_benefit_spam">✅ Reduced notifications from system apps</string>
+    <string name="simple_done_benefit_stable">✅ Reduced background system load</string>
     <string name="simple_done_rate">Rate the app</string>
     <string name="simple_done_donate">Support the author</string>
     <string name="simple_done_close">Close</string>
@@ -77,14 +82,14 @@
     <string name="options_dialog_title">Optimization options</string>
     <string name="options_dialog_text">Choose additional options. You can change them later.</string>
     <string name="dns_option_title">DNS filter</string>
-    <string name="dns_option_description">Block ads and trackers at the network level via AdGuard DNS.</string>
+    <string name="dns_option_description">Block network requests to unwanted domains via AdGuard DNS.</string>
     <string name="aggressive_option_title">Aggressive mode</string>
-    <string name="aggressive_option_description">⚠ Advanced system service tweaks. May affect some Xiaomi features.</string>
+    <string name="aggressive_option_description">Advanced settings for experienced users. Some Xiaomi features may work differently.</string>
     <string name="options_dialog_start">Start optimization</string>
 
     <!-- ========== DNS WARNING ========== -->
     <string name="dns_warning_title">Attention: DNS filter</string>
-    <string name="dns_warning_text">AdGuard Private DNS will be set. This blocks ads in browsers and apps, but may block some sites. You can disable it anytime in Android settings.</string>
+    <string name="dns_warning_text">AdGuard Private DNS will be set. This reduces network requests to unwanted domains, but may block some sites. You can disable it anytime in Android settings.</string>
     <string name="dns_warning_accept">Understood, continue</string>
 
     <!-- ========== DEV MODE ========== -->
@@ -95,7 +100,7 @@
 
     <!-- ========== ACCESSIBILITY ========== -->
     <string name="accessibility_explanation_title">Accessibility service required</string>
-    <string name="accessibility_explanation_text">The app needs special accessibility features to help users with limited mobility automatically click buttons in settings. Access is used only for optimization and is never sent anywhere.</string>
+    <string name="accessibility_explanation_text">The app needs Accessibility service access to automatically click buttons in settings. Access is used only for navigating system screens and is never transmitted externally. No data is collected or sent to servers.</string>
     <string name="hint_title">Hint</string>
     <string name="hint_accessibility">Enable "XiaoHyperCleaner" in the services list</string>
     <string name="hint_restricted">Tap 3 dots at the top → "Allow restricted settings"</string>
@@ -116,48 +121,53 @@
 
     <!-- ========== RESTORE / REBOOT ========== -->
     <string name="restore_dialog_title">Restore changes?</string>
-    <string name="restore_dialog_text">All settings will return to their original state, disabled apps will be re-enabled.</string>
+    <string name="restore_dialog_text">All settings will return to their original state. Changes are fully reversible.</string>
     <string name="restore_confirm">Restore</string>
     <string name="restore_failed_text">Could not fully restore changes. Some settings remain modified.</string>
 
     <string name="reboot_dialog_title">Reboot</string>
-    <string name="reboot_dialog_text">Reboot the device for all optimizations to take effect.</string>
+    <string name="reboot_dialog_text">Reboot the device for all settings to take effect.</string>
     <string name="reboot_confirm">Reboot</string>
     <string name="reboot_failed_text">Could not send reboot command. Please reboot manually.</string>
 
     <!-- ========== FINAL DIALOG (advanced mode) ========== -->
     <string name="final_dialog_title">Optimization result</string>
-    <string name="final_dialog_success_text">Optimization completed successfully. All ad and telemetry services are disabled.</string>
+    <string name="final_dialog_success_text">Optimization completed successfully. Privacy settings applied.</string>
     <string name="final_dialog_failed_text">Optimization finished with errors. Please send the log to the developer.</string>
     <string name="final_dialog_rate">Rate the app</string>
     <string name="final_dialog_send_log">Send log</string>
 
     <!-- ========== ONBOARDING ========== -->
     <string name="onboarding_page1_title">Welcome</string>
-    <string name="onboarding_page1_text">XiaoHyperCleaner will help you disable ads, telemetry and spam on your Xiaomi device.</string>
+    <string name="onboarding_page1_text">XiaoHyperCleaner will help you configure privacy settings and reduce background load on your Xiaomi device.</string>
     <string name="onboarding_page2_title">Safe and simple</string>
-    <string name="onboarding_page2_text">The app will automatically perform all settings. You can skip any step.</string>
-    <string name="onboarding_page3_title">Honest result</string>
-    <string name="onboarding_page3_text">No false promises. Only real system optimization.</string>
+    <string name="onboarding_page2_text">The app will perform system settings with your permission. You can skip any step.</string>
+    <string name="onboarding_page3_title">Transparent process</string>
+    <string name="onboarding_page3_text">You see every step. All changes can be reverted at any time.</string>
     <string name="onboarding_skip">Skip</string>
     <string name="onboarding_next">Next</string>
     <string name="onboarding_start">Start</string>
+    <string name="onboarding_privacy_prefix">I accept the </string>
+    <string name="onboarding_privacy_link">privacy policy</string>
+    <string name="onboarding_privacy_text">I accept the privacy policy</string>
 
     <!-- ========== SPLASH ========== -->
-    <string name="splash_tagline">System cleanup without extra words</string>
+    <string name="splash_tagline">Privacy configuration without extra words</string>
 
     <!-- ========== MENU DIALOG ========== -->
     <string name="menu_about">About</string>
     <string name="menu_dark_theme">Dark theme</string>
+    <string name="menu_privacy_policy">Privacy Policy</string>
     <string name="rate_app">Rate the app</string>
     <string name="support_yoomoney">Support (YuMoney)</string>
     <string name="support_cloudtips">Support (CloudTips)</string>
     <string name="log_share">Share log</string>
     <string name="about_title">About the app</string>
     <string name="about_author">Author</string>
-    <string name="about_text">XiaoHyperCleaner — a tool for safe MIUI/HyperOS optimization.</string>
+    <string name="about_text">XiaoHyperCleaner — a tool for safe privacy configuration on MIUI/HyperOS. Works only locally on your device.</string>
     <string name="shizuku_attribution">Shizuku is used with gratitude to the developers.</string>
     <string name="close">Close</string>
+    <string name="privacy_policy_url" translatable="false">https://elthebestdevelopman-cyber.github.io/privacy-policy/index.html</string>
 
     <!-- ========== SHIZUKU WIZARD ========== -->
     <string name="shizuku_wizard_title">Shizuku Setup</string>
@@ -190,7 +200,4 @@
     <string name="shizuku_sources_getapps">GetApps</string>
     <string name="shizuku_sources_github">GitHub</string>
     <string name="shizuku_sources_apkpure">APKPure</string>
-    <string name="menu_privacy_policy">Privacy Policy</string>
-    <string name="privacy_policy_url" translatable="false">https://elthebestdevelopman-cyber.github.io/privacy-policy/index.html</string>
-    <string name="onboarding_privacy_text">I accept the privacy policy</string>
 </resources>

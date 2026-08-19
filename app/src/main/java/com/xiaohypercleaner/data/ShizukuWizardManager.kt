@@ -41,6 +41,20 @@ class ShizukuWizardManager(
         onStateChanged(state)
     }
 
+    /**
+     * Показать диалог Shizuku с указанным статусом.
+     * Вызывается из ViewModel при старте продвинутого потока.
+     */
+    fun showDialog(status: ShizukuExecutor.Status) {
+        AppLog.i(TAG, "showDialog called with status: $status")
+        setState {
+            copy(
+                showShizukuDialog = true,
+                shizukuStatus = status
+            )
+        }
+    }
+
     /** Пользователь нажал "Установить" в диалоге Shizuku */
     fun onInstallClicked() {
         AppLog.i(TAG, "Install Shizuku clicked")

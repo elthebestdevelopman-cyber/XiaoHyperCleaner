@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.xiaohypercleaner"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.xiaohypercleaner"
@@ -13,7 +13,6 @@ android {
         targetSdk = 36
         versionCode = 2
         versionName = "1.0-beta2"
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -55,18 +54,16 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
     implementation("androidx.activity:activity-compose:1.13.0")
-
     implementation(platform("androidx.compose:compose-bom:2026.08.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-core")
-
     implementation("androidx.datastore:datastore-preferences:1.2.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
 
-    // Shizuku API (MIT License, бесплатно)
+    // Shizuku API
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("dev.rikka.shizuku:provider:13.1.5")
 

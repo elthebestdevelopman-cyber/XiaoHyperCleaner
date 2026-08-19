@@ -83,7 +83,9 @@ fun OnboardingScreen(
     val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
 
-    // Состояние согласия с политикой приватности (только для последней страницы)
+    // ✅ ИСПРАВЛЕНО: URL берётся из strings.xml (был захардкожен)
+    val privacyUrl = stringResource(R.string.privacy_policy_url)
+
     var privacyAccepted by remember { mutableStateOf(false) }
     val isLastPage = pagerState.currentPage == pages.size - 1
 
@@ -107,7 +109,6 @@ fun OnboardingScreen(
             )
             .padding(24.dp)
     ) {
-        // Кнопка "Пропустить"
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End
@@ -120,7 +121,6 @@ fun OnboardingScreen(
             }
         }
 
-        // Pager со страницами
         HorizontalPager(
             state = pagerState,
             modifier = Modifier
@@ -130,16 +130,14 @@ fun OnboardingScreen(
             OnboardingPageContent(pages[page])
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        // ЧЕКБОКС ПОЛИТИКИ ПРИВАТНОСТИ (только на последней странице)
-        // ═══════════════════════════════════════════════════════════════
         if (isLastPage) {
             PrivacyPolicyCheckbox(
                 accepted = privacyAccepted,
+                privacyUrl = privacyUrl,
                 onAcceptedChange = { privacyAccepted = it },
                 onLinkClick = {
                     try {
-                        uriHandler.openUri(PRIVACY_POLICY_URL)
+                        uriHandler.openUri(privacyUrl)
                         AppLog.i("Onboarding", "privacy policy link opened")
                     } catch (e: Exception) {
                         AppLog.w("Onboarding", "failed to open privacy policy: ${e.message}")
@@ -149,7 +147,6 @@ fun OnboardingScreen(
             Spacer(Modifier.height(16.dp))
         }
 
-        // Индикаторы страниц
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -170,7 +167,6 @@ fun OnboardingScreen(
             }
         }
 
-        // Кнопка "Далее" / "Начать"
         Button(
             onClick = {
                 if (pagerState.currentPage < pages.size - 1) {
@@ -202,23 +198,17 @@ fun OnboardingScreen(
     }
 }
 
-/**
- * Чекбокс согласия с политикой приватности.
- * Показывается только на последней странице онбординга.
- *
- * Содержит:
- * - Checkbox слева
- * - Кликабельный текст со ссылкой на политику приватности
- */
 @Composable
 private fun PrivacyPolicyCheckbox(
     accepted: Boolean,
+    privacyUrl: String,
     onAcceptedChange: (Boolean) -> Unit,
     onLinkClick: () -> Unit
 ) {
+    // ✅ ИСПРАВЛЕНО: текст локализован через strings.xml
     val annotatedText = buildAnnotatedString {
-        append("Я принимаю ")
-        pushStringAnnotation(tag = "URL", annotation = PRIVACY_POLICY_URL)
+        append(stringResource(R.string.onboarding_privacy_prefix))
+        pushStringAnnotation(tag = "URL", annotation = privacyUrl)
         withStyle(
             style = SpanStyle(
                 color = Blue500,
@@ -226,7 +216,7 @@ private fun PrivacyPolicyCheckbox(
                 fontWeight = FontWeight.Medium
             )
         ) {
-            append("политику приватности")
+            append(stringResource(R.string.onboarding_privacy_link))
         }
         pop()
     }
@@ -287,7 +277,4 @@ private fun OnboardingPageContent(page: OnboardingPage) {
         )
     }
 }
-
-/** URL политики приватности (RU). Замените на values-en/... для английской версии. */
-private const val PRIVACY_POLICY_URL =
-    "https://elthebestdevelopman-cyber.github.io/privacy-policy/index.html"
+// ✅ УДАЛЕНО: private const val PRIVACY_POLICY_URL (захардкоженный URL)
