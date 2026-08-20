@@ -3,14 +3,13 @@ package com.xiaohypercleaner.data
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.core.net.toUri
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.util.AppLog
-import androidx.core.net.toUri
 
 class PermissionFlowManager(private val context: Context) {
 
@@ -46,9 +45,18 @@ class PermissionFlowManager(private val context: Context) {
     /**
      * Открывает App Info и показывает подсказку в зависимости от известной позиции пункта.
      * Если позиция UNKNOWN — показываем общую карточку без стрелки.
+     * Overlay-подсказки показываем ТОЛЬКО если разрешение уже выдано —
+     * иначе OverlayService крашнется с BadTokenException / ViewTreeLifecycleOwner not found.
      */
     fun openAppInfoWithSmartPointer(location: RestrictedLocation) {
         openAppInfoSettings()
+
+        // Overlay-подсказки показываем только если overlay-разрешение выдано.
+        // Без этой проверки OverlayService запускается и падает на addView.
+        if (!Settings.canDrawOverlays(context)) {
+            AppLog.w(TAG, "openAppInfoWithSmartPointer: overlay not granted, skipping pointer")
+            return
+        }
 
         when (location) {
             RestrictedLocation.TOP_MENU -> {
@@ -77,6 +85,13 @@ class PermissionFlowManager(private val context: Context) {
 
     fun openAccessibilityWithPointer() {
         openAccessibilitySettings()
+
+        // Overlay-подсказку показываем только при выданном разрешении
+        if (!Settings.canDrawOverlays(context)) {
+            AppLog.w(TAG, "openAccessibilityWithPointer: overlay not granted, skipping pointer")
+            return
+        }
+
         showPointer(
             mode = OverlayService.PointerMode.LIST_ITEM_CENTER,
             text = context.getString(R.string.pointer_accessibility_item)
@@ -85,6 +100,18 @@ class PermissionFlowManager(private val context: Context) {
 
     fun openOverlayWithPointer() {
         openOverlaySettings()
+
+        // Здесь overlay ещё точно не выдан (мы только что отправили пользователя в настройки),
+        // поэтому pointer показываем ТОЛЬКО после возврата, когда разрешение уже получено.
+        // Этот метод вызывается из SimpleModeController перед отправкой в настройки —
+        // поэтому pointer всегда пропускается здесь и показывается при возврате
+        // через onResumeAfterPermissionReturn() → refresh() → advance() → showPointer.
+        // Но для безопасности оставляем проверку:
+        if (!Settings.canDrawOverlays(context)) {
+            AppLog.w(TAG, "openOverlayWithPointer: overlay not granted yet, skipping pointer")
+            return
+        }
+
         showPointer(
             mode = OverlayService.PointerMode.SWITCH_RIGHT,
             text = context.getString(R.string.pointer_overlay_switch)
@@ -93,6 +120,13 @@ class PermissionFlowManager(private val context: Context) {
 
     fun openAccessibilityWithHint() {
         openAccessibilitySettings()
+
+        // Hint-карточки тоже требуют overlay-разрешения
+        if (!Settings.canDrawOverlays(context)) {
+            AppLog.w(TAG, "openAccessibilityWithHint: overlay not granted, skipping hint")
+            return
+        }
+
         showHint(context.getString(R.string.hint_accessibility))
     }
 
