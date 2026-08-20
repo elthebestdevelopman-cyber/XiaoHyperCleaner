@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
-    <!-- Видимость пакета Шizuku и магазинов (Android 11+) -->
+    <!-- Видимость пакета Shizuku и магазинов (Android 11+) -->
     <queries>
         <package android:name="moe.shizuku.privileged.api" />
 
@@ -66,7 +66,7 @@
             android:name=".service.OverlayService"
             android:exported="false" />
 
-        <!-- Шizuku provider -->
+        <!-- Shizuku provider -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
             android:authorities="${applicationId}.shizuku"

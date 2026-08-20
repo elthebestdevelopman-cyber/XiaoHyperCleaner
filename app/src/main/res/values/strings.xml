@@ -5,7 +5,6 @@
     <string name="app_description_short">Настраивает параметры приватности и снижает фоновую нагрузку на Xiaomi / MIUI / HyperOS. Работает через стандартные настройки Android, без root.</string>
     <string name="cancel">Отмена</string>
     <string name="allow">Разрешить</string>
-    <string name="agree_and_open">Согласиться и открыть</string>
 
     <!-- ========== ГЛАВНЫЙ ЭКРАН ========== -->
     <string name="features_title">Что делает приложение</string>
@@ -21,7 +20,6 @@
     <string name="reboot_now">Перезагрузить сейчас</string>
 
     <!-- ========== ВЫБОР УРОВНЯ ========== -->
-    <string name="level_dialog_title">Выберите уровень оптимизации</string>
     <string name="level_dialog_subtitle">Можно изменить позже в настройках</string>
     <string name="level_dialog_text">Простой режим подойдёт всем — приложение само выполнит настройки. Продвинутый требует Shizuku/ADB, но даёт больше контроля.</string>
     <string name="level_simple_title">🟢 Простая</string>
@@ -104,7 +102,6 @@
     <string name="dev_mode_dialog_retry">Попробовать снова</string>
 
     <!-- ========== ACCESSIBILITY ========== -->
-    <string name="accessibility_explanation_title">Нужны специальные возможности</string>
     <string name="accessibility_explanation_text">Приложению нужен доступ к службе специальных возможностей, чтобы автоматически нажимать кнопки в настройках. Доступ используется только для навигации по системным экранам и не передаётся наружу. Данные не собираются и не отправляются на серверы.</string>
     <string name="hint_title">Подсказка</string>
     <string name="hint_accessibility">Включите «XiaoHyperCleaner» в списке служб</string>

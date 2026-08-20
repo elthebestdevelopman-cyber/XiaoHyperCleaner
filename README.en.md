@@ -261,7 +261,7 @@ app/src/test/java/
 ### Important Details
 
 - `%04x` ADB header in **lowercase** (critical!)
-- Shell read **until EOF**
+- Shel read **until EOF**
 - `ADB_TIMEOUT_MS` as **Int** (Socket.connect requires Int), other `*_MS` as Long
 - Service check via **`flattenToString()`** (short form doesn't work)
 - `lateinit listener` in mDNS (`this@DiscoveryListener` label doesn't work)
@@ -386,7 +386,7 @@ text: [creativecommons.org/licenses/by-nc-sa/4.0](https://creativecommons.org/li
 
 ## 💖 Support the Project
 
-If the app turned out to be useful and you'd like to say thanks:
+If the app turned out to be useful, and you'd like to say thanks:
 
 | Service       | Link                                                                     |
 |---------------|--------------------------------------------------------------------------|

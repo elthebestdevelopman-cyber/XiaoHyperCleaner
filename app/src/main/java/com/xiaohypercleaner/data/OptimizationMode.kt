@@ -7,13 +7,13 @@ import androidx.datastore.preferences.core.stringPreferencesKey
  */
 enum class OptimizationMode {
     /**
-     * Простой режим — для всех пользователей
+     * Простой режим — для всех пользователей.
      * Работает через Accessibility Service, автоматически выполняет настройки
      */
     SIMPLE,
 
     /**
-     * Продвинутый режим — для опытных пользователей
+     * Продвинутый режим — для опытных пользователей.
      * Использует Shizuku или Wireless ADB для глубокой настройки
      */
     PRO;

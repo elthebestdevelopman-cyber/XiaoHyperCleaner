@@ -5,7 +5,6 @@
     <string name="app_description_short">Configures privacy settings and reduces background load on Xiaomi / MIUI / HyperOS. Works via standard Android settings, no root required.</string>
     <string name="cancel">Cancel</string>
     <string name="allow">Allow</string>
-    <string name="agree_and_open">Agree and open</string>
 
     <!-- ========== MAIN SCREEN ========== -->
     <string name="features_title">What the app does</string>
@@ -21,7 +20,6 @@
     <string name="reboot_now">Reboot now</string>
 
     <!-- ========== LEVEL SELECTION ========== -->
-    <string name="level_dialog_title">Choose optimization level</string>
     <string name="level_dialog_subtitle">You can change the mode later in settings</string>
     <string name="level_dialog_text">Simple mode works for everyone — the app will configure everything automatically. Advanced mode requires Shizuku/ADB but gives more control.</string>
     <string name="level_simple_title">Simple</string>
@@ -102,7 +100,6 @@
     <string name="dev_mode_dialog_retry">Try again</string>
 
     <!-- ========== ACCESSIBILITY ========== -->
-    <string name="accessibility_explanation_title">Accessibility service required</string>
     <string name="accessibility_explanation_text">The app needs Accessibility service access to automatically click buttons in settings. Access is used only for navigating system screens and is never transmitted externally. No data is collected or sent to servers.</string>
     <string name="hint_title">Hint</string>
     <string name="hint_accessibility">Enable "XiaoHyperCleaner" in the services list</string>
@@ -170,7 +167,6 @@
     <string name="about_text">XiaoHyperCleaner — a tool for safe privacy configuration on MIUI/HyperOS. Works only locally on your device.</string>
     <string name="shizuku_attribution">Shizuku is used with gratitude to the developers.</string>
     <string name="close">Close</string>
-    <string name="privacy_policy_url" translatable="false">https://elthebestdevelopman-cyber.github.io/privacy-policy/index.html</string>
 
     <!-- ========== SHIZUKU WIZARD ========== -->
     <string name="shizuku_wizard_title">Shizuku Setup</string>

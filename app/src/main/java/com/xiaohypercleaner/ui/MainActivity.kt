@@ -1,5 +1,6 @@
 package com.xiaohypercleaner.ui
 
+import android.animation.ObjectAnimator
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -8,6 +9,8 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.HapticFeedbackConstants
+import android.view.View
+import android.view.animation.AccelerateInterpolator
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
@@ -65,14 +68,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.animation.doOnEnd
 import androidx.core.content.FileProvider
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.Lifecycle
@@ -128,8 +132,16 @@ class MainActivity : ComponentActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // ═══════════════════════════════════════════════════════════════
+        // СИСТЕМНЫЙ SPLASH SCREEN — задержка для видимости бренда
+        // ═══════════════════════════════════════════════════════════════
+        val splashScreen = installSplashScreen()
 
-        installSplashScreen()
+        // Флаг, который контролирует удержание сплеша на экране
+        var keepSplashVisible = true
+
+        // Удерживаем сплеш, пока флаг true (минимум 1200 мс для читаемости)
+        splashScreen.setKeepOnScreenCondition { keepSplashVisible }
 
         super.onCreate(savedInstanceState)
         AppLog.i(TAG, "onCreate started")
@@ -137,6 +149,53 @@ class MainActivity : ComponentActivity() {
         Shizuku.addRequestPermissionResultListener(shizukuPermissionListener)
 
         val prefs = (application as XiaoHyperApp).preferencesManager
+
+        // Запускаем корутину, которая через 1200 мс снимет удержание
+        // и запустит плавную exit-анимацию (fade out + scale)
+        val mainHandler = android.os.Handler(mainLooper)
+        mainHandler.postDelayed({
+            keepSplashVisible = false
+
+            // Красивая exit-анимация только на Android 12+ (где системный splash работает)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                splashScreen.setOnExitAnimationListener { splashScreenView ->
+                    val fadeOut = ObjectAnimator.ofFloat(
+                        splashScreenView.view,
+                        View.ALPHA,
+                        1f,
+                        0f
+                    ).apply {
+                        interpolator = AccelerateInterpolator()
+                        duration = 400L
+                    }
+
+                    val scaleOutX = ObjectAnimator.ofFloat(
+                        splashScreenView.iconView,
+                        View.SCALE_X,
+                        1f,
+                        0.85f
+                    ).apply {
+                        interpolator = AccelerateInterpolator()
+                        duration = 400L
+                    }
+
+                    val scaleOutY = ObjectAnimator.ofFloat(
+                        splashScreenView.iconView,
+                        View.SCALE_Y,
+                        1f,
+                        0.85f
+                    ).apply {
+                        interpolator = AccelerateInterpolator()
+                        duration = 400L
+                    }
+
+                    fadeOut.doOnEnd { splashScreenView.remove() }
+                    fadeOut.start()
+                    scaleOutX.start()
+                    scaleOutY.start()
+                }
+            }
+        }, 1200L)
 
         setContent {
             val isDarkFromPrefs by prefs.isDarkTheme.collectAsState(initial = false)
