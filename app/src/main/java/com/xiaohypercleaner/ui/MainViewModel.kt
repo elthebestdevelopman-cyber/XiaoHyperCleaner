@@ -115,8 +115,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         AppLog.i(TAG, "init started")
 
-        // Защита SimpleStepBridge.onResult НЕ ТРОНУТА:
-        // openedSpecificScreen=openedIndex<step.intents.lastIndex
         SimpleStepBridge.onResult = { success ->
             AppLog.i(TAG, "SimpleStepBridge result: $success")
             onSimpleStepResult(success)
@@ -188,16 +186,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         autoFlowJob?.cancel()
     }
 
-    /**
-     * ИСПРАВЛЕНО КРИТИЧЕСКОЕ: simpleModeActive в UiState теперь корректно
-     * отражает состояние Simple Mode. Раньше использовалось:
-     *   simpleModeActive = if (!running) false else current.simpleModeActive
-     * что оставляло старое значение (всегда false), из-за чего MainActivity.onResume
-     * не вызывал onTestActivityReturn() и TestActivity запускалась бесконечно.
-     *
-     * Теперь: running=true → simpleModeActive=true, running=false → false.
-     * Приватное поле ViewModel тоже синхронизируется с running.
-     */
     private fun mergeSimpleState(s: SimpleModeController.SimpleModeState) {
         val running =
             s.active || s.step != null || s.done != null || s.phase != SimpleModePhase.INACTIVE
@@ -208,7 +196,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 permissionSubPhase = s.permissionSubPhase,
                 simpleStep = s.step,
                 simpleDone = s.done,
-                // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: simpleModeActive = running
                 simpleModeActive = running,
                 showAccessibilityDialog = if (running) s.showAccessibilityDialog else false,
                 showOverlayDialog = if (running) s.showOverlayDialog else false,
@@ -225,7 +212,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
 
-        // Синхронизируем приватное поле ViewModel с running
         simpleModeActive = running
     }
 
@@ -436,10 +422,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i(TAG, "checkRestrictedSettingsOnResume called (no-op, handled by refreshStatuses)")
     }
 
-    /**
-     * Вызывается из MainActivity.onResume, когда возвращаемся из TestActivity.
-     * Проверяет результат TEST_CLICK через флаг SystemAutomationService.awaitingTestClick.
-     */
     fun onTestActivityReturn(success: Boolean) {
         AppLog.i(TAG, "onTestActivityReturn: success=$success")
         if (success) {
@@ -449,9 +431,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Вызывается из MainActivity.onResume, когда возвращаемся из Battery Optimization.
-     */
     fun onBatteryOptimizationReturn() {
         AppLog.i(TAG, "onBatteryOptimizationReturn")
         simpleController.onBatteryReturn()
@@ -514,7 +493,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         simpleController.start()
     }
 
-    // Защита SimpleStepBridge.onResult сохранена: openedSpecificScreen=openedIndex<step.intents.lastIndex
+    // ═══════════════════════════════════════════════════════════════
+    // ИСПРАВЛЕНО: авто-ретрай вызывает startCurrentStep(force = true)
+    // чтобы обойти защиту от двойного тапа.
+    // ═══════════════════════════════════════════════════════════════
     fun onSimpleStepResult(success: Boolean) {
         AppLog.i(TAG, "onSimpleStepResult: success=$success, attempt=$stepAttempt")
         val step = _state.value.simpleStep ?: return
@@ -534,7 +516,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             autoFlowJob?.cancel()
             autoFlowJob = viewModelScope.launch {
                 delay(RETRY_DELAY_MS.milliseconds)
-                simpleController.startCurrentStep()
+                simpleController.startCurrentStep(force = true)  // ← ИСПРАВЛЕНО
             }
         } else {
             AppLog.e(TAG, "onSimpleStepResult: all attempts exhausted")
@@ -577,9 +559,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // SIMPLE MODE UI CONTROLS (обёртки для MainActivity)
-    // ═══════════════════════════════════════════════════════════════
     fun startCurrentSimpleStep() {
         simpleController.startCurrentStep()
     }
@@ -616,10 +595,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         simpleController.onLocationDialogCancelled()
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // RESTRICTED_SETTINGS фаза
-    // ═══════════════════════════════════════════════════════════════
-
     fun onRestrictedScreenOpenSettings() {
         AppLog.i(TAG, "onRestrictedScreenOpenSettings")
         simpleController.onRestrictedScreenOpenSettings()
@@ -635,10 +610,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         simpleController.onRestrictedScreenCancelled()
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // TEST_CLICK фаза
-    // ═══════════════════════════════════════════════════════════════
-
     fun onTestClickRetry() {
         AppLog.i(TAG, "onTestClickRetry")
         simpleController.onTestClickRetry()
@@ -649,10 +620,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         simpleController.onTestClickSkip()
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // BATTERY_OPTIMIZATION фаза
-    // ═══════════════════════════════════════════════════════════════
-
     fun onBatteryDialogAgreed() {
         AppLog.i(TAG, "onBatteryDialogAgreed")
         simpleController.onBatteryDialogAgreed()
@@ -662,10 +629,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i(TAG, "onBatteryDialogSkipped")
         simpleController.onBatteryDialogSkipped()
     }
-
-    // ═══════════════════════════════════════════════════════════════
-    // Fallback-диалог после исчерпания попыток
-    // ═══════════════════════════════════════════════════════════════
 
     fun onPermissionFallbackRetry() {
         AppLog.i(TAG, "onPermissionFallbackRetry")

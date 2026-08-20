@@ -64,12 +64,6 @@ class SimpleModeController(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private var restrictedLocation: RestrictedLocation = RestrictedLocation.UNKNOWN
-
-    // ═══════════════════════════════════════════════════════════════
-    // ИСПРАВЛЕНИЕ БАГА B: флаг защиты от двойного запуска TestActivity.
-    // Без этого refresh() из MainActivity.onResume вызывал launchTestActivity()
-    // повторно, пока TestActivity ещё не закрылась → бесконечный цикл.
-    // ═══════════════════════════════════════════════════════════════
     private var testActivityLaunched = false
 
     private val needsRestrictedUnlock: Boolean by lazy {
@@ -127,7 +121,7 @@ class SimpleModeController(
         AppLog.i(TAG, "Starting simple mode, needsRestrictedUnlock=$needsRestrictedUnlock")
         failedIds.clear()
         stepAttempt = 1
-        testActivityLaunched = false  // ИСПРАВЛЕНИЕ: сбрасываем флаг при старте
+        testActivityLaunched = false
         restrictedLocation = RestrictedLocation.UNKNOWN
         state = SimpleModeState(
             active = true,
@@ -228,10 +222,6 @@ class SimpleModeController(
         reset()
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // RESTRICTED_SETTINGS фаза
-    // ═══════════════════════════════════════════════════════════════
-
     fun onRestrictedScreenOpenSettings() {
         AppLog.i(TAG, "Restricted screen: open settings clicked")
         setState { copy(showRestrictedSettingsScreen = false) }
@@ -255,20 +245,16 @@ class SimpleModeController(
         reset()
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // ИСПРАВЛЕНИЕ БАГА B: TEST_CLICK результаты с защитой от повторного запуска
-    // ═══════════════════════════════════════════════════════════════
-
     fun onTestClickSuccess() {
         AppLog.i(TAG, "TEST_CLICK success — advancing to BATTERY_OPTIMIZATION")
-        testActivityLaunched = false  // ИСПРАВЛЕНИЕ: сбрасываем флаг
+        testActivityLaunched = false
         setState { copy(permissionSubPhase = PermissionSubPhase.BATTERY_OPTIMIZATION) }
         advance()
     }
 
     fun onTestClickFailed() {
         AppLog.w(TAG, "TEST_CLICK failed — showing dialog")
-        testActivityLaunched = false  // ИСПРАВЛЕНИЕ: сбрасываем флаг
+        testActivityLaunched = false
         setState {
             copy(
                 showTestClickFailedDialog = true,
@@ -280,13 +266,12 @@ class SimpleModeController(
     fun onTestClickRetry() {
         AppLog.i(TAG, "TEST_CLICK retry")
         setState { copy(showTestClickFailedDialog = false) }
-        // testActivityLaunched будет установлен в launchTestActivity()
         launchTestActivity()
     }
 
     fun onTestClickSkip() {
         AppLog.i(TAG, "TEST_CLICK skipped — advancing to BATTERY_OPTIMIZATION")
-        testActivityLaunched = false  // ИСПРАВЛЕНИЕ: сбрасываем флаг
+        testActivityLaunched = false
         setState {
             copy(
                 showTestClickFailedDialog = false,
@@ -295,10 +280,6 @@ class SimpleModeController(
         }
         advance()
     }
-
-    // ═══════════════════════════════════════════════════════════════
-    // BATTERY_OPTIMIZATION
-    // ═══════════════════════════════════════════════════════════════
 
     fun onBatteryDialogAgreed() {
         AppLog.i(TAG, "Battery dialog agreed")
@@ -334,10 +315,6 @@ class SimpleModeController(
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // Fallback для застрявших фаз
-    // ═══════════════════════════════════════════════════════════════
-
     fun onFallbackRetry() {
         AppLog.i(TAG, "Fallback retry for phase ${state.stuckPhase}")
         val phaseToRetry = state.stuckPhase
@@ -372,16 +349,17 @@ class SimpleModeController(
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Шаги
+    // ИСПРАВЛЕНО: добавлен параметр force для обхода защиты от двойного тапа.
+    // Авто-ретрай (из MainViewModel) использует force=true.
+    // Пользовательский тап использует force=false (по умолчанию).
     // ═══════════════════════════════════════════════════════════════
-
-    fun startCurrentStep() {
+    fun startCurrentStep(force: Boolean = false) {
         val current = state.step ?: return
-        if (current.status == SimpleStepState.Status.WORKING) {
+        if (current.status == SimpleStepState.Status.WORKING && !force) {
             AppLog.w(TAG, "startCurrentStep: already WORKING, ignoring double-tap")
             return
         }
-        stepAttempt = 1
+        stepAttempt = current.attempt.coerceAtLeast(1)
         launchStep()
     }
 
@@ -433,21 +411,17 @@ class SimpleModeController(
             return
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // ИСПРАВЛЕНО: убран дублирующий ретрай внутри SimpleModeController.
+        // Теперь ретрай планирует ТОЛЬКО MainViewModel через startCurrentStep(force=true).
+        // Это убирает race condition и двойные запуски.
+        // ═══════════════════════════════════════════════════════════════
         if (stepAttempt < step.maxAttempts) {
-            stepAttempt++
-            AppLog.w(TAG, "onStepResult: auto-retry $stepAttempt/${step.maxAttempts}")
+            AppLog.w(TAG, "onStepResult: will auto-retry (handled by MainViewModel)")
             setState {
-                copy(
-                    step = step.copy(
-                        status = SimpleStepState.Status.WORKING,
-                        attempt = stepAttempt
-                    )
-                )
+                copy(step = step.copy(status = SimpleStepState.Status.IDLE, attempt = stepAttempt))
             }
-            autoFlowJob = scope.launch {
-                delay(AppConstants.RETRY_DELAY_MS.milliseconds)
-                launchStep()
-            }
+            // НЕ планируем ретрай здесь — это делает MainViewModel.onSimpleStepResult
         } else {
             AppLog.e(TAG, "onStepResult: all attempts exhausted for step ${state.currentStepIndex}")
             failedIds.add(step.step.id)
@@ -570,18 +544,6 @@ class SimpleModeController(
                 setState { copy(showAccessibilityDialog = true) }
             }
 
-            // ═══════════════════════════════════════════════════════════════
-            // ИСПРАВЛЕНИЕ БАГА B: TEST_CLICK с защитой от повторного запуска.
-            //
-            // Без флага testActivityLaunched refresh() из MainActivity.onResume
-            // вызывал advance() повторно → launchTestActivity() запускалась снова,
-            // пока предыдущая TestActivity ещё не закрылась → бесконечный цикл.
-            //
-            // Теперь:
-            // 1. Проверяем флаг — если уже запустили, ждём результат
-            // 2. Устанавливаем флаг ДО запуска Activity
-            // 3. Флаг сбрасывается в onTestClickSuccess/Failed/Skip
-            // ═══════════════════════════════════════════════════════════════
             PermissionSubPhase.TEST_CLICK -> {
                 if (!isSystemAutomationServiceEnabled()) {
                     AppLog.w(TAG, "TEST_CLICK: SystemAutomationService not enabled, skipping")
@@ -590,7 +552,6 @@ class SimpleModeController(
                     advance()
                     return
                 }
-                // КРИТИЧЕСКАЯ ЗАЩИТА: не запускаем TestActivity повторно
                 if (testActivityLaunched) {
                     AppLog.d(TAG, "TEST_CLICK: TestActivity already launched, waiting for result")
                     return
@@ -643,7 +604,7 @@ class SimpleModeController(
             context.startActivity(intent)
         } catch (e: Exception) {
             AppLog.e(TAG, "Failed to launch TestActivity: ${e.message}")
-            testActivityLaunched = false  // ИСПРАВЛЕНИЕ: сбрасываем при ошибке
+            testActivityLaunched = false
             setState { copy(permissionSubPhase = PermissionSubPhase.BATTERY_OPTIMIZATION) }
             advance()
         }
@@ -655,7 +616,7 @@ class SimpleModeController(
         permissionFlow.hideOverlay()
         failedIds.clear()
         stepAttempt = 1
-        testActivityLaunched = false  // ИСПРАВЛЕНИЕ: сбрасываем флаг при reset
+        testActivityLaunched = false
         restrictedLocation = RestrictedLocation.UNKNOWN
         state = SimpleModeState()
         onStateChanged(state)
