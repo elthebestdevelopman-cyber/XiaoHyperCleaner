@@ -80,7 +80,7 @@
     <string name="options_dialog_text">Choose additional options. You can change them later.</string>
     <string name="dns_option_title">DNS filter</string>
     <string name="dns_option_description">Block network requests to unwanted domains via AdGuard DNS.</string>
-    <string name="aggressive_option_title">Aggressive mode</string>
+    <string name="aggressive_option_title">Extended optimization</string>
     <string name="aggressive_option_description">Advanced settings for experienced users. Some Xiaomi features may work differently.</string>
     <string name="options_dialog_start">Start optimization</string>
 

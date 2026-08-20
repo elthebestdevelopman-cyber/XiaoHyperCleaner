@@ -57,19 +57,21 @@ object SimpleSteps {
     val ALL: List<Step> = listOf(
 
         // ═══════════════════════════════════════════════════════════════
-        // 1. MSA — главная служба рекламы Xiaomi
+        // 1. MSA — системный сервис рекомендаций MIUI
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "msa",
-            titleRu = "Системная реклама (MSA)",
-            titleEn = "System ads (MSA)",
-            descRu = "MSA — сервис Xiaomi который показывает рекламу в системных приложениях. Отключаем его.",
-            descEn = "MSA is Xiaomi's ad service. Turning it off removes most system ads.",
+            titleRu = "Системные рекомендации (MSA)",
+            titleEn = "System recommendations (MSA)",
+            descRu = "Системный сервис рекомендаций MIUI. Отключаем его для повышения приватности.",
+            descEn = "MIUI system recommendations service. Turning it off improves privacy.",
             intents = listOf(
                 Intent("miui.intent.action.AD_SERVICES_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 Intent(Settings.ACTION_PRIVACY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             ),
+            // searchTexts — системные ярлыки для поиска элементов на экранах MIUI,
+            // пользователю не показываются
             searchTexts = listOf(
                 "MSA", "msa",
                 "Системная реклама", "System ads",
@@ -79,19 +81,19 @@ object SimpleSteps {
                 "miui-ad", "xiaomi-ad"
             ),
             targetChecked = false,
-            manualHintRu = "Настройки → Пароли и безопасность → Конфиденциальность → Рекламные службы → MSA (выкл.)\n\nЕсли этого пути нет — пропустите шаг.",
-            manualHintEn = "Settings → Passwords & security → Privacy → Ad services → MSA (off)\n\nIf this path doesn't exist — skip this step."
+            manualHintRu = "Настройки → Пароли и безопасность → Конфиденциальность → найдите пункт MSA и отключите его.\n\nЕсли такого пункта нет — пропустите шаг.",
+            manualHintEn = "Settings → Passwords & security → Privacy → find the MSA item and turn it off.\n\nIf this item doesn't exist — skip this step."
         ),
 
         // ═══════════════════════════════════════════════════════════════
-        // 2. Персональные рекомендации (таргетинг)
+        // 2. Персональные рекомендации (персонализация)
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "personalized",
             titleRu = "Персональные рекомендации",
             titleEn = "Personalized recommendations",
-            descRu = "Xiaomi собирает данные для таргетированной рекламы. Отключаем.",
-            descEn = "Xiaomi collects data for targeted ads. Turning off.",
+            descRu = "Системный сервис персональных рекомендаций. Отключаем для повышения приватности.",
+            descEn = "System personalized recommendations service. Turning it off improves privacy.",
             intents = listOf(
                 Intent("miui.intent.action.AD_SERVICES_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 Intent(Settings.ACTION_PRIVACY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
@@ -106,8 +108,8 @@ object SimpleSteps {
                 "Ad services", "Рекламные службы"
             ),
             targetChecked = false,
-            manualHintRu = "Настройки → Пароли и безопасность → Конфиденциальность → Рекламные службы → Персональные рекомендации (выкл.)",
-            manualHintEn = "Settings → Passwords & security → Privacy → Ad services → Personalized recommendations (off)"
+            manualHintRu = "Настройки → Пароли и безопасность → Конфиденциальность → Персональные рекомендации (выкл.)",
+            manualHintEn = "Settings → Passwords & security → Privacy → Personalized recommendations (off)"
         ),
 
         // ═══════════════════════════════════════════════════════════════
@@ -118,8 +120,8 @@ object SimpleSteps {
             id = "ux_program",
             titleRu = "Программа улучшения UX",
             titleEn = "User Experience Program",
-            descRu = "Отправка статистики в Xiaomi. Отключаем.",
-            descEn = "Usage data sent to Xiaomi. Turning off.",
+            descRu = "Программа улучшения UX отправляет статистику использования. Отключаем.",
+            descEn = "The User Experience Program sends usage statistics. Turning it off.",
             intents = listOf(
                 Intent("miui.intent.action.USER_EXPERIENCE_PROGRAM").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 Intent("miui.intent.action.DIAGNOSTIC_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
@@ -145,15 +147,15 @@ object SimpleSteps {
         ),
 
         // ═══════════════════════════════════════════════════════════════
-        // 4. GetApps — уведомления-спам от магазина
+        // 4. GetApps — лишние уведомления магазина
         // ✅ Безопасно: обновления приложений идут через системный механизм
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "getapps",
             titleRu = "Уведомления GetApps",
             titleEn = "GetApps notifications",
-            descRu = "Магазин GetApps спамит уведомлениями. Отключаем.",
-            descEn = "GetApps spams notifications. Turning off.",
+            descRu = "Отключаем лишние уведомления магазина GetApps.",
+            descEn = "Turning off unnecessary GetApps store notifications.",
             intents = listOf(
                 notificationsIntent("com.xiaomi.market"),
                 appDetailsIntent("com.xiaomi.market")
@@ -175,7 +177,7 @@ object SimpleSteps {
         ),
 
         // ═══════════════════════════════════════════════════════════════
-        // 5. Mi Music — рекламные уведомления
+        // 5. Mi Music — лишние уведомления
         // ⚠️ Условно безопасно: если используете Mi Music как основной плеер,
         //    потеряете уведомления о новых плейлистах/альбомах (но музыка работает)
         // ═══════════════════════════════════════════════════════════════
@@ -183,8 +185,8 @@ object SimpleSteps {
             id = "music",
             titleRu = "Уведомления Mi Music",
             titleEn = "Mi Music notifications",
-            descRu = "Mi Music спамит рекламой в уведомлениях. Отключаем.",
-            descEn = "Mi Music spams ads in notifications. Turning off.",
+            descRu = "Отключаем лишние уведомления Mi Music.",
+            descEn = "Turning off unnecessary Mi Music notifications.",
             intents = listOf(
                 notificationsIntent("com.miui.player"),
                 appDetailsIntent("com.miui.player")
@@ -204,15 +206,15 @@ object SimpleSteps {
         ),
 
         // ═══════════════════════════════════════════════════════════════
-        // 6. Themes — рекламные уведомления
+        // 6. Themes — лишние уведомления
         // ✅ Безопасно: темы можно применять вручную через приложение
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "themes",
             titleRu = "Уведомления Темы",
             titleEn = "Themes notifications",
-            descRu = "Приложение Темы спамит уведомлениями. Отключаем.",
-            descEn = "Themes app spams notifications. Turning off.",
+            descRu = "Отключаем лишние уведомления приложения Темы.",
+            descEn = "Turning off unnecessary Themes app notifications.",
             intents = listOf(
                 notificationsIntent("com.android.thememanager"),
                 appDetailsIntent("com.android.thememanager")
@@ -231,15 +233,15 @@ object SimpleSteps {
         ),
 
         // ═══════════════════════════════════════════════════════════════
-        // 7. File Manager — уведомления-спам
+        // 7. File Manager — лишние уведомления
         // ✅ Безопасно: файловый менеджер работает полностью без уведомлений
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "filemanager",
             titleRu = "Уведомления Проводника",
             titleEn = "File Manager notifications",
-            descRu = "Проводник спамит рекомендациями. Отключаем.",
-            descEn = "File Manager spams recommendations. Turning off.",
+            descRu = "Отключаем лишние уведомления Проводника.",
+            descEn = "Turning off unnecessary File Manager notifications.",
             intents = listOf(
                 notificationsIntent("com.mi.android.globalFileexplorer"),
                 notificationsIntent("com.android.fileexplorer"),
@@ -260,15 +262,15 @@ object SimpleSteps {
         ),
 
         // ═══════════════════════════════════════════════════════════════
-        // 8. Xiaomi Service Framework (MSF) — сервисы Xiaomi
+        // 8. Xiaomi Service Framework (MSF) — системная служба Xiaomi
         // ✅ Безопасно: отключаем только уведомления, сервисы работают
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "msf",
             titleRu = "Xiaomi Service Framework",
             titleEn = "Xiaomi Service Framework",
-            descRu = "Служба сбора данных Xiaomi. Ограничиваем её возможности.",
-            descEn = "Xiaomi data collection service. Limiting its capabilities.",
+            descRu = "Системная служба Xiaomi. Ограничиваем её уведомления.",
+            descEn = "Xiaomi system service. Limiting its notifications.",
             intents = listOf(
                 notificationsIntent("com.xiaomi.xmsf"),
                 appDetailsIntent("com.xiaomi.xmsf")
@@ -289,7 +291,7 @@ object SimpleSteps {
 
         // ═══════════════════════════════════════════════════════════════
         // 9. Системная аналитика — приватность
-        // ✅ Безопасно: отключаем сбор данных, система работает нормально
+        // ✅ Безопасно: отключаем сбор статистики, система работает нормально
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "analytics",
@@ -318,15 +320,15 @@ object SimpleSteps {
         ),
 
         // ═══════════════════════════════════════════════════════════════
-        // 10. Рекламный ID — сброс Google Ads
+        // 10. Идентификатор персонализации Google
         // ✅ Безопасно: можно сбросить или отключить без последствий
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "ads_id",
-            titleRu = "Рекламный ID Google",
-            titleEn = "Google Ads ID",
-            descRu = "Идентификатор для таргетированной рекламы. Сбрасываем или отключаем.",
-            descEn = "Identifier for targeted ads. Resetting or disabling.",
+            titleRu = "Идентификатор персонализации Google",
+            titleEn = "Google personalization ID",
+            descRu = "Идентификатор, который используется для подбора контента. Сбрасываем или отключаем.",
+            descEn = "Identifier used for content selection. Resetting or disabling it.",
             intents = listOf(
                 Intent("android.settings.ADS_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 Intent(Settings.ACTION_PRIVACY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -339,8 +341,8 @@ object SimpleSteps {
                 "Opt out of Ads Personalization", "Отказаться от персонализации рекламы"
             ),
             targetChecked = false,
-            manualHintRu = "Настройки → Google → Реклама → Удалить рекламный ID или отключить персонализацию.",
-            manualHintEn = "Settings → Google → Ads → Delete advertising ID or turn off ad personalization.",
+            manualHintRu = "Настройки → Google → найдите пункт управления идентификатором → удалите идентификатор или отключите персонализацию.",
+            manualHintEn = "Settings → Google → find the ID settings → delete the ID or turn off personalization.",
             riskLevel = RiskLevel.SAFE,
             warningRu = null,
             warningEn = null
@@ -354,8 +356,8 @@ object SimpleSteps {
             id = "smart_assistant",
             titleRu = "Smart Assistant (Mi AI)",
             titleEn = "Smart Assistant (Mi AI)",
-            descRu = "Голосовой помощник Xiaomi. Отключаем уведомления и сбор данных.",
-            descEn = "Xiaomi voice assistant. Turning off notifications and data collection.",
+            descRu = "Голосовой помощник Xiaomi. Отключаем его уведомления.",
+            descEn = "Xiaomi voice assistant. Turning off its notifications.",
             intents = listOf(
                 notificationsIntent("com.miui.voiceassist"),
                 appDetailsIntent("com.miui.voiceassist")
@@ -376,15 +378,15 @@ object SimpleSteps {
         ),
 
         // ═══════════════════════════════════════════════════════════════
-        // 12. Game Turbo реклама — игровые уведомления
-        // ✅ Безопасно: игровой режим работает, отключаем только рекламу
+        // 12. Game Turbo — лишние уведомления
+        // ✅ Безопасно: игровой режим работает, отключаем только уведомления
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "game_turbo",
-            titleRu = "Game Turbo реклама",
-            titleEn = "Game Turbo ads",
-            descRu = "Game Turbo показывает рекламу и рекомендации. Отключаем.",
-            descEn = "Game Turbo shows ads and recommendations. Turning off.",
+            titleRu = "Уведомления Game Turbo",
+            titleEn = "Game Turbo notifications",
+            descRu = "Отключаем лишние уведомления и рекомендации Game Turbo.",
+            descEn = "Turning off unnecessary Game Turbo notifications and recommendations.",
             intents = listOf(
                 notificationsIntent("com.miui.gamebooster"),
                 appDetailsIntent("com.miui.gamebooster")
