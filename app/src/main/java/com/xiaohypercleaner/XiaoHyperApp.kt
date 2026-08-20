@@ -30,6 +30,7 @@ class XiaoHyperApp : Application() {
         }
 
         AppLog.i("App", "XiaoHyperApp: onCreate completed")
+
     }
 
     private fun setupCrashHandler() {

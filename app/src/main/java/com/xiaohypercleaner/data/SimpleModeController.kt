@@ -1,10 +1,13 @@
 package com.xiaohypercleaner.data
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.provider.Settings
 import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.ChainFlags
+import com.xiaohypercleaner.service.SystemAutomationService
 import com.xiaohypercleaner.util.AppLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -37,10 +40,15 @@ class SimpleModeController(
         val showAccessibilityDialog: Boolean = false,
         val showRestrictedDialog: Boolean = false,
         val showLocationDialog: Boolean = false,
+        val showPermissionFallbackDialog: Boolean = false,
+        val stuckPhase: PermissionSubPhase? = null,
+        val showRestrictedSettingsScreen: Boolean = false,
         val restrictedSettingsShown: Boolean = false,
         val accessibilityAttempts: Int = 0,
         val overlayAttempts: Int = 0,
         val appInfoAttempts: Int = 0,
+        val showTestClickFailedDialog: Boolean = false,
+        val showBatteryDialog: Boolean = false,
         val failedStepIds: List<String> = emptyList()
     )
 
@@ -57,8 +65,13 @@ class SimpleModeController(
 
     private var restrictedLocation: RestrictedLocation = RestrictedLocation.UNKNOWN
 
-    // Проверку sideload делегируем PermissionFlowManager —
-    // единая реализация без дублирования и мёртвых веток SDK_INT
+    // ═══════════════════════════════════════════════════════════════
+    // ИСПРАВЛЕНИЕ БАГА B: флаг защиты от двойного запуска TestActivity.
+    // Без этого refresh() из MainActivity.onResume вызывал launchTestActivity()
+    // повторно, пока TestActivity ещё не закрылась → бесконечный цикл.
+    // ═══════════════════════════════════════════════════════════════
+    private var testActivityLaunched = false
+
     private val needsRestrictedUnlock: Boolean by lazy {
         permissionFlow.isSideloadedOnAndroid13Plus()
     }
@@ -114,14 +127,14 @@ class SimpleModeController(
         AppLog.i(TAG, "Starting simple mode, needsRestrictedUnlock=$needsRestrictedUnlock")
         failedIds.clear()
         stepAttempt = 1
+        testActivityLaunched = false  // ИСПРАВЛЕНИЕ: сбрасываем флаг при старте
         restrictedLocation = RestrictedLocation.UNKNOWN
         state = SimpleModeState(
             active = true,
             phase = SimpleModePhase.PERMISSIONS,
-            permissionSubPhase = if (needsRestrictedUnlock) {
-                PermissionSubPhase.APP_INFO
-            } else {
-                PermissionSubPhase.OVERLAY
+            permissionSubPhase = when {
+                needsRestrictedUnlock -> PermissionSubPhase.RESTRICTED_SETTINGS
+                else -> PermissionSubPhase.OVERLAY
             }
         )
         onStateChanged(state)
@@ -130,12 +143,7 @@ class SimpleModeController(
 
     fun onAppInfoDialogAgreed() {
         AppLog.i(TAG, "AppInfo dialog agreed, location=$restrictedLocation")
-        setState {
-            copy(
-                showAppInfoDialog = false,
-                appInfoAttempts = appInfoAttempts + 1
-            )
-        }
+        setState { copy(showAppInfoDialog = false, appInfoAttempts = appInfoAttempts + 1) }
         ChainFlags.waitingAccessibilityReturn = true
         permissionFlow.openAppInfoWithSmartPointer(restrictedLocation)
     }
@@ -156,7 +164,6 @@ class SimpleModeController(
         AppLog.i(TAG, "Location chosen: $location")
         restrictedLocation = location
         setState { copy(showLocationDialog = false) }
-
         if (location == RestrictedLocation.ABSENT) {
             AppLog.i(TAG, "User says no restricted item — skipping APP_INFO phase")
             setState { copy(permissionSubPhase = PermissionSubPhase.OVERLAY) }
@@ -167,13 +174,11 @@ class SimpleModeController(
     }
 
     fun onLocationDialogCancelled() {
-        AppLog.i(TAG, "Location dialog cancelled — resetting")
         reset()
     }
 
     fun onDialogAgreed() {
         AppLog.i(TAG, "Dialog agreed, subPhase=${state.permissionSubPhase}")
-
         when (state.permissionSubPhase) {
             PermissionSubPhase.ACCESSIBILITY -> {
                 setState {
@@ -187,22 +192,15 @@ class SimpleModeController(
             }
 
             PermissionSubPhase.OVERLAY -> {
-                setState {
-                    copy(
-                        showOverlayDialog = false,
-                        overlayAttempts = overlayAttempts + 1
-                    )
-                }
+                setState { copy(showOverlayDialog = false, overlayAttempts = overlayAttempts + 1) }
                 permissionFlow.openOverlayWithPointer()
             }
 
             else -> {
                 setState {
                     copy(
-                        showAccessibilityDialog = false,
-                        showOverlayDialog = false,
-                        showRestrictedDialog = false,
-                        showAppInfoDialog = false
+                        showAccessibilityDialog = false, showOverlayDialog = false,
+                        showRestrictedDialog = false, showAppInfoDialog = false
                     )
                 }
             }
@@ -218,20 +216,164 @@ class SimpleModeController(
         AppLog.i(TAG, "Restricted dialog agreed — going back to APP_INFO")
         setState {
             copy(
-                showRestrictedDialog = false,
-                showAccessibilityDialog = false,
+                showRestrictedDialog = false, showAccessibilityDialog = false,
                 permissionSubPhase = PermissionSubPhase.APP_INFO,
-                restrictedSettingsShown = true,
-                accessibilityAttempts = 0
+                restrictedSettingsShown = true, accessibilityAttempts = 0
             )
         }
         permissionFlow.openAppInfoWithSmartPointer(restrictedLocation)
     }
 
     fun onRestrictedDialogCancelled() {
-        AppLog.i(TAG, "Restricted dialog cancelled — resetting simple mode")
         reset()
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // RESTRICTED_SETTINGS фаза
+    // ═══════════════════════════════════════════════════════════════
+
+    fun onRestrictedScreenOpenSettings() {
+        AppLog.i(TAG, "Restricted screen: open settings clicked")
+        setState { copy(showRestrictedSettingsScreen = false) }
+        permissionFlow.openAppInfoSettings()
+    }
+
+    fun onRestrictedScreenDone() {
+        AppLog.i(TAG, "Restricted screen: done clicked, advancing to OVERLAY")
+        setState {
+            copy(
+                showRestrictedSettingsScreen = false,
+                restrictedSettingsShown = true,
+                permissionSubPhase = PermissionSubPhase.OVERLAY
+            )
+        }
+        advance()
+    }
+
+    fun onRestrictedScreenCancelled() {
+        AppLog.i(TAG, "Restricted screen cancelled — resetting")
+        reset()
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ИСПРАВЛЕНИЕ БАГА B: TEST_CLICK результаты с защитой от повторного запуска
+    // ═══════════════════════════════════════════════════════════════
+
+    fun onTestClickSuccess() {
+        AppLog.i(TAG, "TEST_CLICK success — advancing to BATTERY_OPTIMIZATION")
+        testActivityLaunched = false  // ИСПРАВЛЕНИЕ: сбрасываем флаг
+        setState { copy(permissionSubPhase = PermissionSubPhase.BATTERY_OPTIMIZATION) }
+        advance()
+    }
+
+    fun onTestClickFailed() {
+        AppLog.w(TAG, "TEST_CLICK failed — showing dialog")
+        testActivityLaunched = false  // ИСПРАВЛЕНИЕ: сбрасываем флаг
+        setState {
+            copy(
+                showTestClickFailedDialog = true,
+                permissionSubPhase = PermissionSubPhase.TEST_CLICK
+            )
+        }
+    }
+
+    fun onTestClickRetry() {
+        AppLog.i(TAG, "TEST_CLICK retry")
+        setState { copy(showTestClickFailedDialog = false) }
+        // testActivityLaunched будет установлен в launchTestActivity()
+        launchTestActivity()
+    }
+
+    fun onTestClickSkip() {
+        AppLog.i(TAG, "TEST_CLICK skipped — advancing to BATTERY_OPTIMIZATION")
+        testActivityLaunched = false  // ИСПРАВЛЕНИЕ: сбрасываем флаг
+        setState {
+            copy(
+                showTestClickFailedDialog = false,
+                permissionSubPhase = PermissionSubPhase.BATTERY_OPTIMIZATION
+            )
+        }
+        advance()
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // BATTERY_OPTIMIZATION
+    // ═══════════════════════════════════════════════════════════════
+
+    fun onBatteryDialogAgreed() {
+        AppLog.i(TAG, "Battery dialog agreed")
+        setState { copy(showBatteryDialog = false) }
+        permissionFlow.openBatteryOptimizationWithPointer()
+    }
+
+    fun onBatteryDialogSkipped() {
+        AppLog.i(TAG, "Battery dialog skipped — advancing to STEPS")
+        setState {
+            copy(
+                showBatteryDialog = false,
+                phase = SimpleModePhase.STEPS,
+                permissionSubPhase = PermissionSubPhase.DONE
+            )
+        }
+        nextStep(autoStart = true)
+    }
+
+    fun onBatteryReturn() {
+        val ignoring = permissionFlow.isIgnoringBatteryOptimizations()
+        AppLog.i(TAG, "onBatteryReturn: isIgnoringBatteryOptimizations=$ignoring")
+        if (ignoring) {
+            setState {
+                copy(
+                    phase = SimpleModePhase.STEPS,
+                    permissionSubPhase = PermissionSubPhase.DONE
+                )
+            }
+            nextStep(autoStart = true)
+        } else {
+            setState { copy(showBatteryDialog = true) }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Fallback для застрявших фаз
+    // ═══════════════════════════════════════════════════════════════
+
+    fun onFallbackRetry() {
+        AppLog.i(TAG, "Fallback retry for phase ${state.stuckPhase}")
+        val phaseToRetry = state.stuckPhase
+        setState {
+            copy(
+                showPermissionFallbackDialog = false,
+                stuckPhase = null,
+                accessibilityAttempts = if (phaseToRetry == PermissionSubPhase.ACCESSIBILITY) 0 else accessibilityAttempts,
+                overlayAttempts = if (phaseToRetry == PermissionSubPhase.OVERLAY) 0 else overlayAttempts,
+                appInfoAttempts = if (phaseToRetry == PermissionSubPhase.APP_INFO) 0 else appInfoAttempts
+            )
+        }
+        advance()
+    }
+
+    fun onFallbackOpenSettings() {
+        AppLog.i(TAG, "Fallback open settings for phase ${state.stuckPhase}")
+        setState { copy(showPermissionFallbackDialog = false) }
+        when (state.stuckPhase) {
+            PermissionSubPhase.ACCESSIBILITY -> permissionFlow.openAccessibilityWithPointer()
+            PermissionSubPhase.OVERLAY -> permissionFlow.openOverlayWithPointer()
+            PermissionSubPhase.APP_INFO, PermissionSubPhase.RESTRICTED_SETTINGS ->
+                permissionFlow.openAppInfoWithSmartPointer(restrictedLocation)
+
+            else -> AppLog.w(TAG, "No fallback settings for phase ${state.stuckPhase}")
+        }
+    }
+
+    fun onFallbackCancelled() {
+        AppLog.i(TAG, "Fallback cancelled — resetting simple mode")
+        reset()
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Шаги
+    // ═══════════════════════════════════════════════════════════════
 
     fun startCurrentStep() {
         val current = state.step ?: return
@@ -252,7 +394,12 @@ class SimpleModeController(
     private fun launchStep() {
         autoFlowJob?.cancel()
         setState {
-            copy(step = step?.copy(status = SimpleStepState.Status.WORKING, attempt = stepAttempt))
+            copy(
+                step = step?.copy(
+                    status = SimpleStepState.Status.WORKING,
+                    attempt = stepAttempt
+                )
+            )
         }
         val intent = Intent(context, AdbEnablerService::class.java).apply {
             action = AdbEnablerService.ACTION_SIMPLE_STEP
@@ -319,7 +466,6 @@ class SimpleModeController(
 
     fun nextStep(autoStart: Boolean = false) {
         autoFlowJob?.cancel()
-
         val nextIndex = state.currentStepIndex + 1
         val steps = SimpleSteps.ALL
 
@@ -351,9 +497,7 @@ class SimpleModeController(
             )
         }
 
-        if (autoStart) {
-            startCurrentStep()
-        }
+        if (autoStart) startCurrentStep()
     }
 
     private fun advance() {
@@ -363,51 +507,101 @@ class SimpleModeController(
         when (state.permissionSubPhase) {
             PermissionSubPhase.INACTIVE -> return
 
+            PermissionSubPhase.RESTRICTED_SETTINGS -> {
+                if (state.showRestrictedSettingsScreen) return
+                AppLog.d(TAG, "RESTRICTED_SETTINGS phase — showing instruction screen")
+                setState { copy(showRestrictedSettingsScreen = true) }
+            }
+
             PermissionSubPhase.APP_INFO -> {
                 if (isAccessibilityEnabled) {
-                    AppLog.i(
-                        TAG,
-                        "Accessibility already enabled after APP_INFO — jumping to OVERLAY"
-                    )
                     setState { copy(permissionSubPhase = PermissionSubPhase.OVERLAY) }
-                    advance()
-                    return
+                    advance(); return
                 }
-
                 if (state.appInfoAttempts >= AppConstants.MAX_ACCESSIBILITY_ATTEMPTS) {
-                    AppLog.w(TAG, "APP_INFO attempts exhausted — asking for location")
                     setState {
                         copy(
-                            showLocationDialog = true,
-                            showAppInfoDialog = false
+                            showPermissionFallbackDialog = true, showAppInfoDialog = false,
+                            stuckPhase = PermissionSubPhase.APP_INFO
                         )
                     }
                     return
                 }
-
                 if (state.showAppInfoDialog || state.showLocationDialog) return
-                AppLog.d(
-                    TAG,
-                    "APP_INFO phase — showing dialog (attempt ${state.appInfoAttempts + 1})"
-                )
                 setState { copy(showAppInfoDialog = true) }
             }
 
             PermissionSubPhase.OVERLAY -> {
                 if (isOverlayGranted) {
-                    AppLog.d(TAG, "Overlay already granted — skipping to ACCESSIBILITY")
                     setState { copy(permissionSubPhase = PermissionSubPhase.ACCESSIBILITY) }
-                    advance()
+                    advance(); return
+                }
+                if (state.overlayAttempts >= AppConstants.MAX_ACCESSIBILITY_ATTEMPTS) {
+                    setState {
+                        copy(
+                            showPermissionFallbackDialog = true, showOverlayDialog = false,
+                            stuckPhase = PermissionSubPhase.OVERLAY
+                        )
+                    }
                     return
                 }
                 if (state.showOverlayDialog) return
-                AppLog.d(TAG, "OVERLAY phase — showing dialog")
                 setState { copy(showOverlayDialog = true) }
             }
 
             PermissionSubPhase.ACCESSIBILITY -> {
                 if (isAccessibilityEnabled) {
-                    AppLog.i(TAG, "All permissions granted — switching to STEPS phase")
+                    AppLog.i(TAG, "Accessibility enabled — switching to TEST_CLICK")
+                    setState { copy(permissionSubPhase = PermissionSubPhase.TEST_CLICK) }
+                    advance()
+                    return
+                }
+                if (state.accessibilityAttempts >= AppConstants.MAX_ACCESSIBILITY_ATTEMPTS) {
+                    setState {
+                        copy(
+                            showPermissionFallbackDialog = true,
+                            showAccessibilityDialog = false, showRestrictedDialog = false,
+                            stuckPhase = PermissionSubPhase.ACCESSIBILITY
+                        )
+                    }
+                    return
+                }
+                if (state.showAccessibilityDialog) return
+                setState { copy(showAccessibilityDialog = true) }
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // ИСПРАВЛЕНИЕ БАГА B: TEST_CLICK с защитой от повторного запуска.
+            //
+            // Без флага testActivityLaunched refresh() из MainActivity.onResume
+            // вызывал advance() повторно → launchTestActivity() запускалась снова,
+            // пока предыдущая TestActivity ещё не закрылась → бесконечный цикл.
+            //
+            // Теперь:
+            // 1. Проверяем флаг — если уже запустили, ждём результат
+            // 2. Устанавливаем флаг ДО запуска Activity
+            // 3. Флаг сбрасывается в onTestClickSuccess/Failed/Skip
+            // ═══════════════════════════════════════════════════════════════
+            PermissionSubPhase.TEST_CLICK -> {
+                if (!isSystemAutomationServiceEnabled()) {
+                    AppLog.w(TAG, "TEST_CLICK: SystemAutomationService not enabled, skipping")
+                    testActivityLaunched = false
+                    setState { copy(permissionSubPhase = PermissionSubPhase.BATTERY_OPTIMIZATION) }
+                    advance()
+                    return
+                }
+                // КРИТИЧЕСКАЯ ЗАЩИТА: не запускаем TestActivity повторно
+                if (testActivityLaunched) {
+                    AppLog.d(TAG, "TEST_CLICK: TestActivity already launched, waiting for result")
+                    return
+                }
+                testActivityLaunched = true
+                launchTestActivity()
+            }
+
+            PermissionSubPhase.BATTERY_OPTIMIZATION -> {
+                if (permissionFlow.isIgnoringBatteryOptimizations()) {
+                    AppLog.i(TAG, "Battery optimization already ignored — switching to STEPS")
                     setState {
                         copy(
                             phase = SimpleModePhase.STEPS,
@@ -417,28 +611,41 @@ class SimpleModeController(
                     nextStep(autoStart = true)
                     return
                 }
-                if (state.accessibilityAttempts >= AppConstants.MAX_ACCESSIBILITY_ATTEMPTS) {
-                    AppLog.w(
-                        TAG,
-                        "Accessibility stuck after ${AppConstants.MAX_ACCESSIBILITY_ATTEMPTS} attempts — showing restricted dialog"
-                    )
-                    setState {
-                        copy(
-                            showRestrictedDialog = true,
-                            showAccessibilityDialog = false
-                        )
-                    }
-                    return
-                }
-                if (state.showAccessibilityDialog) return
-                AppLog.d(
-                    TAG,
-                    "ACCESSIBILITY phase — showing dialog (attempt ${state.accessibilityAttempts + 1})"
-                )
-                setState { copy(showAccessibilityDialog = true) }
+                if (state.showBatteryDialog) return
+                AppLog.d(TAG, "BATTERY_OPTIMIZATION phase — showing dialog")
+                setState { copy(showBatteryDialog = true) }
             }
 
             PermissionSubPhase.DONE -> {}
+        }
+    }
+
+    private fun isSystemAutomationServiceEnabled(): Boolean {
+        return try {
+            val component =
+                ComponentName(context, SystemAutomationService::class.java).flattenToString()
+            Settings.Secure.getString(
+                context.contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            )?.contains(component) == true
+        } catch (e: Exception) {
+            AppLog.w(TAG, "isSystemAutomationServiceEnabled failed: ${e.message}")
+            false
+        }
+    }
+
+    private fun launchTestActivity() {
+        AppLog.i(TAG, "Launching TestActivity for TEST_CLICK verification")
+        try {
+            val intent = Intent(context, com.xiaohypercleaner.ui.TestActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            AppLog.e(TAG, "Failed to launch TestActivity: ${e.message}")
+            testActivityLaunched = false  // ИСПРАВЛЕНИЕ: сбрасываем при ошибке
+            setState { copy(permissionSubPhase = PermissionSubPhase.BATTERY_OPTIMIZATION) }
+            advance()
         }
     }
 
@@ -448,6 +655,7 @@ class SimpleModeController(
         permissionFlow.hideOverlay()
         failedIds.clear()
         stepAttempt = 1
+        testActivityLaunched = false  // ИСПРАВЛЕНИЕ: сбрасываем флаг при reset
         restrictedLocation = RestrictedLocation.UNKNOWN
         state = SimpleModeState()
         onStateChanged(state)

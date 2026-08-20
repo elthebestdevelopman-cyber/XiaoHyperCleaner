@@ -217,4 +217,45 @@
     <string name="consent_checkbox_label">I understand and consent to use the accessibility service to automate settings navigation</string>
     <string name="consent_confirm_button">Agree and continue</string>
     <string name="consent_cancel_button">Cancel</string>
+    <!-- ========== FALLBACK DIALOG AFTER 3 FAILURES ========== -->
+    <string name="fallback_accessibility_title">Couldn\'t enable the service automatically</string>
+    <string name="fallback_accessibility_text">After 3 attempts the system didn\'t allow enabling the service. Most likely you need to allow \"Restricted settings\" in the app card. Follow the steps:\n\n1. Tap \"Open settings\" below\n2. In the app card tap ⋮ (top right)\n3. Select \"Allow restricted settings\"\n4. Return to the app and tap \"Try again\"</string>
+    <string name="fallback_overlay_title">Couldn\'t enable display over other apps</string>
+    <string name="fallback_overlay_text">After 3 attempts the permission wasn\'t granted. Open settings manually and enable \"Allow display over other apps\".</string>
+    <string name="fallback_retry">Try again</string>
+    <string name="fallback_open_settings">Open settings</string>
+    <string name="fallback_cancel">Cancel optimization</string>
+
+    <!-- ========== FALLBACK FOR APP_INFO PHASE ========== -->
+    <string name="fallback_appinfo_title">Couldn\'t open app settings</string>
+    <string name="fallback_appinfo_text">After 3 attempts we couldn\'t access the app settings. Open them manually via Settings → Apps → XiaoHyperCleaner and allow \"Restricted settings\".</string>
+
+    <!-- ========== HINT CARDS FOR POINTERS (NEW) ========== -->
+    <string name="pointer_hint_accessibility">Find \"XiaoHyperCleaner\" in the services list and turn on the switch on the right</string>
+    <string name="pointer_hint_overlay">Turn on this switch to allow displaying hints</string>
+    <string name="pointer_hint_restricted">Tap ⋮ (top right) → \"Allow restricted settings\"</string>
+    <!-- ========== RESTRICTED SETTINGS SCREEN ========== -->
+    <string name="restricted_screen_title">Unlock system settings</string>
+    <string name="restricted_screen_intro">To configure privacy settings, you need to allow changing restricted settings. This is an Android 13+ system requirement for apps installed outside Google Play.</string>
+    <string name="restricted_screen_step1">Open "Settings" → "Apps" → find "XiaoHyperCleaner"</string>
+    <string name="restricted_screen_step2">Tap ⋮ (top right) and select "Allow restricted settings"</string>
+    <string name="restricted_screen_step3">Confirm with your fingerprint or password</string>
+    <string name="restricted_screen_open">Open app settings</string>
+    <string name="restricted_screen_done">I allowed it, continue</string>
+
+    <!-- ========== TEST_CLICK ========== -->
+    <string name="test_click_title">Automation check</string>
+    <string name="test_click_description">Tap the button below. The app will do it automatically — if everything is set up correctly.</string>
+    <string name="test_click_button">Test automation</string>
+    <string name="test_click_failed_title">Automation didn\'t work</string>
+    <string name="test_click_failed_text">The accessibility service couldn\'t tap the button automatically. Possible reasons:\n\n• XiaoHyperCleaner service isn\'t enabled in Accessibility settings\n• The system blocked automation (Restricted Settings)\n\nTry again or skip the check.</string>
+    <string name="test_click_retry">Retry</string>
+    <string name="test_click_skip">Skip check</string>
+
+    <!-- ========== BATTERY OPTIMIZATION ========== -->
+    <string name="battery_dialog_title">Battery optimization</string>
+    <string name="battery_dialog_text">For stable accessibility service operation, we recommend disabling battery optimization for XiaoHyperCleaner. Otherwise the system may stop automation after a few minutes.</string>
+    <string name="battery_dialog_open">Open battery settings</string>
+    <string name="battery_dialog_skip">Skip</string>
+    <string name="hint_battery_optimization">Select "No restrictions" or "Don\'t optimize"</string>
 </resources>

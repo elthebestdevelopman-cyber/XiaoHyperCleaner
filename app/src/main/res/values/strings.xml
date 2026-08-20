@@ -220,4 +220,45 @@
     <string name="consent_checkbox_label">Я понимаю и даю согласие на использование службы специальных возможностей для автоматизации настроек</string>
     <string name="consent_confirm_button">Согласиться и продолжить</string>
     <string name="consent_cancel_button">Отмена</string>
+    <!-- ========== FALLBACK ДИАЛОГ ПОСЛЕ 3 НЕУДАЧ ========== -->
+    <string name="fallback_accessibility_title">Не удалось включить службу автоматически</string>
+    <string name="fallback_accessibility_text">После 3 попыток система не позволила включить службу. Скорее всего, нужно разрешить «Ограниченные настройки» в карточке приложения. Следуйте инструкции:\n\n1. Нажмите «Открыть настройки» ниже\n2. В карточке приложения нажмите ⋮ в правом верхнем углу\n3. Выберите «Разрешить ограниченные настройки»\n4. Вернитесь в приложение и нажмите «Попробовать ещё раз»</string>
+    <string name="fallback_overlay_title">Не удалось включить отображение поверх окон</string>
+    <string name="fallback_overlay_text">После 3 попыток разрешение не получено. Откройте настройки вручную и включите переключатель «Разрешить отображение поверх других приложений».</string>
+    <string name="fallback_retry">Попробовать ещё раз</string>
+    <string name="fallback_open_settings">Открыть настройки</string>
+    <string name="fallback_cancel">Отменить оптимизацию</string>
+
+    <!-- ========== FALLBACK ДЛЯ APP_INFO ФАЗЫ ========== -->
+    <string name="fallback_appinfo_title">Не удалось открыть настройки приложения</string>
+    <string name="fallback_appinfo_text">После 3 попыток не удалось получить доступ к настройкам приложения. Откройте их вручную через Настройки → Приложения → XiaoHyperCleaner и разрешите «Ограниченные настройки».</string>
+
+    <!-- ========== HINT-КАРТОЧКИ ДЛЯ ПОИНТЕРОВ (НОВОЕ) ========== -->
+    <string name="pointer_hint_accessibility">Найдите «XiaoHyperCleaner» в списке служб и включите переключатель справа</string>
+    <string name="pointer_hint_overlay">Включите этот переключатель, чтобы разрешить отображение подсказок</string>
+    <string name="pointer_hint_restricted">Нажмите ⋮ в правом верхнем углу → «Разрешить ограниченные настройки»</string>
+    <!-- ========== RESTRICTED SETTINGS ЭКРАН ========== -->
+    <string name="restricted_screen_title">Разблокировка системных настроек</string>
+    <string name="restricted_screen_intro">Для управления параметрами конфиденциальности необходимо разрешить изменение ограниченных настроек. Это системное требование Android 13+ для приложений, установленных не из Google Play.</string>
+    <string name="restricted_screen_step1">Откройте «Настройки» → «Приложения» → найдите «XiaoHyperCleaner»</string>
+    <string name="restricted_screen_step2">Нажмите ⋮ в правом верхнем углу и выберите «Разрешить ограниченные настройки»</string>
+    <string name="restricted_screen_step3">Подтвердите действие отпечатком пальца или паролем</string>
+    <string name="restricted_screen_open">Открыть настройки приложения</string>
+    <string name="restricted_screen_done">Я разрешил, продолжить</string>
+
+    <!-- ========== TEST_CLICK ========== -->
+    <string name="test_click_title">Проверка автоматики</string>
+    <string name="test_click_description">Нажмите кнопку ниже. Приложение сделает это автоматически — если всё настроено правильно.</string>
+    <string name="test_click_button">Проверить автоматику</string>
+    <string name="test_click_failed_title">Автоматика не сработала</string>
+    <string name="test_click_failed_text">Служба специальных возможностей не смогла автоматически нажать кнопку. Возможные причины:\n\n• Служба XiaoHyperCleaner не включена в настройках Accessibility\n• Система заблокировала автоматизацию (Restricted Settings)\n\nПовторите попытку или пропустите проверку.</string>
+    <string name="test_click_retry">Повторить</string>
+    <string name="test_click_skip">Пропустить проверку</string>
+
+    <!-- ========== BATTERY OPTIMIZATION ========== -->
+    <string name="battery_dialog_title">Экономия заряда батареи</string>
+    <string name="battery_dialog_text">Для стабильной работы службы специальных возможностей рекомендуется отключить экономию заряда для XiaoHyperCleaner. Иначе система может остановить автоматизацию через несколько минут.</string>
+    <string name="battery_dialog_open">Открыть настройки батареи</string>
+    <string name="battery_dialog_skip">Пропустить</string>
+    <string name="hint_battery_optimization">Выберите «Без ограничений» или «Не экономить заряд»</string>
 </resources>

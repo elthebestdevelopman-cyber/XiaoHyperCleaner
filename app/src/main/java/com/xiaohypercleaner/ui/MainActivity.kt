@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,6 +43,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -78,6 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.animation.doOnEnd
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -86,13 +89,16 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationMode
+import com.xiaohypercleaner.data.PermissionSubPhase
 import com.xiaohypercleaner.data.RestrictedLocation
 import com.xiaohypercleaner.data.ShizukuExecutor
 import com.xiaohypercleaner.service.OverlayService
+import com.xiaohypercleaner.service.SystemAutomationService
 import com.xiaohypercleaner.ui.components.AccessibilityConsentDialog
 import com.xiaohypercleaner.ui.components.InfoDialog
 import com.xiaohypercleaner.ui.components.MenuDialog
 import com.xiaohypercleaner.ui.components.OptimizationLevelDialog
+import com.xiaohypercleaner.ui.components.RestrictedSettingsDialog
 import com.xiaohypercleaner.ui.components.ShizukuSetupWizard
 import com.xiaohypercleaner.ui.components.ShizukuSourcesDialog
 import com.xiaohypercleaner.ui.components.SimpleDoneDialog
@@ -108,8 +114,20 @@ import com.xiaohypercleaner.util.ShizukuHelper
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import rikka.shizuku.Shizuku
-import androidx.core.net.toUri
 
+/**
+ * Главный экран приложения.
+ *
+ * Структура:
+ *  - [MainActivity] — lifecycle + splash + onResume с обработкой возврата из TestActivity
+ *  - [MainContent]  — корневой Composable с фоном, InfoCard и OptimizationCard
+ *  - [MainDialogsHost] — хост ВСЕХ 17 диалогов (один Composable вместо inline-цепочки)
+ *  - UI-карточки: InfoCard / OptimizationCard и их sub-views (Ready/Working/Done)
+ *  - Утилиты для внешних intent'ов (openUrl / shareLog / openRateApp ...)
+ *
+ * Логирование: все клики пользователя и ключевые переходы помечены префиксом `MainUI`
+ * (или `MainAct` для lifecycle). По ним легко отлаживать сценарий в logcat.
+ */
 class MainActivity : ComponentActivity() {
 
     companion object {
@@ -126,74 +144,38 @@ class MainActivity : ComponentActivity() {
                     TAG,
                     "shizukuPermissionListener: requestCode=$requestCode, granted=$granted"
                 )
-                if (::vm.isInitialized) {
-                    vm.onShizukuPermissionResult(granted)
-                }
+                if (::vm.isInitialized) vm.onShizukuPermissionResult(granted)
             }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // ═══════════════════════════════════════════════════════════════
-        // СИСТЕМНЫЙ SPLASH SCREEN — задержка для видимости бренда
-        // ═══════════════════════════════════════════════════════════════
         val splashScreen = installSplashScreen()
-
-        // Флаг, который контролирует удержание сплеша на экране
         var keepSplashVisible = true
-
-        // Удерживаем сплеш, пока флаг true (минимум 1200 мс для читаемости)
         splashScreen.setKeepOnScreenCondition { keepSplashVisible }
 
         super.onCreate(savedInstanceState)
         AppLog.i(TAG, "onCreate started")
 
         Shizuku.addRequestPermissionResultListener(shizukuPermissionListener)
-
         val prefs = (application as XiaoHyperApp).preferencesManager
 
-        // Запускаем корутину, которая через 1200 мс снимет удержание
-        // и запустит плавную exit-анимацию (fade out + scale)
-        val mainHandler = android.os.Handler(mainLooper)
-        mainHandler.postDelayed({
+        android.os.Handler(mainLooper).postDelayed({
             keepSplashVisible = false
-
-            // Красивая exit-анимация только на Android 12+ (где системный splash работает)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                splashScreen.setOnExitAnimationListener { splashScreenView ->
-                    val fadeOut = ObjectAnimator.ofFloat(
-                        splashScreenView.view,
-                        View.ALPHA,
-                        1f,
-                        0f
-                    ).apply {
-                        interpolator = AccelerateInterpolator()
-                        duration = 400L
+                splashScreen.setOnExitAnimationListener { sv ->
+                    val fadeOut = ObjectAnimator.ofFloat(sv.view, View.ALPHA, 1f, 0f).apply {
+                        interpolator = AccelerateInterpolator(); duration = 400L
                     }
-
-                    val scaleOutX = ObjectAnimator.ofFloat(
-                        splashScreenView.iconView,
-                        View.SCALE_X,
-                        1f,
-                        0.85f
-                    ).apply {
-                        interpolator = AccelerateInterpolator()
-                        duration = 400L
-                    }
-
-                    val scaleOutY = ObjectAnimator.ofFloat(
-                        splashScreenView.iconView,
-                        View.SCALE_Y,
-                        1f,
-                        0.85f
-                    ).apply {
-                        interpolator = AccelerateInterpolator()
-                        duration = 400L
-                    }
-
-                    fadeOut.doOnEnd { splashScreenView.remove() }
-                    fadeOut.start()
-                    scaleOutX.start()
-                    scaleOutY.start()
+                    val scaleOutX =
+                        ObjectAnimator.ofFloat(sv.iconView, View.SCALE_X, 1f, 0.85f).apply {
+                            interpolator = AccelerateInterpolator(); duration = 400L
+                        }
+                    val scaleOutY =
+                        ObjectAnimator.ofFloat(sv.iconView, View.SCALE_Y, 1f, 0.85f).apply {
+                            interpolator = AccelerateInterpolator(); duration = 400L
+                        }
+                    fadeOut.doOnEnd { sv.remove() }
+                    fadeOut.start(); scaleOutX.start(); scaleOutY.start()
                 }
             }
         }, 1200L)
@@ -201,8 +183,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val isDarkFromPrefs by prefs.isDarkTheme.collectAsState(initial = false)
             val hasManuallyChosen by prefs.hasManuallyChosenTheme.collectAsState(initial = false)
-            val isSystemDark = isSystemInDarkTheme()
-            val isDark = if (hasManuallyChosen) isDarkFromPrefs else isSystemDark
+            val isDark = if (hasManuallyChosen) isDarkFromPrefs else isSystemInDarkTheme()
 
             val scope = rememberCoroutineScope()
             var showOnboarding by remember { mutableStateOf(false) }
@@ -214,37 +195,28 @@ class MainActivity : ComponentActivity() {
                 showOnboarding = !completed
                 onboardingChecked = true
             }
+            if (!onboardingChecked) return@setContent
 
-            if (!onboardingChecked) {
-                return@setContent
-            }
-
-            if (showOnboarding) {
-                XiaoHyperCleanerTheme(darkTheme = isDark) {
+            XiaoHyperCleanerTheme(darkTheme = isDark) {
+                if (showOnboarding) {
                     OnboardingScreen(
                         isDark = isDark,
                         onFinish = {
                             AppLog.i(TAG, "onboarding finished")
                             showOnboarding = false
-                            scope.launch {
-                                prefs.setHasCompletedOnboarding(true)
-                            }
+                            scope.launch { prefs.setHasCompletedOnboarding(true) }
                         }
                     )
-                }
-            } else {
-                vm = viewModel()
-                val state by vm.state.collectAsState()
-                val lifecycle = LocalLifecycleOwner.current.lifecycle
+                } else {
+                    vm = viewModel()
+                    val state by vm.state.collectAsState()
+                    val lifecycle = LocalLifecycleOwner.current.lifecycle
 
-                LaunchedEffect(lifecycle) {
-                    lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                        AppLog.i(TAG, "lifecycle RESUMED — refreshing statuses")
-                        vm.refreshStatuses()
+                    LaunchedEffect(lifecycle) {
+                        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                            vm.refreshStatuses()
+                        }
                     }
-                }
-
-                XiaoHyperCleanerTheme(darkTheme = isDark) {
                     MainContent(
                         state = state,
                         isDark = isDark,
@@ -265,25 +237,49 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         AppLog.i(TAG, "onResume")
-        if (::vm.isInitialized) {
-            vm.checkRestrictedSettingsOnResume()
-            if (!vm.state.value.isWorking) {
-                stopService(Intent(this, OverlayService::class.java))
+        if (!::vm.isInitialized) return
+
+        vm.checkRestrictedSettingsOnResume()
+        val currentState = vm.state.value
+
+        // Останавливаем оверлей только если Simple Mode не активен —
+        // иначе стрелки-подсказки будут исчезать при каждом возврате.
+        if (!currentState.isWorking && !currentState.simpleModeActive) {
+            stopService(Intent(this, OverlayService::class.java))
+        }
+
+        // Обработка возврата из TestActivity (фаза TEST_CLICK).
+        if (currentState.simpleModeActive &&
+            currentState.permissionSubPhase == PermissionSubPhase.TEST_CLICK
+        ) {
+            val finished = !SystemAutomationService.awaitingTestClick.get()
+            if (finished) {
+                val testSuccess = TestActivity.lastTestResult
+                AppLog.i(TAG, "onResume: TEST_CLICK return, success=$testSuccess")
+                vm.onTestActivityReturn(testSuccess)
+            } else {
+                AppLog.d(TAG, "onResume: TestActivity is still running, ignoring resume")
             }
         }
-    }
 
-    override fun onPause() {
-        super.onPause()
-        AppLog.i(TAG, "onPause")
+        // Обработка возврата из настроек Battery Optimization
+        if (currentState.simpleModeActive &&
+            currentState.permissionSubPhase == PermissionSubPhase.BATTERY_OPTIMIZATION
+        ) {
+            AppLog.i(TAG, "onResume: BATTERY_OPTIMIZATION return")
+            vm.onBatteryOptimizationReturn()
+        }
     }
 
     override fun onDestroy() {
         Shizuku.removeRequestPermissionResultListener(shizukuPermissionListener)
         super.onDestroy()
-        AppLog.i(TAG, "onDestroy")
     }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// КОРНЕВОЙ COMPOSABLE
+// ═══════════════════════════════════════════════════════════════
 
 @Composable
 private fun MainContent(
@@ -292,335 +288,20 @@ private fun MainContent(
     onDarkChange: (Boolean) -> Unit,
     vm: MainViewModel
 ) {
-    val context = LocalContext.current
     val view = LocalView.current
     var menuOpen by remember { mutableStateOf(false) }
     var confirmRestore by remember { mutableStateOf(false) }
 
-    AppLog.i("MainUI", "MainContent composed: state=$state")
-
-    if (state.showLevelDialog) {
-        OptimizationLevelDialog(
-            onModeSelected = { mode -> vm.onLevelChosen(mode) },
-            onDismiss = { vm.closeSimpleMode() }
-        )
-    }
-
-    if (state.showLocationDialog) {
-        LocationChoiceDialog(
-            onLocation = { location -> vm.onLocationChosen(location) },
-            onDismiss = { vm.onLocationDialogCancelled() }
-        )
-    }
-
-    if (state.showLevelConfirm) {
-        val level = state.selectedLevel
-        val titleRes = when (level) {
-            OptimizationMode.SIMPLE -> R.string.level_confirm_simple_title
-            OptimizationMode.PRO -> R.string.level_confirm_advanced_title
-            else -> R.string.level_confirm_simple_title
-        }
-        val textRes = when (level) {
-            OptimizationMode.SIMPLE -> R.string.level_confirm_simple_text
-            OptimizationMode.PRO -> R.string.level_confirm_advanced_text
-            else -> R.string.level_confirm_simple_text
-        }
-
-        InfoDialog(
-            title = stringResource(titleRes),
-            text = stringResource(textRes),
-            confirmText = stringResource(R.string.level_confirm_start),
-            onConfirm = {
-                AppLog.i("MainUI", "level confirm: start clicked, level=$level")
-                vm.confirmLevelStart()
-            },
-            onDismiss = {
-                AppLog.i("MainUI", "level confirm: cancelled")
-                vm.cancelLevelConfirm()
-            }
-        )
-    }
-
-    if (state.simpleStep != null) {
-        val configuration = LocalConfiguration.current
-        val isEnglish = configuration.locales.get(0)?.language != "ru"
-
-        SimpleStepScreen(
-            state = state.simpleStep,
-            isEnglish = isEnglish,
-            onStart = { vm.startCurrentSimpleStep() },
-            onNext = { vm.nextSimpleStep() },
-            onSkip = { vm.skipSimpleStep() },
-            onRetry = { vm.retrySimpleStep() },
-            onCancel = { vm.closeSimpleMode() }
-        )
-    }
-
-    if (state.simpleDone != null) {
-        SimpleDoneDialog(
-            completedCount = state.simpleDone.first,
-            totalCount = state.simpleDone.second,
-            failedSteps = vm.getFailedStepIds(),
-            onRate = { openRateApp(context) },
-            onDonate = { openWebView(context, "https://yoomoney.ru/to/410011379195150", "ЮMoney") },
-            onClose = { vm.closeSimpleMode() }
-        )
-    }
-
-    if (state.showShizukuDialog) {
-        ShizukuGuideDialog(
-            status = state.shizukuStatus,
-            onInstall = { vm.shizukuDialogInstall() },
-            onOpenApp = { vm.shizukuDialogOpenApp() },
-            onSources = { vm.openShizukuSources() },
-            onDismiss = { vm.shizukuDialogLater() }
-        )
-    }
-
-    if (state.showShizukuSources) {
-        ShizukuSourcesDialog(
-            onSource = { source -> vm.installFromSource(source) },
-            onClose = { vm.closeShizukuSources() }
-        )
-    }
-
-    if (state.showShizukuWizard) {
-        ShizukuSetupWizard(
-            checkMessage = state.shizukuCheckMessage,
-            onOpenAbout = { openDeviceInfoSettings(context) },
-            onOpenDevOptions = { openDevOptionsSettings(context) },
-            onOpenShizuku = { ShizukuHelper.openShizukuApp(context) },
-            onRequestPermission = { vm.requestShizukuPermission() },
-            onCheck = { vm.wizardCheck() },
-            onSkip = { vm.wizardSkip() },
-            onClose = { vm.closeShizukuWizard() }
-        )
-    }
-
-    if (state.showRestrictedDialog) {
-        val isAndroid14Plus = Build.VERSION.SDK_INT >= 34
-        InfoDialog(
-            title = if (isAndroid14Plus) stringResource(R.string.forbidden_dialog_title)
-            else stringResource(R.string.restricted_dialog_title),
-            text = if (isAndroid14Plus) stringResource(R.string.forbidden_dialog_text)
-            else stringResource(R.string.restricted_dialog_text),
-            confirmText = if (isAndroid14Plus) stringResource(R.string.forbidden_dialog_open)
-            else stringResource(R.string.restricted_dialog_open),
-            onConfirm = {
-                AppLog.i("MainUI", "restricted dialog: open settings clicked")
-                vm.restrictedDialogAgreed()
-            },
-            onDismiss = {
-                AppLog.i("MainUI", "restricted dialog: cancelled")
-                vm.restrictedDialogCancelled()
-            }
-        )
-    }
-
-    if (state.showAppInfoDialog) {
-        val isAndroid14Plus = Build.VERSION.SDK_INT >= 34
-        InfoDialog(
-            title = stringResource(R.string.pointer_restricted_blocked),
-            text = stringResource(R.string.pointer_restricted_explain),
-            confirmText = if (isAndroid14Plus) stringResource(R.string.forbidden_dialog_open)
-            else stringResource(R.string.restricted_dialog_open),
-            onConfirm = {
-                AppLog.i("MainUI", "appInfo dialog: agreed")
-                vm.simpleController_onAppInfoDialogAgreed()
-            },
-            onDismiss = {
-                AppLog.i("MainUI", "appInfo dialog: cancelled")
-                vm.simpleController_onAppInfoDialogCancelled()
-            }
-        )
-    }
-
-    if (state.showAccessibilityDialog) {
-        AccessibilityConsentDialog(
-            onConfirm = {
-                AppLog.i("MainUI", "accessibility consent dialog: confirmed with explicit consent")
-                vm.dialogAgreed()
-            },
-            onDismiss = {
-                AppLog.i("MainUI", "accessibility consent dialog: dismissed")
-                vm.dialogCancelled()
-            }
-        )
-    }
-
-    if (state.showOverlayDialog) {
-        InfoDialog(
-            title = stringResource(R.string.overlay_permission_title),
-            text = stringResource(R.string.overlay_permission_text),
-            confirmText = stringResource(R.string.allow),
-            onConfirm = {
-                AppLog.i("MainUI", "overlay dialog: agreed")
-                vm.dialogAgreed()
-            },
-            onDismiss = {
-                AppLog.i("MainUI", "overlay dialog: cancelled")
-                vm.dialogCancelled()
-            }
-        )
-    }
-
-    if (state.showOptionsDialog) {
-        OptionsDialog(
-            dnsFilterEnabled = state.dnsFilterEnabled,
-            aggressiveMode = state.aggressiveMode,
-            onDnsToggle = { enabled -> vm.toggleDnsFilter(enabled) },
-            onAggressiveToggle = { enabled -> vm.toggleAggressiveMode(enabled) },
-            onConfirm = {
-                AppLog.i("MainUI", "options dialog: confirmed")
-                vm.optionsDialogConfirmed()
-            },
-            onCancel = {
-                AppLog.i("MainUI", "options dialog: cancelled")
-                vm.optionsDialogCancelled()
-            }
-        )
-    }
-
-    if (state.showDnsWarningDialog) {
-        InfoDialog(
-            title = stringResource(R.string.dns_warning_title),
-            text = stringResource(R.string.dns_warning_text),
-            confirmText = stringResource(R.string.dns_warning_accept),
-            onConfirm = {
-                AppLog.i("MainUI", "DNS warning: accepted")
-                vm.dnsWarningAccepted()
-            },
-            onDismiss = {
-                AppLog.i("MainUI", "DNS warning: declined")
-                vm.dnsWarningDeclined()
-            }
-        )
-    }
-
-    if (state.showDevModeDialog) {
-        DevModeDialog(
-            onOpenDeviceInfo = {
-                AppLog.i("MainUI", "dev mode dialog: open device info")
-                openDeviceInfoSettings(context)
-            },
-            onRetry = {
-                AppLog.i("MainUI", "dev mode dialog: retry clicked")
-                vm.devModeDialogRetry()
-            },
-            onCancel = {
-                AppLog.i("MainUI", "dev mode dialog: cancelled")
-                vm.devModeDialogCancel()
-            }
-        )
-    }
-
-    if (confirmRestore) {
-        InfoDialog(
-            title = stringResource(R.string.restore_dialog_title),
-            text = stringResource(R.string.restore_dialog_text),
-            confirmText = stringResource(R.string.restore_confirm),
-            onConfirm = {
-                AppLog.i("MainUI", "restore dialog: confirmed")
-                confirmRestore = false
-                vm.restoreOptimization()
-            },
-            onDismiss = {
-                AppLog.i("MainUI", "restore dialog: cancelled")
-                confirmRestore = false
-            }
-        )
-    }
-
-    if (state.showRebootDialog) {
-        InfoDialog(
-            title = stringResource(R.string.reboot_dialog_title),
-            text = stringResource(R.string.reboot_dialog_text),
-            confirmText = stringResource(R.string.reboot_confirm),
-            onConfirm = {
-                AppLog.i("MainUI", "reboot dialog: confirmed")
-                vm.confirmReboot()
-            },
-            onDismiss = {
-                AppLog.i("MainUI", "reboot dialog: dismissed")
-                vm.dismissRebootDialog()
-            }
-        )
-    }
-
-    if (state.rebootFailed) {
-        InfoDialog(
-            title = stringResource(R.string.reboot_dialog_title),
-            text = stringResource(R.string.reboot_failed_text),
-            onDismiss = {
-                AppLog.i("MainUI", "reboot failed dialog: dismissed")
-                vm.dismissRebootFailed()
-            }
-        )
-    }
-
-    if (state.restoreFailed) {
-        InfoDialog(
-            title = stringResource(R.string.restore_dialog_title),
-            text = stringResource(R.string.restore_failed_text),
-            onDismiss = {
-                AppLog.i("MainUI", "restore failed dialog: dismissed")
-                vm.dismissRestoreFailed()
-            }
-        )
-    }
-
-    if (state.showFinalDialog) {
-        InfoDialog(
-            title = stringResource(R.string.final_dialog_title),
-            text = if (state.finalReport.isNotEmpty()) state.finalReport
-            else if (state.optimizationSuccess) stringResource(R.string.final_dialog_success_text)
-            else stringResource(R.string.final_dialog_failed_text),
-            confirmText = if (state.optimizationSuccess) stringResource(R.string.final_dialog_rate)
-            else stringResource(R.string.final_dialog_send_log),
-            onConfirm = {
-                AppLog.i("MainUI", "final dialog: confirmed, success=${state.optimizationSuccess}")
-                vm.dismissFinalDialog()
-                if (state.optimizationSuccess) openRateApp(context) else shareLog(context)
-            },
-            onDismiss = {
-                AppLog.i("MainUI", "final dialog: dismissed")
-                vm.dismissFinalDialog()
-            }
-        )
-    }
-
-    if (menuOpen) {
-        val privacyUrl = stringResource(R.string.privacy_policy_url)
-
-        MenuDialog(
-            isDark = isDark,
-            onDarkChange = onDarkChange,
-            onClose = {
-                AppLog.i("MainUI", "menu: closed")
-                menuOpen = false
-            },
-            onRate = {
-                AppLog.i("MainUI", "menu: rate clicked")
-                openRateApp(context)
-            },
-            onYooMoney = {
-                AppLog.i("MainUI", "menu: yoomoney clicked")
-                openWebView(context, "https://yoomoney.ru/to/410011379195150", "ЮMoney")
-            },
-            onCloudTips = {
-                AppLog.i("MainUI", "menu: cloudtips clicked")
-                openWebView(context, "https://pay.cloudtips.ru/p/90614cff", "CloudTips")
-            },
-            onShareLog = {
-                AppLog.i("MainUI", "menu: share log clicked")
-                shareLog(context)
-            },
-            onPrivacyPolicyClick = {
-                AppLog.i("MainUI", "menu: privacy policy clicked")
-                openUrl(context, privacyUrl)
-            }
-        )
-    }
+    MainDialogsHost(
+        state,
+        vm,
+        confirmRestore,
+        { confirmRestore = it },
+        menuOpen,
+        { menuOpen = it },
+        isDark,
+        onDarkChange
+    )
 
     Box(
         modifier = Modifier
@@ -641,8 +322,7 @@ private fun MainContent(
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 IconButton(onClick = {
-                    AppLog.i("MainUI", "menu button clicked")
-                    menuOpen = true
+                    AppLog.i("MainUI", "menu button clicked"); menuOpen = true
                 }) {
                     Text("⋮", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurface)
                 }
@@ -654,15 +334,12 @@ private fun MainContent(
                     initialOffsetY = { it / 4 },
                     animationSpec = tween(600)
                 )
-            ) {
-                InfoCard()
-            }
+            ) { InfoCard() }
             Spacer(Modifier.height(24.dp))
             AnimatedVisibility(
                 visible = true,
                 enter = fadeIn(tween(600, delayMillis = 150)) + slideInVertically(
-                    initialOffsetY = { it / 4 },
-                    animationSpec = tween(600, delayMillis = 150)
+                    initialOffsetY = { it / 4 }, animationSpec = tween(600, delayMillis = 150)
                 )
             ) {
                 OptimizationCard(
@@ -673,18 +350,536 @@ private fun MainContent(
                         vm.startFlow()
                     },
                     onRestore = {
-                        AppLog.i("MainUI", "restore button clicked")
-                        confirmRestore = true
+                        AppLog.i("MainUI", "restore button clicked"); confirmRestore = true
                     },
-                    onReboot = {
-                        AppLog.i("MainUI", "reboot button clicked")
-                        vm.requestReboot()
-                    }
+                    onReboot = { AppLog.i("MainUI", "reboot button clicked"); vm.requestReboot() }
                 )
             }
             Spacer(Modifier.height(16.dp))
         }
     }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ХОСТ ВСЕХ ДИАЛОГОВ
+// ═══════════════════════════════════════════════════════════════
+
+@Composable
+private fun MainDialogsHost(
+    state: MainUiState,
+    vm: MainViewModel,
+    confirmRestore: Boolean,
+    onConfirmRestoreChange: (Boolean) -> Unit,
+    menuOpen: Boolean,
+    onMenuOpenChange: (Boolean) -> Unit,
+    isDark: Boolean,
+    onDarkChange: (Boolean) -> Unit
+) {
+    val context = LocalContext.current
+    val isAndroid14Plus = Build.VERSION.SDK_INT >= 34
+
+    if (state.showLevelDialog) {
+        OptimizationLevelDialog(
+            onModeSelected = { vm.onLevelChosen(it) },
+            onDismiss = { vm.closeSimpleMode() }
+        )
+    }
+    if (state.showLocationDialog) {
+        LocationChoiceDialog(
+            onLocation = { vm.onLocationChosen(it) },
+            onDismiss = { vm.onLocationDialogCancelled() }
+        )
+    }
+    if (state.showLevelConfirm) {
+        val level = state.selectedLevel
+        val isSimple = level != OptimizationMode.PRO
+        InfoDialog(
+            title = stringResource(if (isSimple) R.string.level_confirm_simple_title else R.string.level_confirm_advanced_title),
+            text = stringResource(if (isSimple) R.string.level_confirm_simple_text else R.string.level_confirm_advanced_text),
+            confirmText = stringResource(R.string.level_confirm_start),
+            onConfirm = {
+                AppLog.i(
+                    "MainUI",
+                    "level confirm: start clicked, level=$level"
+                ); vm.confirmLevelStart()
+            },
+            onDismiss = { AppLog.i("MainUI", "level confirm: cancelled"); vm.cancelLevelConfirm() }
+        )
+    }
+    if (state.simpleStep != null) {
+        val isEnglish = LocalConfiguration.current.locales.get(0)?.language != "ru"
+        SimpleStepScreen(
+            state = state.simpleStep,
+            isEnglish = isEnglish,
+            onStart = { vm.startCurrentSimpleStep() },
+            onNext = { vm.nextSimpleStep() },
+            onSkip = { vm.skipSimpleStep() },
+            onRetry = { vm.retrySimpleStep() },
+            onCancel = { vm.closeSimpleMode() }
+        )
+    }
+    if (state.simpleDone != null) {
+        SimpleDoneDialog(
+            completedCount = state.simpleDone.first,
+            totalCount = state.simpleDone.second,
+            failedSteps = vm.getFailedStepIds(),
+            onRate = { openRateApp(context) },
+            onDonate = { openWebView(context, "https://yoomoney.ru/to/410011379195150", "ЮMoney") },
+            onClose = { vm.closeSimpleMode() }
+        )
+    }
+    if (state.showShizukuDialog) {
+        ShizukuGuideDialog(
+            status = state.shizukuStatus,
+            onInstall = { vm.shizukuDialogInstall() },
+            onOpenApp = { vm.shizukuDialogOpenApp() },
+            onSources = { vm.openShizukuSources() },
+            onDismiss = { vm.shizukuDialogLater() }
+        )
+    }
+    if (state.showShizukuSources) {
+        ShizukuSourcesDialog(
+            onSource = { vm.installFromSource(it) },
+            onClose = { vm.closeShizukuSources() })
+    }
+    if (state.showShizukuWizard) {
+        ShizukuSetupWizard(
+            checkMessage = state.shizukuCheckMessage,
+            onOpenAbout = { openDeviceInfoSettings(context) },
+            onOpenDevOptions = { openDevOptionsSettings(context) },
+            onOpenShizuku = { ShizukuHelper.openShizukuApp(context) },
+            onRequestPermission = { vm.requestShizukuPermission() },
+            onCheck = { vm.wizardCheck() },
+            onSkip = { vm.wizardSkip() },
+            onClose = { vm.closeShizukuWizard() }
+        )
+    }
+    if (state.showRestrictedDialog) {
+        InfoDialog(
+            title = stringResource(if (isAndroid14Plus) R.string.forbidden_dialog_title else R.string.restricted_dialog_title),
+            text = stringResource(if (isAndroid14Plus) R.string.forbidden_dialog_text else R.string.restricted_dialog_text),
+            confirmText = stringResource(if (isAndroid14Plus) R.string.forbidden_dialog_open else R.string.restricted_dialog_open),
+            onConfirm = {
+                AppLog.i(
+                    "MainUI",
+                    "restricted dialog: open settings clicked"
+                ); vm.restrictedDialogAgreed()
+            },
+            onDismiss = {
+                AppLog.i(
+                    "MainUI",
+                    "restricted dialog: cancelled"
+                ); vm.restrictedDialogCancelled()
+            }
+        )
+    }
+    if (state.showAppInfoDialog) {
+        InfoDialog(
+            title = stringResource(R.string.pointer_restricted_blocked),
+            text = stringResource(R.string.pointer_restricted_explain),
+            confirmText = stringResource(if (isAndroid14Plus) R.string.forbidden_dialog_open else R.string.restricted_dialog_open),
+            onConfirm = { AppLog.i("MainUI", "appInfo dialog: agreed"); vm.appInfoDialogAgreed() },
+            onDismiss = {
+                AppLog.i(
+                    "MainUI",
+                    "appInfo dialog: cancelled"
+                ); vm.appInfoDialogCancelled()
+            }
+        )
+    }
+    if (state.showRestrictedSettingsScreen) {
+        RestrictedSettingsDialog(
+            onOpenSettings = {
+                AppLog.i(
+                    "MainUI",
+                    "restricted screen: open settings clicked"
+                ); vm.onRestrictedScreenOpenSettings()
+            },
+            onDone = {
+                AppLog.i(
+                    "MainUI",
+                    "restricted screen: done clicked"
+                ); vm.onRestrictedScreenDone()
+            },
+            onCancel = {
+                AppLog.i(
+                    "MainUI",
+                    "restricted screen: cancelled"
+                ); vm.onRestrictedScreenCancelled()
+            }
+        )
+    }
+    if (state.showTestClickFailedDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                AppLog.i(
+                    "MainUI",
+                    "test click failed dialog: dismissed"
+                ); vm.onTestClickSkip()
+            },
+            title = {
+                Text(
+                    stringResource(R.string.test_click_failed_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    stringResource(R.string.test_click_failed_text),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        AppLog.i(
+                            "MainUI",
+                            "test click failed: retry clicked"
+                        ); vm.onTestClickRetry()
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text(stringResource(R.string.test_click_retry)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    AppLog.i(
+                        "MainUI",
+                        "test click failed: skip clicked"
+                    ); vm.onTestClickSkip()
+                }) { Text(stringResource(R.string.test_click_skip)) }
+            },
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+    if (state.showBatteryDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                AppLog.i(
+                    "MainUI",
+                    "battery dialog: dismissed by scrim"
+                ); vm.onBatteryDialogSkipped()
+            },
+            title = {
+                Text(
+                    stringResource(R.string.battery_dialog_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    stringResource(R.string.battery_dialog_text),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        AppLog.i(
+                            "MainUI",
+                            "battery dialog: agreed"
+                        ); vm.onBatteryDialogAgreed()
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text(stringResource(R.string.battery_dialog_open)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    AppLog.i(
+                        "MainUI",
+                        "battery dialog: skipped"
+                    ); vm.onBatteryDialogSkipped()
+                }) { Text(stringResource(R.string.battery_dialog_skip)) }
+            },
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+    if (state.showPermissionFallbackDialog) {
+        val (title, text) = when (state.stuckPhase) {
+            PermissionSubPhase.OVERLAY -> stringResource(R.string.fallback_overlay_title) to stringResource(
+                R.string.fallback_overlay_text
+            )
+
+            PermissionSubPhase.APP_INFO -> stringResource(R.string.fallback_appinfo_title) to stringResource(
+                R.string.fallback_appinfo_text
+            )
+
+            else -> stringResource(R.string.fallback_accessibility_title) to stringResource(R.string.fallback_accessibility_text)
+        }
+        PermissionFallbackDialog(
+            title = title, text = text,
+            onRetry = {
+                AppLog.i(
+                    "MainUI",
+                    "permission fallback: retry clicked for phase=${state.stuckPhase}"
+                ); vm.onPermissionFallbackRetry()
+            },
+            onOpenSettings = {
+                AppLog.i(
+                    "MainUI",
+                    "permission fallback: open settings clicked for phase=${state.stuckPhase}"
+                ); vm.onPermissionFallbackOpenSettings()
+            },
+            onCancel = {
+                AppLog.i(
+                    "MainUI",
+                    "permission fallback: cancelled (full reset)"
+                ); vm.onPermissionFallbackCancelled()
+            }
+        )
+    }
+    if (state.showAccessibilityDialog) {
+        AccessibilityConsentDialog(
+            onConfirm = {
+                AppLog.i(
+                    "MainUI",
+                    "accessibility consent dialog: confirmed with explicit consent"
+                ); vm.dialogAgreed()
+            },
+            onDismiss = {
+                AppLog.i(
+                    "MainUI",
+                    "accessibility consent dialog: dismissed"
+                ); vm.dialogCancelled()
+            }
+        )
+    }
+    if (state.showOverlayDialog) {
+        InfoDialog(
+            title = stringResource(R.string.overlay_permission_title),
+            text = stringResource(R.string.overlay_permission_text),
+            confirmText = stringResource(R.string.allow),
+            onConfirm = { AppLog.i("MainUI", "overlay dialog: agreed"); vm.dialogAgreed() },
+            onDismiss = { AppLog.i("MainUI", "overlay dialog: cancelled"); vm.dialogCancelled() }
+        )
+    }
+    if (state.showOptionsDialog) {
+        OptionsDialog(
+            dnsFilterEnabled = state.dnsFilterEnabled,
+            aggressiveMode = state.aggressiveMode,
+            onDnsToggle = { vm.toggleDnsFilter(it) },
+            onAggressiveToggle = { vm.toggleAggressiveMode(it) },
+            onConfirm = {
+                AppLog.i(
+                    "MainUI",
+                    "options dialog: confirmed"
+                ); vm.optionsDialogConfirmed()
+            },
+            onCancel = {
+                AppLog.i(
+                    "MainUI",
+                    "options dialog: cancelled"
+                ); vm.optionsDialogCancelled()
+            }
+        )
+    }
+    if (state.showDnsWarningDialog) {
+        InfoDialog(
+            title = stringResource(R.string.dns_warning_title),
+            text = stringResource(R.string.dns_warning_text),
+            confirmText = stringResource(R.string.dns_warning_accept),
+            onConfirm = { AppLog.i("MainUI", "DNS warning: accepted"); vm.dnsWarningAccepted() },
+            onDismiss = { AppLog.i("MainUI", "DNS warning: declined"); vm.dnsWarningDeclined() }
+        )
+    }
+    if (state.showDevModeDialog) {
+        DevModeDialog(
+            onOpenDeviceInfo = {
+                AppLog.i(
+                    "MainUI",
+                    "dev mode dialog: open device info"
+                ); openDeviceInfoSettings(context)
+            },
+            onRetry = {
+                AppLog.i(
+                    "MainUI",
+                    "dev mode dialog: retry clicked"
+                ); vm.devModeDialogRetry()
+            },
+            onCancel = {
+                AppLog.i(
+                    "MainUI",
+                    "dev mode dialog: cancelled"
+                ); vm.devModeDialogCancel()
+            }
+        )
+    }
+    if (confirmRestore) {
+        InfoDialog(
+            title = stringResource(R.string.restore_dialog_title),
+            text = stringResource(R.string.restore_dialog_text),
+            confirmText = stringResource(R.string.restore_confirm),
+            onConfirm = {
+                AppLog.i("MainUI", "restore dialog: confirmed"); onConfirmRestoreChange(
+                false
+            ); vm.restoreOptimization()
+            },
+            onDismiss = {
+                AppLog.i("MainUI", "restore dialog: cancelled"); onConfirmRestoreChange(
+                false
+            )
+            }
+        )
+    }
+    if (state.showRebootDialog) {
+        InfoDialog(
+            title = stringResource(R.string.reboot_dialog_title),
+            text = stringResource(R.string.reboot_dialog_text),
+            confirmText = stringResource(R.string.reboot_confirm),
+            onConfirm = { AppLog.i("MainUI", "reboot dialog: confirmed"); vm.confirmReboot() },
+            onDismiss = { AppLog.i("MainUI", "reboot dialog: dismissed"); vm.dismissRebootDialog() }
+        )
+    }
+    if (state.rebootFailed) {
+        InfoDialog(
+            title = stringResource(R.string.reboot_dialog_title),
+            text = stringResource(R.string.reboot_failed_text),
+            onDismiss = {
+                AppLog.i(
+                    "MainUI",
+                    "reboot failed dialog: dismissed"
+                ); vm.dismissRebootFailed()
+            }
+        )
+    }
+    if (state.restoreFailed) {
+        InfoDialog(
+            title = stringResource(R.string.restore_dialog_title),
+            text = stringResource(R.string.restore_failed_text),
+            onDismiss = {
+                AppLog.i(
+                    "MainUI",
+                    "restore failed dialog: dismissed"
+                ); vm.dismissRestoreFailed()
+            }
+        )
+    }
+    if (state.showFinalDialog) {
+        InfoDialog(
+            title = stringResource(R.string.final_dialog_title),
+            text = when {
+                state.finalReport.isNotEmpty() -> state.finalReport
+                state.optimizationSuccess -> stringResource(R.string.final_dialog_success_text)
+                else -> stringResource(R.string.final_dialog_failed_text)
+            },
+            confirmText = stringResource(if (state.optimizationSuccess) R.string.final_dialog_rate else R.string.final_dialog_send_log),
+            onConfirm = {
+                AppLog.i("MainUI", "final dialog: confirmed, success=${state.optimizationSuccess}")
+                vm.dismissFinalDialog()
+                if (state.optimizationSuccess) openRateApp(context) else shareLog(context)
+            },
+            onDismiss = { AppLog.i("MainUI", "final dialog: dismissed"); vm.dismissFinalDialog() }
+        )
+    }
+    if (menuOpen) {
+        val privacyUrl = stringResource(R.string.privacy_policy_url)
+
+        MenuDialog(
+            isDark = isDark,
+            onDarkChange = onDarkChange,
+            onClose = { AppLog.i("MainUI", "menu: closed"); onMenuOpenChange(false) },
+            onRate = { AppLog.i("MainUI", "menu: rate clicked"); openRateApp(context) },
+            onYooMoney = {
+                AppLog.i("MainUI", "menu: yoomoney clicked")
+                openWebView(context, "https://yoomoney.ru/to/410011379195150", "ЮMoney")
+            },
+            onCloudTips = {
+                AppLog.i("MainUI", "menu: cloudtips clicked")
+                openWebView(context, "https://pay.cloudtips.ru/p/90614cff", "CloudTips")
+            },
+            onShareLog = { AppLog.i("MainUI", "menu: share log clicked"); shareLog(context) },
+            onPrivacyPolicyClick = {
+                AppLog.i("MainUI", "menu: privacy policy clicked")
+                openUrl(context, privacyUrl)   // ← используем готовую строку
+            }
+        )
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ВСПОМОГАТЕЛЬНЫЕ ДИАЛОГИ
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * PermissionFallbackDialog: вертикальная компоновка кнопок внутри `text`.
+ * `confirmButton` и `dismissButton` оставлены пустыми — это обязательно
+ * для AlertDialog, но визуально их нет. Реальные кнопки рендерятся внутри
+ * `text`-слота, что даёт полный контроль над компоновкой и гарантирует,
+ * что текст влезает на любой экран.
+ */
+@Composable
+private fun PermissionFallbackDialog(
+    title: String,
+    text: String,
+    onRetry: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onCancel: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = {
+            AppLog.i(
+                "MainUI",
+                "permission fallback: dismissed by scrim/back"
+            ); onCancel()
+        },
+        title = {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(text, style = MaterialTheme.typography.bodyMedium)
+                Button(
+                    onClick = onRetry,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.fallback_retry),
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        softWrap = true
+                    )
+                }
+                OutlinedButton(
+                    onClick = onOpenSettings,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.fallback_open_settings),
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        softWrap = true
+                    )
+                }
+                TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        stringResource(R.string.fallback_cancel),
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        softWrap = true
+                    )
+                }
+            }
+        },
+        confirmButton = { /* пусто — кнопки внутри text */ },
+        dismissButton = { /* пусто — кнопки внутри text */ },
+        shape = RoundedCornerShape(20.dp)
+    )
 }
 
 @Composable
@@ -698,7 +893,7 @@ private fun ShizukuGuideDialog(
     val context = LocalContext.current
     val isInstalled = remember { ShizukuHelper.isInstalled(context) }
 
-    val title = stringResource(R.string.shizuku_dialog_title)
+    // ИСПРАВЛЕНО: добавлена ветка else (для AVAILABLE, хотя она отсекается выше — для exhaustive)
     val (text, primaryText, primaryAction) = when (status) {
         ShizukuExecutor.Status.NOT_INSTALLED -> Triple(
             stringResource(R.string.shizuku_dialog_not_installed),
@@ -733,7 +928,7 @@ private fun ShizukuGuideDialog(
                     .padding(20.dp)
             ) {
                 Text(
-                    title,
+                    stringResource(R.string.shizuku_dialog_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth(),
@@ -746,44 +941,31 @@ private fun ShizukuGuideDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(16.dp))
-
                 Button(
-                    onClick = {
-                        if (status == ShizukuExecutor.Status.NOT_INSTALLED || !isInstalled) {
-                            onInstall()
-                        } else {
-                            primaryAction()
-                        }
-                    },
+                    onClick = { if (status == ShizukuExecutor.Status.NOT_INSTALLED || !isInstalled) onInstall() else primaryAction() },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
-                        if (status == ShizukuExecutor.Status.NOT_INSTALLED || !isInstalled) {
-                            stringResource(R.string.shizuku_dialog_install)
-                        } else {
-                            primaryText
-                        }
+                        if (status == ShizukuExecutor.Status.NOT_INSTALLED || !isInstalled) stringResource(
+                            R.string.shizuku_dialog_install
+                        ) else primaryText
                     )
                 }
                 Spacer(Modifier.height(8.dp))
-
                 if (status == ShizukuExecutor.Status.NOT_INSTALLED) {
-                    TextButton(
-                        onClick = onSources,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(stringResource(R.string.shizuku_card_other_sources))
+                    TextButton(onClick = onSources, modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            stringResource(R.string.shizuku_card_other_sources)
+                        )
                     }
                 }
-
-                TextButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(R.string.shizuku_dialog_later))
+                TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        stringResource(R.string.shizuku_dialog_later)
+                    )
                 }
             }
         }
@@ -791,10 +973,7 @@ private fun ShizukuGuideDialog(
 }
 
 @Composable
-private fun LocationChoiceDialog(
-    onLocation: (RestrictedLocation) -> Unit,
-    onDismiss: () -> Unit
-) {
+private fun LocationChoiceDialog(onLocation: (RestrictedLocation) -> Unit, onDismiss: () -> Unit) {
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(20.dp),
@@ -848,12 +1027,9 @@ private fun LocationChoiceDialog(
 
 @Composable
 private fun OptionsDialog(
-    dnsFilterEnabled: Boolean,
-    aggressiveMode: Boolean,
-    onDnsToggle: (Boolean) -> Unit,
-    onAggressiveToggle: (Boolean) -> Unit,
-    onConfirm: () -> Unit,
-    onCancel: () -> Unit
+    dnsFilterEnabled: Boolean, aggressiveMode: Boolean,
+    onDnsToggle: (Boolean) -> Unit, onAggressiveToggle: (Boolean) -> Unit,
+    onConfirm: () -> Unit, onCancel: () -> Unit
 ) {
     androidx.compose.ui.window.Dialog(onDismissRequest = onCancel) {
         Surface(
@@ -879,10 +1055,7 @@ private fun OptionsDialog(
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.height(16.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(12.dp))
-
+                Spacer(Modifier.height(16.dp)); HorizontalDivider(); Spacer(Modifier.height(12.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -900,16 +1073,9 @@ private fun OptionsDialog(
                         )
                     }
                     Spacer(Modifier.width(8.dp))
-                    Switch(
-                        checked = dnsFilterEnabled,
-                        onCheckedChange = onDnsToggle
-                    )
+                    Switch(checked = dnsFilterEnabled, onCheckedChange = onDnsToggle)
                 }
-
-                Spacer(Modifier.height(16.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(12.dp))
-
+                Spacer(Modifier.height(16.dp)); HorizontalDivider(); Spacer(Modifier.height(12.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -927,12 +1093,8 @@ private fun OptionsDialog(
                         )
                     }
                     Spacer(Modifier.width(8.dp))
-                    Switch(
-                        checked = aggressiveMode,
-                        onCheckedChange = onAggressiveToggle
-                    )
+                    Switch(checked = aggressiveMode, onCheckedChange = onAggressiveToggle)
                 }
-
                 Spacer(Modifier.height(16.dp))
                 Button(
                     onClick = onConfirm,
@@ -940,15 +1102,12 @@ private fun OptionsDialog(
                         .fillMaxWidth()
                         .height(48.dp),
                     shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(stringResource(R.string.options_dialog_start))
-                }
+                ) { Text(stringResource(R.string.options_dialog_start)) }
                 Spacer(Modifier.height(8.dp))
-                TextButton(
-                    onClick = onCancel,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(R.string.cancel))
+                TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        stringResource(R.string.cancel)
+                    )
                 }
             }
         }
@@ -956,11 +1115,7 @@ private fun OptionsDialog(
 }
 
 @Composable
-private fun DevModeDialog(
-    onOpenDeviceInfo: () -> Unit,
-    onRetry: () -> Unit,
-    onCancel: () -> Unit
-) {
+private fun DevModeDialog(onOpenDeviceInfo: () -> Unit, onRetry: () -> Unit, onCancel: () -> Unit) {
     androidx.compose.ui.window.Dialog(onDismissRequest = onCancel) {
         Surface(
             shape = RoundedCornerShape(20.dp),
@@ -992,9 +1147,7 @@ private fun DevModeDialog(
                         .fillMaxWidth()
                         .height(48.dp),
                     shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(stringResource(R.string.dev_mode_dialog_open_about))
-                }
+                ) { Text(stringResource(R.string.dev_mode_dialog_open_about)) }
                 Spacer(Modifier.height(8.dp))
                 Button(
                     onClick = onRetry,
@@ -1002,29 +1155,27 @@ private fun DevModeDialog(
                         .fillMaxWidth()
                         .height(48.dp),
                     shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(stringResource(R.string.dev_mode_dialog_retry))
-                }
+                ) { Text(stringResource(R.string.dev_mode_dialog_retry)) }
                 Spacer(Modifier.height(8.dp))
-                TextButton(
-                    onClick = onCancel,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(R.string.cancel))
+                TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        stringResource(R.string.cancel)
+                    )
                 }
             }
         }
     }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// UI-КАРТОЧКИ ГЛАВНОГО ЭКРАНА
+// ═══════════════════════════════════════════════════════════════
+
 @Composable
 private fun InfoCard() {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        )
+        modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
     ) {
         Column(
             modifier = Modifier
@@ -1048,9 +1199,7 @@ private fun InfoCard() {
                 textAlign = TextAlign.Center,
                 softWrap = true
             )
-            Spacer(Modifier.height(20.dp))
-            HorizontalDivider()
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(20.dp)); HorizontalDivider(); Spacer(Modifier.height(16.dp))
             Text(
                 stringResource(R.string.features_title),
                 modifier = Modifier.fillMaxWidth(),
@@ -1070,10 +1219,7 @@ private fun InfoCard() {
 
 @Composable
 private fun FeatureRow(icon: ImageVector, text: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Icon(
             imageVector = icon,
             contentDescription = null,
@@ -1092,16 +1238,11 @@ private fun FeatureRow(icon: ImageVector, text: String) {
 @Composable
 private fun OptimizationCard(
     state: MainUiState,
-    onOptimize: () -> Unit,
-    onRestore: () -> Unit,
-    onReboot: () -> Unit
+    onOptimize: () -> Unit, onRestore: () -> Unit, onReboot: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        )
+        modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
     ) {
         Column(
             modifier = Modifier
@@ -1110,15 +1251,18 @@ private fun OptimizationCard(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             val stageKey = when {
-                state.isWorking -> "working"
-                state.isOptimized -> "done"
-                else -> "ready"
+                state.isWorking -> "working"; state.isOptimized -> "done"; else -> "ready"
             }
             AnimatedContent(
                 targetState = stageKey,
                 transitionSpec = {
-                    (fadeIn(tween(300)) + scaleIn(tween(300), initialScale = 0.95f)) togetherWith
-                            (fadeOut(tween(200)) + scaleOut(tween(200), targetScale = 0.95f))
+                    (fadeIn(tween(300)) + scaleIn(
+                        tween(300),
+                        initialScale = 0.95f
+                    )) togetherWith (fadeOut(tween(200)) + scaleOut(
+                        tween(200),
+                        targetScale = 0.95f
+                    ))
                 },
                 label = "stage"
             ) { stage ->
@@ -1153,11 +1297,7 @@ private fun ReadyView(onClick: () -> Unit) {
 @Composable
 private fun WorkingView(progress: Float) {
     val normalized = (progress / 100f).coerceIn(0f, 1f)
-    val percent = progress.toInt().coerceIn(0, 100)
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             stringResource(R.string.status_working),
             style = MaterialTheme.typography.titleMedium,
@@ -1171,7 +1311,7 @@ private fun WorkingView(progress: Float) {
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "$percent%",
+            "${progress.toInt().coerceIn(0, 100)}%",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1214,6 +1354,10 @@ private fun DoneView(onRestore: () -> Unit, onReboot: () -> Unit) {
     ) { Text(stringResource(R.string.reboot_now)) }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// УТИЛИТЫ ДЛЯ ЗАПУСКА ВНЕШНИХ INTENT'ОВ
+// ═══════════════════════════════════════════════════════════════
+
 private fun openUrl(context: Context, url: String) {
     AppLog.i("OpenUrl", "opening url: $url")
     try {
@@ -1223,15 +1367,19 @@ private fun openUrl(context: Context, url: String) {
     }
 }
 
+/**
+ * ИСПРАВЛЕНО: убран `?:` после `launchSafely`, который пытался вызвать
+ * Composable (`openUrl`) вне @Composable-контекста. Теперь обычный try/catch.
+ */
 private fun openWebView(context: Context, url: String, title: String) {
     AppLog.i("WebView", "opening webView: $url")
     try {
-        val intent = Intent(context, WebViewActivity::class.java).apply {
-            putExtra(WebViewActivity.EXTRA_URL, url)
-            putExtra(WebViewActivity.EXTRA_TITLE, title)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(intent)
+        context.startActivity(
+            Intent(context, WebViewActivity::class.java)
+                .putExtra(WebViewActivity.EXTRA_URL, url)
+                .putExtra(WebViewActivity.EXTRA_TITLE, title)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
     } catch (e: Exception) {
         AppLog.w("WebView", "WebView failed, fallback to browser: ${e.message}")
         openUrl(context, url)
@@ -1241,29 +1389,26 @@ private fun openWebView(context: Context, url: String, title: String) {
 private fun shareLog(context: Context) {
     AppLog.i("ShareLog", "shareLog requested")
     try {
-        val logFile = AppLog.getLogFile() ?: run {
-            AppLog.w("ShareLog", "log file is null (beta logging not initialized)")
-            return
+        val logFile = AppLog.getLogFile()
+        if (logFile == null || !logFile.exists() || logFile.length() == 0L) {
+            AppLog.w("ShareLog", "log file is null/empty/missing"); return
         }
-
-        if (!logFile.exists() || logFile.length() == 0L) {
-            AppLog.w("ShareLog", "log file is empty or not exists")
-            return
-        }
-
-        val uri = FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            logFile
+        val uri =
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", logFile)
+        context.startActivity(
+            Intent.createChooser(
+                Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    putExtra(
+                        Intent.EXTRA_SUBJECT,
+                        "XiaoHyperCleaner log ${System.currentTimeMillis()}"
+                    )
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                },
+                "Share log"
+            )
         )
-
-        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "XiaoHyperCleaner log ${System.currentTimeMillis()}")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        context.startActivity(Intent.createChooser(shareIntent, "Share log"))
         AppLog.i("ShareLog", "share intent sent successfully")
     } catch (e: Exception) {
         AppLog.e("ShareLog", "shareLog failed", e)
@@ -1271,19 +1416,13 @@ private fun shareLog(context: Context) {
 }
 
 private fun openDeviceInfoSettings(context: Context) {
-    AppLog.i("OpenSettings", "opening device info settings (to enable developer mode)")
+    AppLog.i("OpenSettings", "opening device info settings")
     try {
-        context.startActivity(
-            Intent(Settings.ACTION_DEVICE_INFO_SETTINGS).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-        )
+        context.startActivity(Intent(Settings.ACTION_DEVICE_INFO_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     } catch (e: Exception) {
         AppLog.w("OpenSettings", "device info failed: ${e.message}")
         try {
-            context.startActivity(
-                Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
+            context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (_: Exception) {
         }
     }
@@ -1293,16 +1432,14 @@ private fun openDevOptionsSettings(context: Context) {
     AppLog.i("OpenSettings", "opening developer options")
     try {
         context.startActivity(
-            Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
+            Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK
+            )
         )
     } catch (e: Exception) {
         AppLog.w("OpenSettings", "dev options failed: ${e.message}")
         try {
-            context.startActivity(
-                Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
+            context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (_: Exception) {
         }
     }
@@ -1319,12 +1456,9 @@ private fun openRateApp(context: Context) {
     for (s in schemes) {
         try {
             context.startActivity(Intent(Intent.ACTION_VIEW, s.toUri()))
-            AppLog.i("OpenRate", "opened via scheme: $s")
-            return
-        } catch (e: Exception) {
-            AppLog.w("OpenRate", "scheme $s failed: ${e.message}")
+            AppLog.i("OpenRate", "opened via scheme: $s"); return
+        } catch (_: Exception) {
         }
     }
-    AppLog.i("OpenRate", "fallback to web")
     openUrl(context, "https://play.google.com/store/apps/details?id=$pkg")
 }

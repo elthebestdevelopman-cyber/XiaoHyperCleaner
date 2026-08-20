@@ -1,10 +1,21 @@
 package com.xiaohypercleaner.data
 
 import android.content.Intent
-import android.net.Uri
 import android.provider.Settings
 import androidx.core.net.toUri
 
+/**
+ * Шаги простой автоматизации, составленные по инструкции сообщества Xiaomi
+ *
+ * Порядок: сначала ядро приватности (msa, рекомендации, персонализация,
+ * телеметрия), затем уведомления системных приложений, которые шлют
+ * рекомендации и промо-контент.
+ *
+ * ВАЖНО (store compliance): пользовательские тексты (title/desc/warning)
+ * нейтральные — без слова «реклама». Системные ярлыки («Рекламные службы»,
+ * «Показывать рекламу») присутствуют ТОЛЬКО в searchTexts — они не показываются
+ * пользователю и нужны, чтобы Accessibility нашёл переключатель на экране MIUI.
+ */
 object SimpleSteps {
 
     /**
@@ -28,7 +39,7 @@ object SimpleSteps {
         val manualHintRu: String,
         val manualHintEn: String,
         val riskLevel: RiskLevel = RiskLevel.SAFE,
-        val warningRu: String? = null,  // Текст предупреждения для CONDITIONAL/HIGH
+        val warningRu: String? = null,
         val warningEn: String? = null
     )
 
@@ -57,64 +68,88 @@ object SimpleSteps {
     val ALL: List<Step> = listOf(
 
         // ═══════════════════════════════════════════════════════════════
-        // 1. MSA — системный сервис рекомендаций MIUI
+        // 1. MSA — отзыв разрешения (пункт 1 инструкции)
+        // Настройки → Пароли и безопасность → Авторизация и отзыв → msa
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "msa",
-            titleRu = "Системные рекомендации (MSA)",
-            titleEn = "System recommendations (MSA)",
-            descRu = "Системный сервис рекомендаций MIUI. Отключаем его для повышения приватности.",
-            descEn = "MIUI system recommendations service. Turning it off improves privacy.",
+            titleRu = "Системный сервис MSA",
+            titleEn = "MSA system service",
+            descRu = "Главный сервис системных рекомендаций MIUI. Отзываем его разрешение в разделе «Авторизация и отзыв».",
+            descEn = "The main MIUI recommendations service. We revoke its permission in Authorization & revocation.",
             intents = listOf(
                 Intent("miui.intent.action.AD_SERVICES_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 Intent(Settings.ACTION_PRIVACY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             ),
-            // searchTexts — системные ярлыки для поиска элементов на экранах MIUI,
-            // пользователю не показываются
             searchTexts = listOf(
-                "MSA", "msa",
-                "Системная реклама", "System ads",
-                "Ad services", "Рекламные службы",
-                "Разрешить MSA", "Allow MSA",
-                "Служба MSA", "MSA service",
-                "miui-ad", "xiaomi-ad"
+                "msa", "MSA",
+                "Отозвать", "Revoke",
+                "Авторизация и отзыв", "Authorization & revocation",
+                "Authorization and revocation",
+                "Доступ к личным данным", "Access to personal data"
             ),
             targetChecked = false,
-            manualHintRu = "Настройки → Пароли и безопасность → Конфиденциальность → найдите пункт MSA и отключите его.\n\nЕсли такого пункта нет — пропустите шаг.",
-            manualHintEn = "Settings → Passwords & security → Privacy → find the MSA item and turn it off.\n\nIf this item doesn't exist — skip this step."
+            manualHintRu = "Настройки → Отпечатки и защита → Авторизация и отзыв → найдите msa → отзовите разрешение.\n\nПоявится подтверждение с отсчётом 10 секунд — дождитесь и нажмите «Отозвать».",
+            manualHintEn = "Settings → Passwords & security → Authorization & revocation → find msa → revoke.\n\nA 10-second countdown confirmation will appear — wait and tap Revoke.",
+            riskLevel = RiskLevel.CONDITIONAL,
+            warningRu = "⚠️ После отзыва отключатся рекомендации в системных приложениях. Подтверждение появляется с отсчётом 10 секунд — подтвердите его вручную, если автоматика не успела.",
+            warningEn = "⚠️ After revoking, system app recommendations will be disabled. The confirmation has a 10-second countdown — confirm manually if automation didn't make it."
         ),
 
         // ═══════════════════════════════════════════════════════════════
-        // 2. Персональные рекомендации (персонализация)
+        // 2. «Получать рекомендации» (пункт 2 инструкции)
+        // Настройки → Приложения → ⋮ → Прочие настройки → Получать рекомендации
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "personalized",
-            titleRu = "Персональные рекомендации",
-            titleEn = "Personalized recommendations",
-            descRu = "Системный сервис персональных рекомендаций. Отключаем для повышения приватности.",
-            descEn = "System personalized recommendations service. Turning it off improves privacy.",
+            titleRu = "Системные рекомендации",
+            titleEn = "System recommendations",
+            descRu = "Отключаем системный пункт «Получать рекомендации» в прочих настройках приложений.",
+            descEn = "Turning off the system \"Receive recommendations\" item in app additional settings.",
             intents = listOf(
                 Intent("miui.intent.action.AD_SERVICES_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 Intent(Settings.ACTION_PRIVACY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             ),
             searchTexts = listOf(
-                "Personalized recommendations", "Персональные рекомендации",
-                "Рекомендации на основе интересов",
-                "Targeted ads", "Таргетированная реклама",
-                "Revoke", "Отозвать",
                 "Получать рекомендации", "Receive recommendations",
-                "Ad services", "Рекламные службы"
+                "Персональные рекомендации", "Personalized recommendations",
+                "Рекомендации на основе интересов",
+                "Отозвать", "Revoke"
             ),
             targetChecked = false,
-            manualHintRu = "Настройки → Пароли и безопасность → Конфиденциальность → Персональные рекомендации (выкл.)",
-            manualHintEn = "Settings → Passwords & security → Privacy → Personalized recommendations (off)"
+            manualHintRu = "Настройки → Приложения → ⋮ → Прочие настройки → выключите «Получать рекомендации».",
+            manualHintEn = "Settings → Apps → ⋮ → Additional settings → turn off \"Receive recommendations\"."
         ),
 
         // ═══════════════════════════════════════════════════════════════
-        // 3. Программа улучшения UX (телеметрия)
-        // На HyperOS/Android 14 путь глубже — добавили больше intent-ов
+        // 3. Персонализация контента (пункт 3 инструкции)
+        // Настройки → Конфиденциальность → Рекламные службы → персонализация
+        // ═══════════════════════════════════════════════════════════════
+        Step(
+            id = "ads_personalization",
+            titleRu = "Персонализация контента",
+            titleEn = "Content personalization",
+            descRu = "Отключаем персонализацию в разделе системных служб контента.",
+            descEn = "Turning off personalization in the system content services section.",
+            intents = listOf(
+                Intent("miui.intent.action.AD_SERVICES_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                Intent(Settings.ACTION_PRIVACY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ),
+            searchTexts = listOf(
+                "Персонализация рекламы", "Personalization of ads",
+                "Ads personalization", "Opt out of Ads Personalization",
+                "Рекламные службы", "Ad services",
+                "Ограничить отслеживание", "Limit ad tracking"
+            ),
+            targetChecked = false,
+            manualHintRu = "Настройки → Отпечатки и защита → Конфиденциальность → Рекламные службы → отключите персонализацию.",
+            manualHintEn = "Settings → Passwords & security → Privacy → Ad services → turn off personalization."
+        ),
+
+        // ═══════════════════════════════════════════════════════════════
+        // 4. Программа улучшения UX (телеметрия)
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "ux_program",
@@ -147,151 +182,7 @@ object SimpleSteps {
         ),
 
         // ═══════════════════════════════════════════════════════════════
-        // 4. GetApps — лишние уведомления магазина
-        // ✅ Безопасно: обновления приложений идут через системный механизм
-        // ═══════════════════════════════════════════════════════════════
-        Step(
-            id = "getapps",
-            titleRu = "Уведомления GetApps",
-            titleEn = "GetApps notifications",
-            descRu = "Отключаем лишние уведомления магазина GetApps.",
-            descEn = "Turning off unnecessary GetApps store notifications.",
-            intents = listOf(
-                notificationsIntent("com.xiaomi.market"),
-                appDetailsIntent("com.xiaomi.market")
-            ),
-            searchTexts = listOf(
-                "Уведомления", "Notifications",
-                "Allow notifications", "Разрешить уведомления",
-                "Show notifications", "Показывать уведомления",
-                "All GetApps notifications",
-                "Allow GetApps to send notifications",
-                "Разрешить GetApps отправлять уведомления"
-            ),
-            targetChecked = false,
-            manualHintRu = "Откроются уведомления GetApps. Выключите переключатель «Разрешить уведомления».",
-            manualHintEn = "GetApps notification settings will open. Turn off \"Allow notifications\".",
-            riskLevel = RiskLevel.SAFE,
-            warningRu = null,
-            warningEn = null
-        ),
-
-        // ═══════════════════════════════════════════════════════════════
-        // 5. Mi Music — лишние уведомления
-        // ⚠️ Условно безопасно: если используете Mi Music как основной плеер,
-        //    потеряете уведомления о новых плейлистах/альбомах (но музыка работает)
-        // ═══════════════════════════════════════════════════════════════
-        Step(
-            id = "music",
-            titleRu = "Уведомления Mi Music",
-            titleEn = "Mi Music notifications",
-            descRu = "Отключаем лишние уведомления Mi Music.",
-            descEn = "Turning off unnecessary Mi Music notifications.",
-            intents = listOf(
-                notificationsIntent("com.miui.player"),
-                appDetailsIntent("com.miui.player")
-            ),
-            searchTexts = listOf(
-                "Уведомления", "Notifications",
-                "Allow notifications", "Разрешить уведомления",
-                "Show notifications", "Показывать уведомлений",
-                "Allow Mi Music to send notifications"
-            ),
-            targetChecked = false,
-            manualHintRu = "Откроются уведомления Mi Music. Выключите переключатель «Разрешить уведомления».",
-            manualHintEn = "Mi Music notification settings will open. Turn off \"Allow notifications\".",
-            riskLevel = RiskLevel.CONDITIONAL,
-            warningRu = "⚠️ Если вы используете Mi Music как основной плеер, вы потеряете уведомления о новых плейлистах и альбомах (но музыка будет работать).",
-            warningEn = "⚠️ If you use Mi Music as your main player, you will lose notifications about new playlists and albums (but music playback will work normally)."
-        ),
-
-        // ═══════════════════════════════════════════════════════════════
-        // 6. Themes — лишние уведомления
-        // ✅ Безопасно: темы можно применять вручную через приложение
-        // ═══════════════════════════════════════════════════════════════
-        Step(
-            id = "themes",
-            titleRu = "Уведомления Темы",
-            titleEn = "Themes notifications",
-            descRu = "Отключаем лишние уведомления приложения Темы.",
-            descEn = "Turning off unnecessary Themes app notifications.",
-            intents = listOf(
-                notificationsIntent("com.android.thememanager"),
-                appDetailsIntent("com.android.thememanager")
-            ),
-            searchTexts = listOf(
-                "Уведомления", "Notifications",
-                "Allow notifications", "Разрешить уведомления",
-                "Show notifications", "Показывать уведомления"
-            ),
-            targetChecked = false,
-            manualHintRu = "Откроются уведомления Темы. Выключите переключатель «Разрешить уведомления».",
-            manualHintEn = "Themes notification settings will open. Turn off \"Allow notifications\".",
-            riskLevel = RiskLevel.SAFE,
-            warningRu = null,
-            warningEn = null
-        ),
-
-        // ═══════════════════════════════════════════════════════════════
-        // 7. File Manager — лишние уведомления
-        // ✅ Безопасно: файловый менеджер работает полностью без уведомлений
-        // ═══════════════════════════════════════════════════════════════
-        Step(
-            id = "filemanager",
-            titleRu = "Уведомления Проводника",
-            titleEn = "File Manager notifications",
-            descRu = "Отключаем лишние уведомления Проводника.",
-            descEn = "Turning off unnecessary File Manager notifications.",
-            intents = listOf(
-                notificationsIntent("com.mi.android.globalFileexplorer"),
-                notificationsIntent("com.android.fileexplorer"),
-                appDetailsIntent("com.mi.android.globalFileexplorer"),
-                appDetailsIntent("com.android.fileexplorer")
-            ),
-            searchTexts = listOf(
-                "Уведомления", "Notifications",
-                "Allow notifications", "Разрешить уведомления",
-                "Show notifications", "Показывать уведомления"
-            ),
-            targetChecked = false,
-            manualHintRu = "Откроются уведомления Проводника. Выключите переключатель «Разрешить уведомления».",
-            manualHintEn = "File Manager notification settings will open. Turn off \"Allow notifications\".",
-            riskLevel = RiskLevel.SAFE,
-            warningRu = null,
-            warningEn = null
-        ),
-
-        // ═══════════════════════════════════════════════════════════════
-        // 8. Xiaomi Service Framework (MSF) — системная служба Xiaomi
-        // ✅ Безопасно: отключаем только уведомления, сервисы работают
-        // ═══════════════════════════════════════════════════════════════
-        Step(
-            id = "msf",
-            titleRu = "Xiaomi Service Framework",
-            titleEn = "Xiaomi Service Framework",
-            descRu = "Системная служба Xiaomi. Ограничиваем её уведомления.",
-            descEn = "Xiaomi system service. Limiting its notifications.",
-            intents = listOf(
-                notificationsIntent("com.xiaomi.xmsf"),
-                appDetailsIntent("com.xiaomi.xmsf")
-            ),
-            searchTexts = listOf(
-                "Уведомления", "Notifications",
-                "Allow notifications", "Разрешить уведомления",
-                "Show notifications", "Показывать уведомления",
-                "Xiaomi Service Framework", "Службы Xiaomi"
-            ),
-            targetChecked = false,
-            manualHintRu = "Откроются уведомления Xiaomi Service Framework. Выключите переключатель «Разрешить уведомления».",
-            manualHintEn = "Xiaomi Service Framework notification settings will open. Turn off \"Allow notifications\".",
-            riskLevel = RiskLevel.SAFE,
-            warningRu = null,
-            warningEn = null
-        ),
-
-        // ═══════════════════════════════════════════════════════════════
-        // 9. Системная аналитика — приватность
-        // ✅ Безопасно: отключаем сбор статистики, система работает нормально
+        // 5. Системная аналитика
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "analytics",
@@ -313,15 +204,11 @@ object SimpleSteps {
             ),
             targetChecked = false,
             manualHintRu = "Настройки → Пароли и безопасность → Конфиденциальность → Отключите сбор аналитики.",
-            manualHintEn = "Settings → Passwords & security → Privacy → Turn off analytics collection.",
-            riskLevel = RiskLevel.SAFE,
-            warningRu = null,
-            warningEn = null
+            manualHintEn = "Settings → Passwords & security → Privacy → Turn off analytics collection."
         ),
 
         // ═══════════════════════════════════════════════════════════════
-        // 10. Идентификатор персонализации Google
-        // ✅ Безопасно: можно сбросить или отключить без последствий
+        // 6. Идентификатор персонализации Google
         // ═══════════════════════════════════════════════════════════════
         Step(
             id = "ads_id",
@@ -334,7 +221,6 @@ object SimpleSteps {
                 Intent(Settings.ACTION_PRIVACY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             ),
             searchTexts = listOf(
-                "Ads", "Реклама",
                 "Advertising ID", "Рекламный идентификатор",
                 "Reset advertising ID", "Сбросить рекламный ID",
                 "Delete advertising ID", "Удалить рекламный ID",
@@ -342,69 +228,253 @@ object SimpleSteps {
             ),
             targetChecked = false,
             manualHintRu = "Настройки → Google → найдите пункт управления идентификатором → удалите идентификатор или отключите персонализацию.",
-            manualHintEn = "Settings → Google → find the ID settings → delete the ID or turn off personalization.",
-            riskLevel = RiskLevel.SAFE,
-            warningRu = null,
-            warningEn = null
+            manualHintEn = "Settings → Google → find the ID settings → delete the ID or turn off personalization."
         ),
 
         // ═══════════════════════════════════════════════════════════════
-        // 11. Smart Assistant (Mi AI) — голосовой помощник
-        // ⚠️ Условно безопасно: если используете голосовые команды, потеряете уведомления
+        // 7. GetApps — уведомления и рекомендации (пункты 4, 11 инструкции)
         // ═══════════════════════════════════════════════════════════════
         Step(
-            id = "smart_assistant",
-            titleRu = "Smart Assistant (Mi AI)",
-            titleEn = "Smart Assistant (Mi AI)",
-            descRu = "Голосовой помощник Xiaomi. Отключаем его уведомления.",
-            descEn = "Xiaomi voice assistant. Turning off its notifications.",
+            id = "getapps",
+            titleRu = "Уведомления GetApps",
+            titleEn = "GetApps notifications",
+            descRu = "Отключаем лишние уведомления и рекомендации магазина GetApps.",
+            descEn = "Turning off unnecessary GetApps store notifications and recommendations.",
             intents = listOf(
-                notificationsIntent("com.miui.voiceassist"),
-                appDetailsIntent("com.miui.voiceassist")
-            ),
-            searchTexts = listOf(
-                "Уведомления", "Notifications",
-                "Allow notifications", "Разрешить уведомления",
-                "Smart Assistant", "Mi AI",
-                "Голосовой помощник", "Voice assistant",
-                "Mi AI", "小爱同学"
-            ),
-            targetChecked = false,
-            manualHintRu = "Откроются уведомления Smart Assistant. Выключите переключатель «Разрешить уведомления».",
-            manualHintEn = "Smart Assistant notification settings will open. Turn off \"Allow notifications\".",
-            riskLevel = RiskLevel.CONDITIONAL,
-            warningRu = "⚠️ Если вы используете голосовые команды Mi AI, вы можете потерять некоторые уведомления (но голосовое управление продолжит работать).",
-            warningEn = "⚠️ If you use Mi AI voice commands, you may lose some notifications (but voice control will continue to work)."
-        ),
-
-        // ═══════════════════════════════════════════════════════════════
-        // 12. Game Turbo — лишние уведомления
-        // ✅ Безопасно: игровой режим работает, отключаем только уведомления
-        // ═══════════════════════════════════════════════════════════════
-        Step(
-            id = "game_turbo",
-            titleRu = "Уведомления Game Turbo",
-            titleEn = "Game Turbo notifications",
-            descRu = "Отключаем лишние уведомления и рекомендации Game Turbo.",
-            descEn = "Turning off unnecessary Game Turbo notifications and recommendations.",
-            intents = listOf(
-                notificationsIntent("com.miui.gamebooster"),
-                appDetailsIntent("com.miui.gamebooster")
+                notificationsIntent("com.xiaomi.market"),
+                appDetailsIntent("com.xiaomi.market")
             ),
             searchTexts = listOf(
                 "Уведомления", "Notifications",
                 "Allow notifications", "Разрешить уведомления",
                 "Show notifications", "Показывать уведомления",
-                "Game Turbo", "Игровой режим",
-                "Game Booster", "Игры",
-                "Recommendations", "Рекомендации"
+                "All GetApps notifications",
+                "Allow GetApps to send notifications",
+                "Разрешить GetApps отправлять уведомления"
             ),
             targetChecked = false,
-            manualHintRu = "Откроются уведомления Game Turbo. Выключите переключатель «Разрешить уведомления».",
-            manualHintEn = "Game Turbo notification settings will open. Turn off \"Allow notifications\".",
-            riskLevel = RiskLevel.SAFE,
-            warningRu = null,
-            warningEn = null
+            manualHintRu = "Откроются уведомления GetApps. Выключите переключатель «Разрешить уведомления».",
+            manualHintEn = "GetApps notification settings will open. Turn off \"Allow notifications\"."
+        ),
+
+        // ═══════════════════════════════════════════════════════════════
+        // 8. Темы — уведомления (пункты 4, 11 инструкции)
+        // ═══════════════════════════════════════════════════════════════
+        Step(
+            id = "themes",
+            titleRu = "Уведомления Темы",
+            titleEn = "Themes notifications",
+            descRu = "Отключаем лишние уведомления приложения Темы.",
+            descEn = "Turning off unnecessary Themes app notifications.",
+            intents = listOf(
+                notificationsIntent("com.android.thememanager"),
+                appDetailsIntent("com.android.thememanager")
+            ),
+            searchTexts = listOf(
+                "Уведомления", "Notifications",
+                "Allow notifications", "Разрешить уведомления",
+                "Show notifications", "Показывать уведомления"
+            ),
+            targetChecked = false,
+            manualHintRu = "Откроются уведомления Темы. Выключите переключатель «Разрешить уведомления».",
+            manualHintEn = "Themes notification settings will open. Turn off \"Allow notifications\"."
+        ),
+
+        // ═══════════════════════════════════════════════════════════════
+        // 9. Mi Music — уведомления (пункты 4, 11 инструкции)
+        // ═══════════════════════════════════════════════════════════════
+        Step(
+            id = "music",
+            titleRu = "Уведомления Mi Music",
+            titleEn = "Mi Music notifications",
+            descRu = "Отключаем лишние уведомления Mi Music.",
+            descEn = "Turning off unnecessary Mi Music notifications.",
+            intents = listOf(
+                notificationsIntent("com.miui.player"),
+                appDetailsIntent("com.miui.player")
+            ),
+            searchTexts = listOf(
+                "Уведомления", "Notifications",
+                "Allow notifications", "Разрешить уведомления",
+                "Show notifications", "Показывать уведомления",
+                "Allow Mi Music to send notifications"
+            ),
+            targetChecked = false,
+            manualHintRu = "Откроются уведомления Mi Music. Выключите переключатель «Разрешить уведомления».",
+            manualHintEn = "Mi Music notification settings will open. Turn off \"Allow notifications\".",
+            riskLevel = RiskLevel.CONDITIONAL,
+            warningRu = "⚠️ Если вы используете Mi Music как основной плеер, вы потеряете уведомления о новых плейлистах и альбомах (но музыка будет работать).",
+            warningEn = "⚠️ If you use Mi Music as your main player, you will lose notifications about new playlists and albums (but music playback will work normally)."
+        ),
+
+        // ═══════════════════════════════════════════════════════════════
+        // 10. Mi Браузер — уведомления (пункт 11 инструкции)
+        // ═══════════════════════════════════════════════════════════════
+        Step(
+            id = "browser",
+            titleRu = "Уведомления Mi Браузера",
+            titleEn = "Mi Browser notifications",
+            descRu = "Отключаем уведомления и рекомендации Mi Браузера.",
+            descEn = "Turning off Mi Browser notifications and recommendations.",
+            intents = listOf(
+                notificationsIntent("com.android.browser"),
+                appDetailsIntent("com.android.browser")
+            ),
+            searchTexts = listOf(
+                "Уведомления", "Notifications",
+                "Allow notifications", "Разрешить уведомления",
+                "Show notifications", "Показывать уведомления"
+            ),
+            targetChecked = false,
+            manualHintRu = "Откроются уведомления Mi Браузера. Выключите переключатель «Разрешить уведомления».",
+            manualHintEn = "Mi Browser notification settings will open. Turn off \"Allow notifications\"."
+        ),
+
+        // ═══════════════════════════════════════════════════════════════
+        // 11. Mi Видео — уведомления (пункт 11 инструкции)
+        // ═══════════════════════════════════════════════════════════════
+        Step(
+            id = "video",
+            titleRu = "Уведомления Mi Видео",
+            titleEn = "Mi Video notifications",
+            descRu = "Отключаем уведомления и рекомендации Mi Видео.",
+            descEn = "Turning off Mi Video notifications and recommendations.",
+            intents = listOf(
+                notificationsIntent("com.miui.videoplayer"),
+                appDetailsIntent("com.miui.videoplayer")
+            ),
+            searchTexts = listOf(
+                "Уведомления", "Notifications",
+                "Allow notifications", "Разрешить уведомления",
+                "Show notifications", "Показывать уведомления"
+            ),
+            targetChecked = false,
+            manualHintRu = "Откроются уведомления Mi Видео. Выключите переключатель «Разрешить уведомления».",
+            manualHintEn = "Mi Video notification settings will open. Turn off \"Allow notifications\"."
+        ),
+
+        // ═══════════════════════════════════════════════════════════════
+        // 12. Игровой центр — уведомления (пункт 11 инструкции)
+        // ═══════════════════════════════════════════════════════════════
+        Step(
+            id = "gamecenter",
+            titleRu = "Уведомления Игрового центра",
+            titleEn = "Game Center notifications",
+            descRu = "Отключаем уведомления и промо-контент Игрового центра.",
+            descEn = "Turning off Game Center notifications and promo content.",
+            intents = listOf(
+                notificationsIntent("com.xiaomi.gamecenter"),
+                appDetailsIntent("com.xiaomi.gamecenter")
+            ),
+            searchTexts = listOf(
+                "Уведомления", "Notifications",
+                "Allow notifications", "Разрешить уведомления",
+                "Show notifications", "Показывать уведомления",
+                "Game Center", "Игровой центр"
+            ),
+            targetChecked = false,
+            manualHintRu = "Откроются уведомления Игрового центра. Выключите переключатель «Разрешить уведомления».",
+            manualHintEn = "Game Center notification settings will open. Turn off \"Allow notifications\"."
+        ),
+
+        // ═══════════════════════════════════════════════════════════════
+        // 13. Лента виджетов (App Vault) — уведомления (пункт 8 инструкции)
+        // Пакет подтверждён: com.miui.personalassistant
+        // ═══════════════════════════════════════════════════════════════
+        Step(
+            id = "appvault",
+            titleRu = "Лента виджетов (App Vault)",
+            titleEn = "App Vault (widget feed)",
+            descRu = "Отключаем уведомления и предложения ленты виджетов на рабочем столе.",
+            descEn = "Turning off widget feed notifications and suggestions on the home screen.",
+            intents = listOf(
+                notificationsIntent("com.miui.personalassistant"),
+                appDetailsIntent("com.miui.personalassistant")
+            ),
+            searchTexts = listOf(
+                "Уведомления", "Notifications",
+                "Allow notifications", "Разрешить уведомления",
+                "Show notifications", "Показывать уведомления",
+                "App Vault", "Лента виджетов",
+                "Предложения", "Suggestions"
+            ),
+            targetChecked = false,
+            manualHintRu = "Откроются уведомления Ленты виджетов. Выключите переключатель «Разрешить уведомления».\n\nДополнительно: Лента виджетов → ⋮ → Управление службами → выключите «Предложения».",
+            manualHintEn = "App Vault notification settings will open. Turn off \"Allow notifications\".\n\nAdditionally: App Vault → ⋮ → Service management → turn off \"Suggestions\"."
+        ),
+
+        // ═══════════════════════════════════════════════════════════════
+        // 14. Карусель обоев — уведомления на экране блокировки
+        // (пункт 6 инструкции). Пакет подтверждён: com.miui.android.fashiongallery
+        // ═══════════════════════════════════════════════════════════════
+        Step(
+            id = "carousel",
+            titleRu = "Карусель обоев",
+            titleEn = "Wallpaper Carousel",
+            descRu = "Отключаем уведомления сервиса «Карусель обоев» на экране блокировки.",
+            descEn = "Turning off Wallpaper Carousel notifications on the lock screen.",
+            intents = listOf(
+                notificationsIntent("com.miui.android.fashiongallery"),
+                appDetailsIntent("com.miui.android.fashiongallery")
+            ),
+            searchTexts = listOf(
+                "Уведомления", "Notifications",
+                "Allow notifications", "Разрешить уведомления",
+                "Show notifications", "Показывать уведомления",
+                "Карусель обоев", "Wallpaper Carousel"
+            ),
+            targetChecked = false,
+            manualHintRu = "Откроются уведомления «Карусели обоев». Выключите переключатель.\n\nДополнительно: Настройки → Блокировка экрана → Карусель обоев → отключите.",
+            manualHintEn = "Wallpaper Carousel notification settings will open. Turn off the switch.\n\nAdditionally: Settings → Lock screen → Wallpaper Carousel → turn off."
+        ),
+
+        // ═══════════════════════════════════════════════════════════════
+        // 15. Проводник — уведомления (пункт 5 инструкции)
+        // ═══════════════════════════════════════════════════════════════
+        Step(
+            id = "filemanager",
+            titleRu = "Уведомления Проводника",
+            titleEn = "File Manager notifications",
+            descRu = "Отключаем лишние уведомления Проводника.",
+            descEn = "Turning off unnecessary File Manager notifications.",
+            intents = listOf(
+                notificationsIntent("com.mi.android.globalFileexplorer"),
+                notificationsIntent("com.android.fileexplorer"),
+                appDetailsIntent("com.mi.android.globalFileexplorer"),
+                appDetailsIntent("com.android.fileexplorer")
+            ),
+            searchTexts = listOf(
+                "Уведомления", "Notifications",
+                "Allow notifications", "Разрешить уведомления",
+                "Show notifications", "Показывать уведомления"
+            ),
+            targetChecked = false,
+            manualHintRu = "Откроются уведомления Проводника. Выключите переключатель «Разрешить уведомления».",
+            manualHintEn = "File Manager notification settings will open. Turn off \"Allow notifications\"."
+        ),
+
+        // ═══════════════════════════════════════════════════════════════
+        // 16. Xiaomi Service Framework — уведомления
+        // ═══════════════════════════════════════════════════════════════
+        Step(
+            id = "msf",
+            titleRu = "Xiaomi Service Framework",
+            titleEn = "Xiaomi Service Framework",
+            descRu = "Системная служба Xiaomi. Ограничиваем её уведомления.",
+            descEn = "Xiaomi system service. Limiting its notifications.",
+            intents = listOf(
+                notificationsIntent("com.xiaomi.xmsf"),
+                appDetailsIntent("com.xiaomi.xmsf")
+            ),
+            searchTexts = listOf(
+                "Уведомления", "Notifications",
+                "Allow notifications", "Разрешить уведомления",
+                "Show notifications", "Показывать уведомления",
+                "Xiaomi Service Framework", "Службы Xiaomi"
+            ),
+            targetChecked = false,
+            manualHintRu = "Откроются уведомления Xiaomi Service Framework. Выключите переключатель «Разрешить уведомления».",
+            manualHintEn = "Xiaomi Service Framework notification settings will open. Turn off \"Allow notifications\"."
         )
     )
 
