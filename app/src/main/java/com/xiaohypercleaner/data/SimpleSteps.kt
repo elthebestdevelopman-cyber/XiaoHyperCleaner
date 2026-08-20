@@ -3,6 +3,7 @@ package com.xiaohypercleaner.data
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import androidx.core.net.toUri
 
 object SimpleSteps {
 
@@ -48,7 +49,7 @@ object SimpleSteps {
     /** Intent для экрана "О приложении" — нужен как fallback */
     private fun appDetailsIntent(packageName: String): Intent {
         return Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-            data = Uri.parse("package:$packageName")
+            data = "package:$packageName".toUri()
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
     }

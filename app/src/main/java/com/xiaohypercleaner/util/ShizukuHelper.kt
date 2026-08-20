@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import androidx.core.net.toUri
 
 /**
  * Помощник установки Shizuku из всех источников, где он точно есть:
@@ -70,7 +71,7 @@ object ShizukuHelper {
         // 1. Принудительно в приложение Play Store через https-ссылку
         try {
             AppLog.i("ShizukuHelper", "Trying Play https + setPackage...")
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(URL_PLAY_WEB))
+            val intent = Intent(Intent.ACTION_VIEW, URL_PLAY_WEB.toUri())
             intent.setPackage(PLAY_PACKAGE)
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
@@ -145,7 +146,7 @@ object ShizukuHelper {
     private fun tryOpen(context: Context, uri: String, name: String): Boolean {
         return try {
             AppLog.i("ShizukuHelper", "Trying $name: $uri")
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uri))
+            val intent = Intent(Intent.ACTION_VIEW, uri.toUri())
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
             AppLog.i("ShizukuHelper", "$name: SUCCESS")

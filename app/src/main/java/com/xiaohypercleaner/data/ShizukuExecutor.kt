@@ -2,7 +2,6 @@ package com.xiaohypercleaner.data
 
 import android.content.Context
 import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.LogMasker
 import kotlinx.coroutines.Dispatchers

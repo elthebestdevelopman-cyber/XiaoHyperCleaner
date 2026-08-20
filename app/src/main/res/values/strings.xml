@@ -21,13 +21,10 @@
 
     <!-- ========== ВЫБОР УРОВНЯ ========== -->
     <string name="level_dialog_subtitle">Можно изменить позже в настройках</string>
-    <string name="level_dialog_text">Простой режим подойдёт всем — приложение само выполнит настройки. Продвинутый требует Shizuku/ADB, но даёт больше контроля.</string>
     <string name="level_simple_title">🟢 Простая</string>
     <string name="level_simple_desc">Для всех пользователей. Приложение само настроит систему — просто выдайте разрешения и подождите.</string>
     <string name="level_pro_title">🔵 Продвинутая</string>
     <string name="level_pro_desc">Для опытных. Глубокая настройка через Shizuku или Wireless ADB. Надёжнее, но требует подготовки.</string>
-    <string name="level_advanced_title">🔵 Продвинутая</string>
-    <string name="level_advanced_desc">Для опытных. Глубокая настройка через Shizuku или Wireless ADB. Надёжнее, но требует подготовки.</string>
     <string name="level_dialog_continue">Продолжить</string>
     <string name="robocat_caption">Робокот помогает настраивать систему</string>
 
@@ -42,7 +39,6 @@
     <string name="simple_step_start">Начать</string>
     <string name="simple_step_working">Выполняется…</string>
     <string name="simple_step_attempt">Попытка %1$d из %2$d</string>
-    <string name="simple_step_success">Готово</string>
     <string name="simple_step_auto_next">Готово — переходим дальше…</string>
     <string name="simple_step_failed">Не получилось сделать автоматически</string>
     <string name="simple_step_next">Далее</string>
@@ -103,7 +99,6 @@
 
     <!-- ========== ACCESSIBILITY ========== -->
     <string name="accessibility_explanation_text">Приложению нужен доступ к службе специальных возможностей, чтобы автоматически нажимать кнопки в настройках. Доступ используется только для навигации по системным экранам и не передаётся наружу. Данные не собираются и не отправляются на серверы.</string>
-    <string name="hint_title">Подсказка</string>
     <string name="hint_accessibility">Включите «XiaoHyperCleaner» в списке служб</string>
     <string name="hint_restricted">Нажмите 3 точки сверху → «Разрешить ограниченные настройки»</string>
     <string name="hint_overlay">Разрешите отображение поверх других окон</string>
@@ -151,10 +146,6 @@
     <string name="onboarding_start">Начать</string>
     <string name="onboarding_privacy_prefix">Я принимаю </string>
     <string name="onboarding_privacy_link">политику приватности</string>
-    <string name="onboarding_privacy_text">Я принимаю политику приватности</string>
-
-    <!-- ========== SPLASH ========== -->
-    <string name="splash_tagline">Настройка приватности без лишних слов</string>
 
     <!-- ========== MENU DIALOG ========== -->
     <string name="menu_about">О приложении</string>
@@ -204,9 +195,6 @@
     <string name="shizuku_sources_apkpure">APKPure</string>
 
     <!-- ========== POINTER HINTS (стрелки к элементам) ========== -->
-    <string name="pointer_menu">Нажмите на три точки ⋮ в правом верхнем углу</string>
-    <string name="pointer_allow_restricted">Выберите «Разрешить ограниченные настройки» и подтвердите</string>
-    <string name="pointer_allow_forbidden">Выберите «Разрешить запрещённые настройки» и подтвердите</string>
     <string name="pointer_overlay_switch">Включите этот переключатель</string>
     <string name="pointer_accessibility_item">Найдите «XiaoHyperCleaner» в списке и включите переключатель</string>
     <string name="pointer_restricted_blocked">Не получается включить службу?</string>
@@ -221,6 +209,7 @@
     <string name="pointer_restricted_absent_option">Такого пункта нет</string>
     <string name="pointer_restricted_top_hint">Нажмите ⋮ и выберите «Разрешить ограниченные настройки»</string>
     <string name="pointer_restricted_bottom_hint">Прокрутите вниз и включите «Разрешить ограниченные настройки»</string>
+
     <!-- ========== ACCESSIBILITY POLICY DECLARATION ========== -->
     <string name="accessibility_policy_summary">Автоматизация навигации по настройкам для экономии времени пользователей с ограниченной подвижностью</string>
     <string name="accessibility_policy_description">Служба специальных возможностей XiaoHyperCleaner используется ТОЛЬКО для автоматической навигации по системным настройкам Android по прямому запросу пользователя. Служба НЕ обходит настройки приватности, НЕ изменяет системные параметры без явного согласия и НЕ собирает пользовательские данные. Все действия выполняются локально на устройстве. Служба активируется только после явного согласия пользователя и может быть отключена в любой момент в настройках Android. Использование службы полностью соответствует Accessibility Services API Policy.</string>

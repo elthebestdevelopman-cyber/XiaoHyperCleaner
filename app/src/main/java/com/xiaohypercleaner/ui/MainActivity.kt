@@ -108,6 +108,7 @@ import com.xiaohypercleaner.util.ShizukuHelper
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import rikka.shizuku.Shizuku
+import androidx.core.net.toUri
 
 class MainActivity : ComponentActivity() {
 
@@ -1216,7 +1217,7 @@ private fun DoneView(onRestore: () -> Unit, onReboot: () -> Unit) {
 private fun openUrl(context: Context, url: String) {
     AppLog.i("OpenUrl", "opening url: $url")
     try {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
     } catch (e: Exception) {
         AppLog.e("OpenUrl", "failed to open url: ${e.message}")
     }
@@ -1317,7 +1318,7 @@ private fun openRateApp(context: Context) {
     )
     for (s in schemes) {
         try {
-            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s)))
+            context.startActivity(Intent(Intent.ACTION_VIEW, s.toUri()))
             AppLog.i("OpenRate", "opened via scheme: $s")
             return
         } catch (e: Exception) {

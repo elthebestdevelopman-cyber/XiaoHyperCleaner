@@ -4,6 +4,7 @@ import com.xiaohypercleaner.util.AppLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlin.time.Duration.Companion.milliseconds
 import java.io.IOException
 import java.io.InputStream
 
@@ -32,7 +33,7 @@ class RootExecutor : AdbExecutor {
     suspend fun isAvailable(): Boolean = withContext(Dispatchers.IO) {
         var process: Process? = null
         try {
-            withTimeout(AVAILABILITY_TIMEOUT_MS) {
+            withTimeout(AVAILABILITY_TIMEOUT_MS.milliseconds) {
                 process = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
 
                 val output = process.inputStream.use { stream ->
@@ -79,7 +80,7 @@ class RootExecutor : AdbExecutor {
         withContext(Dispatchers.IO) {
             var process: Process? = null
             try {
-                withTimeout(COMMAND_TIMEOUT_MS) {
+                withTimeout(COMMAND_TIMEOUT_MS.milliseconds) {
                     process = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
 
                     // Читаем output и error параллельно, чтобы избежать deadlock
@@ -123,7 +124,7 @@ class RootExecutor : AdbExecutor {
                 val read = reader.read(charBuffer, 0, charsToRead)
                 if (read == -1) break
 
-                buffer.append(charBuffer, 0, read)
+                buffer.appendRange(charBuffer, 0, read)
                 totalRead += read
             }
         }

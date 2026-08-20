@@ -51,7 +51,6 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.core.ktx)
-    // Системный Splash Screen API
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.lifecycle.runtime)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -65,8 +64,9 @@ dependencies {
     implementation(libs.datastore)
     implementation(libs.coroutines.android)
 
-    implementation("dev.rikka.shizuku:api:13.1.5")
-    implementation("dev.rikka.shizuku:provider:13.1.5")
+    // Shizuku API (MIT License)
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

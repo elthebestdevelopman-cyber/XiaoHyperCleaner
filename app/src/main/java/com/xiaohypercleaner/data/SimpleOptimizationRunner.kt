@@ -9,6 +9,7 @@ import android.os.Build
 import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.util.AppLog
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 @Suppress("DEPRECATION")
 class SimpleOptimizationRunner(private val service: AccessibilityService) {
@@ -51,7 +52,7 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         // там fallback может переключить ЧУЖОЙ параметр, поэтому запрещён.
         val openedSpecificScreen = openedIndex < step.intents.lastIndex
 
-        delay(WAIT_FOR_SCREEN_MS)
+        delay(WAIT_FOR_SCREEN_MS.milliseconds)
 
         // 2. Ищем switch: по тексту → (fallback только на целевом экране)
         val switchNode = findSwitchNode(step.searchTexts)
@@ -92,7 +93,7 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         }
 
         AppLog.i(TAG, "Step ${step.id}: clicked using method $clickMethod")
-        delay(WAIT_AFTER_CLICK_MS)
+        delay(WAIT_AFTER_CLICK_MS.milliseconds)
 
         // 5. Проверяем результат (только по текстам, чтобы не найти чужой switch)
         val switchedNode = findSwitchNode(step.searchTexts)
@@ -128,10 +129,8 @@ class SimpleOptimizationRunner(private val service: AccessibilityService) {
         }
 
         // Способ 3: КЛИК ПО КООРДИНАТАМ через dispatchGesture (требует canPerformGestures=true)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            val result = clickByCoordinates(node)
-            if (result) return ClickMethod.GESTURE
-        }
+        val result = clickByCoordinates(node)
+        if (result) return ClickMethod.GESTURE
 
         return ClickMethod.NONE
     }

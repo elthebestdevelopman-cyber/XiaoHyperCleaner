@@ -4,7 +4,7 @@ import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.LogMasker
 import kotlinx.coroutines.delay
-import java.io.IOException
+import kotlin.time.Duration.Companion.milliseconds
 
 data class OptimizationOptions(
     val dnsFilter: Boolean = false,
@@ -120,20 +120,20 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
 
         callbacks.onProgress(AppConstants.PROGRESS_CONNECTED)
-        delay(AppConstants.DELAY_AFTER_CONNECT_MS)
+        delay(AppConstants.DELAY_AFTER_CONNECT_MS.milliseconds)
 
         try {
             callbacks.onStage("method1")
             callbacks.onProgress(AppConstants.PROGRESS_METHOD1)
             val settings1 = applySystemSettings(transaction)
             appliedSettings.addAll(settings1)
-            delay(AppConstants.COMMAND_DELAY_MS)
+            delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
 
             callbacks.onStage("method2")
             callbacks.onProgress(AppConstants.PROGRESS_METHOD2)
             val packages2 = disableAnalyticsServices(transaction)
             disabledPackages.addAll(packages2)
-            delay(AppConstants.COMMAND_DELAY_MS)
+            delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
 
             callbacks.onStage("method3")
             callbacks.onProgress(AppConstants.PROGRESS_METHOD3)
@@ -144,13 +144,13 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 val regional = applyRegionalKeys(transaction)
                 appliedSettings.addAll(regional)
             }
-            delay(AppConstants.COMMAND_DELAY_MS)
+            delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
 
             callbacks.onStage("method4")
             callbacks.onProgress(AppConstants.PROGRESS_METHOD4)
             val packages4 = disableAdServices(transaction)
             disabledPackages.addAll(packages4)
-            delay(AppConstants.COMMAND_DELAY_MS)
+            delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
 
             if (options.dnsFilter) {
                 callbacks.onStage("method5")
@@ -161,7 +161,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 } else {
                     failedActions.add("dns_filter")
                 }
-                delay(AppConstants.COMMAND_DELAY_MS)
+                delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
             }
 
             callbacks.onStage("verifying")
@@ -253,7 +253,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         if (settingsFailed.isNotEmpty()) {
             failedActions.add("settings_restore: ${settingsFailed.joinToString()}")
         }
-        delay(AppConstants.COMMAND_DELAY_MS)
+        delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
 
         callbacks.onProgress(AppConstants.PROGRESS_RESTORE_PACKAGES)
 
@@ -289,7 +289,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         AppLog.i(TAG, "OptimizationEngine: rebooting device")
         return try {
             if (!connect()) return false
-            delay(AppConstants.DELAY_BEFORE_REBOOT_MS)
+            delay(AppConstants.DELAY_BEFORE_REBOOT_MS.milliseconds)
             val result = adb.executeCommand("shell reboot")
             if (result.isSuccess) {
                 AppLog.i(TAG, "OptimizationEngine: reboot command sent")
@@ -328,7 +328,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
                 transaction.appliedSettings[putCmd] = original
                 applied.add(key.substringAfterLast(" "))
-                delay(AppConstants.COMMAND_DELAY_MS)
+                delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
             } catch (e: Exception) {
                 AppLog.w(
                     TAG,
@@ -372,7 +372,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
                 transaction.appliedSettings[putCmd] = original
                 applied.add(key.substringAfterLast(" "))
-                delay(AppConstants.COMMAND_DELAY_MS)
+                delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
             } catch (e: Exception) {
                 AppLog.w(
                     TAG,
@@ -383,7 +383,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         return applied
     }
 
-    private suspend fun applyRegionalKeys(transaction: Transaction): List<String> {
+    private fun applyRegionalKeys(transaction: Transaction): List<String> {
         // УДАЛЕНО: Изменение региона удалено из-за риска нарушения работы системных сервисов
         return emptyList()
     }
@@ -423,7 +423,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 return false
             }
 
-            delay(AppConstants.COMMAND_DELAY_MS)
+            delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
 
             val hostResult =
                 adb.executeCommand("settings put ${ServiceRegistry.Dns.SPECIFIER_KEY} ${ServiceRegistry.Dns.SPECIFIER_VALUE}")
@@ -435,7 +435,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 return false
             }
 
-            delay(AppConstants.COMMAND_DELAY_MS)
+            delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
 
             AppLog.i(TAG, "OptimizationEngine: DNS filter applied")
             true
@@ -454,7 +454,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         try {
             val result = adb.executeCommand("shell pm disable-user --user 0 $pkg").getOrNull() ?: ""
             if (result.contains("Success")) {
-                delay(AppConstants.COMMAND_DELAY_MS)
+                delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
                 AppLog.i(TAG, "OptimizationEngine: disabled $pkg via disable-user")
                 return true
             }
@@ -475,7 +475,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             try {
                 val result = adb.executeCommand("shell pm suspend $pkg").getOrNull() ?: ""
                 if (result.contains("Success")) {
-                    delay(AppConstants.COMMAND_DELAY_MS)
+                    delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
                     AppLog.i(TAG, "OptimizationEngine: suspended $pkg")
                     return true
                 }
@@ -715,7 +715,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                         "OptimizationEngine: restore command failed: $key - ${result.exceptionOrNull()?.message}"
                     )
                 }
-                delay(AppConstants.COMMAND_DELAY_MS)
+                delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
             } catch (e: Exception) {
                 failed.add(key.substringAfterLast(" "))
                 AppLog.w(TAG, "OptimizationEngine: restore command failed: $key")
@@ -736,7 +736,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                         "OptimizationEngine: failed to enable $pkg: ${result.exceptionOrNull()?.message}"
                     )
                 }
-                delay(AppConstants.COMMAND_DELAY_MS)
+                delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
             } catch (e: Exception) {
                 failed.add(pkg)
                 AppLog.w(
@@ -762,7 +762,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                         "OptimizationEngine: hidden key restore failed: $key - ${result.exceptionOrNull()?.message}"
                     )
                 }
-                delay(AppConstants.COMMAND_DELAY_MS)
+                delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
             } catch (e: Exception) {
                 failed.add(key.substringAfterLast(" "))
                 AppLog.w(
@@ -785,7 +785,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 )
                 return result.exceptionOrNull()?.message ?: "Unknown"
             }
-            delay(AppConstants.COMMAND_DELAY_MS)
+            delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
             null
         } catch (e: Exception) {
             AppLog.w(

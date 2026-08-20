@@ -12,6 +12,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 class SimpleModeManager(
     private val state: MutableStateFlow<MainUiState>,
@@ -44,7 +45,7 @@ class SimpleModeManager(
         if (success) {
             simpleController.onStepResult(true)
             autoFlowJob = scope.launch {
-                delay(AppConstants.AUTO_ADVANCE_DELAY_MS)
+                delay(AppConstants.AUTO_ADVANCE_DELAY_MS.milliseconds)
                 advanceToNextStep(autoStart = true)
             }
             return
@@ -55,7 +56,7 @@ class SimpleModeManager(
             AppLog.w(TAG, "onStepResult: auto-retry $stepAttempt/${step.maxAttempts}")
             autoFlowJob?.cancel()
             autoFlowJob = scope.launch {
-                delay(AppConstants.RETRY_DELAY_MS)
+                delay(AppConstants.RETRY_DELAY_MS.milliseconds)
                 simpleController.startCurrentStep()
             }
         } else {

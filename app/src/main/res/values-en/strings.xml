@@ -21,13 +21,10 @@
 
     <!-- ========== LEVEL SELECTION ========== -->
     <string name="level_dialog_subtitle">You can change the mode later in settings</string>
-    <string name="level_dialog_text">Simple mode works for everyone — the app will configure everything automatically. Advanced mode requires Shizuku/ADB but gives more control.</string>
     <string name="level_simple_title">Simple</string>
     <string name="level_simple_desc">Safe for everyone. Automatic cleanup with no complex setup.</string>
     <string name="level_pro_title">Advanced</string>
     <string name="level_pro_desc">Deep optimization. Requires additional setup (Shizuku / ADB).</string>
-    <string name="level_advanced_title">Advanced</string>
-    <string name="level_advanced_desc">Deep optimization. Requires additional setup (Shizuku / ADB).</string>
     <string name="level_dialog_continue">Continue</string>
     <string name="robocat_caption">Robo-cat is washing up and keeping things clean</string>
 
@@ -42,7 +39,6 @@
     <string name="simple_step_start">Start</string>
     <string name="simple_step_working">Working…</string>
     <string name="simple_step_attempt">Attempt %1$d of %2$d</string>
-    <string name="simple_step_success">Done</string>
     <string name="simple_step_auto_next">Done — moving on…</string>
     <string name="simple_step_failed">Could not complete automatically</string>
     <string name="simple_step_next">Next</string>
@@ -101,7 +97,6 @@
 
     <!-- ========== ACCESSIBILITY ========== -->
     <string name="accessibility_explanation_text">The app needs Accessibility service access to automatically click buttons in settings. Access is used only for navigating system screens and is never transmitted externally. No data is collected or sent to servers.</string>
-    <string name="hint_title">Hint</string>
     <string name="hint_accessibility">Enable "XiaoHyperCleaner" in the services list</string>
     <string name="hint_restricted">Tap 3 dots at the top → "Allow restricted settings"</string>
     <string name="hint_overlay">Allow display over other apps</string>
@@ -149,10 +144,6 @@
     <string name="onboarding_start">Start</string>
     <string name="onboarding_privacy_prefix">I accept the </string>
     <string name="onboarding_privacy_link">privacy policy</string>
-    <string name="onboarding_privacy_text">I accept the privacy policy</string>
-
-    <!-- ========== SPLASH ========== -->
-    <string name="splash_tagline">Privacy configuration without extra words</string>
 
     <!-- ========== MENU DIALOG ========== -->
     <string name="menu_about">About</string>
@@ -201,9 +192,6 @@
     <string name="shizuku_sources_apkpure">APKPure</string>
 
     <!-- ========== POINTER HINTS (arrows to elements) ========== -->
-    <string name="pointer_menu">Tap the three dots ⋮ in the top-right corner</string>
-    <string name="pointer_allow_restricted">Select "Allow restricted settings" and confirm</string>
-    <string name="pointer_allow_forbidden">Select "Allow forbidden settings" and confirm</string>
     <string name="pointer_overlay_switch">Turn on this switch</string>
     <string name="pointer_accessibility_item">Find "XiaoHyperCleaner" in the list and turn on the switch</string>
     <string name="pointer_restricted_blocked">Can\'t enable the service?</string>
@@ -218,6 +206,7 @@
     <string name="pointer_restricted_absent_option">No such item</string>
     <string name="pointer_restricted_top_hint">Tap ⋮ and select "Allow restricted settings"</string>
     <string name="pointer_restricted_bottom_hint">Scroll down and enable "Allow restricted settings"</string>
+
     <!-- ========== ACCESSIBILITY POLICY DECLARATION ========== -->
     <string name="accessibility_policy_summary">Automates settings navigation to assist users with limited mobility</string>
     <string name="accessibility_policy_description">The XiaoHyperCleaner accessibility service is used ONLY to automatically navigate Android system settings at the user\'s explicit request. The service DOES NOT bypass privacy controls, DOES NOT change settings without explicit consent, and DOES NOT collect user data. All actions are performed locally on the device. The service is activated only after explicit user consent and can be disabled at any time in Android settings. The service usage fully complies with the Accessibility Services API Policy.</string>

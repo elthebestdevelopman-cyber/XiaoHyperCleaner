@@ -20,7 +20,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -231,10 +231,10 @@ fun SimpleDoneDialog(
     onDonate: () -> Unit,
     onClose: () -> Unit
 ) {
-    // Получаем плюрализованную строку для корректного склонения
-    // (RU: "шаг/шага/шагов", EN: "step/steps")
-    val context = LocalContext.current
-    val stepsDoneText = context.resources.getQuantityString(
+    // Плюрализованная строка для корректного склонения
+    // (RU: "шаг/шага/шагов", EN: "step/steps").
+    // Все аргументы передаём позиционно — это стабильно между версиями Compose.
+    val stepsDoneText = pluralStringResource(
         R.plurals.simple_done_steps_done,
         completedCount,
         completedCount,
@@ -289,9 +289,8 @@ fun SimpleDoneDialog(
                 val showTelemetryBenefit = completedCount >= 5 && !telemetryStepsFailed
 
                 val spamStepsFailed = failedSteps.any {
-                    it.contains("getapps") || it.contains("music") || it.contains("themes") || it.contains(
-                        "filemanager"
-                    )
+                    it.contains("getapps") || it.contains("music") ||
+                            it.contains("themes") || it.contains("filemanager")
                 }
                 val showSpamBenefit = completedCount >= 4 && !spamStepsFailed
 

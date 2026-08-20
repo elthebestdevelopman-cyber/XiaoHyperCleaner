@@ -10,6 +10,7 @@ import com.xiaohypercleaner.R
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.util.AppLog
+import androidx.core.net.toUri
 
 class PermissionFlowManager(private val context: Context) {
 
@@ -18,18 +19,15 @@ class PermissionFlowManager(private val context: Context) {
     }
 
     fun isSideloadedOnAndroid13Plus(): Boolean {
-        // Android 13+ ввёл блокировку sideload-приложений.
-        // На Android 10-12 (API 28-32) такой блокировки нет — возвращаем false.
+        // Android 13+ (API 33) ввёл блокировку sideload-приложений.
+        // На более старых версиях такой блокировки нет — возвращаем false.
         if (Build.VERSION.SDK_INT < 33) return false
         return try {
             val pm = context.packageManager
-            // getInstallSourceInfo появился в API 30, на более старых — deprecated getInstallerPackageName
-            val installer = if (Build.VERSION.SDK_INT >= 30) {
-                pm.getInstallSourceInfo(context.packageName).installingPackageName
-            } else {
-                @Suppress("DEPRECATION")
-                pm.getInstallerPackageName(context.packageName)
-            } ?: "unknown"
+            // Здесь SDK_INT гарантированно >= 33, поэтому getInstallSourceInfo (API 30+)
+            // доступен без проверок и deprecated-ветка не нужна
+            val installer = pm.getInstallSourceInfo(context.packageName).installingPackageName
+                ?: "unknown"
 
             val trustedInstallers = listOf(
                 "com.android.vending",
@@ -103,7 +101,7 @@ class PermissionFlowManager(private val context: Context) {
         try {
             val intent = Intent(
                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:${context.packageName}")
+                "package:${context.packageName}".toUri()
             ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
         } catch (e: Exception) {
@@ -140,7 +138,7 @@ class PermissionFlowManager(private val context: Context) {
     fun openAppInfoSettings() {
         try {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.parse("package:${context.packageName}")
+                data = "package:${context.packageName}".toUri()
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)

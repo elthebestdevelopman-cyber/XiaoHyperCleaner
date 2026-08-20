@@ -1,6 +1,5 @@
 package com.xiaohypercleaner.ui.managers
 
-import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.data.PermissionFlowManager
 import com.xiaohypercleaner.ui.MainUiState
 import com.xiaohypercleaner.util.AppLog

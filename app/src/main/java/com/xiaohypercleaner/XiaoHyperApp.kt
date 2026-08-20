@@ -1,6 +1,7 @@
 package com.xiaohypercleaner
 
 import android.app.Application
+import android.annotation.SuppressLint
 import com.xiaohypercleaner.util.AppLog
 
 class XiaoHyperApp : Application() {
@@ -43,9 +44,14 @@ class XiaoHyperApp : Application() {
     }
 
     companion object {
+        // Application — синглтон на всё время процесса, поэтому статическая
+        // ссылка не создаёт реальной утечки памяти. Поля нужны для быстрого
+        // доступа из сервисов и подмены зависимостей в тестах.
+        @SuppressLint("StaticFieldLeak")
         lateinit var instance: XiaoHyperApp
             private set
 
+        @SuppressLint("StaticFieldLeak")
         var testDeps: AppDependencies? = null
     }
 }

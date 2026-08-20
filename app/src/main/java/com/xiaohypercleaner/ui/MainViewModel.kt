@@ -4,7 +4,6 @@ import android.app.Application
 import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.AndroidViewModel
@@ -30,7 +29,6 @@ import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.service.SimpleStepBridge
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
-import com.xiaohypercleaner.util.ShizukuHelper
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,6 +37,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
+import androidx.core.net.toUri
 
 data class MainUiState(
     val isOptimized: Boolean = false,
@@ -274,7 +274,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         try {
             val intent = Intent(
                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:${app.packageName}")
+                "package:${app.packageName}".toUri()
             ).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
@@ -480,7 +480,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (success) {
             simpleController.onStepResult(true)
             autoFlowJob = viewModelScope.launch {
-                delay(AUTO_ADVANCE_DELAY_MS)
+                delay(AUTO_ADVANCE_DELAY_MS.milliseconds)
                 advanceToNextStep(autoStart = true)
             }
             return
@@ -491,7 +491,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.w(TAG, "onSimpleStepResult: auto-retry $stepAttempt/${step.maxAttempts}")
             autoFlowJob?.cancel()
             autoFlowJob = viewModelScope.launch {
-                delay(RETRY_DELAY_MS)
+                delay(RETRY_DELAY_MS.milliseconds)
                 simpleController.startCurrentStep()
             }
         } else {

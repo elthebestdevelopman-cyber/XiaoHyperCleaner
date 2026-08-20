@@ -2,7 +2,6 @@ package com.xiaohypercleaner.data
 
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.ChainFlags
@@ -14,6 +13,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 class SimpleModeController(
     private val context: Context,
@@ -57,8 +57,10 @@ class SimpleModeController(
 
     private var restrictedLocation: RestrictedLocation = RestrictedLocation.UNKNOWN
 
+    // Проверку sideload делегируем PermissionFlowManager —
+    // единая реализация без дублирования и мёртвых веток SDK_INT
     private val needsRestrictedUnlock: Boolean by lazy {
-        isSideloadedOnAndroid13Plus()
+        permissionFlow.isSideloadedOnAndroid13Plus()
     }
 
     fun setState(update: SimpleModeState.() -> SimpleModeState) {
@@ -69,31 +71,6 @@ class SimpleModeController(
     fun destroy() {
         autoFlowJob?.cancel()
         scope.cancel()
-    }
-
-    private fun isSideloadedOnAndroid13Plus(): Boolean {
-        if (Build.VERSION.SDK_INT < 33) return false
-        return try {
-            val pm = context.packageManager
-            val installer = if (Build.VERSION.SDK_INT >= 30) {
-                pm.getInstallSourceInfo(context.packageName).installingPackageName
-            } else {
-                @Suppress("DEPRECATION")
-                pm.getInstallerPackageName(context.packageName)
-            } ?: "unknown"
-
-            val trustedInstallers = listOf(
-                "com.android.vending",
-                "com.google.android.packageinstaller",
-                "com.android.packageinstaller"
-            )
-            val sideloaded = installer !in trustedInstallers && installer != "preload"
-            AppLog.i(TAG, "isSideloaded: installer=$installer, sideloaded=$sideloaded")
-            sideloaded
-        } catch (e: Exception) {
-            AppLog.w(TAG, "isSideloaded check failed: ${e.message}")
-            false
-        }
     }
 
     fun updatePermissionStatuses(accEnabled: Boolean, overlayGranted: Boolean) {
@@ -121,7 +98,7 @@ class SimpleModeController(
         AppLog.i(TAG, "onResumeAfterPermissionReturn: subPhase=${state.permissionSubPhase}")
         permissionFlow.hideOverlay()
         scope.launch {
-            delay(300)
+            delay(300.milliseconds)
             advance()
         }
     }
@@ -303,7 +280,7 @@ class SimpleModeController(
                 )
             }
             autoFlowJob = scope.launch {
-                delay(AppConstants.AUTO_ADVANCE_DELAY_MS)
+                delay(AppConstants.AUTO_ADVANCE_DELAY_MS.milliseconds)
                 nextStep(autoStart = true)
             }
             return
@@ -321,7 +298,7 @@ class SimpleModeController(
                 )
             }
             autoFlowJob = scope.launch {
-                delay(AppConstants.RETRY_DELAY_MS)
+                delay(AppConstants.RETRY_DELAY_MS.milliseconds)
                 launchStep()
             }
         } else {
@@ -334,7 +311,7 @@ class SimpleModeController(
                 )
             }
             autoFlowJob = scope.launch {
-                delay(AppConstants.AUTO_ADVANCE_DELAY_MS)
+                delay(AppConstants.AUTO_ADVANCE_DELAY_MS.milliseconds)
                 nextStep(autoStart = true)
             }
         }
