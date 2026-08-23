@@ -3,7 +3,6 @@ package com.xiaohypercleaner.ui
 import android.app.Application
 import android.content.ComponentName
 import android.content.Intent
-import android.net.Uri
 import android.provider.Settings
 import androidx.annotation.VisibleForTesting
 import androidx.core.net.toUri
@@ -13,21 +12,20 @@ import com.xiaohypercleaner.AppConstants.AUTO_ADVANCE_DELAY_MS
 import com.xiaohypercleaner.AppConstants.RETRY_DELAY_MS
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
-import com.xiaohypercleaner.data.OptimizationEngine
 import com.xiaohypercleaner.data.OptimizationMode
 import com.xiaohypercleaner.data.PermissionFlowManager
 import com.xiaohypercleaner.data.PermissionSubPhase
 import com.xiaohypercleaner.data.RestrictedLocation
 import com.xiaohypercleaner.data.ShizukuExecutor
-import com.xiaohypercleaner.data.ShizukuWizardManager
 import com.xiaohypercleaner.data.SimpleModeController
 import com.xiaohypercleaner.data.SimpleModePhase
-import com.xiaohypercleaner.data.SimpleStepState
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.ChainFlags
 import com.xiaohypercleaner.service.OverlayController
 import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.service.SimpleStepBridge
+import com.xiaohypercleaner.ui.vm.ProFlowController
+import com.xiaohypercleaner.ui.vm.ShizukuUiController
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
 import kotlinx.coroutines.Job
@@ -40,97 +38,111 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 
-data class MainUiState(
-    val isOptimized: Boolean = false,
-    val isWorking: Boolean = false,
-    val progress: Float = 0f,
-    val isAccessibilityEnabled: Boolean = false,
-    val isOverlayGranted: Boolean = false,
-    val showAccessibilityDialog: Boolean = false,
-    val showOverlayDialog: Boolean = false,
-    val showOptionsDialog: Boolean = false,
-    val showDnsWarningDialog: Boolean = false,
-    val showRestrictedDialog: Boolean = false,
-    val showAppInfoDialog: Boolean = false,
-    val showLocationDialog: Boolean = false,
-    val showPermissionFallbackDialog: Boolean = false,
-    val stuckPhase: PermissionSubPhase? = null,
-    val showRestrictedSettingsScreen: Boolean = false,
-    val showTestClickFailedDialog: Boolean = false,
-    val showBatteryDialog: Boolean = false,
-    val dnsFilterEnabled: Boolean = false,
-    val aggressiveMode: Boolean = false,
-    val showShizukuDialog: Boolean = false,
-    val shizukuStatus: ShizukuExecutor.Status = ShizukuExecutor.Status.NOT_INSTALLED,
-    val showShizukuSources: Boolean = false,
-    val showShizukuWizard: Boolean = false,
-    val shizukuCheckMessage: String? = null,
-    val showLevelDialog: Boolean = false,
-    val showLevelConfirm: Boolean = false,
-    val selectedLevel: OptimizationMode? = null,
-    val simpleModePhase: SimpleModePhase = SimpleModePhase.INACTIVE,
-    val permissionSubPhase: PermissionSubPhase = PermissionSubPhase.INACTIVE,
-    val simpleStep: SimpleStepState? = null,
-    val simpleDone: Pair<Int, Int>? = null,
-    val showRebootDialog: Boolean = false,
-    val rebootFailed: Boolean = false,
-    val restoreFailed: Boolean = false,
-    val showFinalDialog: Boolean = false,
-    val optimizationSuccess: Boolean = false,
-    val finalReport: String = "",
-    val accessibilityAttempts: Int = 0,
-    val overlayAttempts: Int = 0,
-    val appInfoAttempts: Int = 0,
-    val previousAccessibility: Boolean = false,
-    val previousOverlay: Boolean = false,
-    val restrictedSettingsShown: Boolean = false,
-    val showDevModeDialog: Boolean = false,
-    val simpleModeActive: Boolean = false
-)
-
+/**
+ * Тонкий фасад главного экрана.
+ *
+ * Делегаты:
+ *  - [SimpleModeController] — машина состояний Simple Mode (data-слой)
+ *  - [ShizukuUiController]  — Shizuku-диалоги, мастер, источники
+ *  - [ProFlowController]    — PRO-цепочка: редиректы, цепочка, откат, перезагрузка
+ *
+ * ИСПРАВЛЕНО в этой версии:
+ *  1. SimpleStepBridge.onResult / onSkipped регистрируются ОДИН РАЗ в init
+ *     (раньше onSkipped перерегистрировался внутри onResult — критическая ошибка)
+ *  2. OverlayController.setOnCancel / setOnResultClose регистрируются ОДИН РАЗ
+ *  3. Используется AdbEnablerService.instance вместо несуществующего поля adbEnablerService
+ *  4. closeSimpleMode() вызывает OverlayController.hide(app) — убирает оверлей робокота
+ *  5. Убраны дубликаты регистраций
+ */
 class MainViewModel(application: Application) : AndroidViewModel(application) {
+
+    companion object {
+        private const val TAG = "MainVM"
+        const val SHIZUKU_PERMISSION_CODE = 9001
+    }
+
     private val app = application as XiaoHyperApp
     private val prefs = app.preferencesManager
     private val permissionFlow = PermissionFlowManager(app)
 
-    private val simpleController =
-        SimpleModeController(app, permissionFlow) { mergeSimpleState(it) }
-    private val shizukuManager = ShizukuWizardManager(app) { mergeShizukuState(it) }
-
-    private var flowActive = false
-    private var simpleModeActive = false
-    private val failedSimpleStepIds = mutableListOf<String>()
-    private var stepAttempt = 1
-    private var autoFlowJob: Job? = null
-    private var pendingSourceSuggestion = false
-
-    private enum class Redirect { NONE, ACCESSIBILITY, APP_INFO }
-
-    private var lastRedirect = Redirect.NONE
-    private var restrictedFlowStarted = false
-
     private val _state = MutableStateFlow(MainUiState())
     val state: StateFlow<MainUiState> = _state.asStateFlow()
+
+    private fun update(transform: (MainUiState) -> MainUiState) = _state.update(transform)
+
+    // ── Делегаты ──────────────────────────────────────────────────────
+    val simpleController = SimpleModeController(app, permissionFlow) { mergeSimpleState(it) }
+
+    private val shizuku = ShizukuUiController(app, ::update)
+
+    private val proFlow = ProFlowController(
+        app = app,
+        prefs = prefs,
+        getState = { _state.value },
+        update = ::update,
+        openAccessibilityWithHint = ::openAccessibilityWithHint,
+        openAppInfoWithHint = ::openAppInfoWithHint,
+        openAccessibilitySettings = ::openAccessibilitySettings,
+        openOverlaySettings = ::openOverlaySettings,
+        scope = viewModelScope
+    )
+
+    // ── Локальные флаги Simple Mode / шагов ──────────────────────────
+    private var simpleModeActive = false
+    private var stepAttempt = 1
+    private var autoFlowJob: Job? = null
+    private val failedSimpleStepIds = mutableListOf<String>()
 
     init {
         AppLog.i(TAG, "init started")
 
+        // ═══════════════════════════════════════════════════════════════
+        // ИСПРАВЛЕНО: все регистрации Bridge/Overlay — ОДИН РАЗ, в init
+        // ═══════════════════════════════════════════════════════════════
+
+        // Результат шага (success/failure) — вызывается из AdbEnablerService
         SimpleStepBridge.onResult = { success ->
             AppLog.i(TAG, "SimpleStepBridge result: $success")
             onSimpleStepResult(success)
         }
 
+        // Пропуск шага (приложение не установлено) — НЕ ошибка, идём дальше
+        SimpleStepBridge.onSkipped = { stepId ->
+            AppLog.i(TAG, "SimpleStepBridge skipped (app not installed): $stepId")
+            simpleController.onStepSkipped(stepId)
+        }
+
+        // Кнопка "Отменить" в оверлее робокота
+        OverlayController.setOnCancel {
+            AppLog.i(TAG, "automation cancelled by user via overlay")
+            // Останавливаем runner через singleton-инстанс сервиса
+            AdbEnablerService.instance?.cancelRunner()
+            OverlayController.hide(app)
+            closeSimpleMode()
+        }
+
+        // Закрытие финального оверлея с результатами
+        OverlayController.setOnResultClose {
+            AppLog.i(TAG, "result overlay closed by user")
+            OverlayController.hide(app)
+            closeSimpleMode()
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // Подписки на Flow из PreferencesManager и OptimizationNotifier
+        // ═══════════════════════════════════════════════════════════════
+
         viewModelScope.launch {
             prefs.isHiddenSettingsApplied.collect { applied ->
                 AppLog.i(TAG, "isHiddenSettingsApplied changed to $applied")
-                _state.update { it.copy(isOptimized = applied) }
+                update { it.copy(isOptimized = applied) }
             }
         }
 
         viewModelScope.launch {
             prefs.dnsFilterEnabled.collect { enabled ->
                 AppLog.i(TAG, "dnsFilterEnabled changed to $enabled")
-                _state.update { it.copy(dnsFilterEnabled = enabled) }
+                update { it.copy(dnsFilterEnabled = enabled) }
             }
         }
 
@@ -139,7 +151,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 AppLog.i(TAG, "notifier result: $result")
                 when (result) {
                     is OptimizationNotifier.Result.Success -> {
-                        _state.update {
+                        update {
                             it.copy(
                                 isWorking = false,
                                 isOptimized = true,
@@ -152,7 +164,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     is OptimizationNotifier.Result.Failure -> {
-                        _state.update {
+                        update {
                             it.copy(
                                 isWorking = false,
                                 isOptimized = false,
@@ -165,13 +177,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     is OptimizationNotifier.Result.Running -> {
-                        _state.update { it.copy(isWorking = true) }
+                        update { it.copy(isWorking = true) }
                     }
 
                     is OptimizationNotifier.Result.DevModeRequired -> {
                         AppLog.i(TAG, "notifier: dev mode required, hiding overlay, showing dialog")
                         stopOverlayService()
-                        _state.update { it.copy(showDevModeDialog = true) }
+                        update { it.copy(showDevModeDialog = true) }
                     }
 
                     is OptimizationNotifier.Result.Idle -> {}
@@ -182,15 +194,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
+        OverlayController.hide(app)
         simpleController.destroy()
         autoFlowJob?.cancel()
+        super.onCleared()
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Слияние состояния Simple Mode
+    // ═══════════════════════════════════════════════════════════════
 
     private fun mergeSimpleState(s: SimpleModeController.SimpleModeState) {
         val running =
             s.active || s.step != null || s.done != null || s.phase != SimpleModePhase.INACTIVE
 
-        _state.update { current ->
+        update { current ->
             current.copy(
                 simpleModePhase = s.phase,
                 permissionSubPhase = s.permissionSubPhase,
@@ -205,7 +223,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 showPermissionFallbackDialog = if (running) s.showPermissionFallbackDialog else false,
                 stuckPhase = if (running) s.stuckPhase else null,
                 showRestrictedSettingsScreen = if (running) s.showRestrictedSettingsScreen else false,
-                showTestClickFailedDialog = if (running) s.showTestClickFailedDialog else false,
                 showBatteryDialog = if (running) s.showBatteryDialog else false,
                 appInfoAttempts = if (running) s.appInfoAttempts else 0,
                 restrictedSettingsShown = if (running) s.restrictedSettingsShown else false
@@ -215,36 +232,381 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         simpleModeActive = running
     }
 
-    private fun mergeShizukuState(s: ShizukuWizardManager.ShizukuWizardState) {
-        _state.update {
+    // ═══════════════════════════════════════════════════════════════
+    // Обновление статусов (оркестрация Simple + PRO)
+    // ═══════════════════════════════════════════════════════════════
+
+    fun refreshStatuses() {
+        AppLog.i(TAG, "refreshStatuses called")
+
+        val component = ComponentName(app, AdbEnablerService::class.java).flattenToString()
+        val acc = Settings.Secure.getString(
+            app.contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        )?.contains(component) == true
+        val overlay = Settings.canDrawOverlays(app)
+
+        val prevState = _state.value
+
+        AppLog.i(
+            TAG,
+            "refreshStatuses: accessibility=$acc (was ${prevState.previousAccessibility}), overlay=$overlay (was ${prevState.previousOverlay}), simpleModeActive=$simpleModeActive"
+        )
+
+        update {
             it.copy(
-                showShizukuDialog = s.showShizukuDialog,
-                showShizukuWizard = s.showShizukuWizard,
-                showShizukuSources = s.showShizukuSources,
-                shizukuStatus = s.shizukuStatus,
-                shizukuCheckMessage = s.shizukuCheckMessage
+                isAccessibilityEnabled = acc,
+                isOverlayGranted = overlay,
+                previousAccessibility = acc,
+                previousOverlay = overlay
+            )
+        }
+
+        shizuku.consumePendingSourceSuggestion()
+        simpleController.updatePermissionStatuses(acc, overlay)
+
+        // Simple Mode имеет приоритет; PRO-ветка ниже не выполняется
+        if (simpleModeActive) {
+            if (!ChainFlags.waitingAccessibilityReturn) {
+                simpleController.onResumeAfterPermissionReturn()
+            } else {
+                simpleController.refresh()
+            }
+            return
+        }
+
+        proFlow.handleRefresh(acc, overlay, prevState)
+    }
+
+    fun checkRestrictedSettingsOnResume() {
+        AppLog.i(TAG, "checkRestrictedSettingsOnResume called (no-op, handled by refreshStatuses)")
+    }
+
+    fun onBatteryOptimizationReturn() {
+        AppLog.i(TAG, "onBatteryOptimizationReturn")
+        simpleController.onBatteryReturn()
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Выбор уровня
+    // ═══════════════════════════════════════════════════════════════
+
+    fun startFlow() {
+        AppLog.i(TAG, "startFlow called, isWorking=${_state.value.isWorking}")
+
+        if (_state.value.isWorking) {
+            AppLog.i(TAG, "startFlow: already working, ignoring")
+            return
+        }
+        if (_state.value.showLevelDialog || _state.value.showLevelConfirm) {
+            AppLog.i(TAG, "startFlow: level dialog already shown, ignoring")
+            return
+        }
+        if (_state.value.simpleStep != null || _state.value.simpleDone != null || simpleModeActive) {
+            AppLog.i(TAG, "startFlow: simple mode already active, ignoring")
+            return
+        }
+
+        update { it.copy(showLevelDialog = true) }
+    }
+
+    fun onLevelChosen(level: OptimizationMode) {
+        AppLog.i(TAG, "onLevelChosen: $level")
+        update {
+            it.copy(showLevelDialog = false, showLevelConfirm = true, selectedLevel = level)
+        }
+    }
+
+    fun confirmLevelStart() {
+        val level = _state.value.selectedLevel ?: OptimizationMode.SIMPLE
+        AppLog.i(TAG, "confirmLevelStart: $level")
+        update { it.copy(showLevelConfirm = false, selectedLevel = null) }
+
+        when (level) {
+            OptimizationMode.SIMPLE -> startSimpleMode()
+            OptimizationMode.PRO -> startAdvancedFlow()
+        }
+    }
+
+    fun cancelLevelConfirm() {
+        AppLog.i(TAG, "cancelLevelConfirm")
+        update { it.copy(showLevelConfirm = false, selectedLevel = null) }
+    }
+
+    @VisibleForTesting
+    internal fun startSimpleMode() {
+        AppLog.i(TAG, "startSimpleMode")
+        simpleModeActive = true
+        failedSimpleStepIds.clear()
+        stepAttempt = 1
+        simpleController.start()
+    }
+
+    private fun startAdvancedFlow() {
+        val status = ShizukuExecutor.checkStatus(app)
+        AppLog.i(TAG, "startAdvancedFlow: shizuku status=$status")
+
+        if (status != ShizukuExecutor.Status.AVAILABLE) {
+            shizuku.showDialog(status)
+        } else {
+            shizuku.showOptionsDialog()
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Шаги Simple Mode (результаты, ретраи)
+    // ═══════════════════════════════════════════════════════════════
+
+    fun onSimpleStepResult(success: Boolean) {
+        AppLog.i(TAG, "onSimpleStepResult: success=$success, attempt=$stepAttempt")
+        val step = _state.value.simpleStep ?: return
+
+        if (success) {
+            simpleController.onStepResult(true, attempt = stepAttempt)
+            autoFlowJob = viewModelScope.launch {
+                delay(AUTO_ADVANCE_DELAY_MS.milliseconds)
+                advanceToNextStep(autoStart = true)
+            }
+            return
+        }
+
+        if (stepAttempt < step.maxAttempts) {
+            stepAttempt++
+            AppLog.w(TAG, "onSimpleStepResult: auto-retry $stepAttempt/${step.maxAttempts}")
+            autoFlowJob?.cancel()
+            autoFlowJob = viewModelScope.launch {
+                delay(RETRY_DELAY_MS.milliseconds)
+                simpleController.startCurrentStep(force = true)
+            }
+        } else {
+            AppLog.e(TAG, "onSimpleStepResult: all attempts exhausted")
+            failedSimpleStepIds.add(step.step.id)
+            simpleController.onStepResult(
+                success = false,
+                attempt = stepAttempt,
+                finalFailure = true
             )
         }
     }
 
-    private fun stopOverlayService() {
-        try {
-            app.stopService(Intent(app, OverlayService::class.java))
-            AppLog.i(TAG, "overlay service stopped for dialog")
-        } catch (e: Exception) {
-            AppLog.w(TAG, "failed to stop overlay service: ${e.message}")
+    private fun advanceToNextStep(autoStart: Boolean) {
+        simpleController.nextStep()
+        if (autoStart && _state.value.simpleStep != null) {
+            stepAttempt = 1
+            simpleController.startCurrentStep()
         }
     }
 
-    private fun showHint(text: String) {
-        try {
-            val intent = Intent(app, OverlayService::class.java)
-            intent.putExtra("hint", text)
-            app.startService(intent)
-        } catch (e: Exception) {
-            AppLog.w(TAG, "failed to show hint: ${e.message}")
+    /**
+     * ИСПРАВЛЕНО: теперь при закрытии Simple Mode:
+     *  1. Останавливается авто-поток
+     *  2. Убирается оверлей робокота (OverlayController.hide)
+     *  3. Сбрасывается состояние UI
+     */
+    fun closeSimpleMode() {
+        AppLog.i(TAG, "closeSimpleMode")
+        autoFlowJob?.cancel()
+        simpleModeActive = false
+
+        // НОВОЕ: убираем оверлей робокота
+        OverlayController.hide(app)
+
+        update {
+            it.copy(
+                simpleStep = null,
+                simpleDone = null,
+                simpleModePhase = SimpleModePhase.INACTIVE,
+                permissionSubPhase = PermissionSubPhase.INACTIVE,
+                simpleModeActive = false,
+                showAccessibilityDialog = false,
+                showOverlayDialog = false,
+                showRestrictedDialog = false,
+                showAppInfoDialog = false,
+                showLocationDialog = false,
+                showPermissionFallbackDialog = false,
+                stuckPhase = null,
+                showRestrictedSettingsScreen = false,
+                showBatteryDialog = false
+            )
         }
     }
+
+    fun getFailedStepIds(): List<String> = failedSimpleStepIds.toList()
+
+    // ═══════════════════════════════════════════════════════════════
+    // Simple Mode: обёртки UI-действий (делегирование в контроллер)
+    // ═══════════════════════════════════════════════════════════════
+
+    fun startCurrentSimpleStep() = simpleController.startCurrentStep()
+    fun nextSimpleStep() = onSimpleStepResult(true)
+
+    fun skipSimpleStep() {
+        val stepId = _state.value.simpleStep?.step?.id ?: "unknown"
+        if (!failedSimpleStepIds.contains(stepId)) failedSimpleStepIds.add(stepId)
+        onSimpleStepResult(false)
+    }
+
+    fun retrySimpleStep() = simpleController.retryStep()
+
+    fun appInfoDialogAgreed() = simpleController.onAppInfoDialogAgreed()
+    fun appInfoDialogCancelled() = simpleController.onAppInfoDialogCancelled()
+    fun onLocationChosen(location: RestrictedLocation) =
+        simpleController.onLocationChosen(location)
+
+    fun onLocationDialogCancelled() = simpleController.onLocationDialogCancelled()
+    fun onRestrictedScreenOpenSettings() = simpleController.onRestrictedScreenOpenSettings()
+    fun onRestrictedScreenDone() = simpleController.onRestrictedScreenDone()
+    fun onRestrictedScreenCancelled() = simpleController.onRestrictedScreenCancelled()
+    fun onBatteryDialogAgreed() = simpleController.onBatteryDialogAgreed()
+    fun onBatteryDialogSkipped() = simpleController.onBatteryDialogSkipped()
+    fun onPermissionFallbackRetry() = simpleController.onFallbackRetry()
+    fun onPermissionFallbackOpenSettings() = simpleController.onFallbackOpenSettings()
+
+    fun onPermissionFallbackCancelled() {
+        simpleModeActive = false
+        simpleController.onFallbackCancelled()
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Диалоги разрешений (Simple + PRO)
+    // ═══════════════════════════════════════════════════════════════
+
+    fun dialogAgreed() {
+        AppLog.i(TAG, "dialogAgreed, simpleModeActive=$simpleModeActive")
+
+        if (simpleModeActive) {
+            val currentState = _state.value
+            if (currentState.showAccessibilityDialog) {
+                update { it.copy(accessibilityAttempts = it.accessibilityAttempts + 1) }
+            } else if (currentState.showOverlayDialog) {
+                update { it.copy(overlayAttempts = it.overlayAttempts + 1) }
+            }
+            simpleController.onDialogAgreed()
+            return
+        }
+        proFlow.dialogAgreed()
+    }
+
+    fun dialogCancelled() {
+        AppLog.i(TAG, "dialogCancelled, simpleModeActive=$simpleModeActive")
+
+        if (simpleModeActive) {
+            simpleModeActive = false
+            simpleController.onDialogCancelled()
+            return
+        }
+        proFlow.dialogCancelled()
+    }
+
+    fun restrictedDialogAgreed() {
+        AppLog.i(TAG, "restrictedDialogAgreed")
+        if (simpleModeActive) {
+            simpleController.onRestrictedDialogAgreed()
+            return
+        }
+        proFlow.restrictedDialogAgreed()
+    }
+
+    fun restrictedDialogCancelled() {
+        AppLog.i(TAG, "restrictedDialogCancelled")
+        if (simpleModeActive) {
+            simpleModeActive = false
+            simpleController.onRestrictedDialogCancelled()
+            return
+        }
+        proFlow.restrictedDialogCancelled()
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Опции PRO (DNS / aggressive)
+    // ═══════════════════════════════════════════════════════════════
+
+    fun optionsDialogConfirmed() {
+        AppLog.i(
+            TAG,
+            "optionsDialogConfirmed, dnsFilter=${_state.value.dnsFilterEnabled}, aggressive=${_state.value.aggressiveMode}"
+        )
+        update { it.copy(showOptionsDialog = false) }
+
+        if (_state.value.dnsFilterEnabled) {
+            viewModelScope.launch {
+                val seen = prefs.hasSeenDnsWarning.first()
+                if (!seen) {
+                    AppLog.i(TAG, "showing DNS warning dialog")
+                    update { it.copy(showDnsWarningDialog = true) }
+                    return@launch
+                }
+                proFlow.proceedToChain()
+            }
+        } else {
+            proFlow.proceedToChain()
+        }
+    }
+
+    fun dnsWarningAccepted() {
+        AppLog.i(TAG, "dnsWarningAccepted")
+        update { it.copy(showDnsWarningDialog = false) }
+        viewModelScope.launch { prefs.setHasSeenDnsWarning(true) }
+        proFlow.proceedToChain()
+    }
+
+    fun dnsWarningDeclined() {
+        AppLog.i(TAG, "dnsWarningDeclined — disabling DNS")
+        update { it.copy(showDnsWarningDialog = false, dnsFilterEnabled = false) }
+        viewModelScope.launch { prefs.setDnsFilterEnabled(false) }
+        proFlow.proceedToChain()
+    }
+
+    fun optionsDialogCancelled() {
+        AppLog.i(TAG, "optionsDialogCancelled")
+        update { it.copy(showOptionsDialog = false) }
+    }
+
+    fun toggleDnsFilter(enabled: Boolean) {
+        AppLog.i(TAG, "toggleDnsFilter: $enabled")
+        update { it.copy(dnsFilterEnabled = enabled) }
+        viewModelScope.launch { prefs.setDnsFilterEnabled(enabled) }
+    }
+
+    fun toggleAggressiveMode(enabled: Boolean) {
+        AppLog.i(TAG, "toggleAggressiveMode: $enabled")
+        update { it.copy(aggressiveMode = enabled) }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Shizuku: обёртки (делегирование в ShizukuUiController)
+    // ═══════════════════════════════════════════════════════════════
+
+    fun shizukuDialogInstall() = shizuku.dialogInstall()
+    fun shizukuDialogOpenApp() = shizuku.dialogOpenApp()
+    fun wizardSkip() = shizuku.wizardSkip()
+    fun requestShizukuPermission() = shizuku.requestPermission(SHIZUKU_PERMISSION_CODE)
+    fun onShizukuPermissionResult(granted: Boolean) = shizuku.onPermissionResult(granted)
+    fun wizardCheck() = shizuku.wizardCheck()
+    fun openShizukuSources() = shizuku.openSources()
+    fun closeShizukuSources() = shizuku.closeSources()
+    fun installFromSource(source: String) = shizuku.installFromSource(source)
+    fun shizukuDialogLater() = shizuku.dialogLater()
+    fun closeShizukuWizard() = shizuku.closeWizard()
+
+    // ═══════════════════════════════════════════════════════════════
+    // PRO: откат / перезагрузка / dev-mode (делегирование в ProFlowController)
+    // ═══════════════════════════════════════════════════════════════
+
+    fun restoreOptimization() = proFlow.restoreOptimization()
+    fun confirmReboot() = proFlow.confirmReboot()
+    fun requestReboot() = proFlow.requestReboot()
+    fun dismissRebootDialog() = proFlow.dismissRebootDialog()
+    fun dismissRebootFailed() = proFlow.dismissRebootFailed()
+    fun dismissRestoreFailed() = proFlow.dismissRestoreFailed()
+    fun devModeDialogOpenAbout() = AppLog.i(TAG, "devModeDialog: open about phone")
+    fun devModeDialogRetry() = proFlow.devModeDialogRetry()
+    fun devModeDialogCancel() = proFlow.devModeDialogCancel()
+    fun dismissFinalDialog() = update { it.copy(showFinalDialog = false) }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Открытие системных экранов + подсказки (используются делегатами)
+    // ═══════════════════════════════════════════════════════════════
 
     fun openAccessibilitySettings() {
         AppLog.i(TAG, "openAccessibilitySettings")
@@ -303,770 +665,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         showHint(app.getString(R.string.hint_accessibility))
     }
 
-    fun refreshStatuses() {
-        AppLog.i(TAG, "refreshStatuses called")
-
-        val component = ComponentName(app, AdbEnablerService::class.java).flattenToString()
-        val acc = Settings.Secure.getString(
-            app.contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        )?.contains(component) == true
-        val overlay = Settings.canDrawOverlays(app)
-
-        val prevState = _state.value
-        val accessibilityJustChanged = !prevState.previousAccessibility && acc
-        val overlayJustChanged = !prevState.previousOverlay && overlay
-
-        AppLog.i(
-            TAG,
-            "refreshStatuses: accessibility=$acc (was ${prevState.previousAccessibility}), overlay=$overlay (was ${prevState.previousOverlay}), simpleModeActive=$simpleModeActive"
-        )
-
-        _state.update {
-            it.copy(
-                isAccessibilityEnabled = acc,
-                isOverlayGranted = overlay,
-                previousAccessibility = acc,
-                previousOverlay = overlay
-            )
-        }
-
-        if (pendingSourceSuggestion) {
-            pendingSourceSuggestion = false
-            val st = ShizukuExecutor.checkStatus(app)
-            AppLog.i(TAG, "refreshStatuses: pendingSourceSuggestion, shizuku=$st")
-            if (st == ShizukuExecutor.Status.NOT_INSTALLED) {
-                _state.update { it.copy(showShizukuSources = true) }
-            }
-        }
-
-        simpleController.updatePermissionStatuses(acc, overlay)
-
-        if (simpleModeActive) {
-            if (!ChainFlags.waitingAccessibilityReturn) {
-                simpleController.onResumeAfterPermissionReturn()
-            } else {
-                simpleController.refresh()
-            }
-            return
-        }
-
-        if (accessibilityJustChanged && flowActive) {
-            AppLog.i(TAG, "refreshStatuses: accessibility just enabled, continuing chain")
-            resetRedirectFlow()
-            _state.update { it.copy(accessibilityAttempts = 0) }
-            advance()
-            return
-        }
-
-        if (overlayJustChanged && flowActive) {
-            AppLog.i(TAG, "refreshStatuses: overlay just enabled, continuing chain")
-            _state.update { it.copy(overlayAttempts = 0) }
-            advance()
-            return
-        }
-
-        if (!acc && prevState.accessibilityAttempts > 0 && flowActive) {
-            AppLog.i(TAG, "refreshStatuses: accessibility not enabled after attempt")
-            when {
-                lastRedirect == Redirect.ACCESSIBILITY && !restrictedFlowStarted -> {
-                    AppLog.i(TAG, "refreshStatuses: denied — auto-redirect to app info")
-                    restrictedFlowStarted = true
-                    lastRedirect = Redirect.APP_INFO
-                    openAppInfoWithHint()
-                }
-
-                lastRedirect == Redirect.APP_INFO -> {
-                    AppLog.i(
-                        TAG,
-                        "refreshStatuses: back from app info — auto-redirect to accessibility"
-                    )
-                    lastRedirect = Redirect.ACCESSIBILITY
-                    openAccessibilityWithHint()
-                }
-
-                else -> {
-                    AppLog.i(TAG, "refreshStatuses: loop breaker — showing restricted dialog")
-                    _state.update {
-                        it.copy(
-                            showRestrictedDialog = true,
-                            showAccessibilityDialog = false,
-                            showOverlayDialog = false,
-                            restrictedSettingsShown = true
-                        )
-                    }
-                }
-            }
-            return
-        }
-
-        if (!overlay && prevState.overlayAttempts > 0 && flowActive) {
-            AppLog.i(
-                TAG,
-                "refreshStatuses: overlay not enabled after attempt, showing dialog again"
-            )
-            _state.update {
-                it.copy(
-                    showOverlayDialog = true,
-                    showAccessibilityDialog = false,
-                    showRestrictedDialog = false
-                )
-            }
-            return
-        }
-
-        if (flowActive) advance()
-    }
-
-    fun checkRestrictedSettingsOnResume() {
-        AppLog.i(TAG, "checkRestrictedSettingsOnResume called (no-op, handled by refreshStatuses)")
-    }
-
-    fun onTestActivityReturn(success: Boolean) {
-        AppLog.i(TAG, "onTestActivityReturn: success=$success")
-        if (success) {
-            simpleController.onTestClickSuccess()
-        } else {
-            simpleController.onTestClickFailed()
+    private fun stopOverlayService() {
+        try {
+            app.stopService(Intent(app, OverlayService::class.java))
+            AppLog.i(TAG, "overlay service stopped for dialog")
+        } catch (e: Exception) {
+            AppLog.w(TAG, "failed to stop overlay service: ${e.message}")
         }
     }
 
-    fun onBatteryOptimizationReturn() {
-        AppLog.i(TAG, "onBatteryOptimizationReturn")
-        simpleController.onBatteryReturn()
-    }
-
-    fun startFlow() {
-        AppLog.i(TAG, "startFlow called, isWorking=${_state.value.isWorking}")
-
-        if (_state.value.isWorking) {
-            AppLog.i(TAG, "startFlow: already working, ignoring")
-            return
+    private fun showHint(text: String) {
+        try {
+            val intent = Intent(app, OverlayService::class.java)
+            intent.putExtra("hint", text)
+            app.startService(intent)
+        } catch (e: Exception) {
+            AppLog.w(TAG, "failed to show hint: ${e.message}")
         }
-
-        if (_state.value.showLevelDialog || _state.value.showLevelConfirm) {
-            AppLog.i(TAG, "startFlow: level dialog already shown, ignoring")
-            return
-        }
-
-        if (_state.value.simpleStep != null || _state.value.simpleDone != null || simpleModeActive) {
-            AppLog.i(TAG, "startFlow: simple mode already active, ignoring")
-            return
-        }
-
-        _state.update { it.copy(showLevelDialog = true) }
-    }
-
-    fun onLevelChosen(level: OptimizationMode) {
-        AppLog.i(TAG, "onLevelChosen: $level")
-        _state.update {
-            it.copy(
-                showLevelDialog = false,
-                showLevelConfirm = true,
-                selectedLevel = level
-            )
-        }
-    }
-
-    fun confirmLevelStart() {
-        val level = _state.value.selectedLevel ?: OptimizationMode.SIMPLE
-        AppLog.i(TAG, "confirmLevelStart: $level")
-        _state.update { it.copy(showLevelConfirm = false, selectedLevel = null) }
-
-        when (level) {
-            OptimizationMode.SIMPLE -> startSimpleMode()
-            OptimizationMode.PRO -> startAdvancedFlow()
-        }
-    }
-
-    fun cancelLevelConfirm() {
-        AppLog.i(TAG, "cancelLevelConfirm")
-        _state.update { it.copy(showLevelConfirm = false, selectedLevel = null) }
-    }
-
-    @VisibleForTesting
-    internal fun startSimpleMode() {
-        AppLog.i(TAG, "startSimpleMode")
-        simpleModeActive = true
-        failedSimpleStepIds.clear()
-        stepAttempt = 1
-        simpleController.start()
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // ИСПРАВЛЕНО: авто-ретрай вызывает startCurrentStep(force = true)
-    // чтобы обойти защиту от двойного тапа.
-    // ═══════════════════════════════════════════════════════════════
-    fun onSimpleStepResult(success: Boolean) {
-        AppLog.i(TAG, "onSimpleStepResult: success=$success, attempt=$stepAttempt")
-        val step = _state.value.simpleStep ?: return
-
-        if (success) {
-            simpleController.onStepResult(true)
-            autoFlowJob = viewModelScope.launch {
-                delay(AUTO_ADVANCE_DELAY_MS.milliseconds)
-                advanceToNextStep(autoStart = true)
-            }
-            return
-        }
-
-        if (stepAttempt < step.maxAttempts) {
-            stepAttempt++
-            AppLog.w(TAG, "onSimpleStepResult: auto-retry $stepAttempt/${step.maxAttempts}")
-            autoFlowJob?.cancel()
-            autoFlowJob = viewModelScope.launch {
-                delay(RETRY_DELAY_MS.milliseconds)
-                simpleController.startCurrentStep(force = true)  // ← ИСПРАВЛЕНО
-            }
-        } else {
-            AppLog.e(TAG, "onSimpleStepResult: all attempts exhausted")
-            failedSimpleStepIds.add(step.step.id)
-            simpleController.onStepResult(false)
-        }
-    }
-
-    private fun advanceToNextStep(autoStart: Boolean) {
-        simpleController.nextStep()
-        if (autoStart && _state.value.simpleStep != null) {
-            stepAttempt = 1
-            simpleController.startCurrentStep()
-        }
-    }
-
-    fun closeSimpleMode() {
-        AppLog.i(TAG, "closeSimpleMode")
-        autoFlowJob?.cancel()
-        simpleModeActive = false
-
-        _state.update {
-            it.copy(
-                simpleStep = null,
-                simpleDone = null,
-                simpleModePhase = SimpleModePhase.INACTIVE,
-                permissionSubPhase = PermissionSubPhase.INACTIVE,
-                simpleModeActive = false,
-                showAccessibilityDialog = false,
-                showOverlayDialog = false,
-                showRestrictedDialog = false,
-                showAppInfoDialog = false,
-                showLocationDialog = false,
-                showPermissionFallbackDialog = false,
-                stuckPhase = null,
-                showRestrictedSettingsScreen = false,
-                showTestClickFailedDialog = false,
-                showBatteryDialog = false
-            )
-        }
-    }
-
-    fun startCurrentSimpleStep() {
-        simpleController.startCurrentStep()
-    }
-
-    fun nextSimpleStep() {
-        onSimpleStepResult(true)
-    }
-
-    fun skipSimpleStep() {
-        val stepId = _state.value.simpleStep?.step?.id ?: "unknown"
-        if (!failedSimpleStepIds.contains(stepId)) {
-            failedSimpleStepIds.add(stepId)
-        }
-        onSimpleStepResult(false)
-    }
-
-    fun retrySimpleStep() {
-        simpleController.retryStep()
-    }
-
-    fun appInfoDialogAgreed() {
-        simpleController.onAppInfoDialogAgreed()
-    }
-
-    fun appInfoDialogCancelled() {
-        simpleController.onAppInfoDialogCancelled()
-    }
-
-    fun onLocationChosen(location: RestrictedLocation) {
-        simpleController.onLocationChosen(location)
-    }
-
-    fun onLocationDialogCancelled() {
-        simpleController.onLocationDialogCancelled()
-    }
-
-    fun onRestrictedScreenOpenSettings() {
-        AppLog.i(TAG, "onRestrictedScreenOpenSettings")
-        simpleController.onRestrictedScreenOpenSettings()
-    }
-
-    fun onRestrictedScreenDone() {
-        AppLog.i(TAG, "onRestrictedScreenDone")
-        simpleController.onRestrictedScreenDone()
-    }
-
-    fun onRestrictedScreenCancelled() {
-        AppLog.i(TAG, "onRestrictedScreenCancelled")
-        simpleController.onRestrictedScreenCancelled()
-    }
-
-    fun onTestClickRetry() {
-        AppLog.i(TAG, "onTestClickRetry")
-        simpleController.onTestClickRetry()
-    }
-
-    fun onTestClickSkip() {
-        AppLog.i(TAG, "onTestClickSkip")
-        simpleController.onTestClickSkip()
-    }
-
-    fun onBatteryDialogAgreed() {
-        AppLog.i(TAG, "onBatteryDialogAgreed")
-        simpleController.onBatteryDialogAgreed()
-    }
-
-    fun onBatteryDialogSkipped() {
-        AppLog.i(TAG, "onBatteryDialogSkipped")
-        simpleController.onBatteryDialogSkipped()
-    }
-
-    fun onPermissionFallbackRetry() {
-        AppLog.i(TAG, "onPermissionFallbackRetry")
-        simpleController.onFallbackRetry()
-    }
-
-    fun onPermissionFallbackOpenSettings() {
-        AppLog.i(TAG, "onPermissionFallbackOpenSettings")
-        simpleController.onFallbackOpenSettings()
-    }
-
-    fun onPermissionFallbackCancelled() {
-        AppLog.i(TAG, "onPermissionFallbackCancelled")
-        simpleModeActive = false
-        simpleController.onFallbackCancelled()
-    }
-
-    private fun startAdvancedFlow() {
-        val status = ShizukuExecutor.checkStatus(app)
-        AppLog.i(TAG, "startAdvancedFlow: shizuku status=$status")
-
-        if (status != ShizukuExecutor.Status.AVAILABLE) {
-            shizukuManager.showDialog(status)
-        } else {
-            _state.update { it.copy(showOptionsDialog = true) }
-        }
-    }
-
-    fun shizukuDialogInstall() {
-        pendingSourceSuggestion = true
-        shizukuManager.onInstallClicked()
-    }
-
-    fun shizukuDialogOpenApp() {
-        shizukuManager.onOpenAppClicked()
-    }
-
-    fun wizardSkip() {
-        shizukuManager.onWizardSkip()
-        _state.update { it.copy(showOptionsDialog = true) }
-    }
-
-    fun requestShizukuPermission() {
-        shizukuManager.requestPermission(SHIZUKU_PERMISSION_CODE)
-    }
-
-    fun onShizukuPermissionResult(granted: Boolean) {
-        shizukuManager.onPermissionResult(granted)
-        if (granted) {
-            _state.update { it.copy(showOptionsDialog = true) }
-        }
-    }
-
-    fun wizardCheck() {
-        shizukuManager.checkStatus()
-        if (ShizukuExecutor.checkStatus(app) == ShizukuExecutor.Status.AVAILABLE) {
-            _state.update { it.copy(showOptionsDialog = true) }
-        }
-    }
-
-    fun openShizukuSources() {
-        shizukuManager.onOpenSources()
-    }
-
-    fun closeShizukuSources() {
-        shizukuManager.closeSources()
-    }
-
-    fun installFromSource(source: String) {
-        pendingSourceSuggestion = true
-        shizukuManager.installFromSource(source)
-    }
-
-    fun shizukuDialogLater() {
-        shizukuManager.onLater()
-        _state.update { it.copy(showOptionsDialog = true) }
-    }
-
-    fun closeShizukuWizard() {
-        shizukuManager.closeWizard()
-    }
-
-    fun optionsDialogConfirmed() {
-        AppLog.i(
-            TAG,
-            "optionsDialogConfirmed, dnsFilter=${_state.value.dnsFilterEnabled}, aggressive=${_state.value.aggressiveMode}"
-        )
-        _state.update { it.copy(showOptionsDialog = false) }
-
-        if (_state.value.dnsFilterEnabled) {
-            viewModelScope.launch {
-                val seen = prefs.hasSeenDnsWarning.first()
-                if (!seen) {
-                    AppLog.i(TAG, "showing DNS warning dialog")
-                    _state.update { it.copy(showDnsWarningDialog = true) }
-                    return@launch
-                }
-                proceedToChain()
-            }
-        } else {
-            proceedToChain()
-        }
-    }
-
-    fun dnsWarningAccepted() {
-        AppLog.i(TAG, "dnsWarningAccepted")
-        _state.update { it.copy(showDnsWarningDialog = false) }
-        viewModelScope.launch {
-            prefs.setHasSeenDnsWarning(true)
-        }
-        proceedToChain()
-    }
-
-    fun dnsWarningDeclined() {
-        AppLog.i(TAG, "dnsWarningDeclined — disabling DNS")
-        _state.update { it.copy(showDnsWarningDialog = false, dnsFilterEnabled = false) }
-        viewModelScope.launch {
-            prefs.setDnsFilterEnabled(false)
-        }
-        proceedToChain()
-    }
-
-    fun optionsDialogCancelled() {
-        AppLog.i(TAG, "optionsDialogCancelled")
-        _state.update { it.copy(showOptionsDialog = false) }
-    }
-
-    fun toggleDnsFilter(enabled: Boolean) {
-        AppLog.i(TAG, "toggleDnsFilter: $enabled")
-        _state.update { it.copy(dnsFilterEnabled = enabled) }
-        viewModelScope.launch {
-            prefs.setDnsFilterEnabled(enabled)
-        }
-    }
-
-    fun toggleAggressiveMode(enabled: Boolean) {
-        AppLog.i(TAG, "toggleAggressiveMode: $enabled")
-        _state.update { it.copy(aggressiveMode = enabled) }
-    }
-
-    private fun proceedToChain() {
-        AppLog.i(TAG, "proceedToChain")
-        flowActive = true
-        advance()
-    }
-
-    private fun advance() {
-        val s = _state.value
-        AppLog.i(TAG, "advance: acc=${s.isAccessibilityEnabled}, overlay=${s.isOverlayGranted}")
-
-        when {
-            !s.isAccessibilityEnabled -> {
-                AppLog.i(TAG, "advance: showing accessibility dialog")
-                _state.update {
-                    it.copy(
-                        showAccessibilityDialog = true,
-                        showOverlayDialog = false,
-                        showRestrictedDialog = false
-                    )
-                }
-            }
-
-            !s.isOverlayGranted -> {
-                AppLog.i(TAG, "advance: showing overlay dialog")
-                _state.update {
-                    it.copy(
-                        showOverlayDialog = true,
-                        showAccessibilityDialog = false,
-                        showRestrictedDialog = false
-                    )
-                }
-            }
-
-            else -> {
-                AppLog.i(TAG, "advance: all permissions granted, starting chain")
-                flowActive = false
-                resetRedirectFlow()
-                _state.update {
-                    it.copy(
-                        showOverlayDialog = false,
-                        showAccessibilityDialog = false,
-                        showRestrictedDialog = false,
-                        accessibilityAttempts = 0,
-                        overlayAttempts = 0,
-                        restrictedSettingsShown = false
-                    )
-                }
-                startChain()
-            }
-        }
-    }
-
-    fun dialogAgreed() {
-        AppLog.i(TAG, "dialogAgreed, simpleModeActive=$simpleModeActive")
-
-        if (simpleModeActive) {
-            val currentState = _state.value
-            if (currentState.showAccessibilityDialog) {
-                _state.update { it.copy(accessibilityAttempts = it.accessibilityAttempts + 1) }
-            } else if (currentState.showOverlayDialog) {
-                _state.update { it.copy(overlayAttempts = it.overlayAttempts + 1) }
-            }
-            simpleController.onDialogAgreed()
-            return
-        }
-
-        val currentState = _state.value
-        if (currentState.showAccessibilityDialog) {
-            _state.update {
-                it.copy(
-                    showAccessibilityDialog = false,
-                    showOverlayDialog = false,
-                    showRestrictedDialog = false,
-                    accessibilityAttempts = it.accessibilityAttempts + 1
-                )
-            }
-            ChainFlags.waitingAccessibilityReturn = true
-            markAccessibilityOpened()
-            openAccessibilitySettings()
-        } else if (currentState.showOverlayDialog) {
-            _state.update {
-                it.copy(
-                    showAccessibilityDialog = false,
-                    showOverlayDialog = false,
-                    showRestrictedDialog = false,
-                    overlayAttempts = it.overlayAttempts + 1
-                )
-            }
-            openOverlaySettings()
-        } else {
-            _state.update {
-                it.copy(
-                    showAccessibilityDialog = false,
-                    showOverlayDialog = false,
-                    showRestrictedDialog = false
-                )
-            }
-        }
-    }
-
-    fun dialogCancelled() {
-        AppLog.i(TAG, "dialogCancelled, simpleModeActive=$simpleModeActive")
-
-        if (simpleModeActive) {
-            simpleModeActive = false
-            simpleController.onDialogCancelled()
-            return
-        }
-
-        flowActive = false
-        resetRedirectFlow()
-        _state.update {
-            it.copy(
-                showAccessibilityDialog = false,
-                showOverlayDialog = false,
-                showRestrictedDialog = false,
-                accessibilityAttempts = 0,
-                overlayAttempts = 0,
-                restrictedSettingsShown = false
-            )
-        }
-    }
-
-    fun restrictedDialogAgreed() {
-        AppLog.i(TAG, "restrictedDialogAgreed")
-
-        if (simpleModeActive) {
-            simpleController.onRestrictedDialogAgreed()
-            return
-        }
-
-        _state.update {
-            it.copy(
-                showRestrictedDialog = false,
-                showAccessibilityDialog = false,
-                restrictedSettingsShown = true
-            )
-        }
-        markAppInfoOpened()
-        openAppInfoWithHint()
-    }
-
-    fun restrictedDialogCancelled() {
-        AppLog.i(TAG, "restrictedDialogCancelled")
-
-        if (simpleModeActive) {
-            simpleModeActive = false
-            simpleController.onRestrictedDialogCancelled()
-            return
-        }
-
-        flowActive = false
-        resetRedirectFlow()
-        _state.update {
-            it.copy(
-                showRestrictedDialog = false,
-                showAccessibilityDialog = false,
-                accessibilityAttempts = 0,
-                restrictedSettingsShown = false
-            )
-        }
-    }
-
-    fun markAccessibilityOpened() {
-        lastRedirect = Redirect.ACCESSIBILITY
-        AppLog.i(TAG, "markAccessibilityOpened")
-    }
-
-    fun markAppInfoOpened() {
-        lastRedirect = Redirect.APP_INFO
-        AppLog.i(TAG, "markAppInfoOpened")
-    }
-
-    private fun resetRedirectFlow() {
-        lastRedirect = Redirect.NONE
-        restrictedFlowStarted = false
-    }
-
-    private fun startChain() {
-        AppLog.i(
-            TAG,
-            "startChain: setting pending flag, dnsFilter=${_state.value.dnsFilterEnabled}, aggressive=${_state.value.aggressiveMode}"
-        )
-
-        viewModelScope.launch {
-            prefs.setPendingOptimization(true)
-            prefs.setDnsFilterEnabled(_state.value.dnsFilterEnabled)
-            prefs.setAggressiveMode(_state.value.aggressiveMode)
-            AppLog.i(TAG, "startChain: pending flag set")
-
-            if (_state.value.isAccessibilityEnabled) {
-                AppLog.i(
-                    TAG,
-                    "startChain: accessibility already enabled, starting service directly"
-                )
-                val intent = Intent(app, AdbEnablerService::class.java)
-                intent.action = AdbEnablerService.ACTION_START_CHAIN
-                app.startService(intent)
-            } else {
-                AppLog.i(TAG, "startChain: opening accessibility settings")
-                openAccessibilitySettingsAutomatically()
-            }
-        }
-    }
-
-    private fun openAccessibilitySettingsAutomatically() {
-        AppLog.i(TAG, "openAccessibilitySettingsAutomatically: showing accessibility dialog")
-        setAccessibilityWaitingFlag()
-        _state.update { it.copy(showAccessibilityDialog = true) }
-    }
-
-    private fun setAccessibilityWaitingFlag() {
-        ChainFlags.waitingAccessibilityReturn = true
-    }
-
-    fun restoreOptimization() {
-        if (_state.value.isWorking) return
-
-        viewModelScope.launch {
-            try {
-                _state.update { it.copy(isWorking = true, progress = 0f) }
-                val deps = XiaoHyperApp.testDeps ?: app.deps
-                val ok = deps.newEngine().restore(callbacks())
-
-                if (ok) {
-                    prefs.setHiddenSettingsApplied(false)
-                    _state.update { it.copy(isWorking = false, isOptimized = false) }
-                } else {
-                    _state.update { it.copy(isWorking = false, restoreFailed = true) }
-                }
-            } catch (e: Exception) {
-                AppLog.e(TAG, "restore failed: ${e.message}", e)
-                _state.update { it.copy(isWorking = false, restoreFailed = true) }
-            }
-        }
-    }
-
-    fun dismissFinalDialog() {
-        _state.update { it.copy(showFinalDialog = false) }
-    }
-
-    fun devModeDialogOpenAbout() {
-        AppLog.i(TAG, "devModeDialog: open about phone")
-    }
-
-    fun devModeDialogRetry() {
-        AppLog.i(TAG, "devModeDialog: retry — resuming chain (service will restart overlay)")
-        _state.update { it.copy(showDevModeDialog = false) }
-        val intent = Intent(app, AdbEnablerService::class.java)
-        intent.action = AdbEnablerService.ACTION_RETRY_DEV
-        app.startService(intent)
-    }
-
-    fun devModeDialogCancel() {
-        AppLog.i(TAG, "devModeDialog: cancel — stopping chain")
-        _state.update { it.copy(showDevModeDialog = false) }
-        OverlayController.triggerCancel()
-    }
-
-    fun dismissRestoreFailed() {
-        _state.update { it.copy(restoreFailed = false) }
-    }
-
-    fun requestReboot() {
-        _state.update { it.copy(showRebootDialog = true) }
-    }
-
-    fun dismissRebootDialog() {
-        _state.update { it.copy(showRebootDialog = false) }
-    }
-
-    fun dismissRebootFailed() {
-        _state.update { it.copy(rebootFailed = false) }
-    }
-
-    fun confirmReboot() {
-        _state.update { it.copy(showRebootDialog = false, isWorking = true) }
-
-        viewModelScope.launch {
-            try {
-                val deps = XiaoHyperApp.testDeps ?: app.deps
-                val ok = deps.newEngine().reboot()
-                _state.update { it.copy(isWorking = false, rebootFailed = !ok) }
-            } catch (e: Exception) {
-                AppLog.e(TAG, "reboot failed: ${e.message}", e)
-                _state.update { it.copy(isWorking = false, rebootFailed = true) }
-            }
-        }
-    }
-
-    fun getFailedStepIds(): List<String> = failedSimpleStepIds.toList()
-
-    private fun callbacks() = OptimizationEngine.Callbacks(
-        onProgress = { p -> _state.update { it.copy(progress = p) } }
-    )
-
-    companion object {
-        private const val TAG = "MainVM"
-        const val SHIZUKU_PERMISSION_CODE = 9001
     }
 }

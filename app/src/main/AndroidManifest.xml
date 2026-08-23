@@ -49,15 +49,6 @@
             android:name=".ui.WebViewActivity"
             android:exported="false" />
 
-        <!-- НОВОЕ: тестовая Activity для проверки Accessibility -->
-        <activity
-            android:name=".ui.TestActivity"
-            android:excludeFromRecents="true"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:taskAffinity=""
-            android:theme="@style/Theme.XiaoHyperCleaner" />
-
         <!-- Основной Accessibility Service для выполнения шагов -->
         <service
             android:name=".service.AdbEnablerService"
@@ -71,21 +62,6 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
-        </service>
-
-        <!-- НОВОЕ: Accessibility Service для TEST_CLICK (отдельный от AdbEnablerService) -->
-        <service
-            android:name=".service.SystemAutomationService"
-            android:description="@string/accessibility_policy_description"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config_test" />
         </service>
 
         <service

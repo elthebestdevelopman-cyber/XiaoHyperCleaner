@@ -16,9 +16,6 @@ enum class PermissionSubPhase {
     OVERLAY,
     ACCESSIBILITY,
 
-    /** НОВОЕ: проверка работоспособности Accessibility Service */
-    TEST_CLICK,
-
     /** НОВОЕ: снятие ограничений HyperOS Battery Optimization */
     BATTERY_OPTIMIZATION,
     DONE

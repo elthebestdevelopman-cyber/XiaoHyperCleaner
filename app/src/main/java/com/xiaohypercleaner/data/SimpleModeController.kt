@@ -1,13 +1,12 @@
 package com.xiaohypercleaner.data
 
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.provider.Settings
 import com.xiaohypercleaner.AppConstants
+import com.xiaohypercleaner.R
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.ChainFlags
-import com.xiaohypercleaner.service.SystemAutomationService
+import com.xiaohypercleaner.service.OverlayController
 import com.xiaohypercleaner.util.AppLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +17,22 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 
+/**
+ * Машина состояний Simple Mode.
+ *
+ * Цепочка фаз (TEST_CLICK УДАЛЁН — TestActivity больше не используется):
+ *   RESTRICTED_SETTINGS (если sideload) → OVERLAY → ACCESSIBILITY →
+ *   BATTERY_OPTIMIZATION → STEPS → DONE
+ *
+ * ИСПРАВЛЕНО в этой версии:
+ *  1. Флаг stepsStarted: первый вход в STEPS начинает с index=0 (шаг msa не теряется)
+ *  2. onStepSkipped() — пропуск шага (приложение не установлено) без ретраев
+ *  3. skippedIds — список пропущенных шагов для финального экрана
+ *  4. OverlayController.startAutomation/showResult/hide — оверлей с робокотом
+ *  5. Убрана self-cancellation в nextStep() — отмена теперь на стороне вызывающего
+ *  6. onStepResult явно отменяет autoFlowJob перед запуском нового
+ *  7. startCurrentStep защищён от двойного запуска через проверку WORKING
+ */
 class SimpleModeController(
     private val context: Context,
     private val permissionFlow: PermissionFlowManager,
@@ -47,24 +62,26 @@ class SimpleModeController(
         val accessibilityAttempts: Int = 0,
         val overlayAttempts: Int = 0,
         val appInfoAttempts: Int = 0,
-        val showTestClickFailedDialog: Boolean = false,
         val showBatteryDialog: Boolean = false,
-        val failedStepIds: List<String> = emptyList()
+        val failedStepIds: List<String> = emptyList(),
+        val skippedStepIds: List<String> = emptyList()  // НОВОЕ
     )
 
     val isActive: Boolean get() = state.active
     val failedStepIds: List<String> get() = state.failedStepIds
+    val skippedStepIds: List<String> get() = state.skippedStepIds  // НОВОЕ
 
     private var state = SimpleModeState()
     private var isAccessibilityEnabled = false
     private var isOverlayGranted = false
     private var stepAttempt = 1
+    private var stepsStarted = false  // НОВОЕ: первый вход в STEPS начинает с index=0
     private var autoFlowJob: Job? = null
     private val failedIds = mutableListOf<String>()
+    private val skippedIds = mutableListOf<String>()  // НОВОЕ
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private var restrictedLocation: RestrictedLocation = RestrictedLocation.UNKNOWN
-    private var testActivityLaunched = false
 
     private val needsRestrictedUnlock: Boolean by lazy {
         permissionFlow.isSideloadedOnAndroid13Plus()
@@ -77,6 +94,7 @@ class SimpleModeController(
 
     fun destroy() {
         autoFlowJob?.cancel()
+        OverlayController.hide(context)
         scope.cancel()
     }
 
@@ -120,9 +138,11 @@ class SimpleModeController(
     fun start() {
         AppLog.i(TAG, "Starting simple mode, needsRestrictedUnlock=$needsRestrictedUnlock")
         failedIds.clear()
+        skippedIds.clear()
         stepAttempt = 1
-        testActivityLaunched = false
+        stepsStarted = false
         restrictedLocation = RestrictedLocation.UNKNOWN
+        OverlayController.hide(context)  // Чистим оверлей на старте
         state = SimpleModeState(
             active = true,
             phase = SimpleModePhase.PERMISSIONS,
@@ -142,10 +162,7 @@ class SimpleModeController(
         permissionFlow.openAppInfoWithSmartPointer(restrictedLocation)
     }
 
-    fun onAppInfoDialogCancelled() {
-        AppLog.i(TAG, "AppInfo dialog cancelled — resetting")
-        reset()
-    }
+    fun onAppInfoDialogCancelled() = reset()
 
     fun onAppInfoReturnWithoutSuccess() {
         if (state.appInfoAttempts >= 1 && restrictedLocation == RestrictedLocation.UNKNOWN) {
@@ -159,17 +176,14 @@ class SimpleModeController(
         restrictedLocation = location
         setState { copy(showLocationDialog = false) }
         if (location == RestrictedLocation.ABSENT) {
-            AppLog.i(TAG, "User says no restricted item — skipping APP_INFO phase")
             setState { copy(permissionSubPhase = PermissionSubPhase.OVERLAY) }
             advance()
         } else {
-            permissionFlow.openAppInfoWithSmartPointer(location)
+            permissionFlow.openAppInfoWithSmartPointer(restrictedLocation)
         }
     }
 
-    fun onLocationDialogCancelled() {
-        reset()
-    }
+    fun onLocationDialogCancelled() = reset()
 
     fun onDialogAgreed() {
         AppLog.i(TAG, "Dialog agreed, subPhase=${state.permissionSubPhase}")
@@ -201,10 +215,7 @@ class SimpleModeController(
         }
     }
 
-    fun onDialogCancelled() {
-        AppLog.i(TAG, "Dialog cancelled — resetting simple mode")
-        reset()
-    }
+    fun onDialogCancelled() = reset()
 
     fun onRestrictedDialogAgreed() {
         AppLog.i(TAG, "Restricted dialog agreed — going back to APP_INFO")
@@ -218,13 +229,19 @@ class SimpleModeController(
         permissionFlow.openAppInfoWithSmartPointer(restrictedLocation)
     }
 
-    fun onRestrictedDialogCancelled() {
-        reset()
-    }
+    fun onRestrictedDialogCancelled() = reset()
 
     fun onRestrictedScreenOpenSettings() {
-        AppLog.i(TAG, "Restricted screen: open settings clicked")
-        setState { copy(showRestrictedSettingsScreen = false) }
+        AppLog.i(
+            TAG,
+            "Restricted screen: open settings clicked, attempt=${state.appInfoAttempts + 1}"
+        )
+        setState {
+            copy(
+                showRestrictedSettingsScreen = false,
+                appInfoAttempts = appInfoAttempts + 1   // НОВОЕ: считаем попытки для адаптивной подсказки
+            )
+        }
         permissionFlow.openAppInfoSettings()
     }
 
@@ -240,46 +257,7 @@ class SimpleModeController(
         advance()
     }
 
-    fun onRestrictedScreenCancelled() {
-        AppLog.i(TAG, "Restricted screen cancelled — resetting")
-        reset()
-    }
-
-    fun onTestClickSuccess() {
-        AppLog.i(TAG, "TEST_CLICK success — advancing to BATTERY_OPTIMIZATION")
-        testActivityLaunched = false
-        setState { copy(permissionSubPhase = PermissionSubPhase.BATTERY_OPTIMIZATION) }
-        advance()
-    }
-
-    fun onTestClickFailed() {
-        AppLog.w(TAG, "TEST_CLICK failed — showing dialog")
-        testActivityLaunched = false
-        setState {
-            copy(
-                showTestClickFailedDialog = true,
-                permissionSubPhase = PermissionSubPhase.TEST_CLICK
-            )
-        }
-    }
-
-    fun onTestClickRetry() {
-        AppLog.i(TAG, "TEST_CLICK retry")
-        setState { copy(showTestClickFailedDialog = false) }
-        launchTestActivity()
-    }
-
-    fun onTestClickSkip() {
-        AppLog.i(TAG, "TEST_CLICK skipped — advancing to BATTERY_OPTIMIZATION")
-        testActivityLaunched = false
-        setState {
-            copy(
-                showTestClickFailedDialog = false,
-                permissionSubPhase = PermissionSubPhase.BATTERY_OPTIMIZATION
-            )
-        }
-        advance()
-    }
+    fun onRestrictedScreenCancelled() = reset()
 
     fun onBatteryDialogAgreed() {
         AppLog.i(TAG, "Battery dialog agreed")
@@ -289,6 +267,7 @@ class SimpleModeController(
 
     fun onBatteryDialogSkipped() {
         AppLog.i(TAG, "Battery dialog skipped — advancing to STEPS")
+        autoFlowJob?.cancel()
         setState {
             copy(
                 showBatteryDialog = false,
@@ -303,11 +282,9 @@ class SimpleModeController(
         val ignoring = permissionFlow.isIgnoringBatteryOptimizations()
         AppLog.i(TAG, "onBatteryReturn: isIgnoringBatteryOptimizations=$ignoring")
         if (ignoring) {
+            autoFlowJob?.cancel()
             setState {
-                copy(
-                    phase = SimpleModePhase.STEPS,
-                    permissionSubPhase = PermissionSubPhase.DONE
-                )
+                copy(phase = SimpleModePhase.STEPS, permissionSubPhase = PermissionSubPhase.DONE)
             }
             nextStep(autoStart = true)
         } else {
@@ -343,16 +320,12 @@ class SimpleModeController(
         }
     }
 
-    fun onFallbackCancelled() {
-        AppLog.i(TAG, "Fallback cancelled — resetting simple mode")
-        reset()
-    }
+    fun onFallbackCancelled() = reset()
 
     // ═══════════════════════════════════════════════════════════════
-    // ИСПРАВЛЕНО: добавлен параметр force для обхода защиты от двойного тапа.
-    // Авто-ретрай (из MainViewModel) использует force=true.
-    // Пользовательский тап использует force=false (по умолчанию).
+    // Шаги
     // ═══════════════════════════════════════════════════════════════
+
     fun startCurrentStep(force: Boolean = false) {
         val current = state.step ?: return
         if (current.status == SimpleStepState.Status.WORKING && !force) {
@@ -372,12 +345,7 @@ class SimpleModeController(
     private fun launchStep() {
         autoFlowJob?.cancel()
         setState {
-            copy(
-                step = step?.copy(
-                    status = SimpleStepState.Status.WORKING,
-                    attempt = stepAttempt
-                )
-            )
+            copy(step = step?.copy(status = SimpleStepState.Status.WORKING, attempt = stepAttempt))
         }
         val intent = Intent(context, AdbEnablerService::class.java).apply {
             action = AdbEnablerService.ACTION_SIMPLE_STEP
@@ -386,12 +354,17 @@ class SimpleModeController(
         context.startService(intent)
     }
 
-    fun onStepResult(success: Boolean) {
+    fun onStepResult(success: Boolean, attempt: Int, finalFailure: Boolean = false) {
         AppLog.i(
             TAG,
-            "onStepResult: success=$success, attempt=$stepAttempt, step=${state.currentStepIndex}"
+            "onStepResult: success=$success, attempt=$attempt, step=${state.currentStepIndex}"
         )
         val step = state.step ?: return
+
+        if (!state.active) {
+            AppLog.w(TAG, "onStepResult: controller is inactive, ignoring")
+            return
+        }
 
         if (success) {
             val newCount = state.completedCount + 1
@@ -400,48 +373,68 @@ class SimpleModeController(
                     completedCount = newCount,
                     step = step.copy(
                         status = SimpleStepState.Status.SUCCESS,
-                        completedCount = newCount
+                        completedCount = newCount,
+                        attempt = attempt
                     )
                 )
             }
+            autoFlowJob?.cancel()
             autoFlowJob = scope.launch {
                 delay(AppConstants.AUTO_ADVANCE_DELAY_MS.milliseconds)
-                nextStep(autoStart = true)
+                if (state.active) nextStep(autoStart = true)
             }
             return
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        // ИСПРАВЛЕНО: убран дублирующий ретрай внутри SimpleModeController.
-        // Теперь ретрай планирует ТОЛЬКО MainViewModel через startCurrentStep(force=true).
-        // Это убирает race condition и двойные запуски.
-        // ═══════════════════════════════════════════════════════════════
-        if (stepAttempt < step.maxAttempts) {
-            AppLog.w(TAG, "onStepResult: will auto-retry (handled by MainViewModel)")
-            setState {
-                copy(step = step.copy(status = SimpleStepState.Status.IDLE, attempt = stepAttempt))
-            }
-            // НЕ планируем ретрай здесь — это делает MainViewModel.onSimpleStepResult
-        } else {
-            AppLog.e(TAG, "onStepResult: all attempts exhausted for step ${state.currentStepIndex}")
-            failedIds.add(step.step.id)
+        if (finalFailure) {
+            AppLog.e(TAG, "onStepResult: FINAL failure for step ${state.currentStepIndex}")
+            if (!failedIds.contains(step.step.id)) failedIds.add(step.step.id)
             setState {
                 copy(
                     failedStepIds = failedIds.toList(),
-                    step = step.copy(status = SimpleStepState.Status.FAILED)
+                    step = step.copy(status = SimpleStepState.Status.FAILED, attempt = attempt)
                 )
             }
+            autoFlowJob?.cancel()
             autoFlowJob = scope.launch {
                 delay(AppConstants.AUTO_ADVANCE_DELAY_MS.milliseconds)
-                nextStep(autoStart = true)
+                if (state.active) nextStep(autoStart = true)
             }
+            return
+        }
+
+        AppLog.w(TAG, "onStepResult: intermediate failure, ViewModel will retry")
+        setState { copy(step = step.copy(status = SimpleStepState.Status.IDLE, attempt = attempt)) }
+    }
+
+    /**
+     * НОВОЕ: шаг пропущен (приложение не установлено).
+     * Не считается ошибкой — просто идём к следующему шагу без ретраев.
+     */
+    fun onStepSkipped(stepId: String) {
+        AppLog.i(TAG, "onStepSkipped: step=$stepId, index=${state.currentStepIndex}")
+        if (!skippedIds.contains(stepId)) skippedIds.add(stepId)
+        setState { copy(skippedStepIds = skippedIds.toList()) }
+        autoFlowJob?.cancel()
+        autoFlowJob = scope.launch {
+            delay(AppConstants.AUTO_ADVANCE_DELAY_MS.milliseconds)
+            if (state.active) nextStep(autoStart = true)
         }
     }
 
+    /**
+     * ИСПРАВЛЕНО:
+     *  1. При первом входе в STEPS (stepsStarted=false) начинаем с index=0,
+     *     иначе шаг msa (index=0) молча пропускался.
+     *  2. При первом запуске показываем оверлей автоматизации (робокот).
+     *  3. При достижении конца — показываем финальный оверлей с результатами.
+     */
     fun nextStep(autoStart: Boolean = false) {
-        autoFlowJob?.cancel()
-        val nextIndex = state.currentStepIndex + 1
         val steps = SimpleSteps.ALL
+
+        // НОВОЕ: первый вход начинает с index=0, последующие — с +1
+        val nextIndex = if (stepsStarted) state.currentStepIndex + 1 else 0
+        stepsStarted = true
 
         if (nextIndex >= steps.size) {
             AppLog.i(TAG, "All simple steps completed")
@@ -453,7 +446,20 @@ class SimpleModeController(
                     done = Pair(completedCount, steps.size)
                 )
             }
+            // НОВОЕ: показываем финальный оверлей с довольным котом
+            OverlayController.showResult(
+                context,
+                completed = state.completedCount,   // ✅
+                total = steps.size,
+                failed = failedIds.size,
+                skipped = skippedIds.size
+            )
             return
+        }
+
+        // НОВОЕ: при переходе к первому шагу показываем оверлей автоматизации
+        if (nextIndex == 0) {
+            OverlayController.startAutomation(context, steps.size)
         }
 
         val nextStepObj = steps[nextIndex]
@@ -470,7 +476,6 @@ class SimpleModeController(
                 )
             )
         }
-
         if (autoStart) startCurrentStep()
     }
 
@@ -525,8 +530,8 @@ class SimpleModeController(
 
             PermissionSubPhase.ACCESSIBILITY -> {
                 if (isAccessibilityEnabled) {
-                    AppLog.i(TAG, "Accessibility enabled — switching to TEST_CLICK")
-                    setState { copy(permissionSubPhase = PermissionSubPhase.TEST_CLICK) }
+                    AppLog.i(TAG, "Accessibility enabled — switching to BATTERY_OPTIMIZATION")
+                    setState { copy(permissionSubPhase = PermissionSubPhase.BATTERY_OPTIMIZATION) }
                     advance()
                     return
                 }
@@ -544,25 +549,10 @@ class SimpleModeController(
                 setState { copy(showAccessibilityDialog = true) }
             }
 
-            PermissionSubPhase.TEST_CLICK -> {
-                if (!isSystemAutomationServiceEnabled()) {
-                    AppLog.w(TAG, "TEST_CLICK: SystemAutomationService not enabled, skipping")
-                    testActivityLaunched = false
-                    setState { copy(permissionSubPhase = PermissionSubPhase.BATTERY_OPTIMIZATION) }
-                    advance()
-                    return
-                }
-                if (testActivityLaunched) {
-                    AppLog.d(TAG, "TEST_CLICK: TestActivity already launched, waiting for result")
-                    return
-                }
-                testActivityLaunched = true
-                launchTestActivity()
-            }
-
             PermissionSubPhase.BATTERY_OPTIMIZATION -> {
                 if (permissionFlow.isIgnoringBatteryOptimizations()) {
                     AppLog.i(TAG, "Battery optimization already ignored — switching to STEPS")
+                    autoFlowJob?.cancel()
                     setState {
                         copy(
                             phase = SimpleModePhase.STEPS,
@@ -581,42 +571,15 @@ class SimpleModeController(
         }
     }
 
-    private fun isSystemAutomationServiceEnabled(): Boolean {
-        return try {
-            val component =
-                ComponentName(context, SystemAutomationService::class.java).flattenToString()
-            Settings.Secure.getString(
-                context.contentResolver,
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-            )?.contains(component) == true
-        } catch (e: Exception) {
-            AppLog.w(TAG, "isSystemAutomationServiceEnabled failed: ${e.message}")
-            false
-        }
-    }
-
-    private fun launchTestActivity() {
-        AppLog.i(TAG, "Launching TestActivity for TEST_CLICK verification")
-        try {
-            val intent = Intent(context, com.xiaohypercleaner.ui.TestActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            AppLog.e(TAG, "Failed to launch TestActivity: ${e.message}")
-            testActivityLaunched = false
-            setState { copy(permissionSubPhase = PermissionSubPhase.BATTERY_OPTIMIZATION) }
-            advance()
-        }
-    }
-
     private fun reset() {
         AppLog.i(TAG, "Resetting simple mode controller")
         autoFlowJob?.cancel()
+        OverlayController.hide(context)  // НОВОЕ: убираем оверлей при сбросе
         permissionFlow.hideOverlay()
         failedIds.clear()
+        skippedIds.clear()
         stepAttempt = 1
-        testActivityLaunched = false
+        stepsStarted = false
         restrictedLocation = RestrictedLocation.UNKNOWN
         state = SimpleModeState()
         onStateChanged(state)

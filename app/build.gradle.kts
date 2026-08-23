@@ -68,6 +68,7 @@ dependencies {
     // Shizuku API (MIT License)
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)
+    implementation(libs.lottie)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

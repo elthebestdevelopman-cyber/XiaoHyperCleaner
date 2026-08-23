@@ -4,15 +4,14 @@ import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.net.toUri
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.service.AdbEnablerService
+import com.xiaohypercleaner.service.OverlayController
 import com.xiaohypercleaner.service.OverlayService
-import com.xiaohypercleaner.service.SystemAutomationService
 import com.xiaohypercleaner.util.AppLog
 
 class PermissionFlowManager(private val context: Context) {
@@ -206,21 +205,33 @@ class PermissionFlowManager(private val context: Context) {
         }
     }
 
+    /**
+     * ИСПРАВЛЕНО: добавлена проверка canShowOverlay() для консистентности
+     */
     fun openAccessibilityWithPointer() {
+        AppLog.i(TAG, "openAccessibilityWithPointer: showing visual hint")
         openAccessibilitySettings()
         if (!canShowOverlay()) return
-        showPointer(
-            OverlayService.PointerMode.LIST_ITEM_CENTER,
-            context.getString(R.string.pointer_accessibility_item)
+        // Стрелка указывает на элемент в списке
+        OverlayController.showManualPointer(
+            context,
+            OverlayService.PointerMode.LIST_ITEM_CENTER.name,
+            context.getString(R.string.pointer_hint_accessibility)
         )
     }
 
+    /**
+     * ИСПРАВЛЕНО: добавлена проверка canShowOverlay() для консистентности
+     */
     fun openOverlayWithPointer() {
+        AppLog.i(TAG, "openOverlayWithPointer: showing visual hint")
         openOverlaySettings()
         if (!canShowOverlay()) return
-        showPointer(
-            OverlayService.PointerMode.SWITCH_RIGHT,
-            context.getString(R.string.pointer_overlay_switch)
+        // Стрелка указывает на переключатель внизу экрана
+        OverlayController.showManualPointer(
+            context,
+            OverlayService.PointerMode.GENERIC_BOTTOM.name,
+            context.getString(R.string.pointer_hint_overlay)
         )
     }
 
@@ -243,6 +254,7 @@ class PermissionFlowManager(private val context: Context) {
     fun showHint(text: String) {
         try {
             val intent = Intent(context, OverlayService::class.java).apply {
+                action = OverlayService.ACTION_HINT
                 putExtra(OverlayService.EXTRA_HINT, text)
             }
             context.startService(intent)
@@ -251,15 +263,18 @@ class PermissionFlowManager(private val context: Context) {
         }
     }
 
+    /**
+     * ИСПРАВЛЕНО: убрано дублирование EXTRA_POINTER_HINT (не используется в OverlayService)
+     */
     fun showGenericCard(text: String) {
         try {
             val intent = Intent(context, OverlayService::class.java).apply {
+                action = OverlayService.ACTION_POINTER
                 putExtra(
                     OverlayService.EXTRA_POINTER_MODE,
                     OverlayService.PointerMode.GENERIC_BOTTOM.name
                 )
                 putExtra(OverlayService.EXTRA_POINTER_TEXT, text)
-                putExtra(OverlayService.EXTRA_POINTER_HINT, text)
             }
             context.startService(intent)
         } catch (e: Exception) {
@@ -267,12 +282,15 @@ class PermissionFlowManager(private val context: Context) {
         }
     }
 
-    fun showPointer(mode: OverlayService.PointerMode, text: String, hint: String? = null) {
+    /**
+     * ИСПРАВЛЕНО: убран неиспользуемый параметр hint
+     */
+    fun showPointer(mode: OverlayService.PointerMode, text: String) {
         try {
             val intent = Intent(context, OverlayService::class.java).apply {
+                action = OverlayService.ACTION_POINTER
                 putExtra(OverlayService.EXTRA_POINTER_MODE, mode.name)
                 putExtra(OverlayService.EXTRA_POINTER_TEXT, text)
-                if (hint != null) putExtra(OverlayService.EXTRA_POINTER_HINT, hint)
             }
             context.startService(intent)
         } catch (e: Exception) {
@@ -282,7 +300,10 @@ class PermissionFlowManager(private val context: Context) {
 
     fun hideOverlay() {
         try {
-            context.stopService(Intent(context, OverlayService::class.java))
+            val intent = Intent(context, OverlayService::class.java).apply {
+                action = OverlayService.ACTION_HIDE
+            }
+            context.startService(intent)
         } catch (e: Exception) {
             AppLog.w(TAG, "hideOverlay failed: ${e.message}")
         }

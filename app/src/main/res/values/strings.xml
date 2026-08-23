@@ -59,6 +59,8 @@
     <string name="simple_done_benefit_telemetry">✅ Снижен объём передаваемой статистики</string>
     <string name="simple_done_benefit_spam">✅ Уменьшены уведомления от системных приложений</string>
     <string name="simple_done_benefit_stable">✅ Снижена фоновая нагрузка на систему</string>
+    <string name="simple_done_failed_title">Не получилось автоматически:</string>
+    <string name="simple_done_skipped_title">Пропущено (нет на устройстве):</string>
     <string name="simple_done_rate">Оценить приложение</string>
     <string name="simple_done_donate">Поддержать автора</string>
     <string name="simple_done_close">Закрыть</string>
@@ -100,7 +102,6 @@
     <!-- ========== ACCESSIBILITY ========== -->
     <string name="accessibility_explanation_text">Приложению нужен доступ к службе специальных возможностей, чтобы автоматически нажимать кнопки в настройках. Доступ используется только для навигации по системным экранам и не передаётся наружу. Данные не собираются и не отправляются на серверы.</string>
     <string name="hint_accessibility">Включите «XiaoHyperCleaner» в списке служб</string>
-    <string name="hint_restricted">Нажмите 3 точки сверху → «Разрешить ограниченные настройки»</string>
     <string name="hint_overlay">Разрешите отображение поверх других окон</string>
 
     <!-- ========== OVERLAY ========== -->
@@ -220,6 +221,7 @@
     <string name="consent_checkbox_label">Я понимаю и даю согласие на использование службы специальных возможностей для автоматизации настроек</string>
     <string name="consent_confirm_button">Согласиться и продолжить</string>
     <string name="consent_cancel_button">Отмена</string>
+
     <!-- ========== FALLBACK ДИАЛОГ ПОСЛЕ 3 НЕУДАЧ ========== -->
     <string name="fallback_accessibility_title">Не удалось включить службу автоматически</string>
     <string name="fallback_accessibility_text">После 3 попыток система не позволила включить службу. Скорее всего, нужно разрешить «Ограниченные настройки» в карточке приложения. Следуйте инструкции:\n\n1. Нажмите «Открыть настройки» ниже\n2. В карточке приложения нажмите ⋮ в правом верхнем углу\n3. Выберите «Разрешить ограниченные настройки»\n4. Вернитесь в приложение и нажмите «Попробовать ещё раз»</string>
@@ -233,27 +235,30 @@
     <string name="fallback_appinfo_title">Не удалось открыть настройки приложения</string>
     <string name="fallback_appinfo_text">После 3 попыток не удалось получить доступ к настройкам приложения. Откройте их вручную через Настройки → Приложения → XiaoHyperCleaner и разрешите «Ограниченные настройки».</string>
 
-    <!-- ========== HINT-КАРТОЧКИ ДЛЯ ПОИНТЕРОВ (НОВОЕ) ========== -->
+    <!-- ========== HINT-КАРТОЧКИ ДЛЯ ПОИНТЕРОВ ========== -->
     <string name="pointer_hint_accessibility">Найдите «XiaoHyperCleaner» в списке служб и включите переключатель справа</string>
     <string name="pointer_hint_overlay">Включите этот переключатель, чтобы разрешить отображение подсказок</string>
-    <string name="pointer_hint_restricted">Нажмите ⋮ в правом верхнем углу → «Разрешить ограниченные настройки»</string>
+    <string name="hint_restricted">Найдите переключатель «Разрешить ограниченные настройки» на этом экране. Если не нашли — нажмите ⋮ в правом верхнем углу</string>
+
     <!-- ========== RESTRICTED SETTINGS ЭКРАН ========== -->
     <string name="restricted_screen_title">Разблокировка системных настроек</string>
     <string name="restricted_screen_intro">Для управления параметрами конфиденциальности необходимо разрешить изменение ограниченных настроек. Это системное требование Android 13+ для приложений, установленных не из Google Play.</string>
     <string name="restricted_screen_step1">Откройте «Настройки» → «Приложения» → найдите «XiaoHyperCleaner»</string>
-    <string name="restricted_screen_step2">Нажмите ⋮ в правом верхнем углу и выберите «Разрешить ограниченные настройки»</string>
+    <string name="restricted_screen_step2">Найдите переключатель «Разрешить ограниченные настройки» (или «Запрещённые настройки» в HyperOS) и включите его</string>
     <string name="restricted_screen_step3">Подтвердите действие отпечатком пальца или паролем</string>
     <string name="restricted_screen_open">Открыть настройки приложения</string>
     <string name="restricted_screen_done">Я разрешил, продолжить</string>
 
-    <!-- ========== TEST_CLICK ========== -->
-    <string name="test_click_title">Проверка автоматики</string>
-    <string name="test_click_description">Нажмите кнопку ниже. Приложение сделает это автоматически — если всё настроено правильно.</string>
-    <string name="test_click_button">Проверить автоматику</string>
-    <string name="test_click_failed_title">Автоматика не сработала</string>
-    <string name="test_click_failed_text">Служба специальных возможностей не смогла автоматически нажать кнопку. Возможные причины:\n\n• Служба XiaoHyperCleaner не включена в настройках Accessibility\n• Система заблокировала автоматизацию (Restricted Settings)\n\nПовторите попытку или пропустите проверку.</string>
-    <string name="test_click_retry">Повторить</string>
-    <string name="test_click_skip">Пропустить проверку</string>
+    <!-- ========== ВИЗУАЛЬНАЯ ПОДСКАЗКА (адаптивная) ========== -->
+    <string name="restricted_guide_title">Нужно разрешить доступ один раз</string>
+    <string name="restricted_guide_simple">Мы покажем, куда нажимать. Это займёт 30 секунд.</string>
+    <string name="restricted_guide_look_main">В открывшемся окне найдите строку ниже и включите переключатель:</string>
+    <string name="restricted_guide_look_menu">Не получилось с первого раза? Нажмите на три точки ⋮ сверху и выберите пункт:</string>
+    <string name="restricted_row_name">Разрешить ограниченные настройки</string>
+    <string name="restricted_guide_turn_on">Включите этот переключатель</string>
+    <string name="restricted_guide_tap_here">Нажмите сюда</string>
+    <string name="restricted_guide_confirm">Телефон попросит отпечаток или пароль — это нормально, так он защищает себя.</string>
+    <string name="restricted_guide_not_found">Если пункта нет — в некоторых прошивках он называется «Запрещённые настройки».</string>
 
     <!-- ========== BATTERY OPTIMIZATION ========== -->
     <string name="battery_dialog_title">Экономия заряда батареи</string>
@@ -261,4 +266,21 @@
     <string name="battery_dialog_open">Открыть настройки батареи</string>
     <string name="battery_dialog_skip">Пропустить</string>
     <string name="hint_battery_optimization">Выберите «Без ограничений» или «Не экономить заряд»</string>
+
+    <!-- ========== АВТОМАТИЗАЦИЯ (робокот) ========== -->
+    <string name="automation_title">Робокот наводит чистоту…</string>
+    <string name="automation_step">Шаг %1$d из %2$d</string>
+    <string name="automation_cancel">Отменить оптимизацию</string>
+    <string name="automation_status_search">Ищу пункт: %s…</string>
+    <string name="automation_status_done">Готово, проверяю…</string>
+    <string name="automation_status_fail">Не получилось, пробую дальше…</string>
+    <string name="automation_status_skip">Приложения нет — пропускаю</string>
+    <string name="result_title">Готово! Котик доволен 🧡</string>
+    <string name="result_summary">Выполнено %1$d из %2$d шагов</string>
+    <string name="result_skipped">Пропущено (нет на устройстве): %d</string>
+    <string name="result_failed">Не получилось (защищено системой): %d</string>
+    <string name="result_soft">Если было полезно — буду рад отзыву или любой поддержке. Это помогает другим найти приложение.</string>
+    <string name="result_rate">Оценить</string>
+    <string name="result_support">Поддержать</string>
+    <string name="result_close">Закрыть</string>
 </resources>

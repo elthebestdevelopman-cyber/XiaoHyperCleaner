@@ -5,34 +5,42 @@ import android.content.Intent
 import android.os.Build
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import com.xiaohypercleaner.data.SimpleOptimizationRunner
+import com.xiaohypercleaner.R
 import com.xiaohypercleaner.data.SimpleSteps
 import com.xiaohypercleaner.util.AppLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
  * Accessibility Service: включение Wireless ADB + выполнение шагов простой оптимизации.
  *
- * Исправления v2:
- * - EVENT_THROTTLE_MS = 300ms (было 2000ms — пропускал события)
- * - Добавлен флаг isSimpleStepRunning для координации с runner'ом
- * - Watchdog edge-triggered: логирует ОДИН раз при закрытии окна
- * - canPerformGestures=true в config (исправлено отдельно)
+ * Использует [SimpleRunner] для выполнения шагов, включая internal navigation
+ * (последовательные клики внутри приложений: Безопасность, GetApps, Темы и т.д.)
+ *
+ * ИСПРАВЛЕНО в этой версии:
+ *  - Добавлен singleton `instance` для доступа из MainViewModel (кнопка «Отменить»)
+ *  - Метод `cancelRunner()` останавливает SimpleRunner при отмене из оверлея
+ *  - Защита SimpleStepBridge.onResult / onSkipped сохранена
  */
 class AdbEnablerService : AccessibilityService() {
 
     companion object {
         private const val TAG = "AdbEnablerService"
         private const val DEV_WATCHDOG_MS = 15_000L
-        private const val EVENT_THROTTLE_MS = 300L  // ✅ ИСПРАВЛЕНО: было 2000
+        private const val EVENT_THROTTLE_MS = 300L
+        private const val STATUS_VISIBLE_MS = 600L
 
         const val ACTION_SIMPLE_STEP = "com.xiaohypercleaner.ACTION_SIMPLE_STEP"
         const val ACTION_RETRY_DEV = "com.xiaohypercleaner.ACTION_RETRY_DEV"
         const val ACTION_START_CHAIN = "com.xiaohypercleaner.ACTION_START_CHAIN"
+
+        // НОВОЕ: singleton для доступа из MainViewModel (отмена из оверлея робокота)
+        var instance: AdbEnablerService? = null
+            private set
 
         private val DEV_OPTIONS_TEXTS = arrayOf(
             "Developer options", "Параметры разработчика", "Для разработчиков",
@@ -50,12 +58,16 @@ class AdbEnablerService : AccessibilityService() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    // Ленивая инициализация runner'а — после onServiceConnected service уже готов
+    private val simpleRunner by lazy { SimpleRunner(this) }
+
     private var lastActionTime = 0L
     private var devWindowOpen = false
-    private var isSimpleStepRunning = false  // ✅ ДОБАВЛЕНО: флаг координации
+    private var isSimpleStepRunning = false  // Защита: блокирует watchdog при работе шага
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        instance = this  // НОВОЕ: сохраняем singleton-инстанс
         AppLog.i(TAG, "Service connected")
         ChainFlags.waitingAccessibilityReturn = true
     }
@@ -82,15 +94,67 @@ class AdbEnablerService : AccessibilityService() {
         return START_NOT_STICKY
     }
 
+    /**
+     * Выполняет шаг через SimpleRunner с учётом internal navigation.
+     *
+     * Обработка result.skipped — если приложение не установлено,
+     * вызываем onSkipped (переход к следующему шагу без ретраев).
+     * Защиты SimpleStepBridge.onResult / onSkipped сохранены.
+     */
     private suspend fun runSimpleStep(index: Int) {
-        // ✅ ДОБАВЛЕНО: блокируем watchdog-обработку на время работы runner'а
         isSimpleStepRunning = true
         try {
             val step = SimpleSteps.ALL[index]
-            AppLog.i(TAG, "runSimpleStep: index=$index, id=${step.id}")
-            val result = SimpleOptimizationRunner(this).executeStep(step)
-            AppLog.i(TAG, "runSimpleStep: success=${result.success}, reason=${result.reason}")
-            SimpleStepBridge.onResult?.invoke(result.success)
+            val total = SimpleSteps.ALL.size
+
+            // Робокот показывает, что делает
+            OverlayController.updateAutomation(this, index + 1, total, step.titleRu)
+            OverlayController.updateStatus(
+                this,
+                getString(
+                    R.string.automation_status_search,
+                    step.searchTexts.take(2).joinToString(" / ")
+                )
+            )
+
+            val result = simpleRunner.run(step)
+
+            when {
+                result.skipped -> {
+                    OverlayController.updateStatus(
+                        this, getString(R.string.automation_status_skip)
+                    )
+                    AppLog.i(TAG, "runSimpleStep: ${step.id} skipped (app not installed)")
+                    delay(STATUS_VISIBLE_MS)
+                    SimpleStepBridge.onSkipped?.invoke(step.id)
+                }
+
+                else -> {
+                    OverlayController.updateStatus(
+                        this,
+                        getString(
+                            if (result.success) R.string.automation_status_done
+                            else R.string.automation_status_fail
+                        )
+                    )
+                    AppLog.i(
+                        TAG,
+                        "runSimpleStep: success=${result.success}, reason=${result.reason}"
+                    )
+                    delay(STATUS_VISIBLE_MS)
+                    SimpleStepBridge.onResult?.invoke(result.success)
+                }
+            }
+        } catch (e: Exception) {
+            AppLog.e(TAG, "runSimpleStep: unexpected error: ${e.message}", e)
+            try {
+                OverlayController.updateStatus(
+                    this, getString(R.string.automation_status_fail)
+                )
+            } catch (_: Exception) {
+            }
+            delay(STATUS_VISIBLE_MS)
+            SimpleStepBridge.onResult?.invoke(false)
         } finally {
             isSimpleStepRunning = false
         }
@@ -99,7 +163,7 @@ class AdbEnablerService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
 
-        // ✅ ДОБАВЛЕНО: пропускаем события пока runner работает
+        // Защита: пропускаем события пока runner работает
         if (isSimpleStepRunning) return
 
         val currentTime = System.currentTimeMillis()
@@ -107,7 +171,6 @@ class AdbEnablerService : AccessibilityService() {
         lastActionTime = currentTime
 
         if (currentTime - ChainFlags.lastRedirectTime > DEV_WATCHDOG_MS) {
-            // Edge-triggered: логируем закрытие окна ровно один раз
             if (devWindowOpen) {
                 devWindowOpen = false
                 AppLog.i(TAG, "Dev watchdog window closed")
@@ -220,8 +283,18 @@ class AdbEnablerService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        instance = null  // НОВОЕ: сбрасываем singleton
         scope.cancel()
         AppLog.i(TAG, "Service destroyed, scope cancelled")
         super.onDestroy()
+    }
+
+    /**
+     * НОВОЕ: остановить runner извне.
+     * Вызывается из OverlayController.setOnCancel при клике «Отменить» в оверлее робокота.
+     */
+    fun cancelRunner() {
+        AppLog.i(TAG, "cancelRunner: stopping current simple step")
+        simpleRunner.cancel()
     }
 }

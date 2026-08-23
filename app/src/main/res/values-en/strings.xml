@@ -57,6 +57,8 @@
     <string name="simple_done_benefit_telemetry">✅ Reduced telemetry data collection</string>
     <string name="simple_done_benefit_spam">✅ Reduced notifications from system apps</string>
     <string name="simple_done_benefit_stable">✅ Reduced background system load</string>
+    <string name="simple_done_failed_title">Couldn\'t complete automatically:</string>
+    <string name="simple_done_skipped_title">Skipped (not on this device):</string>
     <string name="simple_done_rate">Rate the app</string>
     <string name="simple_done_donate">Support the author</string>
     <string name="simple_done_close">Close</string>
@@ -98,7 +100,6 @@
     <!-- ========== ACCESSIBILITY ========== -->
     <string name="accessibility_explanation_text">The app needs Accessibility service access to automatically click buttons in settings. Access is used only for navigating system screens and is never transmitted externally. No data is collected or sent to servers.</string>
     <string name="hint_accessibility">Enable "XiaoHyperCleaner" in the services list</string>
-    <string name="hint_restricted">Tap 3 dots at the top → "Allow restricted settings"</string>
     <string name="hint_overlay">Allow display over other apps</string>
 
     <!-- ========== OVERLAY ========== -->
@@ -217,45 +218,66 @@
     <string name="consent_checkbox_label">I understand and consent to use the accessibility service to automate settings navigation</string>
     <string name="consent_confirm_button">Agree and continue</string>
     <string name="consent_cancel_button">Cancel</string>
+
     <!-- ========== FALLBACK DIALOG AFTER 3 FAILURES ========== -->
     <string name="fallback_accessibility_title">Couldn\'t enable the service automatically</string>
-    <string name="fallback_accessibility_text">After 3 attempts the system didn\'t allow enabling the service. Most likely you need to allow \"Restricted settings\" in the app card. Follow the steps:\n\n1. Tap \"Open settings\" below\n2. In the app card tap ⋮ (top right)\n3. Select \"Allow restricted settings\"\n4. Return to the app and tap \"Try again\"</string>
+    <string name="fallback_accessibility_text">After 3 attempts the system didn\'t allow enabling the service. Most likely you need to allow "Restricted settings" in the app card. Follow the steps:\n\n1. Tap "Open settings" below\n2. In the app card tap ⋮ (top right)\n3. Select "Allow restricted settings"\n4. Return to the app and tap "Try again"</string>
     <string name="fallback_overlay_title">Couldn\'t enable display over other apps</string>
-    <string name="fallback_overlay_text">After 3 attempts the permission wasn\'t granted. Open settings manually and enable \"Allow display over other apps\".</string>
+    <string name="fallback_overlay_text">After 3 attempts the permission wasn\'t granted. Open settings manually and enable "Allow display over other apps".</string>
     <string name="fallback_retry">Try again</string>
     <string name="fallback_open_settings">Open settings</string>
     <string name="fallback_cancel">Cancel optimization</string>
 
     <!-- ========== FALLBACK FOR APP_INFO PHASE ========== -->
     <string name="fallback_appinfo_title">Couldn\'t open app settings</string>
-    <string name="fallback_appinfo_text">After 3 attempts we couldn\'t access the app settings. Open them manually via Settings → Apps → XiaoHyperCleaner and allow \"Restricted settings\".</string>
+    <string name="fallback_appinfo_text">After 3 attempts we couldn\'t access the app settings. Open them manually via Settings → Apps → XiaoHyperCleaner and allow "Restricted settings".</string>
 
-    <!-- ========== HINT CARDS FOR POINTERS (NEW) ========== -->
-    <string name="pointer_hint_accessibility">Find \"XiaoHyperCleaner\" in the services list and turn on the switch on the right</string>
+    <!-- ========== HINT CARDS FOR POINTERS ========== -->
+    <string name="pointer_hint_accessibility">Find "XiaoHyperCleaner" in the services list and turn on the switch on the right</string>
     <string name="pointer_hint_overlay">Turn on this switch to allow displaying hints</string>
-    <string name="pointer_hint_restricted">Tap ⋮ (top right) → \"Allow restricted settings\"</string>
+    <string name="hint_restricted">Find the "Allow restricted settings" switch on this screen. If not found, tap ⋮ in the top-right corner</string>
+
     <!-- ========== RESTRICTED SETTINGS SCREEN ========== -->
     <string name="restricted_screen_title">Unlock system settings</string>
     <string name="restricted_screen_intro">To configure privacy settings, you need to allow changing restricted settings. This is an Android 13+ system requirement for apps installed outside Google Play.</string>
     <string name="restricted_screen_step1">Open "Settings" → "Apps" → find "XiaoHyperCleaner"</string>
-    <string name="restricted_screen_step2">Tap ⋮ (top right) and select "Allow restricted settings"</string>
+    <string name="restricted_screen_step2">Find the "Allow restricted settings" (or "Forbidden settings" in HyperOS) switch and turn it on</string>
     <string name="restricted_screen_step3">Confirm with your fingerprint or password</string>
     <string name="restricted_screen_open">Open app settings</string>
     <string name="restricted_screen_done">I allowed it, continue</string>
 
-    <!-- ========== TEST_CLICK ========== -->
-    <string name="test_click_title">Automation check</string>
-    <string name="test_click_description">Tap the button below. The app will do it automatically — if everything is set up correctly.</string>
-    <string name="test_click_button">Test automation</string>
-    <string name="test_click_failed_title">Automation didn\'t work</string>
-    <string name="test_click_failed_text">The accessibility service couldn\'t tap the button automatically. Possible reasons:\n\n• XiaoHyperCleaner service isn\'t enabled in Accessibility settings\n• The system blocked automation (Restricted Settings)\n\nTry again or skip the check.</string>
-    <string name="test_click_retry">Retry</string>
-    <string name="test_click_skip">Skip check</string>
+    <!-- ========== VISUAL GUIDE (adaptive) ========== -->
+    <string name="restricted_guide_title">One-time access permission</string>
+    <string name="restricted_guide_simple">We will show you where to tap. It takes 30 seconds.</string>
+    <string name="restricted_guide_look_main">In the window that opens, find the row below and turn on the switch:</string>
+    <string name="restricted_guide_look_menu">Didn\'t work the first time? Tap the three dots ⋮ at the top and select:</string>
+    <string name="restricted_row_name">Allow restricted settings</string>
+    <string name="restricted_guide_turn_on">Turn on this switch</string>
+    <string name="restricted_guide_tap_here">Tap here</string>
+    <string name="restricted_guide_confirm">Your phone will ask for a fingerprint or password — that\'s normal, it\'s protecting itself.</string>
+    <string name="restricted_guide_not_found">If there is no such item — on some firmware it\'s called "Forbidden settings".</string>
 
     <!-- ========== BATTERY OPTIMIZATION ========== -->
     <string name="battery_dialog_title">Battery optimization</string>
-    <string name="battery_dialog_text">For stable accessibility service operation, we recommend disabling battery optimization for XiaoHyperCleaner. Otherwise the system may stop automation after a few minutes.</string>
+    <string name="battery_dialog_text">For stable accessibility service operation, we recommend disabling battery optimization for XiaoHyperCleaner. Otherwise, the system may stop automation after a few minutes.</string>
     <string name="battery_dialog_open">Open battery settings</string>
     <string name="battery_dialog_skip">Skip</string>
     <string name="hint_battery_optimization">Select "No restrictions" or "Don\'t optimize"</string>
+
+    <!-- ========== AUTOMATION (robo-cat) ========== -->
+    <string name="automation_title">Robo-cat is cleaning up…</string>
+    <string name="automation_step">Step %1$d of %2$d</string>
+    <string name="automation_cancel">Cancel optimization</string>
+    <string name="automation_status_search">Looking for: %s…</string>
+    <string name="automation_status_done">Done, verifying…</string>
+    <string name="automation_status_fail">Couldn\'t do it, moving on…</string>
+    <string name="automation_status_skip">App not installed — skipping</string>
+    <string name="result_title">Done! The cat is pleased 🧡</string>
+    <string name="result_summary">Completed %1$d of %2$d steps</string>
+    <string name="result_skipped">Skipped (not on device): %d</string>
+    <string name="result_failed">Couldn\'t complete (system-protected): %d</string>
+    <string name="result_soft">If it helped — a review or any support would be appreciated. It helps others find the app.</string>
+    <string name="result_rate">Rate</string>
+    <string name="result_support">Support</string>
+    <string name="result_close">Close</string>
 </resources>
