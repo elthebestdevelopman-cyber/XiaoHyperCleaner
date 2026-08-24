@@ -27,13 +27,12 @@ import com.xiaohypercleaner.util.AppLog
 /**
  * Оверлей с 4 режимами.
  *
- * ИСПРАВЛЕНО в этой версии:
- *  1. Робокот = ImageView(ic_robot_companion) — ТОТ ЖЕ кот, что на сплеше,
- *     с анимацией «умывания» (покачивание + клубок крутится)
- *  2. HINT/POINTER — маленькие НЕ-блокирующие пузыри (NOT_TOUCHABLE)
- *     + АВТО-СКРЫТИЕ через 8–10 сек (проблема «экран не кликабелен»)
- *  3. hide() теперь останавливает сервис (stopSelf) — оверлей исчезает сразу
- *  4. Кнопка «Отменить» прячет оверлей мгновенно + дёргает triggerCancel
+ * ИСПРАВЛЕНО: hide() НЕ вызывает stopSelf(). Раньше отложенный onDestroy
+ * удалял только что показанное окно автоматизации — оверлей «исчезал».
+ * Сервис останавливает MainActivity, когда Simple Mode не активен.
+ *
+ * AUTOMATION-оверлей БЛОКИРУЕТ касания (touchable=true) — как в SD Maid:
+ * пользователь только смотрит, как робокот работает.
  */
 class OverlayService : Service() {
 
@@ -59,7 +58,7 @@ class OverlayService : Service() {
         const val EXTRA_SKIPPED = "skipped"
         const val EXTRA_POINTER_HINT = EXTRA_POINTER_TEXT
 
-        private const val HINT_AUTO_HIDE_MS = 8000L    // подсказка исчезает сама
+        private const val HINT_AUTO_HIDE_MS = 8000L
         private const val POINTER_AUTO_HIDE_MS = 10000L
     }
 
@@ -111,9 +110,7 @@ class OverlayService : Service() {
         return START_NOT_STICKY
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // HINT: маленький пузырь внизу, НЕ блокирует клики, авто-скрытие
-    // ═══════════════════════════════════════════════════════════════
+    // ═══ HINT: маленький пузырь, не блокирует клики, авто-скрытие ═══
 
     private fun showHint(text: String) {
         hide()
@@ -124,7 +121,6 @@ class OverlayService : Service() {
             background = roundBg(0xE61976D2.toInt())
             autoSize()
         }
-        // НЕ-блокирующий: NOT_TOUCHABLE — клики проходят сквозь подсказку
         addRoot(touchable = false, fullScreen = false).apply {
             addView(card, flParams(Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM))
         }
@@ -132,9 +128,7 @@ class OverlayService : Service() {
         AppLog.i(TAG, "hint shown (non-blocking, auto-hide)")
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // POINTER: пульсирующая стрелка + пузырь, НЕ блокирует, авто-скрытие
-    // ═══════════════════════════════════════════════════════════════
+    // ═══ POINTER: пульсирующая стрелка, не блокирует, авто-скрытие ═══
 
     private fun showPointer(mode: String, text: String) {
         hide()
@@ -176,9 +170,7 @@ class OverlayService : Service() {
         AppLog.i(TAG, "pointer shown mode=$mode (non-blocking, auto-hide)")
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // AUTO: ТОТ ЖЕ робокот, что на сплеше, «умывается»
-    // ═══════════════════════════════════════════════════════════════
+    // ═══ AUTOMATION: БЛОКИРУЮЩИЙ оверлей с робокотом (как в SD Maid) ═══
 
     private fun showAutomation(total: Int) {
         hide()
@@ -189,23 +181,9 @@ class OverlayService : Service() {
             background = roundBg(0xF0202020.toInt(), radiusDp = 24)
         }
 
-        // ИСПРАВЛЕНО: настоящий кот со сплеша + клубок, а не Lottie-круг
-        val catWrap = FrameLayout(this)
-        val cat = ImageView(this).apply {
-            setImageResource(R.drawable.ic_robot_companion)
-        }
-        val yarn = ImageView(this).apply {
-            setImageResource(R.drawable.ic_yarn_ball)
-        }
-        catWrap.addView(cat, FrameLayout.LayoutParams(dp(110), dp(110)))
-        catWrap.addView(yarn, FrameLayout.LayoutParams(dp(34), dp(34)).apply {
-            gravity = Gravity.BOTTOM or Gravity.END
-        })
-        layout.addView(catWrap, LinearLayout.LayoutParams(dp(120), dp(120)))
-
-        // «Умывание»: кот покачивается, клубок крутится
-        wobble(cat)
-        spin(yarn)
+        val cat = ImageView(this).apply { setImageResource(R.drawable.ic_robot_companion) }
+        layout.addView(cat, LinearLayout.LayoutParams(dp(120), dp(120)))
+        wobble(cat)  // «умывается»
 
         tvTitle = TextView(this).apply {
             setText(R.string.automation_title)
@@ -249,15 +227,16 @@ class OverlayService : Service() {
             ).apply { topMargin = dp(12) })
         cancel.setOnClickListener {
             AppLog.i(TAG, "automation cancelled by user")
-            hide()                              // ИСПРАВЛЕНО: оверлей исчезает сразу
+            hide()
             OverlayController.triggerCancel()
         }
 
+        // touchable=true → окно ПЕРЕХВАТЫВАЕТ все касания: пользователь не мешает
         addRoot(touchable = true, fullScreen = true).apply {
             addView(layout, flParams(Gravity.CENTER))
         }
         updateAutomation(0, total, "")
-        AppLog.i(TAG, "automation overlay shown, total=$total")
+        AppLog.i(TAG, "automation overlay shown (blocking), total=$total")
     }
 
     private fun updateAutomation(step: Int, total: Int, title: String) {
@@ -267,9 +246,7 @@ class OverlayService : Service() {
         if (title.isNotEmpty()) tvTitle?.text = title
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // RESULT: довольный кот + мягкая просьба
-    // ═══════════════════════════════════════════════════════════════
+    // ═══ RESULT: довольный кот + мягкая просьба ═══
 
     private fun showResult(completed: Int, total: Int, failed: Int, skipped: Int) {
         hide()
@@ -279,7 +256,6 @@ class OverlayService : Service() {
             setPadding(dp(24), dp(24), dp(24), dp(20))
             background = roundBg(0xF5202020.toInt(), radiusDp = 24)
         }
-
         val cat = ImageView(this).apply { setImageResource(R.drawable.ic_robot_companion) }
         layout.addView(cat, LinearLayout.LayoutParams(dp(120), dp(120)))
 
@@ -311,9 +287,7 @@ class OverlayService : Service() {
         AppLog.i(TAG, "result shown: $completed/$total, failed=$failed, skipped=$skipped")
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // Вспомогательные
-    // ═══════════════════════════════════════════════════════════════
+    // ═══ Вспомогательные ═══
 
     private fun scheduleAutoHide(ms: Long) {
         handler.removeCallbacks(autoHideRunnable)
@@ -384,11 +358,6 @@ class OverlayService : Service() {
         }
     }
 
-    /**
-     * fullScreen=false → маленький пузырь внизу (hint) — никогда не мешает.
-     * fullScreen=true + touchable=false → pointer (проходит сквозь).
-     * fullScreen=true + touchable=true → automation/result (только кнопка активна).
-     */
     private fun addRoot(touchable: Boolean, fullScreen: Boolean): FrameLayout {
         val v = FrameLayout(this)
         var flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
@@ -418,17 +387,9 @@ class OverlayService : Service() {
         }.also { animators.add(it) }
     }
 
-    /** Покачивание кота — «умывается» */
     private fun wobble(view: View) {
         ObjectAnimator.ofFloat(view, View.ROTATION, -5f, 5f, -5f).apply {
             duration = 1400; repeatCount = ObjectAnimator.INFINITE
-            interpolator = LinearInterpolator(); start()
-        }.also { animators.add(it) }
-    }
-
-    private fun spin(view: View) {
-        ObjectAnimator.ofFloat(view, View.ROTATION, 0f, 360f).apply {
-            duration = 2500; repeatCount = ObjectAnimator.INFINITE
             interpolator = LinearInterpolator(); start()
         }.also { animators.add(it) }
     }
@@ -450,7 +411,10 @@ class OverlayService : Service() {
         TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), resources.displayMetrics
     ).toInt()
 
-    /** ИСПРАВЛЕНО: убираем окно И останавливаем сервис */
+    /**
+     * ИСПРАВЛЕНО: убирает ТОЛЬКО окно, без stopSelf().
+     * Остановка сервиса — ответственность MainActivity (когда режим не активен).
+     */
     private fun hide() {
         handler.removeCallbacks(autoHideRunnable)
         animators.forEach { it.cancel() }; animators.clear()
@@ -462,8 +426,7 @@ class OverlayService : Service() {
         }
         root = null
         tvStep = null; tvTitle = null; tvStatus = null; progressBar = null
-        stopSelf()
-        AppLog.i(TAG, "overlay hidden, service stopped")
+        AppLog.i(TAG, "overlay hidden")
     }
 
     override fun onDestroy() {
@@ -477,6 +440,7 @@ class OverlayService : Service() {
         }
         root = null
         super.onDestroy()
+        AppLog.i(TAG, "onDestroy")
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
