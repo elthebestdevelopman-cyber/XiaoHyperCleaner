@@ -17,9 +17,13 @@ import kotlin.coroutines.resume
 /**
  * Выполнение шагов Simple Mode.
  *
- * ИСПРАВЛЕНО (как в SD Maid): клики выполняются ЖЕСТОМ по координатам
- * (dispatchGesture), если performAction не сработал — это нажимает «как палец»
- * и работает на защищённых кнопках MIUI/HyperOS.
+ * ИСПРАВЛЕНО в этой версии:
+ *  1. Расширенный поиск тумблеров — ловит кастомные MIUI-виджеты
+ *     (MiSwitch, Toggle и т.п.) и любые isCheckable узлы
+ *  2. Поиск текста рядом проверяет 2 уровня предков (родитель + дедушка)
+ *  3. При ненахождении — автоскролл списка до 3 раз
+ *  4. Диагностика NO SWITCH FOUND печатает текст экрана
+ *  5. Координаты ⋮/⚙ точно в тулбар (56dp сверху)
  */
 class SimpleRunner(private val service: AccessibilityService) {
 
@@ -31,6 +35,7 @@ class SimpleRunner(private val service: AccessibilityService) {
         private const val MAX_SCROLL_ATTEMPTS = 5
         private const val SCROLL_SETTLE_DELAY_MS = 350L
         private const val TAP_DURATION_MS = 100L
+        private const val SWITCH_FALLBACK_SCROLLS = 3
     }
 
     @Volatile
@@ -58,7 +63,6 @@ class SimpleRunner(private val service: AccessibilityService) {
             return Result(false, "app_not_installed", skipped = true)
         }
 
-        // Запуск приложения (или открытие intent-экрана)
         var appLaunched = false
         if (step.launchPackage != null) {
             appLaunched = launchApp(step.launchPackage)
@@ -76,21 +80,17 @@ class SimpleRunner(private val service: AccessibilityService) {
         }
         if (cancelled) return Result(false, "cancelled")
 
-        // Спец-тип: очистить данные + «Отмена» на приветствии (Проводник)
         if (step.actionType == SimpleSteps.ActionType.CLEAR_DATA_DECLINE) {
             return clearDataAndDecline(step)
         }
 
         if (step.preDrillWaitMs > 0) delay(step.preDrillWaitMs)
 
-        // Бурение вглубь
         drillDown(step)
         if (cancelled) return Result(false, "cancelled")
 
-        // Основной переключатель
         val result = findAndToggleSwitch(step)
 
-        // Подтверждение с таймером (старый вариант msa)
         if (result.success && step.confirmTexts.isNotEmpty()) {
             delay(1000)
             val root = service.rootInActiveWindow
@@ -106,7 +106,6 @@ class SimpleRunner(private val service: AccessibilityService) {
             }
         }
 
-        // Дополнительные тумблеры на том же экране
         if (result.success && step.additionalToggles.isNotEmpty()) {
             toggleAdditional(step.additionalToggles)
         }
@@ -116,7 +115,6 @@ class SimpleRunner(private val service: AccessibilityService) {
 
     // ═══ Жесты (как в SD Maid) ═══
 
-    /** Гибрид: performAction, а при неудаче — тап жестом по координатам */
     private suspend fun tapNode(node: AccessibilityNodeInfo): Boolean {
         if (node.isClickable && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
         val rect = Rect()
@@ -168,18 +166,18 @@ class SimpleRunner(private val service: AccessibilityService) {
     // ═══ Спец-маршрут Проводника ═══
 
     private suspend fun clearDataAndDecline(step: SimpleSteps.Step): Result {
-        // 1. Экран «О приложении» уже открыт → жмём «Очистить данные»
         val root1 = service.rootInActiveWindow ?: return Result(false, "no_root")
         val clearBtn = findClickableByTextWithScroll(
-            root1, listOf("Очистить данные", "Clear data", "Очистить хранилище",
-                "Clear storage", "Очистить все", "Clear all", "Очистить", "Clear")
+            root1, listOf(
+                "Очистить данные", "Clear data", "Очистить хранилище",
+                "Clear storage", "Очистить все", "Clear all", "Очистить", "Clear"
+            )
         )
         recycleNode(root1)
         if (clearBtn == null) return Result(false, "clear_button_not_found")
         tapNode(clearBtn); recycleNode(clearBtn)
         delay(800)
 
-        // 2. Нижняя шторка → «Очистить все»
         val root2 = service.rootInActiveWindow ?: return Result(false, "no_root")
         val allBtn = findClickableByText(root2, listOf("Очистить все", "Clear all"))
         recycleNode(root2)
@@ -187,7 +185,6 @@ class SimpleRunner(private val service: AccessibilityService) {
         tapNode(allBtn); recycleNode(allBtn)
         delay(1200)
 
-        // 3. Запускаем приложение → приветствие → «Отмена» (НЕ «Согласиться»!)
         step.launchPackage?.let { launchApp(it) }
         delay(2500)
         val root3 = service.rootInActiveWindow ?: return Result(true, "cleared_no_welcome")
@@ -276,7 +273,6 @@ class SimpleRunner(private val service: AccessibilityService) {
                 tapNode(node)
                 recycleNode(node)
             } else if (level.contains("⋮") || level.contains("⚙") || level.contains("⚙️")) {
-                // НОВОЕ: иконки меню без текста — тапаем правый верхний угол жестом
                 AppLog.i(
                     TAG,
                     "Step ${step.id}: '${level.firstOrNull()}' not found by text — tapping top-right"
@@ -293,10 +289,13 @@ class SimpleRunner(private val service: AccessibilityService) {
         delay(UI_SETTLE_DELAY_MS)
     }
 
-    /** НОВОЕ: тап в правый верхний угол (overflow-меню / шестерёнка) */
+    /**
+     * ИСПРАВЛЕНО: координата Y = 56dp (точно в тулбар),
+     * раньше было 88dp и тап уходил ниже в поиск.
+     */
     private suspend fun tapTopRight(): Boolean {
         val dm = service.resources.displayMetrics
-        return tapAt(dm.widthPixels - dp(48).toFloat(), dp(88).toFloat())
+        return tapAt(dm.widthPixels - dp(48).toFloat(), dp(56).toFloat())
     }
 
     private fun dp(v: Int): Int = android.util.TypedValue.applyDimension(
@@ -342,20 +341,52 @@ class SimpleRunner(private val service: AccessibilityService) {
         return null
     }
 
+    /**
+     * ИСПРАВЛЕНО: при ненахождении тумблера сначала скроллим список,
+     * а при полном фейле печатаем текст экрана (NO SWITCH FOUND) для диагностики.
+     */
     @Suppress("DEPRECATION")
     private suspend fun findAndToggleSwitch(step: SimpleSteps.Step): Result {
         if (cancelled) return Result(false, "cancelled")
         val root = service.rootInActiveWindow ?: return Result(false, "no_root_window")
-        val switchNode = findSwitchByText(root, step.searchTexts)
+
+        var switchNode = findSwitchByText(root, step.searchTexts)
+
+        // Не нашли — пробуем скроллить (тумблер может быть ниже)
+        if (switchNode == null && step.searchTexts.isNotEmpty()) {
+            repeat(SWITCH_FALLBACK_SCROLLS) {
+                if (cancelled) return Result(false, "cancelled")
+                val r = service.rootInActiveWindow ?: return Result(false, "no_root_window")
+                val scrollable = findScrollableContainer(r)
+                if (scrollable == null) {
+                    recycleNode(r); return@repeat
+                }
+                val scrolled = scrollable.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                recycleNode(scrollable); recycleNode(r)
+                if (!scrolled) return@repeat
+                delay(400)
+                val r2 = service.rootInActiveWindow ?: return Result(false, "no_root_window")
+                switchNode = findSwitchByText(r2, step.searchTexts)
+                recycleNode(r2)
+                if (switchNode != null) return@repeat
+            }
+        }
+
         if (switchNode == null) {
+            // ДИАГНОСТИКА: что реально на экране — по этому логу чиним маршруты
+            val screenText = collectAllText(service.rootInActiveWindow).take(500)
+            AppLog.w(TAG, "Step ${step.id}: NO SWITCH FOUND. Screen: $screenText")
             recycleNode(root)
             return Result(false, "switch_not_found")
         }
+
         val isChecked = switchNode.isChecked
         if (isChecked == step.targetChecked) {
+            AppLog.i(TAG, "Step ${step.id}: already in target state (checked=$isChecked)")
             recycleNode(switchNode); recycleNode(root)
             return Result(true, "already_done")
         }
+
         val clicked = tapNode(switchNode)
         recycleNode(switchNode)
         if (!clicked) {
@@ -383,8 +414,7 @@ class SimpleRunner(private val service: AccessibilityService) {
     }
 
     private fun findClickableByText(
-        root: AccessibilityNodeInfo?,
-        texts: List<String>
+        root: AccessibilityNodeInfo?, texts: List<String>
     ): AccessibilityNodeInfo? {
         root ?: return null
         for (text in texts) {
@@ -402,17 +432,23 @@ class SimpleRunner(private val service: AccessibilityService) {
         return null
     }
 
+    /**
+     * ИСПРАВЛЕНО: ищет ЛЮБЫЕ switch-like узлы (кастомные MIUI, isCheckable),
+     * а не только android.widget.Switch/CheckBox/SwitchCompat.
+     */
     @Suppress("DEPRECATION")
     private fun findSwitchByText(
-        root: AccessibilityNodeInfo?,
-        texts: List<String>
+        root: AccessibilityNodeInfo?, texts: List<String>
     ): AccessibilityNodeInfo? {
         if (root == null) return null
+
         val switches = mutableListOf<AccessibilityNodeInfo>()
-        collectNodesByClass(root, "android.widget.Switch", switches)
-        collectNodesByClass(root, "android.widget.CheckBox", switches)
-        collectNodesByClass(root, "androidx.appcompat.widget.SwitchCompat", switches)
-        for (sw in switches) if (findNearbyText(sw, texts) != null) return sw
+        collectSwitchLike(root, switches)
+
+        for (sw in switches) {
+            if (findNearbyText(sw, texts) != null) return sw
+        }
+
         for (text in texts) {
             val nodes = root.findAccessibilityNodeInfosByText(text) ?: continue
             for (node in nodes) {
@@ -420,7 +456,9 @@ class SimpleRunner(private val service: AccessibilityService) {
                 var depth = 0
                 while (cur != null && depth < 6) {
                     val cls = cur.className?.toString() ?: ""
-                    if (cls.contains("Switch") || cls.contains("CheckBox")) return cur
+                    if (cls.contains("Switch") || cls.contains("CheckBox") ||
+                        cls.contains("Toggle") || cur.isCheckable
+                    ) return cur
                     cur = cur.parent; depth++
                 }
             }
@@ -428,9 +466,38 @@ class SimpleRunner(private val service: AccessibilityService) {
         return null
     }
 
+    /**
+     * ИСПРАВЛЕНО: собирает все switch-like узлы рекурсивно.
+     * Ловит: android.widget.Switch, CheckBox, SwitchCompat, MiSwitch,
+     * Toggle, а также любые isCheckable узлы (кастомные MIUI).
+     */
+    private fun collectSwitchLike(
+        node: AccessibilityNodeInfo, result: MutableList<AccessibilityNodeInfo>
+    ) {
+        val cls = node.className?.toString() ?: ""
+        if (cls.contains("Switch") || cls.contains("CheckBox") ||
+            cls.contains("Toggle") || node.isCheckable
+        ) {
+            result.add(node)
+        }
+        for (i in 0 until node.childCount) {
+            node.getChild(i)?.let { collectSwitchLike(it, result) }
+        }
+    }
+
+    /**
+     * ИСПРАВЛЕНО: проверяем текст на родителе И дедушке.
+     * На MIUI заголовок часто лежит выше тумблера на 2 уровня.
+     */
     private fun findNearbyText(node: AccessibilityNodeInfo, texts: List<String>): String? {
-        val collected = collectAllText(node.parent)
-        return texts.firstOrNull { collected.contains(it, ignoreCase = true) }
+        var anc: AccessibilityNodeInfo? = node.parent
+        repeat(2) {
+            val a = anc ?: return null
+            val collected = collectAllText(a)
+            for (t in texts) if (collected.contains(t, ignoreCase = true)) return t
+            anc = a.parent
+        }
+        return null
     }
 
     private fun collectAllText(node: AccessibilityNodeInfo?): String {
@@ -444,16 +511,6 @@ class SimpleRunner(private val service: AccessibilityService) {
         node.text?.let { sb.append(it).append(' ') }
         node.contentDescription?.let { sb.append(it).append(' ') }
         for (i in 0 until node.childCount) collectTextRecursive(node.getChild(i), sb, depth + 1)
-    }
-
-    private fun collectNodesByClass(
-        node: AccessibilityNodeInfo,
-        className: String,
-        result: MutableList<AccessibilityNodeInfo>
-    ) {
-        if (node.className?.toString() == className) result.add(node)
-        for (i in 0 until node.childCount) node.getChild(i)
-            ?.let { collectNodesByClass(it, className, result) }
     }
 
     private fun recycleNode(node: AccessibilityNodeInfo?) {
