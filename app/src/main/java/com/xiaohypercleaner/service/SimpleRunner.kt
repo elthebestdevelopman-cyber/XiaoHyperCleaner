@@ -12,30 +12,44 @@ import com.xiaohypercleaner.data.SimpleSteps
 import com.xiaohypercleaner.util.AppLog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 /**
- * Выполнение шагов Simple Mode.
+ * ФИНАЛЬНАЯ версия SimpleRunner.
  *
- * ИСПРАВЛЕНО в этой версии:
- *  1. Расширенный поиск тумблеров — ловит кастомные MIUI-виджеты
- *     (MiSwitch, Toggle и т.п.) и любые isCheckable узлы
- *  2. Поиск текста рядом проверяет 2 уровня предков (родитель + дедушка)
- *  3. При ненахождении — автоскролл списка до 3 раз
- *  4. Диагностика NO SWITCH FOUND печатает текст экрана
- *  5. Координаты ⋮/⚙ точно в тулбар (56dp сверху)
+ * Архитектура (как в SD Maid):
+ *   1. resetToHome() перед шагом — сброс стека активити MIUI
+ *   2. openTargetScreen: NEW_TASK + CLEAR_TASK — открытие с корня
+ *   3. waitForContentRoot() — ждём загрузку контента (иначе читаем «Назад»)
+ *   4. performAction по узлу → по родителю → жест (сквозь оверлей)
+ *   5. tapTopRight: accessibility → жест по нескольким Y
+ *   6. toggleAdditional() — выключаем СВЯЗАННЫЕ тумблеры
+ *   7. MSA: повторная попытка, если диалог подтверждения не сработал
+ *   8. Живые статусы + таймаут 20с (не «молчит»)
  */
 class SimpleRunner(private val service: AccessibilityService) {
 
     companion object {
         private const val TAG = "SimpleRunner"
+        private const val STEP_TIMEOUT_MS = 20_000L
         private const val UI_SETTLE_DELAY_MS = 900L
         private const val APP_LAUNCH_DELAY_MS = 2000L
+        private const val POPUP_MENU_DELAY_MS = 1200L
+        private const val HOME_RESET_DELAY_MS = 500L
+        private const val CONTENT_WAIT_MS = 2500L
         private const val MAX_PARENT_DEPTH = 5
         private const val MAX_SCROLL_ATTEMPTS = 5
         private const val SCROLL_SETTLE_DELAY_MS = 350L
         private const val TAP_DURATION_MS = 100L
         private const val SWITCH_FALLBACK_SCROLLS = 3
+        private const val TEXT_DEPTH = 7
+        private const val NEARBY_ANCESTORS = 3
+
+        private val OVERFLOW_TEXTS = listOf(
+            "Ещё", "More options", "Дополнительно", "Другие параметры", "⋮"
+        )
+        private val TOP_RIGHT_Y_DP = listOf(56, 76, 96)
     }
 
     @Volatile
@@ -54,14 +68,24 @@ class SimpleRunner(private val service: AccessibilityService) {
 
     suspend fun run(step: SimpleSteps.Step): Result {
         cancelled = false
-        AppLog.i(TAG, "Executing step: ${step.id}")
+        AppLog.i(TAG, "Executing step: ${step.id} (timeout ${STEP_TIMEOUT_MS}ms)")
+        return withTimeoutOrNull(STEP_TIMEOUT_MS) {
+            runInternal(step)
+        } ?: run {
+            AppLog.e(TAG, "Step ${step.id}: TIMEOUT after ${STEP_TIMEOUT_MS}ms")
+            Result(false, "timeout")
+        }
+    }
 
+    private suspend fun runInternal(step: SimpleSteps.Step): Result {
         if (step.requiredPackages.isNotEmpty() &&
             step.requiredPackages.none { isPackageInstalled(it) }
         ) {
             AppLog.i(TAG, "Step ${step.id}: app not installed — skipping")
             return Result(false, "app_not_installed", skipped = true)
         }
+
+        resetToHome()
 
         var appLaunched = false
         if (step.launchPackage != null) {
@@ -74,10 +98,15 @@ class SimpleRunner(private val service: AccessibilityService) {
         }
         if (!appLaunched) {
             if (!openTargetScreen(step) && service.rootInActiveWindow == null) {
+                AppLog.w(TAG, "Step ${step.id}: no screen opened")
                 return Result(false, "no_screen_opened")
             }
             delay(UI_SETTLE_DELAY_MS)
         }
+        AppLog.i(
+            TAG,
+            "Step ${step.id}: start screen=[${collectAllText(service.rootInActiveWindow).take(150)}]"
+        )
         if (cancelled) return Result(false, "cancelled")
 
         if (step.actionType == SimpleSteps.ActionType.CLEAR_DATA_DECLINE) {
@@ -89,37 +118,93 @@ class SimpleRunner(private val service: AccessibilityService) {
         drillDown(step)
         if (cancelled) return Result(false, "cancelled")
 
-        val result = findAndToggleSwitch(step)
+        var result = findAndToggleSwitch(step)
 
-        if (result.success && step.confirmTexts.isNotEmpty()) {
-            delay(1000)
-            val root = service.rootInActiveWindow
-            if (root != null) {
-                val btn = findClickableByTextWithScroll(root, step.confirmTexts)
-                if (btn != null) {
-                    AppLog.i(TAG, "Step ${step.id}: confirmation dialog found, waiting timer")
-                    if (step.confirmWaitMs > 0) delay(step.confirmWaitMs)
-                    tapNode(btn)
-                    recycleNode(btn)
-                }
-                recycleNode(root)
-            }
+        // НОВОЕ: для шагов с диалогом (msa) — повтор, если тумблер не переключился
+        if (!result.success && step.confirmTexts.isNotEmpty() && !cancelled) {
+            AppLog.w(TAG, "Step ${step.id}: retry toggle (confirmation may have missed)")
+            OverlayController.updateStatus(service, "Повторная попытка…")
+            result = findAndToggleSwitch(step)
         }
-
-        if (result.success && step.additionalToggles.isNotEmpty()) {
-            toggleAdditional(step.additionalToggles)
-        }
-
         return result
     }
 
-    // ═══ Жесты (как в SD Maid) ═══
+    // ═══ Сброс стека активити (критично для MIUI) ═══
+
+    private suspend fun resetToHome() {
+        try {
+            val home = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            service.startActivity(home)
+            delay(HOME_RESET_DELAY_MS)
+        } catch (e: Exception) {
+            AppLog.w(TAG, "resetToHome failed: ${e.message}")
+        }
+    }
+
+    /** Ждём, пока контент экрана загрузится (текст > 30 символов) */
+    private suspend fun waitForContentRoot(): AccessibilityNodeInfo? {
+        val start = System.currentTimeMillis()
+        while (System.currentTimeMillis() - start < CONTENT_WAIT_MS) {
+            if (cancelled) return null
+            val root = service.rootInActiveWindow
+            if (root != null) {
+                if (collectAllText(root).length > 30) return root
+                recycleNode(root)
+            }
+            delay(300)
+        }
+        return service.rootInActiveWindow
+    }
+
+    // ═══ Лесенка кликов (как в SD Maid) ═══
 
     private suspend fun tapNode(node: AccessibilityNodeInfo): Boolean {
-        if (node.isClickable && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
-        val rect = Rect()
-        node.getBoundsInScreen(rect)
-        return tapAt(rect.centerX().toFloat(), rect.centerY().toFloat())
+        if (node.isClickable && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+            AppLog.i(TAG, "tapNode: node ACTION_CLICK ok")
+            return true
+        }
+        if (clickParent(node)) {
+            AppLog.i(TAG, "tapNode: parent ACTION_CLICK ok")
+            return true
+        }
+        AppLog.i(TAG, "tapNode: falling back to gesture through overlay")
+        var done = false
+        withOverlayPassThrough {
+            val rect = Rect()
+            node.getBoundsInScreen(rect)
+            done = tapAt(rect.centerX().toFloat(), rect.centerY().toFloat())
+        }
+        return done
+    }
+
+    private fun clickParent(node: AccessibilityNodeInfo): Boolean {
+        var cur: AccessibilityNodeInfo? = node.parent
+        var depth = 0
+        while (cur != null && depth < MAX_PARENT_DEPTH) {
+            if (cur.isClickable && cur.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                return true
+            }
+            cur = cur.parent
+            depth++
+        }
+        return false
+    }
+
+    private suspend fun withOverlayPassThrough(block: suspend () -> Unit) {
+        try {
+            OverlayController.setBlocking(service, false)
+        } catch (_: Exception) {
+        }
+        delay(250)
+        block()
+        delay(400)
+        try {
+            OverlayController.setBlocking(service, true)
+        } catch (_: Exception) {
+        }
     }
 
     private suspend fun tapAt(x: Float, y: Float): Boolean =
@@ -172,16 +257,26 @@ class SimpleRunner(private val service: AccessibilityService) {
                 "Очистить данные", "Clear data", "Очистить хранилище",
                 "Clear storage", "Очистить все", "Clear all", "Очистить", "Clear"
             )
-        )
+        ) ?: searchAllWindows(listOf("Очистить данные", "Clear data"))
         recycleNode(root1)
-        if (clearBtn == null) return Result(false, "clear_button_not_found")
+        if (clearBtn == null) {
+            AppLog.w(TAG, "Step ${step.id}: clear button not found")
+            return Result(false, "clear_button_not_found")
+        }
         tapNode(clearBtn); recycleNode(clearBtn)
         delay(800)
 
         val root2 = service.rootInActiveWindow ?: return Result(false, "no_root")
-        val allBtn = findClickableByText(root2, listOf("Очистить все", "Clear all"))
+        val allBtn = findClickableByText(
+            root2, listOf(
+                "Очистить все", "Clear all", "Очистить все данные", "Очистить данные", "Clear data"
+            )
+        ) ?: searchAllWindows(listOf("Очистить все", "Clear all"))
         recycleNode(root2)
-        if (allBtn == null) return Result(false, "clear_all_not_found")
+        if (allBtn == null) {
+            AppLog.w(TAG, "Step ${step.id}: 'Очистить все' not found")
+            return Result(false, "clear_all_not_found")
+        }
         tapNode(allBtn); recycleNode(allBtn)
         delay(1200)
 
@@ -197,7 +292,7 @@ class SimpleRunner(private val service: AccessibilityService) {
         return Result(true, "cleared_and_declined")
     }
 
-    // ═══ Дополнительные тумблеры ═══
+    // ═══ Дополнительные (связанные) тумблеры ═══
 
     @Suppress("DEPRECATION")
     private suspend fun toggleAdditional(texts: List<String>) {
@@ -212,12 +307,14 @@ class SimpleRunner(private val service: AccessibilityService) {
                     tapNode(sw)
                 }
                 recycleNode(sw)
+            } else {
+                AppLog.w(TAG, "Additional toggle not found: $t")
             }
             recycleNode(root)
         }
     }
 
-    // ═══ Стандартные фазы ═══
+    // ═══ Открытие экранов ═══
 
     private fun launchApp(packageName: String): Boolean {
         val launchIntent = try {
@@ -238,6 +335,7 @@ class SimpleRunner(private val service: AccessibilityService) {
         }
     }
 
+    /** NEW_TASK + CLEAR_TASK — открывает КОРНЕВОЙ экран, а не старый из recents */
     private suspend fun openTargetScreen(step: SimpleSteps.Step): Boolean {
         for (intent in step.intents) {
             if (cancelled) return false
@@ -246,6 +344,7 @@ class SimpleRunner(private val service: AccessibilityService) {
                 if (resolved == null && intent.action != null &&
                     !intent.action!!.startsWith("android.settings")
                 ) continue
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 service.startActivity(intent)
                 delay(UI_SETTLE_DELAY_MS)
                 val root = service.rootInActiveWindow
@@ -262,12 +361,38 @@ class SimpleRunner(private val service: AccessibilityService) {
         return false
     }
 
+    private fun searchAllWindows(texts: List<String>): AccessibilityNodeInfo? {
+        return try {
+            for (w in service.windows) {
+                val r = w.root ?: continue
+                val found = findClickableByText(r, texts)
+                if (found != null) return found
+            }
+            null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun findSwitchInAllWindows(texts: List<String>): AccessibilityNodeInfo? {
+        return try {
+            for (w in service.windows) {
+                val r = w.root ?: continue
+                val found = findSwitchByText(r, texts)
+                if (found != null) return found
+            }
+            null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private suspend fun drillDown(step: SimpleSteps.Step) {
-        for (level in step.drillPath) {
+        for ((index, level) in step.drillPath.withIndex()) {
             if (cancelled) return
-            delay(UI_SETTLE_DELAY_MS)
-            val root = service.rootInActiveWindow ?: break
-            val node = findClickableByTextWithScroll(root, level)
+            val root = waitForContentRoot()
+            var node = if (root != null) findClickableByTextWithScroll(root, level) else null
+            if (node == null) node = searchAllWindows(level)
             if (node != null) {
                 AppLog.i(TAG, "Step ${step.id}: drilling into '${level.firstOrNull()}'")
                 tapNode(node)
@@ -275,27 +400,51 @@ class SimpleRunner(private val service: AccessibilityService) {
             } else if (level.contains("⋮") || level.contains("⚙") || level.contains("⚙️")) {
                 AppLog.i(
                     TAG,
-                    "Step ${step.id}: '${level.firstOrNull()}' not found by text — tapping top-right"
+                    "Step ${step.id}: '${level.firstOrNull()}' not found — tapping top-right"
                 )
-                tapTopRight()
+                tapTopRight(step.drillPath.getOrNull(index + 1) ?: emptyList())
+                delay(POPUP_MENU_DELAY_MS)
             } else {
                 AppLog.w(
                     TAG,
                     "Step ${step.id}: level '${level.firstOrNull()}' not found — assuming inside"
                 )
             }
-            recycleNode(root)
+            if (root != null) recycleNode(root)
         }
         delay(UI_SETTLE_DELAY_MS)
     }
 
-    /**
-     * ИСПРАВЛЕНО: координата Y = 56dp (точно в тулбар),
-     * раньше было 88dp и тап уходил ниже в поиск.
-     */
-    private suspend fun tapTopRight(): Boolean {
-        val dm = service.resources.displayMetrics
-        return tapAt(dm.widthPixels - dp(48).toFloat(), dp(56).toFloat())
+    /** accessibility-поиск overflow → жест по нескольким Y */
+    private suspend fun tapTopRight(expected: List<String>): Boolean {
+        val root = service.rootInActiveWindow
+        if (root != null) {
+            val overflow = findClickableByText(root, OVERFLOW_TEXTS)
+            if (overflow != null) {
+                val ok = tapNode(overflow)
+                recycleNode(overflow); recycleNode(root)
+                if (ok) {
+                    AppLog.i(TAG, "tapTopRight: overflow clicked via accessibility")
+                    return true
+                }
+            } else {
+                recycleNode(root)
+            }
+        }
+        AppLog.i(TAG, "tapTopRight: fallback to gesture (multi-Y)")
+        withOverlayPassThrough {
+            val dm = service.resources.displayMetrics
+            val x = dm.widthPixels - dp(24).toFloat()
+            for (yDp in TOP_RIGHT_Y_DP) {
+                tapAt(x, dp(yDp).toFloat())
+                delay(500)
+                if (expected.isNotEmpty() && searchAllWindows(expected) != null) {
+                    AppLog.i(TAG, "tapTopRight: menu opened at y=${yDp}dp")
+                    return@withOverlayPassThrough
+                }
+            }
+        }
+        return true
     }
 
     private fun dp(v: Int): Int = android.util.TypedValue.applyDimension(
@@ -341,18 +490,13 @@ class SimpleRunner(private val service: AccessibilityService) {
         return null
     }
 
-    /**
-     * ИСПРАВЛЕНО: при ненахождении тумблера сначала скроллим список,
-     * а при полном фейле печатаем текст экрана (NO SWITCH FOUND) для диагностики.
-     */
     @Suppress("DEPRECATION")
     private suspend fun findAndToggleSwitch(step: SimpleSteps.Step): Result {
         if (cancelled) return Result(false, "cancelled")
-        val root = service.rootInActiveWindow ?: return Result(false, "no_root_window")
+        val root = waitForContentRoot() ?: return Result(false, "no_root_window")
 
         var switchNode = findSwitchByText(root, step.searchTexts)
 
-        // Не нашли — пробуем скроллить (тумблер может быть ниже)
         if (switchNode == null && step.searchTexts.isNotEmpty()) {
             repeat(SWITCH_FALLBACK_SCROLLS) {
                 if (cancelled) return Result(false, "cancelled")
@@ -370,29 +514,51 @@ class SimpleRunner(private val service: AccessibilityService) {
                 recycleNode(r2)
                 if (switchNode != null) return@repeat
             }
+            switchNode = findSwitchInAllWindows(step.searchTexts)
         }
 
         if (switchNode == null) {
-            // ДИАГНОСТИКА: что реально на экране — по этому логу чиним маршруты
-            val screenText = collectAllText(service.rootInActiveWindow).take(500)
-            AppLog.w(TAG, "Step ${step.id}: NO SWITCH FOUND. Screen: $screenText")
+            val screenText = collectAllText(root).take(600)
+            AppLog.w(TAG, "Step ${step.id}: NO SWITCH FOUND. screen=[$screenText]")
             recycleNode(root)
             return Result(false, "switch_not_found")
         }
 
         val isChecked = switchNode.isChecked
+        AppLog.i(
+            TAG,
+            "Step ${step.id}: switch found, isChecked=$isChecked, target=${step.targetChecked}"
+        )
         if (isChecked == step.targetChecked) {
-            AppLog.i(TAG, "Step ${step.id}: already in target state (checked=$isChecked)")
+            // уже выключено — но проверим связанные тумблеры
+            if (step.additionalToggles.isNotEmpty()) toggleAdditional(step.additionalToggles)
             recycleNode(switchNode); recycleNode(root)
             return Result(true, "already_done")
         }
 
         val clicked = tapNode(switchNode)
+        AppLog.i(TAG, "Step ${step.id}: tapNode result=$clicked")
         recycleNode(switchNode)
         if (!clicked) {
             recycleNode(root); return Result(false, "click_failed")
         }
         delay(UI_SETTLE_DELAY_MS)
+
+        // Диалог подтверждения (msa: 10с) — с живым статусом
+        if (step.confirmTexts.isNotEmpty()) {
+            OverlayController.updateStatus(service, "Ждём диалог подтверждения…")
+            val btn = searchAllWindows(step.confirmTexts)
+            if (btn != null) {
+                AppLog.i(
+                    TAG,
+                    "Step ${step.id}: confirmation dialog found, waiting ${step.confirmWaitMs}ms"
+                )
+                if (step.confirmWaitMs > 0) delay(step.confirmWaitMs)
+                tapNode(btn)
+                recycleNode(btn)
+                delay(UI_SETTLE_DELAY_MS)
+            }
+        }
 
         val newRoot = service.rootInActiveWindow
         if (newRoot == null) {
@@ -400,9 +566,15 @@ class SimpleRunner(private val service: AccessibilityService) {
         }
         val newSwitch = findSwitchByText(newRoot, step.searchTexts)
         val newChecked = newSwitch?.isChecked ?: !isChecked
+        AppLog.i(TAG, "Step ${step.id}: verify newChecked=$newChecked")
         recycleNode(newSwitch); recycleNode(newRoot); recycleNode(root)
-        return if (newChecked == step.targetChecked) Result(true, "toggled")
-        else Result(false, "toggle_failed")
+
+        if (newChecked == step.targetChecked) {
+            // ИСПРАВЛЕНО: выключаем СВЯЗАННЫЕ тумблеры
+            if (step.additionalToggles.isNotEmpty()) toggleAdditional(step.additionalToggles)
+            return Result(true, "toggled")
+        }
+        return Result(false, "toggle_failed")
     }
 
     // ═══ Поиск узлов ═══
@@ -432,10 +604,6 @@ class SimpleRunner(private val service: AccessibilityService) {
         return null
     }
 
-    /**
-     * ИСПРАВЛЕНО: ищет ЛЮБЫЕ switch-like узлы (кастомные MIUI, isCheckable),
-     * а не только android.widget.Switch/CheckBox/SwitchCompat.
-     */
     @Suppress("DEPRECATION")
     private fun findSwitchByText(
         root: AccessibilityNodeInfo?, texts: List<String>
@@ -444,9 +612,11 @@ class SimpleRunner(private val service: AccessibilityService) {
 
         val switches = mutableListOf<AccessibilityNodeInfo>()
         collectSwitchLike(root, switches)
+        for (sw in switches) if (findNearbyText(sw, texts) != null) return sw
 
-        for (sw in switches) {
-            if (findNearbyText(sw, texts) != null) return sw
+        for (id in SWITCH_VIEW_IDS) {
+            val byId = root.findAccessibilityNodeInfosByViewId(id) ?: continue
+            for (n in byId) if (findNearbyText(n, texts) != null) return n
         }
 
         for (text in texts) {
@@ -466,11 +636,13 @@ class SimpleRunner(private val service: AccessibilityService) {
         return null
     }
 
-    /**
-     * ИСПРАВЛЕНО: собирает все switch-like узлы рекурсивно.
-     * Ловит: android.widget.Switch, CheckBox, SwitchCompat, MiSwitch,
-     * Toggle, а также любые isCheckable узлы (кастомные MIUI).
-     */
+    private val SWITCH_VIEW_IDS = listOf(
+        "com.android.settings:id/switch_widget",
+        "android:id/switch_widget",
+        "com.miui.securitycenter:id/switch_widget",
+        "com.miui.settings:id/switch_widget"
+    )
+
     private fun collectSwitchLike(
         node: AccessibilityNodeInfo, result: MutableList<AccessibilityNodeInfo>
     ) {
@@ -485,13 +657,9 @@ class SimpleRunner(private val service: AccessibilityService) {
         }
     }
 
-    /**
-     * ИСПРАВЛЕНО: проверяем текст на родителе И дедушке.
-     * На MIUI заголовок часто лежит выше тумблера на 2 уровня.
-     */
     private fun findNearbyText(node: AccessibilityNodeInfo, texts: List<String>): String? {
         var anc: AccessibilityNodeInfo? = node.parent
-        repeat(2) {
+        repeat(NEARBY_ANCESTORS) {
             val a = anc ?: return null
             val collected = collectAllText(a)
             for (t in texts) if (collected.contains(t, ignoreCase = true)) return t
@@ -507,7 +675,7 @@ class SimpleRunner(private val service: AccessibilityService) {
     }
 
     private fun collectTextRecursive(node: AccessibilityNodeInfo?, sb: StringBuilder, depth: Int) {
-        if (node == null || depth > 3) return
+        if (node == null || depth > TEXT_DEPTH) return
         node.text?.let { sb.append(it).append(' ') }
         node.contentDescription?.let { sb.append(it).append(' ') }
         for (i in 0 until node.childCount) collectTextRecursive(node.getChild(i), sb, depth + 1)

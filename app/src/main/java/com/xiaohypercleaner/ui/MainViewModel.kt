@@ -38,22 +38,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 
-/**
- * Тонкий фасад главного экрана.
- *
- * Делегаты:
- *  - [SimpleModeController] — машина состояний Simple Mode (data-слой)
- *  - [ShizukuUiController]  — Shizuku-диалоги, мастер, источники
- *  - [ProFlowController]    — PRO-цепочка: редиректы, цепочка, откат, перезагрузка
- *
- * ИСПРАВЛЕНО в этой версии:
- *  1. SimpleStepBridge.onResult / onSkipped регистрируются ОДИН РАЗ в init
- *     (раньше onSkipped перерегистрировался внутри onResult — критическая ошибка)
- *  2. OverlayController.setOnCancel / setOnResultClose регистрируются ОДИН РАЗ
- *  3. Используется AdbEnablerService.instance вместо несуществующего поля adbEnablerService
- *  4. closeSimpleMode() вызывает OverlayController.hide(app) — убирает оверлей робокота
- *  5. Убраны дубликаты регистраций
- */
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
@@ -70,7 +54,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun update(transform: (MainUiState) -> MainUiState) = _state.update(transform)
 
-    // ── Делегаты ──────────────────────────────────────────────────────
     val simpleController = SimpleModeController(app, permissionFlow) { mergeSimpleState(it) }
 
     private val shizuku = ShizukuUiController(app, ::update)
@@ -87,7 +70,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         scope = viewModelScope
     )
 
-    // ── Локальные флаги Simple Mode / шагов ──────────────────────────
     private var simpleModeActive = false
     private var stepAttempt = 1
     private var autoFlowJob: Job? = null
@@ -96,41 +78,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         AppLog.i(TAG, "init started")
 
-        // ═══════════════════════════════════════════════════════════════
-        // ИСПРАВЛЕНО: все регистрации Bridge/Overlay — ОДИН РАЗ, в init
-        // ═══════════════════════════════════════════════════════════════
-
-        // Результат шага (success/failure) — вызывается из AdbEnablerService
         SimpleStepBridge.onResult = { success ->
             AppLog.i(TAG, "SimpleStepBridge result: $success")
             onSimpleStepResult(success)
         }
 
-        // Пропуск шага (приложение не установлено) — НЕ ошибка, идём дальше
         SimpleStepBridge.onSkipped = { stepId ->
             AppLog.i(TAG, "SimpleStepBridge skipped (app not installed): $stepId")
             simpleController.onStepSkipped(stepId)
         }
 
-        // Кнопка "Отменить" в оверлее робокота
         OverlayController.setOnCancel {
             AppLog.i(TAG, "automation cancelled by user via overlay")
-            // Останавливаем runner через singleton-инстанс сервиса
             AdbEnablerService.instance?.cancelRunner()
             OverlayController.hide(app)
             closeSimpleMode()
         }
 
-        // Закрытие финального оверлея с результатами
         OverlayController.setOnResultClose {
             AppLog.i(TAG, "result overlay closed by user")
             OverlayController.hide(app)
             closeSimpleMode()
         }
-
-        // ═══════════════════════════════════════════════════════════════
-        // Подписки на Flow из PreferencesManager и OptimizationNotifier
-        // ═══════════════════════════════════════════════════════════════
 
         viewModelScope.launch {
             prefs.isHiddenSettingsApplied.collect { applied ->
@@ -200,10 +169,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         super.onCleared()
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // Слияние состояния Simple Mode
-    // ═══════════════════════════════════════════════════════════════
-
     private fun mergeSimpleState(s: SimpleModeController.SimpleModeState) {
         val running =
             s.active || s.step != null || s.done != null || s.phase != SimpleModePhase.INACTIVE
@@ -231,10 +196,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         simpleModeActive = running
     }
-
-    // ═══════════════════════════════════════════════════════════════
-    // Обновление статусов (оркестрация Simple + PRO)
-    // ═══════════════════════════════════════════════════════════════
 
     fun refreshStatuses() {
         AppLog.i(TAG, "refreshStatuses called")
@@ -265,7 +226,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         shizuku.consumePendingSourceSuggestion()
         simpleController.updatePermissionStatuses(acc, overlay)
 
-        // Simple Mode имеет приоритет; PRO-ветка ниже не выполняется
         if (simpleModeActive) {
             if (!ChainFlags.waitingAccessibilityReturn) {
                 simpleController.onResumeAfterPermissionReturn()
@@ -282,27 +242,57 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i(TAG, "checkRestrictedSettingsOnResume called (no-op, handled by refreshStatuses)")
     }
 
+    /**
+     * ИСПРАВЛЕНО: возвращение из настроек Battery Optimization.
+     *
+     *  • Отключил экономию (ignoring=true):
+     *      — закрываем диалог батареи
+     *      — показываем карточку «Продолжить»
+     *      — контроллер переводит фазу в STEPS (без автозапуска)
+     *
+     *  • Вернулся без отключения (ignoring=false):
+     *      — осознанно вызываем reshowBatteryDialog()
+     *        (диалог батареи показывается снова, можно повторить или пропустить)
+     *
+     * Раньше контроллер сам вызывал refresh() и advance(), что приводило к
+     * «ложному» всплытию диалога при системном диалоге MIUI поверх настроек.
+     */
+    fun permissionFlow_isIgnoringBatteryOptimizations(): Boolean =
+        permissionFlow.isIgnoringBatteryOptimizations()
+
     fun onBatteryOptimizationReturn() {
         AppLog.i(TAG, "onBatteryOptimizationReturn")
-        simpleController.onBatteryReturn()
-    }
+        viewModelScope.launch {
+            var ignoring = permissionFlow.isIgnoringBatteryOptimizations()
+            if (!ignoring) {
+                delay(600)
+                ignoring = permissionFlow.isIgnoringBatteryOptimizations()
+            }
+            AppLog.i(TAG, "onBatteryOptimizationReturn: isIgnoring=$ignoring")
 
-    // ═══════════════════════════════════════════════════════════════
-    // Выбор уровня
-    // ═══════════════════════════════════════════════════════════════
+            if (ignoring) {
+                // Отключил → закрываем диалог батареи, показываем «Продолжить»
+                update { it.copy(showBatteryDialog = false, showLevelConfirm = true) }
+                simpleController.onBatteryReturn(true)
+            } else {
+                // Вернулся без отключения → осознанно показываем диалог снова
+                simpleController.reshowBatteryDialog()
+            }
+            refreshStatuses()
+        }
+    }
 
     fun startFlow() {
         AppLog.i(TAG, "startFlow called, isWorking=${_state.value.isWorking}")
 
-        if (_state.value.isWorking) {
-            AppLog.i(TAG, "startFlow: already working, ignoring")
-            return
+        if (_state.value.isWorking) return
+        if (_state.value.showLevelDialog || _state.value.showLevelConfirm) return
+
+        if (simpleModeActive && _state.value.simpleModePhase == SimpleModePhase.DONE) {
+            AppLog.i(TAG, "startFlow: previous run finished — resetting")
+            closeSimpleMode()
         }
-        if (_state.value.showLevelDialog || _state.value.showLevelConfirm) {
-            AppLog.i(TAG, "startFlow: level dialog already shown, ignoring")
-            return
-        }
-        if (_state.value.simpleStep != null || _state.value.simpleDone != null || simpleModeActive) {
+        if (simpleModeActive) {
             AppLog.i(TAG, "startFlow: simple mode already active, ignoring")
             return
         }
@@ -317,13 +307,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun confirmLevelStart() {
-        val level = _state.value.selectedLevel ?: OptimizationMode.SIMPLE
+    fun confirmLevelStart(level: OptimizationMode) {
         AppLog.i(TAG, "confirmLevelStart: $level")
-        update { it.copy(showLevelConfirm = false, selectedLevel = null) }
+        update { it.copy(showLevelConfirm = false) }
 
         when (level) {
-            OptimizationMode.SIMPLE -> startSimpleMode()
+            OptimizationMode.SIMPLE -> {
+                if (simpleModeActive) {
+                    simpleController.continueToSteps()
+                } else {
+                    startSimpleMode()
+                }
+            }
+
             OptimizationMode.PRO -> startAdvancedFlow()
         }
     }
@@ -353,20 +349,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // Шаги Simple Mode (результаты, ретраи)
-    // ═══════════════════════════════════════════════════════════════
-
     fun onSimpleStepResult(success: Boolean) {
         AppLog.i(TAG, "onSimpleStepResult: success=$success, attempt=$stepAttempt")
         val step = _state.value.simpleStep ?: return
 
         if (success) {
             simpleController.onStepResult(true, attempt = stepAttempt)
-            autoFlowJob = viewModelScope.launch {
-                delay(AUTO_ADVANCE_DELAY_MS.milliseconds)
-                advanceToNextStep(autoStart = true)
-            }
             return
         }
 
@@ -397,18 +385,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * ИСПРАВЛЕНО: теперь при закрытии Simple Mode:
-     *  1. Останавливается авто-поток
-     *  2. Убирается оверлей робокота (OverlayController.hide)
-     *  3. Сбрасывается состояние UI
-     */
     fun closeSimpleMode() {
         AppLog.i(TAG, "closeSimpleMode")
         autoFlowJob?.cancel()
         simpleModeActive = false
-
-        // НОВОЕ: убираем оверлей робокота
         OverlayController.hide(app)
 
         update {
@@ -418,6 +398,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 simpleModePhase = SimpleModePhase.INACTIVE,
                 permissionSubPhase = PermissionSubPhase.INACTIVE,
                 simpleModeActive = false,
+                showLevelDialog = false,
+                showLevelConfirm = false,
                 showAccessibilityDialog = false,
                 showOverlayDialog = false,
                 showRestrictedDialog = false,
@@ -432,10 +414,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun getFailedStepIds(): List<String> = failedSimpleStepIds.toList()
-
-    // ═══════════════════════════════════════════════════════════════
-    // Simple Mode: обёртки UI-действий (делегирование в контроллер)
-    // ═══════════════════════════════════════════════════════════════
 
     fun startCurrentSimpleStep() = simpleController.startCurrentStep()
     fun nextSimpleStep() = onSimpleStepResult(true)
@@ -466,10 +444,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         simpleModeActive = false
         simpleController.onFallbackCancelled()
     }
-
-    // ═══════════════════════════════════════════════════════════════
-    // Диалоги разрешений (Simple + PRO)
-    // ═══════════════════════════════════════════════════════════════
 
     fun dialogAgreed() {
         AppLog.i(TAG, "dialogAgreed, simpleModeActive=$simpleModeActive")
@@ -516,10 +490,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         proFlow.restrictedDialogCancelled()
     }
-
-    // ═══════════════════════════════════════════════════════════════
-    // Опции PRO (DNS / aggressive)
-    // ═══════════════════════════════════════════════════════════════
 
     fun optionsDialogConfirmed() {
         AppLog.i(
@@ -573,10 +543,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         update { it.copy(aggressiveMode = enabled) }
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // Shizuku: обёртки (делегирование в ShizukuUiController)
-    // ═══════════════════════════════════════════════════════════════
-
     fun shizukuDialogInstall() = shizuku.dialogInstall()
     fun shizukuDialogOpenApp() = shizuku.dialogOpenApp()
     fun wizardSkip() = shizuku.wizardSkip()
@@ -589,10 +555,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun shizukuDialogLater() = shizuku.dialogLater()
     fun closeShizukuWizard() = shizuku.closeWizard()
 
-    // ═══════════════════════════════════════════════════════════════
-    // PRO: откат / перезагрузка / dev-mode (делегирование в ProFlowController)
-    // ═══════════════════════════════════════════════════════════════
-
     fun restoreOptimization() = proFlow.restoreOptimization()
     fun confirmReboot() = proFlow.confirmReboot()
     fun requestReboot() = proFlow.requestReboot()
@@ -603,10 +565,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun devModeDialogRetry() = proFlow.devModeDialogRetry()
     fun devModeDialogCancel() = proFlow.devModeDialogCancel()
     fun dismissFinalDialog() = update { it.copy(showFinalDialog = false) }
-
-    // ═══════════════════════════════════════════════════════════════
-    // Открытие системных экранов + подсказки (используются делегатами)
-    // ═══════════════════════════════════════════════════════════════
 
     fun openAccessibilitySettings() {
         AppLog.i(TAG, "openAccessibilitySettings")

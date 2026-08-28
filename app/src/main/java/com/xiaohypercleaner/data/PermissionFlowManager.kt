@@ -18,27 +18,15 @@ class PermissionFlowManager(private val context: Context) {
 
     companion object {
         private const val TAG = "PermissionFlow"
-
-        /**
-         * ВАЖНО: Play Store = com.android.vending.
-         * com.google.android.packageinstaller = AOSP-установщик (Telegram, браузер, проводник).
-         * Это частая ошибка — их путают.
-         */
         private const val PLAY_STORE_PACKAGE = "com.android.vending"
     }
 
-    /**
-     * ИСПРАВЛЕНО: sideload = ВСЁ, что не Play Store.
-     * Ранее коммиттер AOSP (com.google.android.packageinstaller) ошибочно считался
-     * "trusted", из-за чего Android 13+ не разблокировал Restricted Settings.
-     */
     fun isSideloadedOnAndroid13Plus(): Boolean {
         if (Build.VERSION.SDK_INT < 33) return false
         return try {
             val pm = context.packageManager
             val installer = pm.getInstallSourceInfo(context.packageName).installingPackageName
                 ?: "unknown"
-
             val sideloaded = installer != PLAY_STORE_PACKAGE && installer != "preload"
             AppLog.i(TAG, "isSideloaded: installer=$installer, sideloaded=$sideloaded")
             sideloaded
@@ -51,10 +39,6 @@ class PermissionFlowManager(private val context: Context) {
     fun needsRestrictedUnlock(): Boolean =
         Build.VERSION.SDK_INT >= 33 && isSideloadedOnAndroid13Plus()
 
-    /**
-     * Проверяет, снято ли ограничение Battery Optimization для нашего приложения.
-     * HyperOS агрессивно убивает Accessibility Service, поэтому это критично.
-     */
     fun isIgnoringBatteryOptimizations(): Boolean {
         return try {
             val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -67,9 +51,7 @@ class PermissionFlowManager(private val context: Context) {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // Открытие системных экранов
-    // ═══════════════════════════════════════════════════════════════
+    // ═══ Открытие системных экранов ═══
 
     fun openOverlaySettings() {
         try {
@@ -93,7 +75,6 @@ class PermissionFlowManager(private val context: Context) {
             "com.android.settings.accessibility.ToggleAccessibilityServicePreferenceFragment"
         )
         deep.putExtra(":settings:show_fragment_args", args)
-
         try {
             deep.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(deep)
@@ -121,19 +102,9 @@ class PermissionFlowManager(private val context: Context) {
         }
     }
 
-    /**
-     * Открывает экран Battery Optimization для нашего приложения.
-     * Используем несколько intent'ов с fallback:
-     * 1. ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS (стандартный, требует пермишен)
-     * 2. ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS (общий экран)
-     * 3. MIUI-specific: miui.intent.action.POWER_HIDE_MODE_APP_LIST
-     * 4. Fallback: App Info (пользователь найдет "Экономия заряда" вручную)
-     */
     @SuppressLint("BatteryLife")
     fun openBatteryOptimizationSettings() {
         val pkgUri = "package:${context.packageName}".toUri()
-
-        // Попытка 1: стандартный intent для конкретного приложения
         try {
             val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
                 data = pkgUri
@@ -145,45 +116,34 @@ class PermissionFlowManager(private val context: Context) {
         } catch (e: Exception) {
             AppLog.w(TAG, "openBatteryOptimizationSettings: REQUEST_IGNORE failed: ${e.message}")
         }
-
-        // Попытка 2: общий экран Battery Optimization
         try {
             val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
-            AppLog.i(TAG, "openBatteryOptimizationSettings: IGNORE_SETTINGS success")
             return
         } catch (e: Exception) {
             AppLog.w(TAG, "openBatteryOptimizationSettings: IGNORE_SETTINGS failed: ${e.message}")
         }
-
-        // Попытка 3: MIUI-specific
         try {
             val intent = Intent("miui.intent.action.POWER_HIDE_MODE_APP_LIST").apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
-            AppLog.i(TAG, "openBatteryOptimizationSettings: MIUI intent success")
             return
         } catch (e: Exception) {
             AppLog.w(TAG, "openBatteryOptimizationSettings: MIUI intent failed: ${e.message}")
         }
-
-        // Fallback: App Info
         openAppInfoSettings()
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // Overlay-подсказки
-    // ═══════════════════════════════════════════════════════════════
+    // ═══ Оверлей-подсказки ═══
 
     private fun canShowOverlay(): Boolean = Settings.canDrawOverlays(context)
 
     fun openAppInfoWithSmartPointer(location: RestrictedLocation) {
         openAppInfoSettings()
         if (!canShowOverlay()) return
-
         when (location) {
             RestrictedLocation.TOP_MENU -> showPointer(
                 OverlayService.PointerMode.TOP_RIGHT,
@@ -205,14 +165,10 @@ class PermissionFlowManager(private val context: Context) {
         }
     }
 
-    /**
-     * ИСПРАВЛЕНО: добавлена проверка canShowOverlay() для консистентности
-     */
     fun openAccessibilityWithPointer() {
         AppLog.i(TAG, "openAccessibilityWithPointer: showing visual hint")
         openAccessibilitySettings()
         if (!canShowOverlay()) return
-        // Стрелка указывает на элемент в списке
         OverlayController.showManualPointer(
             context,
             OverlayService.PointerMode.LIST_ITEM_CENTER.name,
@@ -220,14 +176,10 @@ class PermissionFlowManager(private val context: Context) {
         )
     }
 
-    /**
-     * ИСПРАВЛЕНО: добавлена проверка canShowOverlay() для консистентности
-     */
     fun openOverlayWithPointer() {
         AppLog.i(TAG, "openOverlayWithPointer: showing visual hint")
         openOverlaySettings()
         if (!canShowOverlay()) return
-        // Стрелка указывает на переключатель внизу экрана
         OverlayController.showManualPointer(
             context,
             OverlayService.PointerMode.GENERIC_BOTTOM.name,
@@ -241,10 +193,6 @@ class PermissionFlowManager(private val context: Context) {
         showHint(context.getString(R.string.hint_accessibility))
     }
 
-    /**
-     * НОВОЕ: подсказка для BATTERY_OPTIMIZATION.
-     * Показывается после открытия экрана Battery Optimization.
-     */
     fun openBatteryOptimizationWithPointer() {
         openBatteryOptimizationSettings()
         if (!canShowOverlay()) return
@@ -263,9 +211,6 @@ class PermissionFlowManager(private val context: Context) {
         }
     }
 
-    /**
-     * ИСПРАВЛЕНО: убрано дублирование EXTRA_POINTER_HINT (не используется в OverlayService)
-     */
     fun showGenericCard(text: String) {
         try {
             val intent = Intent(context, OverlayService::class.java).apply {
@@ -282,9 +227,6 @@ class PermissionFlowManager(private val context: Context) {
         }
     }
 
-    /**
-     * ИСПРАВЛЕНО: убран неиспользуемый параметр hint
-     */
     fun showPointer(mode: OverlayService.PointerMode, text: String) {
         try {
             val intent = Intent(context, OverlayService::class.java).apply {
@@ -298,14 +240,12 @@ class PermissionFlowManager(private val context: Context) {
         }
     }
 
+    /**
+     * ИСПРАВЛЕНО: НЕ stopService()! Асинхронный stopService добивал только что
+     * запущенный automation-оверлей (гонка start/stop) — робот «пропадал».
+     * Просто убираем окно, сервис остаётся жив.
+     */
     fun hideOverlay() {
-        try {
-            val intent = Intent(context, OverlayService::class.java).apply {
-                action = OverlayService.ACTION_HIDE
-            }
-            context.startService(intent)
-        } catch (e: Exception) {
-            AppLog.w(TAG, "hideOverlay failed: ${e.message}")
-        }
+        OverlayController.hide(context)
     }
 }

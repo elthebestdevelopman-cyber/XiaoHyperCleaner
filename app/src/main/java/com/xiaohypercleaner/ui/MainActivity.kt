@@ -1,9 +1,12 @@
 package com.xiaohypercleaner.ui
 
 import android.animation.ObjectAnimator
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.animation.AccelerateInterpolator
 import androidx.activity.ComponentActivity
@@ -79,23 +82,15 @@ import com.xiaohypercleaner.util.ShizukuHelper
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import rikka.shizuku.Shizuku
-import android.content.Intent
 
 /**
  * Главный экран приложения.
  *
- * Структура:
- *  - [MainActivity]      — lifecycle + splash + onResume (возврат из Battery)
- *  - [MainContent]       — корневой Composable: фон + InfoCard + OptimizationCard
- *  - [MainDialogsHost]   — хост всех диалогов (сами диалоги — в ui/components/)
- *  - Карточки            — ui/components/MainCards.kt
- *  - Intent-утилиты      — ui/UiActions.kt
- *
  * ИСПРАВЛЕНО в этой версии:
- *  - Удалён SimpleStepScreen из MainDialogsHost — автоматика и финальный экран
- *    теперь показываются ТОЛЬКО через оверлей робокота (OverlayService),
- *    без дублирования слоёв.
- *  - Удалены неиспользуемые импорты SimpleStepScreen / SimpleDoneDialog / LocalConfiguration.
+ *  - Добавлен фильтр «ложных» onResume через wasStopped: системный диалог MIUI
+ *    (поверх настроек батареи) даёт onPause без onStop, а реальный уход
+ *    в чужое Activity — даёт onStop. Обрабатываем возврат из батареи только
+ *    после onStop — это устраняет «ложное» всплытие диалога.
  */
 class MainActivity : ComponentActivity() {
 
@@ -104,6 +99,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private lateinit var vm: MainViewModel
+
+    /**
+     * НОВОЕ: флаг реального ухода из приложения.
+     * Системный диалог MIUI поверх настроек даёт onPause, но НЕ onStop.
+     * Реальный уход в чужое Activity (настройки) — даёт onStop.
+     * Обрабатываем возврат из батареи только когда wasStopped = true.
+     */
+    private var wasStopped = false
 
     private val shizukuPermissionListener =
         Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
@@ -128,8 +131,7 @@ class MainActivity : ComponentActivity() {
         Shizuku.addRequestPermissionResultListener(shizukuPermissionListener)
         val prefs = (application as XiaoHyperApp).preferencesManager
 
-        // Держим сплеш 1200 мс, затем плавная exit-анимация (Android 12+)
-        android.os.Handler(mainLooper).postDelayed({
+        Handler(mainLooper).postDelayed({
             keepSplashVisible = false
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 splashScreen.setOnExitAnimationListener { sv ->
@@ -204,27 +206,48 @@ class MainActivity : ComponentActivity() {
         AppLog.i(TAG, "onCreate completed")
     }
 
+    /**
+     * НОВОЕ: реальный уход в чужое Activity (настройки батареи).
+     * Системный диалог MIUI поверх НЕ вызывает onStop.
+     */
+    override fun onStop() {
+        super.onStop()
+        wasStopped = true
+    }
+
     override fun onResume() {
         super.onResume()
-        AppLog.i(TAG, "onResume")
+        AppLog.i(TAG, "onResume (wasStopped=$wasStopped)")
         if (!::vm.isInitialized) return
 
         vm.checkRestrictedSettingsOnResume()
         val currentState = vm.state.value
 
-        // Останавливаем оверлей только если Simple Mode не активен —
-        // иначе стрелки-подсказки исчезали бы при каждом возврате.
         if (!currentState.isWorking && !currentState.simpleModeActive) {
             stopService(Intent(this, OverlayService::class.java))
         }
 
-        // Возврат из настроек Battery Optimization
+        // ИСПРАВЛЕНО: обрабатываем возврат из настроек батареи в ДВУХ случаях:
+        //   1. wasStopped=true  — реальный уход в чужое Activity
+        //   2. isIgnoring=true  — пользователь отключил экономию через
+        //      диалог MIUI поверх (который не вызывает onStop)
+        // Раньше ловили только случай 1, поэтому при отключении через
+        // MIUI-диалог приложение зависало, не показывая «Продолжить».
         if (currentState.simpleModeActive &&
             currentState.permissionSubPhase == PermissionSubPhase.BATTERY_OPTIMIZATION
         ) {
-            AppLog.i(TAG, "onResume: BATTERY_OPTIMIZATION return")
-            vm.onBatteryOptimizationReturn()
+            val vm_state = vm.state.value
+            // Проверяем isIgnoring через PermissionFlowManager
+            val ignoring = vm.permissionFlow_isIgnoringBatteryOptimizations()
+            if (wasStopped || ignoring) {
+                AppLog.i(
+                    TAG,
+                    "onResume: BATTERY_OPTIMIZATION return (wasStopped=$wasStopped, ignoring=$ignoring)"
+                )
+                vm.onBatteryOptimizationReturn()
+            }
         }
+        wasStopped = false
     }
 
     override fun onDestroy() {
@@ -233,10 +256,6 @@ class MainActivity : ComponentActivity() {
         AppLog.i(TAG, "onDestroy")
     }
 }
-
-// ═══════════════════════════════════════════════════════════════
-// КОРНЕВОЙ COMPOSABLE
-// ═══════════════════════════════════════════════════════════════
 
 @Composable
 private fun MainContent(
@@ -302,7 +321,7 @@ private fun MainContent(
                     state = state,
                     onOptimize = {
                         AppLog.i("MainUI", "optimize button clicked")
-                        view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                         vm.startFlow()
                     },
                     onRestore = {
@@ -315,10 +334,6 @@ private fun MainContent(
         }
     }
 }
-
-// ═══════════════════════════════════════════════════════════════
-// ХОСТ ВСЕХ ДИАЛОГОВ (сами диалоги — в ui/components/)
-// ═══════════════════════════════════════════════════════════════
 
 @Composable
 private fun MainDialogsHost(
@@ -355,15 +370,11 @@ private fun MainDialogsHost(
             confirmText = stringResource(R.string.level_confirm_start),
             onConfirm = {
                 AppLog.i("MainUI", "level confirm: start clicked, level=$level")
-                vm.confirmLevelStart()
+                level?.let { vm.confirmLevelStart(it) }
             },
             onDismiss = { AppLog.i("MainUI", "level confirm: cancelled"); vm.cancelLevelConfirm() }
         )
     }
-
-    // УДАЛЕНО: SimpleStepScreen больше не показывается из Compose.
-    // Автоматика и финальный экран теперь показываются ТОЛЬКО через оверлей робокота
-    // (OverlayService), что устраняет проблему двойных наложений.
 
     if (state.showShizukuDialog) {
         ShizukuGuideDialog(

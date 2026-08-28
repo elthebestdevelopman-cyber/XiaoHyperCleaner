@@ -27,17 +27,20 @@ import com.xiaohypercleaner.util.AppLog
 /**
  * Оверлей с 4 режимами.
  *
- * ИСПРАВЛЕНО: hide() НЕ вызывает stopSelf(). Раньше отложенный onDestroy
- * удалял только что показанное окно автоматизации — оверлей «исчезал».
- * Сервис останавливает MainActivity, когда Simple Mode не активен.
- *
- * AUTOMATION-оверлей БЛОКИРУЕТ касания (touchable=true) — как в SD Maid:
- * пользователь только смотрит, как робокот работает.
+ * ИСПРАВЛЕНО:
+ *  - showPointer: НЕ авто-скрывается — стрелка живёт до выдачи разрешения
+ *    (мы сами прячем её в advance()/hide()), поэтому не «приходит с опозданием»
+ *  - showHint: авто-скрытие оставлено (пузырь не должен висеть вечно)
+ *  - setBlocking() — временный просвет оверлея для жестов робота
+ *  - hide() без stopSelf — оверлей не «мигает» между фазами
+ *  - showResult: 3 кнопки равной ширины (weight=1f)
  */
 class OverlayService : Service() {
 
     companion object {
         private const val TAG = "OverlaySvc"
+        const val ACTION_SET_BLOCKING = "set_blocking"
+        const val EXTRA_BLOCKING = "blocking"
         const val ACTION_HINT = "hint"
         const val ACTION_POINTER = "pointer"
         const val ACTION_AUTO_START = "auto_start"
@@ -58,14 +61,14 @@ class OverlayService : Service() {
         const val EXTRA_SKIPPED = "skipped"
         const val EXTRA_POINTER_HINT = EXTRA_POINTER_TEXT
 
-        private const val HINT_AUTO_HIDE_MS = 8000L
-        private const val POINTER_AUTO_HIDE_MS = 10000L
+        private const val HINT_AUTO_HIDE_MS = 15000L
     }
 
     enum class PointerMode { TOP_RIGHT, BOTTOM_LIST, SWITCH_RIGHT, LIST_ITEM_CENTER, GENERIC_BOTTOM }
 
     private var wm: WindowManager? = null
     private var root: View? = null
+    private var isBlocking = true
     private val animators = mutableListOf<ObjectAnimator>()
     private val handler = Handler(Looper.getMainLooper())
     private val autoHideRunnable = Runnable { hide() }
@@ -86,6 +89,7 @@ class OverlayService : Service() {
         }
         when (intent?.action) {
             ACTION_HIDE -> hide()
+            ACTION_SET_BLOCKING -> setBlocking(intent.getBooleanExtra(EXTRA_BLOCKING, true))
             ACTION_HINT -> showHint(intent.getStringExtra(EXTRA_HINT) ?: "")
             ACTION_POINTER -> showPointer(
                 intent.getStringExtra(EXTRA_POINTER_MODE) ?: "LIST_ITEM_CENTER",
@@ -110,7 +114,26 @@ class OverlayService : Service() {
         return START_NOT_STICKY
     }
 
-    // ═══ HINT: маленький пузырь, не блокирует клики, авто-скрытие ═══
+    /** Вкл/выкл перехват касаний оверлеем (для жестов робота) */
+    private fun setBlocking(blocking: Boolean) {
+        if (isBlocking == blocking) return
+        isBlocking = blocking
+        val r = root ?: return
+        val p = r.layoutParams as? WindowManager.LayoutParams ?: return
+        p.flags = if (blocking) {
+            p.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        } else {
+            p.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        }
+        try {
+            wm?.updateViewLayout(r, p)
+            AppLog.i(TAG, "overlay blocking=$blocking")
+        } catch (e: Exception) {
+            AppLog.w(TAG, "setBlocking update failed: ${e.message}")
+        }
+    }
+
+    // ═══ HINT (пузырь, авто-скрытие) ═══
 
     private fun showHint(text: String) {
         hide()
@@ -128,7 +151,7 @@ class OverlayService : Service() {
         AppLog.i(TAG, "hint shown (non-blocking, auto-hide)")
     }
 
-    // ═══ POINTER: пульсирующая стрелка, не блокирует, авто-скрытие ═══
+    // ═══ POINTER (стрелка, живёт до разрешения) ═══
 
     private fun showPointer(mode: String, text: String) {
         hide()
@@ -166,14 +189,16 @@ class OverlayService : Service() {
             addView(bubble, flParams(bubbleGravity))
         }
         pulse(arrow)
-        scheduleAutoHide(POINTER_AUTO_HIDE_MS)
-        AppLog.i(TAG, "pointer shown mode=$mode (non-blocking, auto-hide)")
+        // ИСПРАВЛЕНО: НЕ scheduleAutoHide() — стрелка живёт до выдачи
+        // разрешения, мы сами прячем её в advance()/hide()
+        AppLog.i(TAG, "pointer shown mode=$mode (persists until granted)")
     }
 
-    // ═══ AUTOMATION: БЛОКИРУЮЩИЙ оверлей с робокотом (как в SD Maid) ═══
+    // ═══ AUTOMATION (блокирующий, робокот) ═══
 
     private fun showAutomation(total: Int) {
         hide()
+        isBlocking = true
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
@@ -183,7 +208,7 @@ class OverlayService : Service() {
 
         val cat = ImageView(this).apply { setImageResource(R.drawable.ic_robot_companion) }
         layout.addView(cat, LinearLayout.LayoutParams(dp(120), dp(120)))
-        wobble(cat)  // «умывается»
+        wobble(cat)
 
         tvTitle = TextView(this).apply {
             setText(R.string.automation_title)
@@ -231,7 +256,6 @@ class OverlayService : Service() {
             OverlayController.triggerCancel()
         }
 
-        // touchable=true → окно ПЕРЕХВАТЫВАЕТ все касания: пользователь не мешает
         addRoot(touchable = true, fullScreen = true).apply {
             addView(layout, flParams(Gravity.CENTER))
         }
@@ -246,10 +270,11 @@ class OverlayService : Service() {
         if (title.isNotEmpty()) tvTitle?.text = title
     }
 
-    // ═══ RESULT: довольный кот + мягкая просьба ═══
+    // ═══ RESULT (3 кнопки равной ширины) ═══
 
     private fun showResult(completed: Int, total: Int, failed: Int, skipped: Int) {
         hide()
+        isBlocking = true
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
@@ -259,26 +284,41 @@ class OverlayService : Service() {
         val cat = ImageView(this).apply { setImageResource(R.drawable.ic_robot_companion) }
         layout.addView(cat, LinearLayout.LayoutParams(dp(120), dp(120)))
 
-        layout += titleText(getString(R.string.result_title), 20f, bold = true)
-        layout += bodyText(getString(R.string.result_summary, completed, total))
-        if (skipped > 0) layout += bodyText(
-            getString(R.string.result_skipped, skipped),
-            small = true
-        )
-        if (failed > 0) layout += bodyText(getString(R.string.result_failed, failed), small = true)
-        layout += bodyText(getString(R.string.result_soft), small = true).apply {
+        layout.addView(
+            titleText(getString(R.string.result_title), 20f, bold = true),
+            llWrap().apply { topMargin = dp(12) })
+        layout.addView(
+            bodyText(getString(R.string.result_summary, completed, total)),
+            llWrap().apply { topMargin = dp(6) })
+        if (skipped > 0) layout.addView(
+            bodyText(getString(R.string.result_skipped, skipped), small = true),
+            llWrap().apply { topMargin = dp(4) })
+        if (failed > 0) layout.addView(
+            bodyText(getString(R.string.result_failed, failed), small = true),
+            llWrap().apply { topMargin = dp(4) })
+        layout.addView(bodyText(getString(R.string.result_soft), small = true).apply {
             setPadding(0, dp(10), 0, 0)
-        }
+        }, llWrap())
 
         val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
         }
-        row += textBtn(getString(R.string.result_rate)) { openRate() }
-        row += textBtn(getString(R.string.result_support)) { openSupport() }
-        row += textBtn(getString(R.string.result_close)) {
+        val btnParams = { LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
+
+        row.addView(textBtn(getString(R.string.result_rate)) {
+            hide()
+            openRate()
+        }, btnParams())
+        row.addView(textBtn(getString(R.string.result_support)) {
+            hide()
+            openSupport()
+        }, btnParams())
+        row.addView(textBtn(getString(R.string.result_close)) {
             hide()
             OverlayController.triggerResultClose()
-        }
+        }, btnParams())
+
         layout.addView(row, llWrap().apply { topMargin = dp(10) })
 
         addRoot(touchable = true, fullScreen = true).apply {
@@ -292,10 +332,6 @@ class OverlayService : Service() {
     private fun scheduleAutoHide(ms: Long) {
         handler.removeCallbacks(autoHideRunnable)
         handler.postDelayed(autoHideRunnable, ms)
-    }
-
-    private operator fun LinearLayout.plusAssign(v: View) {
-        addView(v, llWrap().apply { topMargin = dp(6) })
     }
 
     private fun llWrap() = LinearLayout.LayoutParams(
@@ -314,7 +350,7 @@ class OverlayService : Service() {
 
     private fun textBtn(s: String, onClick: () -> Unit) = TextView(this).apply {
         text = s; setTextColor(0xFF64B5F6.toInt()); setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-        gravity = Gravity.CENTER; setPadding(dp(12), dp(10), dp(12), dp(10))
+        gravity = Gravity.CENTER; setPadding(dp(8), dp(10), dp(8), dp(10))
         setOnClickListener { onClick() }
     }
 
@@ -377,6 +413,7 @@ class OverlayService : Service() {
         }
         wm?.addView(v, params)
         root = v
+        isBlocking = touchable
         return v
     }
 
@@ -407,14 +444,10 @@ class OverlayService : Service() {
         FrameLayout.LayoutParams.WRAP_CONTENT, gravity
     )
 
-    private fun dp(v: Int) = TypedValue.applyDimension(
+    private fun dp(v: Int): Int = TypedValue.applyDimension(
         TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), resources.displayMetrics
     ).toInt()
 
-    /**
-     * ИСПРАВЛЕНО: убирает ТОЛЬКО окно, без stopSelf().
-     * Остановка сервиса — ответственность MainActivity (когда режим не активен).
-     */
     private fun hide() {
         handler.removeCallbacks(autoHideRunnable)
         animators.forEach { it.cancel() }; animators.clear()
@@ -425,6 +458,7 @@ class OverlayService : Service() {
             }
         }
         root = null
+        isBlocking = true
         tvStep = null; tvTitle = null; tvStatus = null; progressBar = null
         AppLog.i(TAG, "overlay hidden")
     }
@@ -439,6 +473,7 @@ class OverlayService : Service() {
             }
         }
         root = null
+        isBlocking = true
         super.onDestroy()
         AppLog.i(TAG, "onDestroy")
     }

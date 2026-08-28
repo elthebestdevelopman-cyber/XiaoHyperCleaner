@@ -48,7 +48,7 @@ object SimpleSteps {
     // ── Хелперы ──────────────────────────────────────────────────────
 
     private fun settingsRoot() = Intent(Settings.ACTION_SETTINGS)
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
 
     private fun notificationsIntent(pkg: String) =
         Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
@@ -303,7 +303,10 @@ object SimpleSteps {
             manualHintRu = "Темы → ⚙ → выключите «Показывать рекламу» и «Персональные рекомендации».",
             manualHintEn = "Themes → ⚙ → turn off ads and recommendations.",
             launchPackage = "com.android.thememanager",
-            drillPath = listOf(GEAR),
+            drillPath = listOf(
+                listOf("Профиль", "Profile", "Моя", "Me"),
+                listOf("⚙", "⚙️", "Настройки", "Settings")
+            ),
             requiredPackages = listOf("com.android.thememanager")
         ),
 
