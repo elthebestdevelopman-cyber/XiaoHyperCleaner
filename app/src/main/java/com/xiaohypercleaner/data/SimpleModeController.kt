@@ -242,7 +242,6 @@ class SimpleModeController(
     fun onBatteryReturn(ignoring: Boolean) {
         AppLog.i(TAG, "onBatteryReturn: isIgnoringBatteryOptimizations=$ignoring")
         if (ignoring) {
-            // НЕ автозапуск — ждём «Продолжить» (continueToSteps)
             if (state.phase != SimpleModePhase.STEPS) {
                 setState {
                     copy(
@@ -408,6 +407,10 @@ class SimpleModeController(
         }
     }
 
+    /**
+     * ИСПРАВЛЕНО: сохраняем completedCount в локальную переменную перед setState,
+     * потому что вложенный SimpleStepState(...) скрывал это поле от компилятора.
+     */
     fun nextStep(autoStart: Boolean = false) {
         if (state.phase == SimpleModePhase.DONE) return
         val steps = SimpleSteps.ALL
@@ -416,14 +419,15 @@ class SimpleModeController(
 
         if (nextIndex >= steps.size) {
             AppLog.i(TAG, "All simple steps completed")
+            val finalCompleted = state.completedCount
             setState {
                 copy(
                     phase = SimpleModePhase.DONE, permissionSubPhase = PermissionSubPhase.DONE,
-                    step = null, done = Pair(completedCount, steps.size)
+                    step = null, done = Pair(finalCompleted, steps.size)
                 )
             }
             OverlayController.showResult(
-                context, completedCount, steps.size, failedIds.size, skippedIds.size
+                context, finalCompleted, steps.size, failedIds.size, skippedIds.size
             )
             return
         }
@@ -433,12 +437,14 @@ class SimpleModeController(
         }
 
         val nextStepObj = steps[nextIndex]
+        // КЛЮЧЕВОЙ ФИКС: сохраняем completedCount ПЕРЕД setState
+        val currentCompletedCount = state.completedCount
         setState {
             copy(
                 currentStepIndex = nextIndex,
                 step = SimpleStepState(
                     step = nextStepObj, status = SimpleStepState.Status.IDLE,
-                    attempt = 1, completedCount = completedCount,
+                    attempt = 1, completedCount = currentCompletedCount,
                     stepIndex = nextIndex, totalSteps = steps.size
                 )
             )
