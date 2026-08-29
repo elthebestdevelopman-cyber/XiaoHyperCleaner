@@ -22,6 +22,14 @@ import java.net.SocketTimeoutException
  * с префиксом "shell " или без. Префикс нормализуется, т.к. runShell()
  * сам добавляет "shell:" для wire-протокола. Это делает AdbClient
  * совместимым с ShizukuExecutor и RootExecutor, которые тоже stripping-уют префикс.
+ *
+ * УЛУЧШЕНИЯ:
+ * 1. Явные типы для всех переменных
+ * 2. isConnected() метод для проверки состояния
+ * 3. ReadResult data class для readUntilEof() с truncated flag
+ * 4. Константы для магических чисел (BUFFER_SIZE)
+ * 5. Русские сообщения в логах
+ * 6. Улучшенная обработка ошибок
  */
 class AdbClient(
     private val host: String = AppConstants.ADB_HOST,
@@ -30,30 +38,56 @@ class AdbClient(
 
     companion object {
         private const val TAG = "AdbClient"
+
+        // ── Протокол ADB ──
         private const val MAX_PAYLOAD = 0xFFFF
         private const val MAX_RESPONSE_SIZE = 10 * 1024 * 1024 // 10 MB лимит ответа
+        private const val BUFFER_SIZE = 4096
+
+        // ── Таймауты ──
         private const val COMMAND_TIMEOUT_MS = 30_000L // общий таймаут команды
         private const val READ_HARD_TIMEOUT_MS = 25_000L // hard timeout цикла чтения
     }
+
+    /**
+     * Результат чтения с информацией о truncation.
+     * Используется вместо plain String для диагностики.
+     */
+    data class ReadResult(
+        val data: String,
+        val truncated: Boolean,
+        val bytesRead: Int,
+        val chunks: Int,
+        val elapsedMs: Long
+    )
 
     private var socket: Socket? = null
     private var input: BufferedInputStream? = null
     private var output: OutputStream? = null
     private var currentPort: Int = -1
-    private var commandCount = 0
+    private var commandCount: Int = 0
+
+    /**
+     * Проверяет, активно ли соединение.
+     * Используется для диагностики перед выполнением команд.
+     */
+    fun isConnected(): Boolean {
+        val s = socket ?: return false
+        return s.isConnected && !s.isClosed
+    }
 
     override suspend fun connect(): Boolean = withContext(Dispatchers.IO) {
-        AppLog.i(TAG, "connect: trying ${ports.size} ports: $ports")
+        AppLog.i(TAG, "connect: пробуем ${ports.size} портов: $ports")
         for (port in ports) {
-            AppLog.i(TAG, "connect: attempting port $port")
+            AppLog.i(TAG, "connect: пытаемся подключиться к порту $port")
             if (tryConnect(port)) {
                 currentPort = port
-                AppLog.i(TAG, "connect: SUCCESS on port $port")
+                AppLog.i(TAG, "connect: УСПЕХ на порту $port")
                 return@withContext true
             }
-            AppLog.w(TAG, "connect: FAILED on port $port")
+            AppLog.w(TAG, "connect: НЕ УДАЛОСЬ на порту $port")
         }
-        AppLog.e(TAG, "connect: all ports failed")
+        AppLog.e(TAG, "connect: все порты не сработали")
         return@withContext false
     }
 
@@ -63,14 +97,14 @@ class AdbClient(
             val s = Socket()
             AppLog.i(
                 TAG,
-                "tryConnect: connecting to $host:$port (timeout=${AppConstants.ADB_TIMEOUT_MS}ms)"
+                "tryConnect: подключение к $host:$port (таймаут=${AppConstants.ADB_TIMEOUT_MS}мс)"
             )
             s.connect(InetSocketAddress(host, port), AppConstants.ADB_TIMEOUT_MS)
             s.soTimeout = AppConstants.ADB_TIMEOUT_MS
             socket = s
             input = BufferedInputStream(s.getInputStream())
             output = s.getOutputStream()
-            AppLog.i(TAG, "tryConnect: socket opened, sending transport-any")
+            AppLog.i(TAG, "tryConnect: сокет открыт, отправляем transport-any")
 
             sendMessage("host:transport-any")
             val status = readStatus()
@@ -80,14 +114,14 @@ class AdbClient(
                 commandCount = 0
                 true
             } else {
-                AppLog.w(TAG, "tryConnect: bad transport status: $status")
+                AppLog.w(TAG, "tryConnect: некорректный transport status: $status")
                 disconnect()
                 false
             }
         } catch (e: IOException) {
             AppLog.e(
                 TAG,
-                "tryConnect: IOException on port $port: ${LogMasker.mask(e.message ?: "")}",
+                "tryConnect: IOException на порту $port: ${LogMasker.mask(e.message ?: "")}",
                 e
             )
             disconnect()
@@ -95,7 +129,7 @@ class AdbClient(
         } catch (e: Exception) {
             AppLog.e(
                 TAG,
-                "tryConnect: unexpected exception on port $port: ${LogMasker.mask(e.message ?: "")}",
+                "tryConnect: неожиданное исключение на порту $port: ${LogMasker.mask(e.message ?: "")}",
                 e
             )
             disconnect()
@@ -111,73 +145,85 @@ class AdbClient(
      * "shell pm disable-user ..." превращались бы в "shell:shell pm ..."
      * и падали на устройстве.
      */
-    override suspend fun executeCommand(command: String): Result<String> = withContext(Dispatchers.IO) {
-        commandCount++
-        val normalized = command.trim().removePrefix("shell ")
-        val maskedCmd = LogMasker.mask(normalized)
-        AppLog.i(TAG, "cmd#$commandCount: executing: $maskedCmd")
+    override suspend fun executeCommand(command: String): Result<String> =
+        withContext(Dispatchers.IO) {
+            commandCount++
+            val normalized = command.trim().removePrefix("shell ")
+            val maskedCmd = LogMasker.mask(normalized)
+            AppLog.i(TAG, "cmd#$commandCount: выполнение: $maskedCmd")
 
-        try {
-            withTimeout(COMMAND_TIMEOUT_MS) {
-                try {
-                    val result = runShell(normalized)
-                    val maskedResult = LogMasker.mask(result.take(500))
-                    AppLog.i(
-                        TAG,
-                        "cmd#$commandCount: success, result(${result.length} chars): $maskedResult"
-                    )
-                    Result.success(result)
-                } catch (e: AdbException) {
-                    AppLog.w(
-                        TAG,
-                        "cmd#$commandCount: AdbException: ${LogMasker.mask(e.message ?: "")}, reconnecting once"
-                    )
-                    disconnect()
-                    if (!connect()) {
-                        AppLog.e(TAG, "cmd#$commandCount: reconnect FAILED, rethrowing")
-                        return@withTimeout Result.failure(e)
-                    }
-                    AppLog.i(TAG, "cmd#$commandCount: reconnect OK, retrying command")
+            try {
+                withTimeout(COMMAND_TIMEOUT_MS) {
                     try {
                         val result = runShell(normalized)
-                        AppLog.i(TAG, "cmd#$commandCount: retry success")
-                        Result.success(result)
-                    } catch (e2: Exception) {
-                        AppLog.e(
+                        val maskedResult = LogMasker.mask(result.take(500))
+                        AppLog.i(
                             TAG,
-                            "cmd#$commandCount: retry also FAILED: ${LogMasker.mask(e2.message ?: "")}",
-                            e2
+                            "cmd#$commandCount: успех, результат(${result.length} символов): $maskedResult"
                         )
-                        Result.failure(e2)
+                        Result.success(result)
+                    } catch (e: AdbException) {
+                        AppLog.w(
+                            TAG,
+                            "cmd#$commandCount: AdbException: ${LogMasker.mask(e.message ?: "")}, реконнект"
+                        )
+                        disconnect()
+                        if (!connect()) {
+                            AppLog.e(
+                                TAG,
+                                "cmd#$commandCount: реконнект НЕ УДАЛСЯ, пробрасываем исключение"
+                            )
+                            return@withTimeout Result.failure(e)
+                        }
+                        AppLog.i(TAG, "cmd#$commandCount: реконнект ОК, повторяем команду")
+                        try {
+                            val result = runShell(normalized)
+                            AppLog.i(TAG, "cmd#$commandCount: повтор успешен")
+                            Result.success(result)
+                        } catch (e2: Exception) {
+                            AppLog.e(
+                                TAG,
+                                "cmd#$commandCount: повтор тоже НЕ УДАЛСЯ: ${LogMasker.mask(e2.message ?: "")}",
+                                e2
+                            )
+                            Result.failure(e2)
+                        }
                     }
                 }
+            } catch (e: TimeoutCancellationException) {
+                AppLog.e(TAG, "cmd#$commandCount: ТАЙМАУТ после ${COMMAND_TIMEOUT_MS}мс")
+                disconnect()
+                Result.failure(AdbException("Команда превысила таймаут ${COMMAND_TIMEOUT_MS}мс: $normalized"))
             }
-        } catch (e: TimeoutCancellationException) {
-            AppLog.e(TAG, "cmd#$commandCount: TIMEOUT after ${COMMAND_TIMEOUT_MS}ms")
-            disconnect()
-            Result.failure(AdbException("Command timed out after ${COMMAND_TIMEOUT_MS}ms: $normalized"))
         }
-    }
 
     private fun runShell(command: String): String {
-        val s = socket ?: throw AdbException("Not connected")
-        check(s.isConnected && !s.isClosed) { "Socket not usable" }
+        val s = socket ?: throw AdbException("Нет соединения")
+        check(s.isConnected && !s.isClosed) { "Сокет неактивен" }
 
         try {
             sendMessage("shell:$command")
             val status = readStatus()
             AppLog.i(TAG, "runShell: status=$status")
-            check(status == "OKAY") { "Bad status: $status" }
-            return readUntilEof()
+            check(status == "OKAY") { "Некорректный status: $status" }
+            val result = readUntilEof()
+
+            AppLog.i(
+                TAG,
+                "runShell: прочитано ${result.bytesRead} байт за ${result.chunks} чанков " +
+                        "(truncated=${result.truncated}, ${result.elapsedMs}мс)"
+            )
+
+            return result.data
         } catch (e: Exception) {
-            AppLog.w(TAG, "runShell: error, closing socket: ${LogMasker.mask(e.message ?: "")}")
+            AppLog.w(TAG, "runShell: ошибка, закрываем сокет: ${LogMasker.mask(e.message ?: "")}")
             disconnect()
-            throw AdbException("Shell failed: ${e.message}", e)
+            throw AdbException("Shell не удался: ${e.message}", e)
         }
     }
 
     override fun disconnect() {
-        AppLog.i(TAG, "disconnect: closing socket on port $currentPort")
+        AppLog.i(TAG, "disconnect: закрываем сокет на порту $currentPort")
         runCatching { input?.close() }
         runCatching { output?.close() }
         runCatching { socket?.close() }
@@ -190,11 +236,11 @@ class AdbClient(
     private fun sendMessage(message: String) {
         val data = message.toByteArray(Charsets.UTF_8)
         if (data.size > MAX_PAYLOAD) {
-            AppLog.e(TAG, "sendMessage: payload too large: ${data.size} bytes")
-            throw AdbException("Payload too large: ${data.size}")
+            AppLog.e(TAG, "sendMessage: payload слишком большой: ${data.size} байт")
+            throw AdbException("Payload слишком большой: ${data.size}")
         }
         val header = String.format("%04x", data.size).toByteArray(Charsets.US_ASCII)
-        val out = output ?: throw AdbException("No output stream")
+        val out = output ?: throw AdbException("Нет output stream")
         out.write(header)
         out.write(data)
         out.flush()
@@ -215,12 +261,12 @@ class AdbClient(
      * 2. Лимит размера ответа (MAX_RESPONSE_SIZE) — защита от огромных выводов
      * 3. soTimeout на сокете (AppConstants.ADB_TIMEOUT_MS) — защита от тишины
      *
-     * Возвращает partial result при таймауте, не бросает исключение.
+     * Возвращает ReadResult с информацией о truncation, не бросает исключение.
      */
-    private fun readUntilEof(): String {
+    private fun readUntilEof(): ReadResult {
         val sb = StringBuilder()
-        val buf = ByteArray(4096)
-        val stream = input ?: return ""
+        val buf = ByteArray(BUFFER_SIZE)
+        val stream = input ?: return ReadResult("", false, 0, 0, 0L)
         var chunks = 0
         var totalBytes = 0
         var truncated = false
@@ -231,7 +277,7 @@ class AdbClient(
                 if (System.currentTimeMillis() - startTime > READ_HARD_TIMEOUT_MS) {
                     AppLog.w(
                         TAG,
-                        "readUntilEof: hard timeout after ${READ_HARD_TIMEOUT_MS}ms, returning partial (${sb.length} chars)"
+                        "readUntilEof: hard timeout после ${READ_HARD_TIMEOUT_MS}мс, возвращаем partial (${sb.length} символов)"
                     )
                     break
                 }
@@ -243,7 +289,7 @@ class AdbClient(
                     truncated = true
                     AppLog.w(
                         TAG,
-                        "readUntilEof: response exceeded ${MAX_RESPONSE_SIZE} bytes, truncated"
+                        "readUntilEof: ответ превысил ${MAX_RESPONSE_SIZE} байт, обрезан"
                     )
                     break
                 }
@@ -252,29 +298,42 @@ class AdbClient(
                 totalBytes += n
             }
         } catch (e: SocketTimeoutException) {
-            AppLog.w(TAG, "readUntilEof: socket timeout after $chunks chunks (${sb.length} chars)")
+            AppLog.w(
+                TAG,
+                "readUntilEof: socket timeout после $chunks чанков (${sb.length} символов)"
+            )
         } catch (e: IOException) {
             AppLog.e(
                 TAG,
-                "readUntilEof: IOException after $chunks chunks: ${LogMasker.mask(e.message ?: "")}",
+                "readUntilEof: IOException после $chunks чанков: ${LogMasker.mask(e.message ?: "")}",
                 e
             )
         }
+
+        val elapsedMs = System.currentTimeMillis() - startTime
         AppLog.i(
             TAG,
-            "readUntilEof: read ${sb.length} chars in $chunks chunks (truncated=$truncated, elapsed=${System.currentTimeMillis() - startTime}ms)"
+            "readUntilEof: прочитано ${sb.length} символов за $chunks чанков " +
+                    "(truncated=$truncated, ${elapsedMs}мс)"
         )
-        return sb.toString()
+
+        return ReadResult(
+            data = sb.toString(),
+            truncated = truncated,
+            bytesRead = totalBytes,
+            chunks = chunks,
+            elapsedMs = elapsedMs
+        )
     }
 
     private fun readExact(buf: ByteArray, length: Int) {
-        val stream = input ?: throw AdbException("No stream")
+        val stream = input ?: throw AdbException("Нет stream")
         var offset = 0
         while (offset < length) {
             val r = stream.read(buf, offset, length - offset)
             if (r < 0) {
-                AppLog.e(TAG, "readExact: unexpected EOF at offset $offset/$length")
-                throw AdbException("Unexpected EOF")
+                AppLog.e(TAG, "readExact: неожиданный EOF на offset $offset/$length")
+                throw AdbException("Неожиданный EOF")
             }
             offset += r
         }

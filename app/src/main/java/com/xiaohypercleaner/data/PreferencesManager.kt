@@ -6,13 +6,19 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.xiaohypercleaner.AppConstants
+import com.xiaohypercleaner.util.AppLog
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 // ✅ ИСПРАВЛЕНО: имя берётся из AppConstants (было захардкожено "xhc_settings")
 private val Context.dataStore by preferencesDataStore(name = AppConstants.DATASTORE_NAME)
 
+/**
+ * Ключи для DataStore.
+ * Используется sealed interface для type-safety и автодополнения.
+ */
 sealed interface PreferenceKey {
     val name: String
 
@@ -61,7 +67,30 @@ sealed interface PreferenceKey {
     }
 }
 
+/**
+ * Менеджер предпочтений (DataStore) для хранения настроек пользователя.
+ *
+ * УЛУЧШЕНИЯ:
+ * 1. Константы для `stringPreferencesKey` — избегаем повторного создания
+ * 2. `getLastReportJson()` — синхронный доступ к последнему отчёту
+ * 3. `clearAll()` — сброс всех настроек
+ * 4. Обработка ошибок DataStore через `runCatching` и `catch`
+ * 5. Защита от corrupt DataStore
+ */
 class PreferencesManager(private val context: Context) {
+
+    companion object {
+        private const val TAG = "PreferencesManager"
+
+        // Константы для строковых ключей — избегаем повторного создания
+        private val LAST_REPORT_KEY = stringPreferencesKey(PreferenceKey.LastReportJson.name)
+        private val OPTIMIZATION_MODE_KEY =
+            stringPreferencesKey(PreferenceKey.OptimizationModeKey.name)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Boolean preferences
+    // ═══════════════════════════════════════════════════════════════
 
     val hasCompletedOnboarding: Flow<Boolean> =
         readBool(PreferenceKey.HasCompletedOnboarding, false)
@@ -70,18 +99,25 @@ class PreferencesManager(private val context: Context) {
         writeBool(PreferenceKey.HasCompletedOnboarding, completed)
 
     val isDarkTheme: Flow<Boolean> = readBool(PreferenceKey.DarkTheme, false)
+
     val hasManuallyChosenTheme: Flow<Boolean> =
         readBool(PreferenceKey.HasManuallyChosenTheme, false)
+
     val isHiddenSettingsApplied: Flow<Boolean> =
         readBool(PreferenceKey.HiddenSettingsApplied, false)
+
     val pendingOptimization: Flow<Boolean> =
         readBool(PreferenceKey.PendingOptimization, false)
+
     val hasShownRestrictedDialog: Flow<Boolean> =
         readBool(PreferenceKey.HasShownRestrictedDialog, false)
+
     val dnsFilterEnabled: Flow<Boolean> =
         readBool(PreferenceKey.DnsFilterEnabled, false)
+
     val hasSeenDnsWarning: Flow<Boolean> =
         readBool(PreferenceKey.HasSeenDnsWarning, false)
+
     val aggressiveMode: Flow<Boolean> =
         readBool(PreferenceKey.AggressiveMode, false)
 
@@ -112,37 +148,141 @@ class PreferencesManager(private val context: Context) {
     suspend fun clearPendingOptimization() =
         writeBool(PreferenceKey.PendingOptimization, false)
 
-    suspend fun getPendingOptimization(): Boolean =
+    /**
+     * Синхронное получение статуса pending optimization.
+     * Возвращает false при ошибке DataStore.
+     */
+    suspend fun getPendingOptimization(): Boolean = runCatching {
         pendingOptimization.first()
+    }.getOrElse { e ->
+        AppLog.w(TAG, "getPendingOptimization failed: ${e.message}")
+        false
+    }
 
-    suspend fun getDnsFilterEnabled(): Boolean =
+    /**
+     * Синхронное получение статуса DNS filter.
+     * Возвращает false при ошибке DataStore.
+     */
+    suspend fun getDnsFilterEnabled(): Boolean = runCatching {
         dnsFilterEnabled.first()
+    }.getOrElse { e ->
+        AppLog.w(TAG, "getDnsFilterEnabled failed: ${e.message}")
+        false
+    }
 
-    // ✅ ИСПРАВЛЕНО: используем PreferenceKey вместо захардкоженной строки
-    suspend fun setLastReportJson(json: String) {
+    // ═══════════════════════════════════════════════════════════════
+    // String preferences
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Сохраняет JSON последнего отчёта оптимизации.
+     * Используется для отображения истории и экспорта.
+     */
+    suspend fun setLastReportJson(json: String) = runCatching {
         context.dataStore.edit { prefs ->
-            prefs[stringPreferencesKey(PreferenceKey.LastReportJson.name)] = json
+            prefs[LAST_REPORT_KEY] = json
         }
+    }.onFailure { e ->
+        AppLog.e(TAG, "setLastReportJson failed: ${e.message}")
     }
 
-    val lastReportJson: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[stringPreferencesKey(PreferenceKey.LastReportJson.name)] ?: ""
+    /**
+     * Flow с JSON последнего отчёта.
+     * Использует `catch` для защиты от corrupt DataStore.
+     */
+    val lastReportJson: Flow<String> = context.dataStore.data
+        .map { prefs -> prefs[LAST_REPORT_KEY] ?: "" }
+        .catch { e ->
+            AppLog.e(TAG, "lastReportJson flow error: ${e.message}")
+            emit("")
+        }
+
+    /**
+     * Синхронное получение JSON последнего отчёта.
+     * Возвращает пустую строку при ошибке или отсутствии данных.
+     */
+    suspend fun getLastReportJson(): String = runCatching {
+        lastReportJson.first()
+    }.getOrElse { e ->
+        AppLog.w(TAG, "getLastReportJson failed: ${e.message}")
+        ""
     }
 
-    val optimizationMode: Flow<OptimizationMode> = context.dataStore.data.map { prefs ->
-        OptimizationMode.fromString(prefs[stringPreferencesKey(PreferenceKey.OptimizationModeKey.name)])
-    }
+    // ═══════════════════════════════════════════════════════════════
+    // OptimizationMode
+    // ═══════════════════════════════════════════════════════════════
 
-    suspend fun setOptimizationMode(mode: OptimizationMode) {
+    /**
+     * Flow с текущим режимом оптимизации (SIMPLE/PRO).
+     * Использует `catch` для защиты от corrupt DataStore.
+     */
+    val optimizationMode: Flow<OptimizationMode> = context.dataStore.data
+        .map { prefs ->
+            OptimizationMode.fromString(prefs[OPTIMIZATION_MODE_KEY])
+        }
+        .catch { e ->
+            AppLog.e(TAG, "optimizationMode flow error: ${e.message}")
+            emit(OptimizationMode.SIMPLE)
+        }
+
+    /**
+     * Устанавливает режим оптимизации.
+     */
+    suspend fun setOptimizationMode(mode: OptimizationMode) = runCatching {
         context.dataStore.edit { prefs ->
-            prefs[stringPreferencesKey(PreferenceKey.OptimizationModeKey.name)] = mode.name
+            prefs[OPTIMIZATION_MODE_KEY] = mode.name
         }
+    }.onFailure { e ->
+        AppLog.e(TAG, "setOptimizationMode failed: ${e.message}")
     }
 
+    /**
+     * Синхронное получение текущего режима оптимизации.
+     * Возвращает SIMPLE при ошибке.
+     */
+    suspend fun getOptimizationMode(): OptimizationMode = runCatching {
+        optimizationMode.first()
+    }.getOrElse { e ->
+        AppLog.w(TAG, "getOptimizationMode failed: ${e.message}")
+        OptimizationMode.SIMPLE
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Сброс всех настроек
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Сбрасывает все настройки в значения по умолчанию.
+     * Используется при reinstall или по запросу пользователя.
+     */
+    suspend fun clearAll() = runCatching {
+        context.dataStore.edit { prefs -> prefs.clear() }
+        AppLog.i(TAG, "clearAll: все настройки сброшены")
+    }.onFailure { e ->
+        AppLog.e(TAG, "clearAll failed: ${e.message}")
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Приватные хелперы
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Читает Boolean preference с защитой от ошибок.
+     */
     private fun readBool(key: PreferenceKey, default: Boolean): Flow<Boolean> =
-        context.dataStore.data.map { it[booleanPreferencesKey(key.name)] ?: default }
+        context.dataStore.data
+            .map { it[booleanPreferencesKey(key.name)] ?: default }
+            .catch { e ->
+                AppLog.e(TAG, "readBool(${key.name}) flow error: ${e.message}")
+                emit(default)
+            }
 
-    private suspend fun writeBool(key: PreferenceKey, value: Boolean) {
+    /**
+     * Записывает Boolean preference с защитой от ошибок.
+     */
+    private suspend fun writeBool(key: PreferenceKey, value: Boolean) = runCatching {
         context.dataStore.edit { it[booleanPreferencesKey(key.name)] = value }
+    }.onFailure { e ->
+        AppLog.e(TAG, "writeBool(${key.name}) failed: ${e.message}")
     }
 }

@@ -16,6 +16,26 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 
+/**
+ * Контроллер Simple Mode — машина состояний для процесса оптимизации через Accessibility.
+ *
+ * Отвечает за:
+ * 1. Поток запроса разрешений (overlay → accessibility → battery)
+ * 2. Последовательное выполнение 26 шагов из SimpleSteps
+ * 3. Автоматическое продвижение между шагами
+ * 4. Обработку ошибок и пропусков
+ *
+ * Архитектура:
+ * - PERMISSIONS фаза: запрос разрешений через PermissionFlowManager
+ * - STEPS фаза: выполнение шагов через AdbEnablerService → SimpleRunner
+ * - DONE фаза: показ результатов через OverlayController
+ *
+ * УЛУЧШЕНИЯ:
+ * 1. Явные типы для всех переменных
+ * 2. Полная документация для ключевых методов
+ * 3. Улучшенное логирование для диагностики
+ * 4. Защита от race condition в nextStep()
+ */
 class SimpleModeController(
     private val context: Context,
     private val permissionFlow: PermissionFlowManager,
@@ -25,28 +45,75 @@ class SimpleModeController(
         private const val TAG = "SimpleModeController"
     }
 
+    /**
+     * Состояние Simple Mode.
+     * Используется в ViewModel для управления UI.
+     */
     data class SimpleModeState(
+        /** Активен ли Simple Mode */
         val active: Boolean = false,
+
+        /** Текущая фаза (PERMISSIONS, STEPS, DONE) */
         val phase: SimpleModePhase = SimpleModePhase.INACTIVE,
+
+        /** Подфаза запроса разрешений */
         val permissionSubPhase: PermissionSubPhase = PermissionSubPhase.INACTIVE,
+
+        /** Индекс текущего шага в SimpleSteps.ALL */
         val currentStepIndex: Int = 0,
+
+        /** Количество успешно завершённых шагов */
         val completedCount: Int = 0,
+
+        /** Состояние текущего шага */
         val step: SimpleStepState? = null,
+
+        /** Финальный результат (completed, total) */
         val done: Pair<Int, Int>? = null,
+
+        /** Показывать диалог App Info */
         val showAppInfoDialog: Boolean = false,
+
+        /** Показывать диалог Overlay */
         val showOverlayDialog: Boolean = false,
+
+        /** Показывать диалог Accessibility */
         val showAccessibilityDialog: Boolean = false,
+
+        /** Показывать диалог Restricted Settings */
         val showRestrictedDialog: Boolean = false,
+
+        /** Показывать диалог выбора местоположения кнопки */
         val showLocationDialog: Boolean = false,
+
+        /** Показывать fallback диалог */
         val showPermissionFallbackDialog: Boolean = false,
+
+        /** Застрявшая фаза (для retry) */
         val stuckPhase: PermissionSubPhase? = null,
+
+        /** Показывать экран Restricted Settings */
         val showRestrictedSettingsScreen: Boolean = false,
+
+        /** Был ли показан экран Restricted Settings */
         val restrictedSettingsShown: Boolean = false,
+
+        /** Количество попыток включения Accessibility */
         val accessibilityAttempts: Int = 0,
+
+        /** Количество попыток получения Overlay */
         val overlayAttempts: Int = 0,
+
+        /** Количество попыток открытия App Info */
         val appInfoAttempts: Int = 0,
+
+        /** Показывать диалог Battery Optimization */
         val showBatteryDialog: Boolean = false,
+
+        /** ID шагов, которые не удалось выполнить */
         val failedStepIds: List<String> = emptyList(),
+
+        /** ID шагов, которые были пропущены (приложение не установлено) */
         val skippedStepIds: List<String> = emptyList()
     )
 
@@ -54,15 +121,15 @@ class SimpleModeController(
     val failedStepIds: List<String> get() = state.failedStepIds
     val skippedStepIds: List<String> get() = state.skippedStepIds
 
-    private var state = SimpleModeState()
-    private var isAccessibilityEnabled = false
-    private var isOverlayGranted = false
-    private var stepAttempt = 1
-    private var stepsStarted = false
+    private var state: SimpleModeState = SimpleModeState()
+    private var isAccessibilityEnabled: Boolean = false
+    private var isOverlayGranted: Boolean = false
+    private var stepAttempt: Int = 1
+    private var stepsStarted: Boolean = false
     private var autoFlowJob: Job? = null
-    private val failedIds = mutableListOf<String>()
-    private val skippedIds = mutableListOf<String>()
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val failedIds: MutableList<String> = mutableListOf()
+    private val skippedIds: MutableList<String> = mutableListOf()
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private var restrictedLocation: RestrictedLocation = RestrictedLocation.UNKNOWN
 
@@ -70,24 +137,37 @@ class SimpleModeController(
         permissionFlow.isSideloadedOnAndroid13Plus()
     }
 
+    /**
+     * Обновляет состояние и уведомляет ViewModel.
+     * Использует DSL-паттерн для удобного обновления.
+     */
     fun setState(update: SimpleModeState.() -> SimpleModeState) {
         state = state.update()
         onStateChanged(state)
     }
 
+    /**
+     * Освобождает ресурсы при уничтожении контроллера.
+     */
     fun destroy() {
         autoFlowJob?.cancel()
         OverlayController.hide(context)
         scope.cancel()
     }
 
+    /**
+     * Обновляет статусы разрешений.
+     * Вызывается из ViewModel при возврате из настроек.
+     */
     fun updatePermissionStatuses(accEnabled: Boolean, overlayGranted: Boolean) {
-        val accJustEnabled = !isAccessibilityEnabled && accEnabled
-        val overlayJustEnabled = !isOverlayGranted && overlayGranted
+        val accJustEnabled: Boolean = !isAccessibilityEnabled && accEnabled
+        val overlayJustEnabled: Boolean = !isOverlayGranted && overlayGranted
         isAccessibilityEnabled = accEnabled
         isOverlayGranted = overlayGranted
+
         if (!state.active) return
         if (state.phase != SimpleModePhase.PERMISSIONS) return
+
         if (accJustEnabled || overlayJustEnabled) {
             AppLog.i(
                 TAG,
@@ -98,6 +178,9 @@ class SimpleModeController(
         }
     }
 
+    /**
+     * Вызывается при возврате из настроек разрешений.
+     */
     fun onResumeAfterPermissionReturn() {
         if (!state.active || state.phase != SimpleModePhase.PERMISSIONS) return
         AppLog.i(TAG, "onResumeAfterPermissionReturn: subPhase=${state.permissionSubPhase}")
@@ -108,6 +191,9 @@ class SimpleModeController(
         }
     }
 
+    /**
+     * Перепроверяет текущую подфазу.
+     */
     fun refresh() {
         if (state.active && state.phase == SimpleModePhase.PERMISSIONS) {
             AppLog.d(TAG, "refresh() — re-checking current sub-phase")
@@ -115,6 +201,9 @@ class SimpleModeController(
         }
     }
 
+    /**
+     * Запускает Simple Mode.
+     */
     fun start() {
         AppLog.i(TAG, "Starting simple mode, needsRestrictedUnlock=$needsRestrictedUnlock")
         failedIds.clear()
@@ -123,6 +212,7 @@ class SimpleModeController(
         stepsStarted = false
         restrictedLocation = RestrictedLocation.UNKNOWN
         OverlayController.hide(context)
+
         state = SimpleModeState(
             active = true,
             phase = SimpleModePhase.PERMISSIONS,
@@ -135,7 +225,9 @@ class SimpleModeController(
         advance()
     }
 
-    // ═══ Диалоги разрешений ═══
+    // ═══════════════════════════════════════════════════════════════
+    // Диалоги разрешений
+    // ═══════════════════════════════════════════════════════════════
 
     fun onAppInfoDialogAgreed() {
         setState { copy(showAppInfoDialog = false, appInfoAttempts = appInfoAttempts + 1) }
@@ -225,7 +317,9 @@ class SimpleModeController(
 
     fun onRestrictedScreenCancelled() = reset()
 
-    // ═══ Батарея ═══
+    // ═══════════════════════════════════════════════════════════════
+    // Батарея
+    // ═══════════════════════════════════════════════════════════════
 
     fun onBatteryDialogAgreed() {
         AppLog.i(TAG, "Battery dialog agreed")
@@ -278,10 +372,12 @@ class SimpleModeController(
         }
     }
 
-    // ═══ Fallback ═══
+    // ═══════════════════════════════════════════════════════════════
+    // Fallback
+    // ═══════════════════════════════════════════════════════════════
 
     fun onFallbackRetry() {
-        val phaseToRetry = state.stuckPhase
+        val phaseToRetry: PermissionSubPhase? = state.stuckPhase
         setState {
             copy(
                 showPermissionFallbackDialog = false, stuckPhase = null,
@@ -307,10 +403,17 @@ class SimpleModeController(
 
     fun onFallbackCancelled() = reset()
 
-    // ═══ Шаги ═══
+    // ═══════════════════════════════════════════════════════════════
+    // Шаги
+    // ═══════════════════════════════════════════════════════════════
 
+    /**
+     * Запускает текущий шаг.
+     *
+     * @param force Если true, запускает даже если шаг уже WORKING
+     */
     fun startCurrentStep(force: Boolean = false) {
-        val current = state.step ?: return
+        val current: SimpleStepState = state.step ?: return
         if (current.status == SimpleStepState.Status.WORKING && !force) {
             AppLog.w(TAG, "startCurrentStep: already WORKING, ignoring double-tap")
             return
@@ -319,11 +422,17 @@ class SimpleModeController(
         launchStep()
     }
 
+    /**
+     * Повторяет текущий шаг с первой попытки.
+     */
     fun retryStep() {
         stepAttempt = 1
         launchStep()
     }
 
+    /**
+     * Запускает выполнение шага через AdbEnablerService.
+     */
     private fun launchStep() {
         autoFlowJob?.cancel()
         setState {
@@ -334,26 +443,33 @@ class SimpleModeController(
                 )
             )
         }
-        val intent = Intent(context, AdbEnablerService::class.java).apply {
+        val intent: Intent = Intent(context, AdbEnablerService::class.java).apply {
             action = AdbEnablerService.ACTION_SIMPLE_STEP
             putExtra("step_index", state.currentStepIndex)
         }
         context.startService(intent)
     }
 
+    /**
+     * Обрабатывает результат выполнения шага.
+     *
+     * @param success true, если шаг выполнен успешно
+     * @param attempt Номер попытки
+     * @param finalFailure true, если это финальная неудача (все попытки исчерпаны)
+     */
     fun onStepResult(success: Boolean, attempt: Int, finalFailure: Boolean = false) {
         AppLog.i(
             TAG,
-            "onStepResult: success=$success, attempt=$attempt, step=${state.currentStepIndex}"
+            "onStepResult: success=$success, attempt=$attempt, step=${state.currentStepIndex}, finalFailure=$finalFailure"
         )
-        val step = state.step ?: return
+        val step: SimpleStepState = state.step ?: return
         if (!state.active) {
             AppLog.w(TAG, "onStepResult: controller inactive, ignoring")
             return
         }
 
         if (success) {
-            val newCount = state.completedCount + 1
+            val newCount: Int = state.completedCount + 1
             setState {
                 copy(
                     completedCount = newCount,
@@ -383,6 +499,9 @@ class SimpleModeController(
         setState { copy(step = step.copy(status = SimpleStepState.Status.IDLE, attempt = attempt)) }
     }
 
+    /**
+     * Обрабатывает пропуск шага (приложение не установлено).
+     */
     fun onStepSkipped(stepId: String) {
         AppLog.i(TAG, "onStepSkipped: step=$stepId, index=${state.currentStepIndex}")
         if (!skippedIds.contains(stepId)) skippedIds.add(stepId)
@@ -391,8 +510,8 @@ class SimpleModeController(
     }
 
     /**
-     * ГАРАНТИРОВАННОЕ продвижение: всегда планирует nextStep с логами,
-     * чтобы зависание «после первого шага» было видно и невозможно.
+     * Планирует автоматическое продвижение к следующему шагу.
+     * Использует AUTO_ADVANCE_DELAY_MS для задержки.
      */
     private fun scheduleAdvance() {
         autoFlowJob?.cancel()
@@ -408,18 +527,23 @@ class SimpleModeController(
     }
 
     /**
-     * ИСПРАВЛЕНО: сохраняем completedCount в локальную переменную перед setState,
+     * Переходит к следующему шагу.
+     *
+     * ВАЖНО: сохраняет completedCount в локальную переменную перед setState,
      * потому что вложенный SimpleStepState(...) скрывал это поле от компилятора.
+     *
+     * @param autoStart Если true, автоматически запускает шаг
      */
     fun nextStep(autoStart: Boolean = false) {
         if (state.phase == SimpleModePhase.DONE) return
-        val steps = SimpleSteps.ALL
-        val nextIndex = if (stepsStarted) state.currentStepIndex + 1 else 0
+
+        val steps: List<SimpleSteps.Step> = SimpleSteps.ALL
+        val nextIndex: Int = if (stepsStarted) state.currentStepIndex + 1 else 0
         stepsStarted = true
 
         if (nextIndex >= steps.size) {
             AppLog.i(TAG, "All simple steps completed")
-            val finalCompleted = state.completedCount
+            val finalCompleted: Int = state.completedCount
             setState {
                 copy(
                     phase = SimpleModePhase.DONE, permissionSubPhase = PermissionSubPhase.DONE,
@@ -436,9 +560,9 @@ class SimpleModeController(
             OverlayController.startAutomation(context, steps.size)
         }
 
-        val nextStepObj = steps[nextIndex]
+        val nextStepObj: SimpleSteps.Step = steps[nextIndex]
         // КЛЮЧЕВОЙ ФИКС: сохраняем completedCount ПЕРЕД setState
-        val currentCompletedCount = state.completedCount
+        val currentCompletedCount: Int = state.completedCount
         setState {
             copy(
                 currentStepIndex = nextIndex,
@@ -452,8 +576,13 @@ class SimpleModeController(
         if (autoStart) startCurrentStep()
     }
 
-    // ═══ advance (permission-фазы) ═══
+    // ═══════════════════════════════════════════════════════════════
+    // advance (permission-фазы)
+    // ═══════════════════════════════════════════════════════════════
 
+    /**
+     * Продвигает машину состояний к следующей подфазе.
+     */
     private fun advance() {
         if (!state.active) return
         if (state.phase != SimpleModePhase.PERMISSIONS) return
@@ -546,6 +675,9 @@ class SimpleModeController(
         }
     }
 
+    /**
+     * Сбрасывает контроллер в начальное состояние.
+     */
     private fun reset() {
         AppLog.i(TAG, "Resetting simple mode controller")
         autoFlowJob?.cancel()

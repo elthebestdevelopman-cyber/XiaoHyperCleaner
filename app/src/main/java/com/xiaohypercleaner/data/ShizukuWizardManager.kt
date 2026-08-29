@@ -14,6 +14,12 @@ import com.xiaohypercleaner.util.ShizukuHelper
  * - Проверка статуса Shizuku
  * - Управление состоянием wizard-диалогов
  *
+ * УЛУЧШЕНИЯ:
+ * 1. Явные типы для всех переменных
+ * 2. Полная документация для ShizukuWizardState
+ * 3. Защита от повторных вызовов
+ * 4. Convenience метод isWizardOpen()
+ *
  * @param context Контекст приложения
  * @param onStateChanged Колбэк для обновления UI-состояния
  */
@@ -25,17 +31,38 @@ class ShizukuWizardManager(
         private const val TAG = "ShizukuWizardManager"
     }
 
+    /**
+     * Состояние wizard-диалогов Shizuku.
+     * Используется в ViewModel для управления UI.
+     */
     data class ShizukuWizardState(
+        /** Показывать диалог с предложением установить Shizuku */
         val showShizukuDialog: Boolean = false,
+
+        /** Показывать wizard с инструкцией по настройке Shizuku */
         val showShizukuWizard: Boolean = false,
+
+        /** Показывать диалог выбора источников установки */
         val showShizukuSources: Boolean = false,
+
+        /** Текущий статус Shizuku (NOT_INSTALLED, NOT_RUNNING, PERMISSION_REQUIRED, AVAILABLE) */
         val shizukuStatus: ShizukuExecutor.Status = ShizukuExecutor.Status.NOT_INSTALLED,
+
+        /** Сообщение для отображения в wizard (например, "Shizuku не готов") */
         val shizukuCheckMessage: String? = null
     )
 
-    private var state = ShizukuWizardState()
+    private var state: ShizukuWizardState = ShizukuWizardState()
 
-    /** Устанавливает состояние и уведомляет ViewModel */
+    /**
+     * Устанавливает состояние и уведомляет ViewModel.
+     * Использует DSL-паттерн для удобного обновления.
+     *
+     * Пример:
+     * ```
+     * setState { copy(showShizukuDialog = true) }
+     * ```
+     */
     fun setState(update: ShizukuWizardState.() -> ShizukuWizardState) {
         state = state.update()
         onStateChanged(state)
@@ -44,9 +71,16 @@ class ShizukuWizardManager(
     /**
      * Показать диалог Shizuku с указанным статусом.
      * Вызывается из ViewModel при старте продвинутого потока.
+     *
+     * @param status Текущий статус Shizuku
      */
     fun showDialog(status: ShizukuExecutor.Status) {
-        AppLog.i(TAG, "showDialog called with status: $status")
+        if (state.showShizukuDialog) {
+            AppLog.w(TAG, "showDialog: диалог уже открыт, пропускаем")
+            return
+        }
+
+        AppLog.i(TAG, "showDialog: status=$status")
         setState {
             copy(
                 showShizukuDialog = true,
@@ -55,9 +89,12 @@ class ShizukuWizardManager(
         }
     }
 
-    /** Пользователь нажал "Установить" в диалоге Shizuku */
+    /**
+     * Пользователь нажал "Установить" в диалоге Shizuku.
+     * Открывает магазин с Shizuku (автовыбор лучшего источника).
+     */
     fun onInstallClicked() {
-        AppLog.i(TAG, "Install Shizuku clicked")
+        AppLog.i(TAG, "onInstallClicked: установка Shizuku")
         setState {
             copy(
                 showShizukuDialog = false,
@@ -67,16 +104,27 @@ class ShizukuWizardManager(
         ShizukuHelper.openShizukuInStore(context)
     }
 
-    /** Пользователь нажал "Открыть Shizuku" */
+    /**
+     * Пользователь нажал "Открыть Shizuku".
+     * Переходит к wizard с инструкцией по настройке.
+     */
     fun onOpenAppClicked() {
-        AppLog.i(TAG, "Open Shizuku app clicked")
+        AppLog.i(TAG, "onOpenAppClicked: открытие Shizuku")
         setState { copy(showShizukuDialog = false) }
         openWizard()
     }
 
-    /** Открыть wizard с инструкцией по настройке */
+    /**
+     * Открыть wizard с инструкцией по настройке.
+     * Показывает пошаговую инструкцию для пользователя.
+     */
     fun openWizard() {
-        AppLog.i(TAG, "Opening Shizuku wizard")
+        if (state.showShizukuWizard) {
+            AppLog.w(TAG, "openWizard: wizard уже открыт, пропускаем")
+            return
+        }
+
+        AppLog.i(TAG, "openWizard: открытие wizard")
         setState {
             copy(
                 showShizukuDialog = false,
@@ -86,15 +134,20 @@ class ShizukuWizardManager(
         }
     }
 
-    /** Закрыть wizard */
+    /**
+     * Закрыть wizard.
+     */
     fun closeWizard() {
-        AppLog.i(TAG, "Closing Shizuku wizard")
+        AppLog.i(TAG, "closeWizard: закрытие wizard")
         setState { copy(showShizukuWizard = false) }
     }
 
-    /** Пользователь нажал "Пропустить" в wizard */
+    /**
+     * Пользователь нажал "Пропустить" в wizard.
+     * Переходит к опциям Pro-режима без настройки Shizuku.
+     */
     fun onWizardSkip() {
-        AppLog.i(TAG, "Wizard skipped — proceeding to options")
+        AppLog.i(TAG, "onWizardSkip: пропуск wizard")
         setState {
             copy(
                 showShizukuWizard = false,
@@ -103,15 +156,23 @@ class ShizukuWizardManager(
         }
     }
 
-    /** Запросить разрешение Shizuku */
+    /**
+     * Запросить разрешение Shizuku.
+     *
+     * @param requestCode Код запроса для обработки в onRequestPermissionResult
+     */
     fun requestPermission(requestCode: Int) {
-        AppLog.i(TAG, "Requesting Shizuku permission")
+        AppLog.i(TAG, "requestPermission: requestCode=$requestCode")
         ShizukuExecutor.requestPermission(requestCode)
     }
 
-    /** Обработать результат запроса разрешения */
+    /**
+     * Обработать результат запроса разрешения.
+     *
+     * @param granted true, если разрешение предоставлено
+     */
     fun onPermissionResult(granted: Boolean) {
-        AppLog.i(TAG, "Shizuku permission result: $granted")
+        AppLog.i(TAG, "onPermissionResult: granted=$granted")
         if (granted) {
             setState {
                 copy(
@@ -128,14 +189,17 @@ class ShizukuWizardManager(
         }
     }
 
-    /** Проверить статус Shizuku из wizard */
+    /**
+     * Проверить статус Shizuku из wizard.
+     * Обновляет shizukuCheckMessage в зависимости от статуса.
+     */
     fun checkStatus() {
-        val status = ShizukuExecutor.checkStatus(context)
-        AppLog.i(TAG, "Wizard check status: $status")
+        val status: ShizukuExecutor.Status = ShizukuExecutor.checkStatus(context)
+        AppLog.i(TAG, "checkStatus: status=$status")
 
         when (status) {
             ShizukuExecutor.Status.AVAILABLE -> {
-                AppLog.i(TAG, "Shizuku available — proceeding")
+                AppLog.i(TAG, "checkStatus: Shizuku доступен — продолжаем")
                 setState {
                     copy(
                         showShizukuWizard = false,
@@ -158,9 +222,12 @@ class ShizukuWizardManager(
         }
     }
 
-    /** Пользователь открыл диалог выбора источников */
+    /**
+     * Пользователь открыл диалог выбора источников.
+     * Показывает список доступных магазинов для установки Shizuku.
+     */
     fun onOpenSources() {
-        AppLog.i(TAG, "Opening Shizuku sources")
+        AppLog.i(TAG, "onOpenSources: открытие диалога источников")
         setState {
             copy(
                 showShizukuDialog = false,
@@ -169,15 +236,21 @@ class ShizukuWizardManager(
         }
     }
 
-    /** Закрыть диалог выбора источников */
+    /**
+     * Закрыть диалог выбора источников.
+     */
     fun closeSources() {
-        AppLog.i(TAG, "Closing Shizuku sources")
+        AppLog.i(TAG, "closeSources: закрытие диалога источников")
         setState { copy(showShizukuSources = false) }
     }
 
-    /** Установка Shizuku из выбранного источника */
+    /**
+     * Установка Shizuku из выбранного источника.
+     *
+     * @param source Идентификатор источника: "play", "aurora", "getapps", "github", "apkpure"
+     */
     fun installFromSource(source: String) {
-        AppLog.i(TAG, "Installing Shizuku from: $source")
+        AppLog.i(TAG, "installFromSource: source=$source")
         setState { copy(showShizukuSources = false) }
 
         when (source) {
@@ -186,18 +259,43 @@ class ShizukuWizardManager(
             "getapps" -> ShizukuHelper.openGetApps(context)
             "github" -> ShizukuHelper.openGithub(context)
             "apkpure" -> ShizukuHelper.openApkPure(context)
+            else -> AppLog.w(TAG, "installFromSource: неизвестный источник '$source'")
         }
     }
 
-    /** Пользователь нажал "Позже" */
+    /**
+     * Пользователь нажал "Позже".
+     * Закрывает диалог без установки Shizuku.
+     */
     fun onLater() {
-        AppLog.i(TAG, "Shizuku setup postponed")
+        AppLog.i(TAG, "onLater: отложено")
         setState { copy(showShizukuDialog = false) }
     }
 
-    /** Сбросить состояние при отмене */
+    /**
+     * Сбросить состояние при отмене.
+     * Возвращает все диалоги в начальное состояние.
+     */
     fun reset() {
+        AppLog.i(TAG, "reset: сброс состояния")
         state = ShizukuWizardState()
         onStateChanged(state)
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Convenience методы
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Проверяет, открыт ли какой-либо wizard-диалог.
+     * Используется для блокировки других действий во время настройки Shizuku.
+     */
+    fun isWizardOpen(): Boolean {
+        return state.showShizukuDialog || state.showShizukuWizard || state.showShizukuSources
+    }
+
+    /**
+     * Возвращает текущее состояние (для диагностики).
+     */
+    fun getCurrentState(): ShizukuWizardState = state
 }

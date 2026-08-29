@@ -2,21 +2,53 @@ package com.xiaohypercleaner.data
 
 /**
  * Под-фазы процесса запроса разрешений в Simple Mode.
+ *
  * Порядок перехода (см. SimpleModeController.advance()):
- * INACTIVE → RESTRICTED_SETTINGS → APP_INFO → OVERLAY → ACCESSIBILITY → TEST_CLICK → BATTERY_OPTIMIZATION → DONE
+ * INACTIVE → RESTRICTED_SETTINGS → APP_INFO → OVERLAY → ACCESSIBILITY → BATTERY_OPTIMIZATION → STEPS → DONE
+ *
+ * ИСПРАВЛЕНО:
+ * - Удалено упоминание TEST_CLICK из комментария (фаза была удалена из логики)
+ * - Добавлено упоминание STEPS (фаза выполнения 26 шагов автоматизации)
+ * - Добавлена полная документация для каждой фазы
  */
 enum class PermissionSubPhase {
+    /** Начальное состояние — разрешения ещё не запрашивались */
     INACTIVE,
 
-    /** НОВОЕ: экран с инструкцией для разблокировки Restricted Settings (Android 13+ sideload) */
+    /**
+     * Экран с инструкцией для разблокировки Restricted Settings.
+     * Актуально только для Android 13+ и sideloaded apps.
+     * Пользователь видит карточку с объяснением, зачем нужно разблокировать настройки.
+     */
     RESTRICTED_SETTINGS,
 
-    /** Открытие App Info для разблокировки ограниченных настроек */
+    /**
+     * Открытие App Info для разблокировки ограниченных настроек.
+     * Пользователь нажимает ⋮ → "Разрешить" (или аналогичную кнопку).
+     * Показывается стрелка-указатель через OverlayService.
+     */
     APP_INFO,
+
+    /**
+     * Запрос разрешения на отображение поверх других приложений.
+     * Необходимо для показа оверлея с робокотом и подсказками.
+     */
     OVERLAY,
+
+    /**
+     * Включение Accessibility Service (AdbEnablerService).
+     * Критично для Simple Mode — без него робот не может кликать по UI.
+     * Показывается стрелка-указатель на сервис в списке.
+     */
     ACCESSIBILITY,
 
-    /** НОВОЕ: снятие ограничений HyperOS Battery Optimization */
+    /**
+     * Исключение приложения из Battery Optimization.
+     * Необходимо, чтобы система не убивала Accessibility Service в фоне.
+     * Особенно важно для MIUI/HyperOS с агрессивной экономией батареи.
+     */
     BATTERY_OPTIMIZATION,
+
+    /** Все разрешения получены — можно переходить к выполнению шагов */
     DONE
 }

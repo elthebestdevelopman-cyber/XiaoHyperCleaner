@@ -5,15 +5,18 @@ import android.provider.Settings
 import androidx.core.net.toUri
 
 /**
- * Финальная карта маршрутов по инструкции сообщества (все 11 пунктов).
+ * Финальная карта маршрутов по инструкции сообщества (все 26 шагов).
  *
  * Типы действий:
  *  TOGGLE             — найти переключатель и выключить (+ additionalToggles рядом)
  *  CLEAR_DATA_DECLINE — очистить данные приложения и нажать «Отмена» на приветствии
  *
- * confirmTexts + confirmWaitMs — для старого варианта msa (диалог с 10-сек таймером).
- * preDrillWaitMs — пауза перед бурением (экраны со сканом, напр. «Очистка»).
- * swipeUpAfterLaunch — свайп вверх после запуска (поиск приложений в лаунчере).
+ * Поля:
+ *  forceStopBeforeLaunch — для шагов-приложений: force-stop очищает recents-стек MIUI,
+ *     иначе приложение открывается на старом экране (а не с корневого).
+ *  confirmTexts + confirmWaitMs — для msa (диалог с 10-сек таймером).
+ *  preDrillWaitMs — пауза перед бурением (экраны со сканом, напр. «Очистка»).
+ *  swipeUpAfterLaunch — свайп вверх после запуска (поиск приложений в лаунчере).
  */
 object SimpleSteps {
 
@@ -42,62 +45,79 @@ object SimpleSteps {
         val confirmTexts: List<String> = emptyList(),
         val confirmWaitMs: Long = 0L,
         val preDrillWaitMs: Long = 0L,
-        val swipeUpAfterLaunch: Boolean = false
+        val swipeUpAfterLaunch: Boolean = false,
+        /**
+         * НОВОЕ: принудительная остановка пакета перед запуском.
+         * Нужно для шагов-приложений (Темы, Музыка, Mi Video и т.д.) — MIUI
+         * иначе открывает старый экран из recents вместо корневого.
+         * Для системных шагов (Settings) НЕ требуется — CLEAR_TASK работает.
+         */
+        val forceStopBeforeLaunch: Boolean = false
     )
 
-    // ── Хелперы ──────────────────────────────────────────────────────
+    // ── Хелперы интентов ─────────────────────────────────────────────
 
-    private fun settingsRoot() = Intent(Settings.ACTION_SETTINGS)
+    private fun settingsRoot(): Intent = Intent(Settings.ACTION_SETTINGS)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
 
-    private fun notificationsIntent(pkg: String) =
+    private fun notificationsIntent(pkg: String): Intent =
         Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
             putExtra(Settings.EXTRA_APP_PACKAGE, pkg)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
-    private fun appDetailsIntent(pkg: String) =
+    private fun appDetailsIntent(pkg: String): Intent =
         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
             data = "package:$pkg".toUri()
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
-    private fun launchIntent(pkg: String) = Intent(Intent.ACTION_MAIN).apply {
-        addCategory(Intent.CATEGORY_LAUNCHER); setPackage(pkg)
+    private fun launchIntent(pkg: String): Intent = Intent(Intent.ACTION_MAIN).apply {
+        addCategory(Intent.CATEGORY_LAUNCHER)
+        setPackage(pkg)
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 
+    // ── Переиспользуемые фрагменты drillPath ─────────────────────────
+
     /** Уровень 1 для маршрутов через «Отпечатки, данные лица и защита устройства» */
-    private val SEC = listOf(
+    private val SEC: List<String> = listOf(
         "Отпечатки, данные лица и защита устройства",
         "Отпечатки, данные лица и за…",
         "Fingerprints, face data & device security",
         "Пароли и безопасность", "Passwords & security"
     )
 
-    private val APPS = listOf("Приложения", "Apps")
-    private val OVERFLOW = listOf("⋮", "Ещё", "More options", "More", "Дополнительно")
-    private val OTHER_SETTINGS =
+    private val APPS: List<String> = listOf("Приложения", "Apps")
+    private val OVERFLOW: List<String> =
+        listOf("⋮", "Ещё", "More options", "More", "Дополнительно")
+    private val OTHER_SETTINGS: List<String> =
         listOf("Прочие настройки", "Additional settings", "Advanced settings")
-    private val SYS_APPS = listOf("Системные приложения", "System apps")
-    private val PRIVACY = listOf("Конфиденциальность", "Privacy")
-    private val GEAR = listOf("⚙", "⚙️", "Настройки", "Settings")
-    private val PROFILE = listOf("Профиль", "Profile", "Я", "Me")
+    private val SYS_APPS: List<String> = listOf("Системные приложения", "System apps")
+    private val PRIVACY: List<String> = listOf("Конфиденциальность", "Privacy")
+    private val GEAR: List<String> = listOf("⚙", "⚙️", "Настройки", "Settings")
+    private val PROFILE: List<String> = listOf("Профиль", "Profile", "Я", "Me")
+
+    // ═════════════════════════════════════════════════════════════════
+    // 26 шагов автоматизации
+    // ═════════════════════════════════════════════════════════════════
 
     val ALL: List<Step> = listOf(
 
-        // ═══ БЛОК А: СИСТЕМНЫЕ НАСТРОЙКИ ═══
+        // ── БЛОК А: СИСТЕМНЫЕ НАСТРОЙКИ ───────────────────────────────
 
-        // П.1: msa. HyperOS: Доступ к личным данным → тумблер.
-        // Старый MIUI: Авторизация и отзыв → тумблер msa → диалог с 10-сек таймером → «Отозвать».
+        // П.1: msa — HyperOS: «Доступ к личным данным»; старый MIUI: 10-сек таймер
         Step(
             id = "msa",
-            titleRu = "Системный сервис MSA", titleEn = "MSA service",
+            titleRu = "Системный сервис MSA",
+            titleEn = "MSA service",
             descRu = "Отзываем разрешение msa на доступ к личным данным.",
             descEn = "Revoking msa permission to personal data.",
             intents = listOf(settingsRoot()),
             searchTexts = listOf("msa"),
-            manualHintRu = "Настройки → Отпечатки, данные лица и защита устройства → Доступ к личным данным → выключите msa.\n\nНа старых MIUI: Авторизация и отзыв → msa → дождитесь конца 10-секундного отсчёта → «Отозвать».",
+            manualHintRu = "Настройки → Отпечатки… → Доступ к личным данным → выключите msa.\n\n" +
+                    "На старых MIUI: Авторизация и отзыв → msa → дождитесь конца 10-секундного " +
+                    "отсчёта → «Отозвать».",
             manualHintEn = "Settings → Fingerprints… → Access to personal data → turn off msa.",
             drillPath = listOf(
                 SEC,
@@ -114,20 +134,24 @@ object SimpleSteps {
         // П.2: Приложения → ⋮ → Прочие настройки → «Получать рекомендации»
         Step(
             id = "sys_recommendations",
-            titleRu = "Системные рекомендации", titleEn = "System recommendations",
+            titleRu = "Системные рекомендации",
+            titleEn = "System recommendations",
             descRu = "Выключаем «Получать рекомендации» в прочих настройках приложений.",
             descEn = "Turning off \"Receive recommendations\".",
             intents = listOf(settingsRoot()),
             searchTexts = listOf("Получать рекомендации", "Receive recommendations"),
-            manualHintRu = "Настройки → Приложения → ⋮ → Прочие настройки → выключите «Получать рекомендации».",
-            manualHintEn = "Settings → Apps → ⋮ → Additional settings → turn off \"Receive recommendations\".",
+            manualHintRu = "Настройки → Приложения → ⋮ → Прочие настройки → " +
+                    "выключите «Получать рекомендации».",
+            manualHintEn = "Settings → Apps → ⋮ → Additional settings → " +
+                    "turn off \"Receive recommendations\".",
             drillPath = listOf(APPS, OVERFLOW, OTHER_SETTINGS)
         ),
 
-        // П.3: Конфиденциальность → Рекламные службы → «Персонализация рекламы»
+        // П.3: Конфиденциальность → Рекламные службы → «Персонализация»
         Step(
             id = "ads_personalization",
-            titleRu = "Персонализация рекламы", titleEn = "Ads personalization",
+            titleRu = "Персонализация рекламы",
+            titleEn = "Ads personalization",
             descRu = "Отключаем персонализацию рекламы.",
             descEn = "Turning off ads personalization.",
             intents = listOf(settingsRoot()),
@@ -136,31 +160,38 @@ object SimpleSteps {
                 "Ads personalization",
                 "Personalization of ads"
             ),
-            manualHintRu = "Настройки → Отпечатки… → Конфиденциальность → Рекламные службы → выключите «Персонализация рекламы».",
-            manualHintEn = "Settings → Fingerprints… → Privacy → Ad services → turn off personalization.",
+            manualHintRu = "Настройки → Отпечатки… → Конфиденциальность → Рекламные службы → " +
+                    "выключите «Персонализация рекламы».",
+            manualHintEn = "Settings → Fingerprints… → Privacy → Ad services → " +
+                    "turn off personalization.",
             drillPath = listOf(SEC, PRIVACY, listOf("Рекламные службы", "Ad services"))
         ),
 
-        // П.3b: Конфиденциальность → «Участвовать в Программе улучшения качества»
+        // П.3b: Конфиденциальность → «Программа улучшения качества»
         Step(
             id = "ux_program",
-            titleRu = "Программа улучшения качества", titleEn = "User Experience Program",
+            titleRu = "Программа улучшения качества",
+            titleEn = "User Experience Program",
             descRu = "Отключаем сбор статистики использования.",
             descEn = "Turning off usage statistics collection.",
             intents = listOf(settingsRoot()),
             searchTexts = listOf(
                 "Участвовать в Программе улучшения качества",
-                "Join User Experience Program", "User Experience Program"
+                "Join User Experience Program",
+                "User Experience Program"
             ),
-            manualHintRu = "Настройки → Отпечатки… → Конфиденциальность → выключите «Участвовать в Программе улучшения качества».",
-            manualHintEn = "Settings → Fingerprints… → Privacy → turn off User Experience Program.",
+            manualHintRu = "Настройки → Отпечатки… → Конфиденциальность → " +
+                    "выключите «Участвовать в Программе улучшения качества».",
+            manualHintEn = "Settings → Fingerprints… → Privacy → " +
+                    "turn off User Experience Program.",
             drillPath = listOf(SEC, PRIVACY)
         ),
 
         // П.6: Блокировка экрана → Карусель обоев (2 тумблера)
         Step(
             id = "carousel",
-            titleRu = "Карусель обоев", titleEn = "Wallpaper Carousel",
+            titleRu = "Карусель обоев",
+            titleEn = "Wallpaper Carousel",
             descRu = "Выключаем карусель обоев и обновление через мобильный интернет.",
             descEn = "Turning off Wallpaper Carousel and mobile updates.",
             intents = listOf(settingsRoot()),
@@ -180,103 +211,133 @@ object SimpleSteps {
         // П.4a: Системные приложения → Mi Браузер → Дополнительные настройки
         Step(
             id = "browser_sys",
-            titleRu = "Реклама Mi Браузера", titleEn = "Mi Browser ads",
-            descRu = "Выключаем «Показывать рекламу» в системном браузере.",
-            descEn = "Turning off \"Show ads\" in Mi Browser.",
+            titleRu = "Рекомендации Mi Браузера",
+            titleEn = "Mi Browser recommendations",
+            descRu = "Выключаем показ рекомендаций в системном браузере.",
+            descEn = "Turning off recommendations in Mi Browser.",
             intents = listOf(settingsRoot()),
             searchTexts = listOf("Показывать рекламу", "Show ads"),
-            manualHintRu = "Настройки → Приложения → ⋮ → Прочие настройки → Системные приложения → Mi Браузер → Дополнительные настройки → выключите «Показывать рекламу».",
-            manualHintEn = "Settings → Apps → ⋮ → Additional settings → System apps → Mi Browser → Advanced → turn off \"Show ads\".",
+            manualHintRu = "Настройки → Приложения → ⋮ → Прочие настройки → " +
+                    "Системные приложения → Mi Браузер → Дополнительные настройки → " +
+                    "выключите «Показывать рекламу».",
+            manualHintEn = "Settings → Apps → ⋮ → Additional settings → " +
+                    "System apps → Mi Browser → Advanced → turn off \"Show ads\".",
             drillPath = listOf(
                 APPS, OVERFLOW, OTHER_SETTINGS, SYS_APPS,
                 listOf("Mi Браузер", "Mi Browser"),
                 listOf("Дополнительные настройки", "Advanced settings")
             ),
-            requiredPackages = listOf("com.android.browser", "com.mi.global.browser")
+            requiredPackages = listOf("com.android.browser", "com.mi.globalbrowser"),
+            forceStopBeforeLaunch = true
         ),
 
         // П.4b: Системные приложения → Музыка (3 тумблера)
         Step(
             id = "music_sys",
-            titleRu = "Реклама Музыки", titleEn = "Music ads",
-            descRu = "Выключаем рекламу и рекомендации в Музыке.",
-            descEn = "Turning off ads and recommendations in Music.",
+            titleRu = "Рекомендации Музыки",
+            titleEn = "Music recommendations",
+            descRu = "Выключаем рекомендации и персонализацию в Музыке.",
+            descEn = "Turning off recommendations in Music.",
             intents = listOf(settingsRoot()),
             searchTexts = listOf("Показывать рекламу", "Show ads"),
             additionalToggles = listOf(
                 "Показывать рекомендации в интернете", "Show recommendations online",
                 "Персональные рекомендации", "Personalized recommendations"
             ),
-            manualHintRu = "Настройки → … → Системные приложения → Музыка → выключите «Показывать рекламу» и рекомендации.",
-            manualHintEn = "Settings → … → System apps → Music → turn off ads and recommendations.",
-            drillPath = listOf(APPS, OVERFLOW, OTHER_SETTINGS, SYS_APPS, listOf("Музыка", "Music")),
-            requiredPackages = listOf("com.miui.player")
+            manualHintRu = "Настройки → … → Системные приложения → Музыка → " +
+                    "выключите «Показывать рекламу» и рекомендации.",
+            manualHintEn = "Settings → … → System apps → Music → " +
+                    "turn off recommendations.",
+            drillPath = listOf(
+                APPS, OVERFLOW, OTHER_SETTINGS, SYS_APPS,
+                listOf("Музыка", "Music")
+            ),
+            requiredPackages = listOf("com.miui.player"),
+            forceStopBeforeLaunch = true
         ),
 
-        // П.4c: Системные приложения → Сообщения → Расширенные → Параметры рекламы
+        // П.4c: Системные приложения → Сообщения → Расширенные → Параметры
         Step(
             id = "messages_sys",
-            titleRu = "Реклама Сообщений", titleEn = "Messages ads",
-            descRu = "Выключаем персонализацию рекламы в Сообщениях.",
-            descEn = "Turning off ads personalization in Messages.",
+            titleRu = "Персонализация Сообщений",
+            titleEn = "Messages personalization",
+            descRu = "Выключаем персонализацию в Сообщениях.",
+            descEn = "Turning off personalization in Messages.",
             intents = listOf(settingsRoot()),
             searchTexts = listOf("Персонализация рекламы", "Ads personalization"),
             additionalToggles = listOf("Рекомендации", "Recommendations"),
-            manualHintRu = "… → Системные приложения → Сообщения → Расширенные настройки → Параметры рекламы → выключите всё.",
-            manualHintEn = "… → System apps → Messages → Advanced → Ad settings → turn everything off.",
+            manualHintRu = "… → Системные приложения → Сообщения → Расширенные настройки → " +
+                    "Параметры рекламы → выключите всё.",
+            manualHintEn = "… → System apps → Messages → Advanced → Ad settings → " +
+                    "turn everything off.",
             drillPath = listOf(
                 APPS, OVERFLOW, OTHER_SETTINGS, SYS_APPS,
                 listOf("Сообщения", "Messages", "Mi Messages"),
                 listOf("Расширенные настройки", "Advanced settings"),
                 listOf("Параметры рекламы", "Ad settings")
             ),
-            requiredPackages = listOf("com.miui.mms")
+            requiredPackages = listOf("com.miui.mms"),
+            forceStopBeforeLaunch = true
         ),
 
         // П.4d: Системные приложения → Безопасность (2 тумблера)
         Step(
             id = "security_sys",
-            titleRu = "Рекомендации Безопасности", titleEn = "Security recommendations",
+            titleRu = "Рекомендации Безопасности",
+            titleEn = "Security recommendations",
             descRu = "Выключаем рекомендации в приложении Безопасность.",
             descEn = "Turning off Security app recommendations.",
             intents = listOf(settingsRoot()),
             searchTexts = listOf("Получать рекомендации", "Receive recommendations"),
-            additionalToggles = listOf("Загружать только по Wi-Fi", "Download only over Wi-Fi"),
-            manualHintRu = "… → Системные приложения → Безопасность → выключите «Получать рекомендации» и «Загружать только по Wi-Fi».",
-            manualHintEn = "… → System apps → Security → turn off recommendations and Wi-Fi-only.",
+            additionalToggles = listOf(
+                "Загружать только по Wi-Fi",
+                "Download only over Wi-Fi"
+            ),
+            manualHintRu = "… → Системные приложения → Безопасность → " +
+                    "выключите «Получать рекомендации» и «Загружать только по Wi-Fi».",
+            manualHintEn = "… → System apps → Security → " +
+                    "turn off recommendations and Wi-Fi-only.",
             drillPath = listOf(
-                APPS,
-                OVERFLOW,
-                OTHER_SETTINGS,
-                SYS_APPS,
+                APPS, OVERFLOW, OTHER_SETTINGS, SYS_APPS,
                 listOf("Безопасность", "Security")
             ),
-            requiredPackages = listOf("com.miui.securitycenter")
+            requiredPackages = listOf("com.miui.securitycenter"),
+            forceStopBeforeLaunch = true
         ),
 
-        // ═══ БЛОК Б: ВНУТРИ ПРИЛОЖЕНИЙ ═══
+        // ── БЛОК Б: ВНУТРИ ПРИЛОЖЕНИЙ ─────────────────────────────────
 
         // П.4e: Безопасность → Очистка → ⚙ (скан ~4 сек перед бурением)
         Step(
             id = "cleaner",
-            titleRu = "Рекомендации Очистки", titleEn = "Cleaner recommendations",
+            titleRu = "Рекомендации Очистки",
+            titleEn = "Cleaner recommendations",
             descRu = "Выключаем рекомендации в Очистке.",
             descEn = "Turning off Cleaner recommendations.",
             intents = listOf(launchIntent("com.miui.securitycenter")),
             searchTexts = listOf("Получать рекомендации", "Receive recommendations"),
-            additionalToggles = listOf("Загружать только по Wi-Fi", "Download only over Wi-Fi"),
-            manualHintRu = "Безопасность → Очистка → ⚙ → выключите «Получать рекомендации» и «Загружать только по Wi-Fi».",
+            additionalToggles = listOf(
+                "Загружать только по Wi-Fi",
+                "Download only over Wi-Fi"
+            ),
+            manualHintRu = "Безопасность → Очистка → ⚙ → " +
+                    "выключите «Получать рекомендации» и «Загружать только по Wi-Fi».",
             manualHintEn = "Security → Cleaner → ⚙ → turn off recommendations.",
             launchPackage = "com.miui.securitycenter",
             preDrillWaitMs = 4_000L,
-            drillPath = listOf(listOf("Очистка", "Cleaner", "Ускорить", "Speed up"), GEAR),
-            requiredPackages = listOf("com.miui.securitycenter")
+            drillPath = listOf(
+                listOf("Очистка", "Cleaner", "Ускорить", "Speed up"),
+                GEAR
+            ),
+            requiredPackages = listOf("com.miui.securitycenter"),
+            forceStopBeforeLaunch = true
         ),
 
         // П.4f: Загрузки → ⋮ → Настройки
         Step(
             id = "downloads",
-            titleRu = "Рекомендации Загрузок", titleEn = "Downloads recommendations",
+            titleRu = "Рекомендации Загрузок",
+            titleEn = "Downloads recommendations",
             descRu = "Выключаем рекомендации в Загрузках.",
             descEn = "Turning off Downloads recommendations.",
             intents = listOf(launchIntent("com.android.providers.downloads.ui")),
@@ -288,157 +349,209 @@ object SimpleSteps {
             requiredPackages = listOf(
                 "com.android.providers.downloads.ui",
                 "com.miui.android.downloads"
-            )
+            ),
+            forceStopBeforeLaunch = true
         ),
 
-        // П.4g: Темы → ⚙ (2 тумблера)
+        // П.4g: Темы → Профиль → ⚙ (2 тумблера)
         Step(
             id = "themes",
-            titleRu = "Реклама Тем", titleEn = "Themes ads",
-            descRu = "Выключаем рекламу в Темах.",
-            descEn = "Turning off Themes ads.",
+            titleRu = "Рекомендации Тем",
+            titleEn = "Themes recommendations",
+            descRu = "Выключаем персонализацию и показ рекомендаций в Темах.",
+            descEn = "Turning off recommendations in Themes.",
             intents = listOf(launchIntent("com.android.thememanager")),
             searchTexts = listOf("Показывать рекламу", "Show ads"),
-            additionalToggles = listOf("Персональные рекомендации", "Personalized recommendations"),
-            manualHintRu = "Темы → ⚙ → выключите «Показывать рекламу» и «Персональные рекомендации».",
-            manualHintEn = "Themes → ⚙ → turn off ads and recommendations.",
+            additionalToggles = listOf(
+                "Персональные рекомендации",
+                "Personalized recommendations"
+            ),
+            manualHintRu = "Темы → Профиль → ⚙ → " +
+                    "выключите «Показывать рекламу» и «Персональные рекомендации».",
+            manualHintEn = "Themes → Profile → ⚙ → turn off recommendations.",
             launchPackage = "com.android.thememanager",
             drillPath = listOf(
-                listOf("Профиль", "Profile", "Моя", "Me"),
-                listOf("⚙", "⚙️", "Настройки", "Settings")
+                PROFILE,
+                GEAR
             ),
-            requiredPackages = listOf("com.android.thememanager")
+            requiredPackages = listOf("com.android.thememanager"),
+            forceStopBeforeLaunch = true
         ),
 
         // П.4h: GetApps → Профиль → ⚙ → Конфиденциальность
         Step(
             id = "getapps",
-            titleRu = "Рекомендации GetApps", titleEn = "GetApps recommendations",
+            titleRu = "Рекомендации GetApps",
+            titleEn = "GetApps recommendations",
             descRu = "Выключаем рекомендации в GetApps.",
             descEn = "Turning off GetApps recommendations.",
             intents = listOf(launchIntent("com.xiaomi.market")),
-            searchTexts = listOf("Персональные рекомендации", "Personalized recommendations"),
-            manualHintRu = "GetApps → Профиль → ⚙ → Конфиденциальность → выключите «Персональные рекомендации».",
+            searchTexts = listOf(
+                "Персональные рекомендации",
+                "Personalized recommendations"
+            ),
+            manualHintRu = "GetApps → Профиль → ⚙ → Конфиденциальность → " +
+                    "выключите «Персональные рекомендации».",
             manualHintEn = "GetApps → Profile → ⚙ → Privacy → turn off recommendations.",
             launchPackage = "com.xiaomi.market",
             drillPath = listOf(PROFILE, GEAR, PRIVACY),
-            requiredPackages = listOf("com.xiaomi.market")
+            requiredPackages = listOf("com.xiaomi.market"),
+            forceStopBeforeLaunch = true
         ),
 
         // П.4i: Mi Видео → Профиль → ⚙ (сбрасывается раз в 90 дней)
         Step(
             id = "mivideo",
-            titleRu = "Рекомендации Mi Видео", titleEn = "Mi Video recommendations",
+            titleRu = "Рекомендации Mi Видео",
+            titleEn = "Mi Video recommendations",
             descRu = "Выключаем рекомендации в Mi Видео.",
             descEn = "Turning off Mi Video recommendations.",
             intents = listOf(launchIntent("com.miui.videoplayer")),
-            searchTexts = listOf("Персональные рекомендации", "Personalized recommendations"),
-            manualHintRu = "Mi Видео → Профиль → ⚙ → выключите «Персональные рекомендации».",
+            searchTexts = listOf(
+                "Персональные рекомендации",
+                "Personalized recommendations"
+            ),
+            manualHintRu = "Mi Видео → Профиль → ⚙ → " +
+                    "выключите «Персональные рекомендации».",
             manualHintEn = "Mi Video → Profile → ⚙ → turn off recommendations.",
             launchPackage = "com.miui.videoplayer",
             drillPath = listOf(PROFILE, GEAR),
-            requiredPackages = listOf("com.miui.videoplayer")
+            requiredPackages = listOf("com.miui.videoplayer"),
+            forceStopBeforeLaunch = true
         ),
 
         // П.4j: ShareMe → ⋮ → О приложении → Справка и обратная связь
         Step(
             id = "shareme",
-            titleRu = "Персонализация ShareMe", titleEn = "ShareMe personalization",
-            descRu = "Выключаем персонализацию рекламы в ShareMe.",
-            descEn = "Turning off ShareMe ads personalization.",
+            titleRu = "Персонализация ShareMe",
+            titleEn = "ShareMe personalization",
+            descRu = "Выключаем персонализацию в ShareMe.",
+            descEn = "Turning off ShareMe personalization.",
             intents = listOf(launchIntent("com.xiaomi.midrop")),
             searchTexts = listOf("Персонализация рекламы", "Ads personalization"),
-            manualHintRu = "ShareMe → ⋮ → О приложении → Справка и обратная связь → выключите «Персонализация рекламы».",
-            manualHintEn = "ShareMe → ⋮ → About → Help & feedback → turn off ads personalization.",
+            manualHintRu = "ShareMe → ⋮ → О приложении → Справка и обратная связь → " +
+                    "выключите «Персонализация рекламы».",
+            manualHintEn = "ShareMe → ⋮ → About → Help & feedback → " +
+                    "turn off personalization.",
             launchPackage = "com.xiaomi.midrop",
             drillPath = listOf(
-                OVERFLOW, listOf("О приложении", "About"),
+                OVERFLOW,
+                listOf("О приложении", "About"),
                 listOf("Справка и обратная связь", "Help & feedback")
             ),
-            requiredPackages = listOf("com.xiaomi.midrop")
+            requiredPackages = listOf("com.xiaomi.midrop"),
+            forceStopBeforeLaunch = true
         ),
 
         // П.5: Проводник — очистить данные + «Отмена» на приветствии
         Step(
             id = "filemanager",
-            titleRu = "Реклама Проводника", titleEn = "File Manager ads",
+            titleRu = "Персонализация Проводника",
+            titleEn = "File Manager personalization",
             descRu = "Очищаем данные Проводника и не принимаем политику.",
             descEn = "Clearing File Manager data and declining the policy.",
             intents = listOf(appDetailsIntent("com.mi.android.globalFileexplorer")),
             searchTexts = emptyList(),
-            manualHintRu = "Настройки → Приложения → Проводник → Очистить все → откройте Проводник → нажмите «Отмена».",
-            manualHintEn = "Settings → Apps → File Manager → Clear all → open it → tap Cancel.",
+            manualHintRu = "Настройки → Приложения → Проводник → Очистить все → " +
+                    "откройте Проводник → нажмите «Отмена».",
+            manualHintEn = "Settings → Apps → File Manager → Clear all → " +
+                    "open it → tap Cancel.",
             actionType = ActionType.CLEAR_DATA_DECLINE,
             launchPackage = "com.mi.android.globalFileexplorer",
             requiredPackages = listOf(
                 "com.mi.android.globalFileexplorer",
                 "com.android.fileexplorer"
-            )
+            ),
+            forceStopBeforeLaunch = true
         ),
 
-        // ═══ БЛОК В: ЛАУНЧЕР (свайп) ═══
+        // ── БЛОК В: ЛАУНЧЕР (свайп) ───────────────────────────────────
 
-        // П.7: Поиск приложений → Настройки → «Рекомендации по приложениям»
+        // П.7: Поиск приложений → ⚙ → «Рекомендации по приложениям»
         Step(
             id = "search_ads",
-            titleRu = "Реклама в поиске приложений", titleEn = "App search ads",
+            titleRu = "Рекомендации в поиске приложений",
+            titleEn = "App search recommendations",
             descRu = "Выключаем рекомендации в поиске приложений.",
             descEn = "Turning off app search recommendations.",
             intents = listOf(launchIntent("com.miui.home")),
             searchTexts = listOf("Рекомендации по приложениям", "App recommendations"),
-            manualHintRu = "Поиск приложений → ⋮ → Настройки → выключите «Рекомендации по приложениям».",
+            manualHintRu = "Поиск приложений → ⋮ → Настройки → " +
+                    "выключите «Рекомендации по приложениям».",
             manualHintEn = "App search → ⋮ → Settings → turn off \"App recommendations\".",
             launchPackage = "com.miui.home",
             swipeUpAfterLaunch = true,
             drillPath = listOf(GEAR),
             requiredPackages = listOf("com.miui.home"),
-            riskLevel = RiskLevel.CONDITIONAL
+            riskLevel = RiskLevel.CONDITIONAL,
+            forceStopBeforeLaunch = true
         ),
 
         // П.7b: … → Страница поиска → «Игровой центр» и «Mi Видео»
         Step(
             id = "search_page",
-            titleRu = "Страница поиска", titleEn = "Search page",
+            titleRu = "Страница поиска",
+            titleEn = "Search page",
             descRu = "Выключаем рекламные источники на странице поиска.",
-            descEn = "Turning off ad sources on the search page.",
+            descEn = "Turning off promotional sources on the search page.",
             intents = listOf(launchIntent("com.miui.home")),
             searchTexts = listOf("Игровой центр", "Game Center"),
-            additionalToggles = listOf("Mi Видео", "Mi Video", "Другие приложения", "Other apps"),
-            manualHintRu = "Поиск → ⋮ → Настройки → Страница поиска → выключите «Игровой центр», «Mi Видео».",
-            manualHintEn = "Search → ⋮ → Settings → Search page → turn off Game Center, Mi Video.",
+            additionalToggles = listOf(
+                "Mi Видео", "Mi Video",
+                "Другие приложения", "Other apps"
+            ),
+            manualHintRu = "Поиск → ⋮ → Настройки → Страница поиска → " +
+                    "выключите «Игровой центр», «Mi Видео».",
+            manualHintEn = "Search → ⋮ → Settings → Search page → " +
+                    "turn off Game Center, Mi Video.",
             launchPackage = "com.miui.home",
             swipeUpAfterLaunch = true,
             drillPath = listOf(GEAR, listOf("Страница поиска", "Search page")),
             requiredPackages = listOf("com.miui.home"),
-            riskLevel = RiskLevel.CONDITIONAL
+            riskLevel = RiskLevel.CONDITIONAL,
+            forceStopBeforeLaunch = true
         ),
 
         // П.8: Лента виджетов → ⋮ → Управление службами → «Предложения»
         Step(
             id = "appvault_services",
-            titleRu = "Лента виджетов: предложения", titleEn = "App Vault suggestions",
+            titleRu = "Лента виджетов: предложения",
+            titleEn = "App Vault suggestions",
             descRu = "Выключаем «Предложения» в ленте виджетов.",
             descEn = "Turning off App Vault suggestions.",
             intents = listOf(launchIntent("com.miui.personalassistant")),
             searchTexts = listOf("Предложение", "Suggestions"),
-            additionalToggles = listOf("Рекомендации приложений", "App recommendations"),
-            manualHintRu = "Лента виджетов → ⋮ → Управление службами → выключите «Предложения».",
+            additionalToggles = listOf(
+                "Рекомендации приложений",
+                "App recommendations"
+            ),
+            manualHintRu = "Лента виджетов → ⋮ → Управление службами → " +
+                    "выключите «Предложения».",
             manualHintEn = "App Vault → ⋮ → Service management → turn off Suggestions.",
             launchPackage = "com.miui.personalassistant",
-            drillPath = listOf(OVERFLOW, listOf("Управление службами", "Service management")),
+            drillPath = listOf(
+                OVERFLOW,
+                listOf("Управление службами", "Service management")
+            ),
             requiredPackages = listOf("com.miui.personalassistant"),
-            riskLevel = RiskLevel.CONDITIONAL
+            riskLevel = RiskLevel.CONDITIONAL,
+            forceStopBeforeLaunch = true
         ),
 
         // П.8b: … → О ленте виджетов → «Персонализированные услуги»
         Step(
             id = "appvault_about",
-            titleRu = "Лента виджетов: услуги", titleEn = "App Vault services",
+            titleRu = "Лента виджетов: услуги",
+            titleEn = "App Vault services",
             descRu = "Выключаем «Персонализированные услуги».",
             descEn = "Turning off personalized services.",
             intents = listOf(launchIntent("com.miui.personalassistant")),
-            searchTexts = listOf("Персонализированные услуги", "Personalized services"),
-            manualHintRu = "Лента виджетов → ⋮ → О ленте виджетов → выключите «Персонализированные услуги».",
+            searchTexts = listOf(
+                "Персонализированные услуги",
+                "Personalized services"
+            ),
+            manualHintRu = "Лента виджетов → ⋮ → О ленте виджетов → " +
+                    "выключите «Персонализированные услуги».",
             manualHintEn = "App Vault → ⋮ → About → turn off Personalized services.",
             launchPackage = "com.miui.personalassistant",
             drillPath = listOf(
@@ -446,108 +559,110 @@ object SimpleSteps {
                 listOf("О ленте виджетов", "About App Vault", "About widget feed")
             ),
             requiredPackages = listOf("com.miui.personalassistant"),
-            riskLevel = RiskLevel.CONDITIONAL
+            riskLevel = RiskLevel.CONDITIONAL,
+            forceStopBeforeLaunch = true
         ),
 
-        // ═══ БЛОК Г: УВЕДОМЛЕНИЯ (п.11) ═══
+        // ── БЛОК Г: УВЕДОМЛЕНИЯ (п.11) ────────────────────────────────
 
         Step(
             id = "notif_gamecenter",
-            titleRu = "Уведомления Игрового центра", titleEn = "Game Center notifications",
+            titleRu = "Уведомления Игрового центра",
+            titleEn = "Game Center notifications",
             descRu = "Полностью выключаем уведомления Игрового центра.",
             descEn = "Turning off Game Center notifications.",
             intents = listOf(notificationsIntent("com.xiaomi.gamecenter")),
             searchTexts = listOf(
-                "Разрешить уведомления",
-                "Allow notifications",
-                "Показывать уведомления",
-                "Show notifications"
+                "Разрешить уведомления", "Allow notifications",
+                "Показывать уведомления", "Show notifications"
             ),
-            manualHintRu = "Настройки → Приложения → Игровой центр → Уведомления → выключите.",
+            manualHintRu = "Настройки → Приложения → Игровой центр → " +
+                    "Уведомления → выключите.",
             manualHintEn = "Settings → Apps → Game Center → Notifications → turn off.",
-            requiredPackages = listOf("com.xiaomi.gamecenter")
+            requiredPackages = listOf("com.xiaomi.gamecenter"),
+            // targetChecked по умолчанию false → тумблер выключается
+            targetChecked = false
         ),
+
         Step(
             id = "notif_appvault",
-            titleRu = "Уведомления Ленты виджетов", titleEn = "App Vault notifications",
+            titleRu = "Уведомления Ленты виджетов",
+            titleEn = "App Vault notifications",
             descRu = "Выключаем уведомления Ленты виджетов.",
             descEn = "Turning off App Vault notifications.",
             intents = listOf(notificationsIntent("com.miui.personalassistant")),
             searchTexts = listOf(
-                "Разрешить уведомления",
-                "Allow notifications",
-                "Показывать уведомления",
-                "Show notifications"
+                "Разрешить уведомления", "Allow notifications",
+                "Показывать уведомления", "Show notifications"
             ),
-            manualHintRu = "Настройки → Приложения → Лента виджетов → Уведомления → выключите.",
+            manualHintRu = "Настройки → Приложения → Лента виджетов → " +
+                    "Уведомления → выключите.",
             manualHintEn = "Settings → Apps → App Vault → Notifications → turn off.",
             requiredPackages = listOf("com.miui.personalassistant")
         ),
+
         Step(
             id = "notif_themes",
-            titleRu = "Уведомления Тем", titleEn = "Themes notifications",
+            titleRu = "Уведомления Тем",
+            titleEn = "Themes notifications",
             descRu = "Выключаем уведомления Тем.",
             descEn = "Turning off Themes notifications.",
             intents = listOf(notificationsIntent("com.android.thememanager")),
             searchTexts = listOf(
-                "Разрешить уведомления",
-                "Allow notifications",
-                "Показывать уведомления",
-                "Show notifications"
+                "Разрешить уведомления", "Allow notifications",
+                "Показывать уведомления", "Show notifications"
             ),
             manualHintRu = "Настройки → Приложения → Темы → Уведомления → выключите.",
             manualHintEn = "Settings → Apps → Themes → Notifications → turn off.",
             requiredPackages = listOf("com.android.thememanager")
         ),
+
         Step(
             id = "notif_getapps",
-            titleRu = "Уведомления GetApps", titleEn = "GetApps notifications",
+            titleRu = "Уведомления GetApps",
+            titleEn = "GetApps notifications",
             descRu = "Выключаем уведомления GetApps.",
             descEn = "Turning off GetApps notifications.",
             intents = listOf(notificationsIntent("com.xiaomi.market")),
             searchTexts = listOf(
-                "Разрешить уведомления",
-                "Allow notifications",
-                "Показывать уведомления",
-                "Show notifications"
+                "Разрешить уведомления", "Allow notifications",
+                "Показывать уведомления", "Show notifications"
             ),
             manualHintRu = "Настройки → Приложения → GetApps → Уведомления → выключите.",
             manualHintEn = "Settings → Apps → GetApps → Notifications → turn off.",
             requiredPackages = listOf("com.xiaomi.market")
         ),
+
         Step(
             id = "notif_browser",
-            titleRu = "Уведомления Mi Браузера", titleEn = "Mi Browser notifications",
+            titleRu = "Уведомления Mi Браузера",
+            titleEn = "Mi Browser notifications",
             descRu = "Выключаем уведомления Mi Браузера.",
             descEn = "Turning off Mi Browser notifications.",
             intents = listOf(notificationsIntent("com.android.browser")),
             searchTexts = listOf(
-                "Разрешить уведомления",
-                "Allow notifications",
-                "Показывать уведомления",
-                "Show notifications"
+                "Разрешить уведомления", "Allow notifications",
+                "Показывать уведомления", "Show notifications"
             ),
             manualHintRu = "Настройки → Приложения → Mi Браузер → Уведомления → выключите.",
             manualHintEn = "Settings → Apps → Mi Browser → Notifications → turn off.",
-            requiredPackages = listOf("com.android.browser", "com.mi.global.browser")
+            requiredPackages = listOf("com.android.browser", "com.mi.globalbrowser")
         ),
+
         Step(
             id = "notif_mivideo",
-            titleRu = "Уведомления Mi Видео", titleEn = "Mi Video notifications",
+            titleRu = "Уведомления Mi Видео",
+            titleEn = "Mi Video notifications",
             descRu = "Выключаем уведомления Mi Видео.",
             descEn = "Turning off Mi Video notifications.",
             intents = listOf(notificationsIntent("com.miui.videoplayer")),
             searchTexts = listOf(
-                "Разрешить уведомления",
-                "Allow notifications",
-                "Показывать уведомления",
-                "Show notifications"
+                "Разрешить уведомления", "Allow notifications",
+                "Показывать уведомления", "Show notifications"
             ),
             manualHintRu = "Настройки → Приложения → Mi Видео → Уведомления → выключите.",
             manualHintEn = "Settings → Apps → Mi Video → Notifications → turn off.",
             requiredPackages = listOf("com.miui.videoplayer")
         )
     )
-
-    private fun Intent.addFlags(flags: Int): Intent = this.apply { addFlags(flags) }
 }
