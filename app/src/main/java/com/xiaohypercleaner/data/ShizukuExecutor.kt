@@ -23,7 +23,7 @@ import kotlin.time.Duration.Companion.milliseconds
  *
  * УЛУЧШЕНИЯ:
  * 1. Параллельное чтение stdout/stderr через async — защита от deadlock
- * 2. Корутинный withTimeout вместо ручного таймаута
+ * 2. Корутинный withTimeout вместо ручного тайм-аута
  * 3. Русские логи для соответствия правилу 1
  * 4. Явные типы для всех переменных
  * 5. Метод isConnected() для consistency с AdbClient
@@ -147,7 +147,7 @@ class ShizukuExecutor : AdbExecutor {
      * Проверяет, активно ли соединение с Shizuku.
      * Используется для диагностики перед выполнением команд.
      */
-    fun isConnected(): Boolean {
+    override fun isConnected(): Boolean {
         return try {
             Shizuku.pingBinder() &&
                     Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
@@ -161,7 +161,7 @@ class ShizukuExecutor : AdbExecutor {
      *
      * ВАЖНО: stdout и stderr читаются параллельно через async, чтобы избежать deadlock.
      * Если один поток заполнится (например, stderr при ошибке), а другой не читается,
-     * process будет висеть до таймаута.
+     * process будет висеть до тайм-аута.
      *
      * @param command Команда для выполнения (без префикса "shell")
      * @return Result с выводом команды или ошибкой

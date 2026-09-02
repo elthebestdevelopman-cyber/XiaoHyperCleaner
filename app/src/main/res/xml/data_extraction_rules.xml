@@ -1,16 +1,42 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?><!--
+    Правила Data Extraction для Android 12+ (API 31+).
+
+    ССЫЛКА В AndroidManifest.xml:
+    android:dataExtractionRules="@xml/data_extraction_rules"
+
+    ИСПОЛЬЗУЕТСЯ ДЛЯ:
+    - Облачного бэкапа (Google One, Google Drive)
+    - Переноса данных между устройствами (Samsung Smart Switch, Mi Mover и т.д.)
+
+    ЧТО ИСКЛЮЧАЕМ И ПОЧЕМУ:
+    1. DataStore (xhc_settings.preferences_pb) — содержит настройки пользователя,
+       прогресс онбординга, флаг применённой оптимизации. После переноса
+       эти данные могут быть неактуальны (например, флаг "оптимизировано",
+       хотя на новом устройстве оптимизация не выполнена).
+
+    2. Логи (xhc.log, xhc.log.1, ...) — могут содержать чувствительные данные:
+       имена пакетов, IP-адреса устройств, команды ADB.
+
+    3. SharedPreferences — исключаем для обратной совместимости,
+       если в будущем будут использоваться.
+
+    СИНХРОНИЗАЦИЯ С backup_rules.xml:
+    Оба файла должны иметь одинаковые исключения.
+    - backup_rules.xml — для Android 6-11 (API 23-30)
+    - data_extraction_rules.xml — для Android 12+ (API 31+)
+-->
 <data-extraction-rules>
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- Облачный бэкап (Google One, Google Drive) -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
     <cloud-backup>
-        <!-- Исключаем настройки приватности из облачного бэкапа -->
-        <exclude
-            domain="sharedpref"
-            path="." />
+        <!-- DataStore — основной источник настроек приложения -->
+        <!-- Путь: /data/data/<package>/files/datastore/xhc_settings.preferences_pb -->
         <exclude
             domain="file"
-            path="xhc_settings" />
-        <exclude
-            domain="file"
-            path="xhc_prefs" />
+            path="datastore/xhc_settings.preferences_pb" />
+
+        <!-- Логи AppLog — содержат чувствительные данные -->
         <exclude
             domain="file"
             path="xhc.log" />
@@ -20,19 +46,23 @@
         <exclude
             domain="file"
             path="xhc.log.2" />
+
+        <!-- SharedPreferences (обратная совместимость) -->
+        <exclude
+            domain="sharedpref"
+            path="." />
     </cloud-backup>
 
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- Перенос данных между устройствами (Mi Mover, Smart Switch) -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
     <device-transfer>
-        <!-- Исключаем настройки приватности при переносе данных между устройствами -->
-        <exclude
-            domain="sharedpref"
-            path="." />
+        <!-- DataStore — основной источник настроек приложения -->
         <exclude
             domain="file"
-            path="xhc_settings" />
-        <exclude
-            domain="file"
-            path="xhc_prefs" />
+            path="datastore/xhc_settings.preferences_pb" />
+
+        <!-- Логи AppLog — содержат чувствительные данные -->
         <exclude
             domain="file"
             path="xhc.log" />
@@ -42,5 +72,10 @@
         <exclude
             domain="file"
             path="xhc.log.2" />
+
+        <!-- SharedPreferences (обратная совместимость) -->
+        <exclude
+            domain="sharedpref"
+            path="." />
     </device-transfer>
 </data-extraction-rules>

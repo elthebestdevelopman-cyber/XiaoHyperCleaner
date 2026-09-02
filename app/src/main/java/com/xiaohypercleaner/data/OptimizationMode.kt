@@ -1,10 +1,22 @@
 package com.xiaohypercleaner.data
 
-import android.content.Context
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 
 /**
- * Режим оптимизации
+ * Режим оптимизации.
+ * Чистый enum без зависимостей от Android Framework.
+ *
+ * Соответствует принципам чистой архитектуры:
+ *  - Data-слой НЕ знает о Context и R
+ *  - Локализованные строки резолвятся в UI-слое
+ *    (см. com.xiaohypercleaner.ui.extensions.OptimizationModeExtensions)
+ *
+ * Два режима работы приложения:
+ *  - SIMPLE: автоматизация через Accessibility Service
+ *    (автоматически кликает по настройкам, как робот-помощник)
+ *  - PRO: глубокая настройка через Shizuku / Wireless ADB
+ *    (надёжнее, но требует предварительной настройки)
  */
 enum class OptimizationMode {
     SIMPLE,
@@ -16,21 +28,23 @@ enum class OptimizationMode {
     /** Проверяет, продвинутый ли это режим */
     fun isPro(): Boolean = this == PRO
 
-    /** Локализованное название для UI */
-    fun displayName(context: Context): String = when (this) {
-        SIMPLE -> context.getString(R.string.mode_simple_title)
-        PRO -> context.getString(R.string.mode_pro_title)
-    }
-
-    /** Локализованное описание для UI */
-    fun description(context: Context): String = when (this) {
-        SIMPLE -> context.getString(R.string.mode_simple_desc)
-        PRO -> context.getString(R.string.mode_pro_desc)
-    }
-
-    fun toPreferenceKey() = stringPreferencesKey("optimization_mode")
-
     companion object {
+        /**
+         * Ключ для DataStore.
+         * Вынесен в companion object — создаётся один раз при загрузке класса,
+         * а не при каждом вызове (оптимизация производительности).
+         *
+         * Совпадает с PreferenceKey.OptimizationModeKey.name в PreferencesManager.
+         */
+        val PREFERENCE_KEY: Preferences.Key<String> =
+            stringPreferencesKey("optimization_mode")
+
+        /**
+         * Парсит строку в enum с защитой от невалидных значений.
+         *
+         * @param value строковое значение («SIMPLE», «PRO» или null)
+         * @return соответствующий enum или SIMPLE по умолчанию
+         */
         fun fromString(value: String?): OptimizationMode {
             return try {
                 valueOf(value ?: "SIMPLE")

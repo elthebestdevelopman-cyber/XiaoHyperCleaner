@@ -1,4 +1,23 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?><!--
+    Конфигурация Accessibility Service для XiaoHyperCleaner.
+
+    НАЗНАЧЕНИЕ:
+    - Simple Mode: автоматизация кликов по UI для отключения рекомендаций
+    - Pro Mode: авто-кликер диалогов (watchdog цепочки Shizuku/ADB)
+    - Авто-закрытие системных ошибок (Facebook, QR, "Невозможно подключиться")
+
+    COMPLIANCE С GOOGLE PLAY ACCESSIBILITY SERVICES API POLICY:
+    ✓ Сервис используется ТОЛЬКО для автоматизации настроек устройства
+    ✓ Сервис НЕ обходит приватность пользователя
+    ✓ Сервис НЕ собирает личные данные
+    ✓ Сервис работает только локально на устройстве
+    ✓ Описание (@string/accessibility_policy_description) явно указывает назначение
+
+    АРХИТЕКТУРА (используется в AdbEnablerService):
+    - SimpleRunner.run() → выполнение шагов SimpleSteps
+    - onAccessibilityEvent() → авто-кликер диалогов + watchdog PRO-цепочки
+    - Гейтинг через SimpleRunner.isRunning (единый источник истины)
+-->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
@@ -6,6 +25,6 @@
     android:canPerformGestures="true"
     android:canRetrieveWindowContent="true"
     android:description="@string/accessibility_policy_description"
-    android:notificationTimeout="300"
+    android:notificationTimeout="500"
     android:settingsActivity="com.xiaohypercleaner.ui.MainActivity"
     android:summary="@string/accessibility_policy_summary" />

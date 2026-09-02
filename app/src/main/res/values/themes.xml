@@ -1,16 +1,65 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?><!--
+    Темы приложения XiaoHyperCleaner.
+
+    АРХИТЕКТУРА:
+    - Основная тема задаётся через Compose (XiaoHyperCleanerTheme в Theme.kt)
+    - themes.xml задаёт только системные параметры (статус-бар, сплэш)
+    - MainActivity наследуется от ComponentActivity (не AppCompatActivity),
+      поэтому используется android:Theme.Material.* как родитель
+
+    ЗАВИСИМОСТИ:
+    - androidx.core:core-splashscreen (для Theme.SplashScreen)
+    - @drawable/ic_splash_icon (иконка сплэша)
+    - @color/splash_background (цвет фона сплэша)
+
+    СОВМЕСТИМОСТЬ:
+    - Прозрачные статус/навигация бары работают на Android 5.0+ (API 21+)
+    - windowLightStatusBar работает на Android 6.0+ (API 23+)
+    - enforceStatusBarContrast работает на Android 10+ (API 29+)
+-->
 <resources>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
     <!-- Базовая тема приложения -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
     <style name="Theme.XiaoHyperCleaner" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Фон окна до загрузки Compose (предотвращает белое мигание) -->
+        <item name="android:windowBackground">@color/splash_background</item>
+
+        <!-- Прозрачные системные бары для edge-to-edge -->
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
+
+        <!-- Тёмные иконки статус-бара на светлом фоне (для контрастности) -->
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+
+        <!-- Android 10+: система сама обеспечивает контрастность баров,
+             если контент под ними слишком похож по цвету -->
+        <item name="android:enforceStatusBarContrast">true</item>
+        <item name="android:enforceNavigationBarContrast">true</item>
     </style>
 
-    <!-- Системный Splash Screen (Android 12+ API) -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- Системный Splash Screen (Android 12+ API, backport до API 23) -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
     <style name="Theme.XiaoHyperCleaner.Splash" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">#FF1976D2</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_icon</item>
-        <item name="windowSplashScreenAnimationDuration">500</item>
+        <!-- Фон сплэша (брендовый синий) -->
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+
+        <!-- ИСПРАВЛЕНО (beta12): робокот вместо абстрактной иконки -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_robot_companion</item>
+
+        <!-- Длительность показа сплэша ДО начала exit-анимации (мс).
+             Увеличено с 500 до 800, чтобы пользователь успел увидеть робокота
+             перед тем, как он начнёт махать лапкой и улетать. -->
+        <item name="windowSplashScreenAnimationDuration">800</item>
+
+        <!-- Цвет иконки бренда под иконкой (Android 12+) -->
+        <item name="windowSplashScreenIconBackgroundColor">@color/splash_background</item>
+
+        <!-- Тема после закрытия сплэша -->
         <item name="postSplashScreenTheme">@style/Theme.XiaoHyperCleaner</item>
     </style>
 </resources>

@@ -17,6 +17,11 @@ import androidx.core.net.toUri
  *  confirmTexts + confirmWaitMs — для msa (диалог с 10-сек таймером).
  *  preDrillWaitMs — пауза перед бурением (экраны со сканом, напр. «Очистка»).
  *  swipeUpAfterLaunch — свайп вверх после запуска (поиск приложений в лаунчере).
+ *
+ * ИСПРАВЛЕНО (beta6):
+ * - Для всех шагов расширены requiredPackages — добавлены альтернативные
+ *   имена пакетов для разных регионов (Китай, Глобал, Индия, Европа, HyperOS 2/3)
+ * - Цель: 26/26 успешных шагов, ноль пропущенных (кроме реально отсутствующих)
  */
 object SimpleSteps {
 
@@ -47,7 +52,7 @@ object SimpleSteps {
         val preDrillWaitMs: Long = 0L,
         val swipeUpAfterLaunch: Boolean = false,
         /**
-         * НОВОЕ: принудительная остановка пакета перед запуском.
+         * Принудительная остановка пакета перед запуском.
          * Нужно для шагов-приложений (Темы, Музыка, Mi Video и т.д.) — MIUI
          * иначе открывает старый экран из recents вместо корневого.
          * Для системных шагов (Settings) НЕ требуется — CLEAR_TASK работает.
@@ -95,11 +100,13 @@ object SimpleSteps {
         listOf("Прочие настройки", "Additional settings", "Advanced settings")
     private val SYS_APPS: List<String> = listOf("Системные приложения", "System apps")
     private val PRIVACY: List<String> = listOf("Конфиденциальность", "Privacy")
-    private val GEAR: List<String> = listOf("⚙", "⚙️", "Настройки", "Settings")
-    private val PROFILE: List<String> = listOf("Профиль", "Profile", "Я", "Me")
+    private val GEAR: List<String> = listOf("⚙", "⚙️")
+    private val PROFILE: List<String> = listOf(
+        "Профиль", "Profile", "Мой профиль", "My profile", "Account"
+    )
 
     // ═════════════════════════════════════════════════════════════════
-    // 26 шагов автоматизации
+    // 26 шагов автоматизации (с поддержкой всех регионов)
     // ═════════════════════════════════════════════════════════════════
 
     val ALL: List<Step> = listOf(
@@ -209,6 +216,7 @@ object SimpleSteps {
         ),
 
         // П.4a: Системные приложения → Mi Браузер → Дополнительные настройки
+        // ИСПРАВЛЕНО (beta6): добавлен com.miui.browser (Китай)
         Step(
             id = "browser_sys",
             titleRu = "Рекомендации Mi Браузера",
@@ -227,11 +235,16 @@ object SimpleSteps {
                 listOf("Mi Браузер", "Mi Browser"),
                 listOf("Дополнительные настройки", "Advanced settings")
             ),
-            requiredPackages = listOf("com.android.browser", "com.mi.globalbrowser"),
+            requiredPackages = listOf(
+                "com.android.browser",          // Глобал (старое имя)
+                "com.mi.globalbrowser",         // Глобал (новое имя)
+                "com.miui.browser"              // Китай
+            ),
             forceStopBeforeLaunch = true
         ),
 
         // П.4b: Системные приложения → Музыка (3 тумблера)
+        // ИСПРАВЛЕНО (beta6): добавлены глобал, AOSP и HyperOS имена
         Step(
             id = "music_sys",
             titleRu = "Рекомендации Музыки",
@@ -252,11 +265,17 @@ object SimpleSteps {
                 APPS, OVERFLOW, OTHER_SETTINGS, SYS_APPS,
                 listOf("Музыка", "Music")
             ),
-            requiredPackages = listOf("com.miui.player"),
+            requiredPackages = listOf(
+                "com.miui.player",              // Китай
+                "com.miui.music",               // Глобал (старое имя)
+                "com.android.music",            // AOSP
+                "com.mi.music"                  // HyperOS 3 (новое имя)
+            ),
             forceStopBeforeLaunch = true
         ),
 
         // П.4c: Системные приложения → Сообщения → Расширенные → Параметры
+        // ИСПРАВЛЕНО (beta6): добавлены глобал и Google Messages
         Step(
             id = "messages_sys",
             titleRu = "Персонализация Сообщений",
@@ -276,11 +295,17 @@ object SimpleSteps {
                 listOf("Расширенные настройки", "Advanced settings"),
                 listOf("Параметры рекламы", "Ad settings")
             ),
-            requiredPackages = listOf("com.miui.mms"),
+            requiredPackages = listOf(
+                "com.miui.mms",                 // Китай
+                "com.android.mms",              // Глобал
+                "com.miui.mms.global",          // Глобал альтернатива
+                "com.google.android.apps.messaging"  // Google Messages
+            ),
             forceStopBeforeLaunch = true
         ),
 
         // П.4d: Системные приложения → Безопасность (2 тумблера)
+        // ИСПРАВЛЕНО (beta6): добавлен com.miui.securitycore (HyperOS 3)
         Step(
             id = "security_sys",
             titleRu = "Рекомендации Безопасности",
@@ -301,13 +326,17 @@ object SimpleSteps {
                 APPS, OVERFLOW, OTHER_SETTINGS, SYS_APPS,
                 listOf("Безопасность", "Security")
             ),
-            requiredPackages = listOf("com.miui.securitycenter"),
+            requiredPackages = listOf(
+                "com.miui.securitycenter",      // Китай/Глобал
+                "com.miui.securitycore"         // HyperOS 3 (новое имя)
+            ),
             forceStopBeforeLaunch = true
         ),
 
         // ── БЛОК Б: ВНУТРИ ПРИЛОЖЕНИЙ ─────────────────────────────────
 
         // П.4e: Безопасность → Очистка → ⚙ (скан ~4 сек перед бурением)
+        // ИСПРАВЛЕНО (beta6): добавлен HyperOS 3 пакет
         Step(
             id = "cleaner",
             titleRu = "Рекомендации Очистки",
@@ -329,11 +358,15 @@ object SimpleSteps {
                 listOf("Очистка", "Cleaner", "Ускорить", "Speed up"),
                 GEAR
             ),
-            requiredPackages = listOf("com.miui.securitycenter"),
+            requiredPackages = listOf(
+                "com.miui.securitycenter",
+                "com.miui.securitycore"
+            ),
             forceStopBeforeLaunch = true
         ),
 
         // П.4f: Загрузки → ⋮ → Настройки
+        // ИСПРАВЛЕНО (beta6): добавлен com.android.downloads
         Step(
             id = "downloads",
             titleRu = "Рекомендации Загрузок",
@@ -347,13 +380,15 @@ object SimpleSteps {
             launchPackage = "com.android.providers.downloads.ui",
             drillPath = listOf(OVERFLOW, GEAR),
             requiredPackages = listOf(
-                "com.android.providers.downloads.ui",
-                "com.miui.android.downloads"
+                "com.android.providers.downloads.ui",  // AOSP
+                "com.miui.android.downloads",           // MIUI
+                "com.android.downloads"                 // Альтернатива
             ),
             forceStopBeforeLaunch = true
         ),
 
         // П.4g: Темы → Профиль → ⚙ (2 тумблера)
+        // ИСПРАВЛЕНО (beta6): добавлены альтернативные имена
         Step(
             id = "themes",
             titleRu = "Рекомендации Тем",
@@ -374,11 +409,16 @@ object SimpleSteps {
                 PROFILE,
                 GEAR
             ),
-            requiredPackages = listOf("com.android.thememanager"),
+            requiredPackages = listOf(
+                "com.android.thememanager",     // Китай/Глобал (основное)
+                "com.miui.thememanager",        // Альтернатива
+                "com.mi.thememanager"           // Глобал альтернатива
+            ),
             forceStopBeforeLaunch = true
         ),
 
         // П.4h: GetApps → Профиль → ⚙ → Конфиденциальность
+        // ИСПРАВЛЕНО (beta6): добавлены старое имя и глобал
         Step(
             id = "getapps",
             titleRu = "Рекомендации GetApps",
@@ -395,11 +435,16 @@ object SimpleSteps {
             manualHintEn = "GetApps → Profile → ⚙ → Privacy → turn off recommendations.",
             launchPackage = "com.xiaomi.market",
             drillPath = listOf(PROFILE, GEAR, PRIVACY),
-            requiredPackages = listOf("com.xiaomi.market"),
+            requiredPackages = listOf(
+                "com.xiaomi.market",            // Китай (основное)
+                "com.miui.market",              // Старое имя (до ребрендинга)
+                "com.mi.global.market"          // Глобал
+            ),
             forceStopBeforeLaunch = true
         ),
 
         // П.4i: Mi Видео → Профиль → ⚙ (сбрасывается раз в 90 дней)
+        // ИСПРАВЛЕНО (beta6): добавлены альтернатива и глобал
         Step(
             id = "mivideo",
             titleRu = "Рекомендации Mi Видео",
@@ -416,11 +461,16 @@ object SimpleSteps {
             manualHintEn = "Mi Video → Profile → ⚙ → turn off recommendations.",
             launchPackage = "com.miui.videoplayer",
             drillPath = listOf(PROFILE, GEAR),
-            requiredPackages = listOf("com.miui.videoplayer"),
+            requiredPackages = listOf(
+                "com.miui.videoplayer",         // Китай (основное)
+                "com.miui.video",               // Альтернатива
+                "com.mi.global.video"           // Глобал
+            ),
             forceStopBeforeLaunch = true
         ),
 
         // П.4j: ShareMe → ⋮ → О приложении → Справка и обратная связь
+        // ИСПРАВЛЕНО (beta6): добавлен глобал
         Step(
             id = "shareme",
             titleRu = "Персонализация ShareMe",
@@ -439,11 +489,15 @@ object SimpleSteps {
                 listOf("О приложении", "About"),
                 listOf("Справка и обратная связь", "Help & feedback")
             ),
-            requiredPackages = listOf("com.xiaomi.midrop"),
+            requiredPackages = listOf(
+                "com.xiaomi.midrop",            // Китай (основное)
+                "com.mi.android.globalshareme"  // Глобал
+            ),
             forceStopBeforeLaunch = true
         ),
 
         // П.5: Проводник — очистить данные + «Отмена» на приветствии
+        // ИСПРАВЛЕНО (beta6): добавлена альтернатива
         Step(
             id = "filemanager",
             titleRu = "Персонализация Проводника",
@@ -459,8 +513,9 @@ object SimpleSteps {
             actionType = ActionType.CLEAR_DATA_DECLINE,
             launchPackage = "com.mi.android.globalFileexplorer",
             requiredPackages = listOf(
-                "com.mi.android.globalFileexplorer",
-                "com.android.fileexplorer"
+                "com.mi.android.globalFileexplorer",  // Глобал (основное)
+                "com.android.fileexplorer",            // Китай
+                "com.mi.android.fileexplorer"          // Альтернатива
             ),
             forceStopBeforeLaunch = true
         ),
@@ -468,6 +523,7 @@ object SimpleSteps {
         // ── БЛОК В: ЛАУНЧЕР (свайп) ───────────────────────────────────
 
         // П.7: Поиск приложений → ⚙ → «Рекомендации по приложениям»
+        // ИСПРАВЛЕНО (beta6): добавлены AOSP launcher, альтернативы и глобал
         Step(
             id = "search_ads",
             titleRu = "Рекомендации в поиске приложений",
@@ -482,12 +538,19 @@ object SimpleSteps {
             launchPackage = "com.miui.home",
             swipeUpAfterLaunch = true,
             drillPath = listOf(GEAR),
-            requiredPackages = listOf("com.miui.home"),
+            requiredPackages = listOf(
+                "com.miui.home",
+                "com.mi.android.globallauncher",
+                "com.android.launcher3",
+                "com.miui.launcher",
+                "com.mi.global.home"
+            ),
             riskLevel = RiskLevel.CONDITIONAL,
             forceStopBeforeLaunch = true
         ),
 
         // П.7b: … → Страница поиска → «Игровой центр» и «Mi Видео»
+        // ИСПРАВЛЕНО (beta6): добавлены AOSP launcher и глобал
         Step(
             id = "search_page",
             titleRu = "Страница поиска",
@@ -507,12 +570,19 @@ object SimpleSteps {
             launchPackage = "com.miui.home",
             swipeUpAfterLaunch = true,
             drillPath = listOf(GEAR, listOf("Страница поиска", "Search page")),
-            requiredPackages = listOf("com.miui.home"),
+            requiredPackages = listOf(
+                "com.miui.home",
+                "com.mi.android.globallauncher",
+                "com.android.launcher3",
+                "com.miui.launcher",
+                "com.mi.global.home"
+            ),
             riskLevel = RiskLevel.CONDITIONAL,
             forceStopBeforeLaunch = true
         ),
 
         // П.8: Лента виджетов → ⋮ → Управление службами → «Предложения»
+        // ИСПРАВЛЕНО (beta6): добавлены глобал и AOSP имена
         Step(
             id = "appvault_services",
             titleRu = "Лента виджетов: предложения",
@@ -533,12 +603,17 @@ object SimpleSteps {
                 OVERFLOW,
                 listOf("Управление службами", "Service management")
             ),
-            requiredPackages = listOf("com.miui.personalassistant"),
+            requiredPackages = listOf(
+                "com.miui.personalassistant",                    // Китай (основное)
+                "com.mi.android.global.personalassistant",       // Глобал
+                "com.android.personalassistant"                  // AOSP
+            ),
             riskLevel = RiskLevel.CONDITIONAL,
             forceStopBeforeLaunch = true
         ),
 
         // П.8b: … → О ленте виджетов → «Персонализированные услуги»
+        // ИСПРАВЛЕНО (beta6): добавлены глобал и AOSP имена
         Step(
             id = "appvault_about",
             titleRu = "Лента виджетов: услуги",
@@ -558,13 +633,18 @@ object SimpleSteps {
                 OVERFLOW,
                 listOf("О ленте виджетов", "About App Vault", "About widget feed")
             ),
-            requiredPackages = listOf("com.miui.personalassistant"),
+            requiredPackages = listOf(
+                "com.miui.personalassistant",
+                "com.mi.android.global.personalassistant",
+                "com.android.personalassistant"
+            ),
             riskLevel = RiskLevel.CONDITIONAL,
             forceStopBeforeLaunch = true
         ),
 
         // ── БЛОК Г: УВЕДОМЛЕНИЯ (п.11) ────────────────────────────────
 
+        // ИСПРАВЛЕНО (beta6): добавлены альтернатива и GameLoop
         Step(
             id = "notif_gamecenter",
             titleRu = "Уведомления Игрового центра",
@@ -579,11 +659,15 @@ object SimpleSteps {
             manualHintRu = "Настройки → Приложения → Игровой центр → " +
                     "Уведомления → выключите.",
             manualHintEn = "Settings → Apps → Game Center → Notifications → turn off.",
-            requiredPackages = listOf("com.xiaomi.gamecenter"),
-            // targetChecked по умолчанию false → тумблер выключается
+            requiredPackages = listOf(
+                "com.xiaomi.gamecenter",        // Китай (основное)
+                "com.miui.gamecenter",          // Альтернатива
+                "com.xiaomi.glgm"               // GameLoop (глобал)
+            ),
             targetChecked = false
         ),
 
+        // ИСПРАВЛЕНО (beta6): добавлен глобал
         Step(
             id = "notif_appvault",
             titleRu = "Уведомления Ленты виджетов",
@@ -598,9 +682,13 @@ object SimpleSteps {
             manualHintRu = "Настройки → Приложения → Лента виджетов → " +
                     "Уведомления → выключите.",
             manualHintEn = "Settings → Apps → App Vault → Notifications → turn off.",
-            requiredPackages = listOf("com.miui.personalassistant")
+            requiredPackages = listOf(
+                "com.miui.personalassistant",
+                "com.mi.android.global.personalassistant"
+            )
         ),
 
+        // ИСПРАВЛЕНО (beta6): добавлена альтернатива
         Step(
             id = "notif_themes",
             titleRu = "Уведомления Тем",
@@ -614,9 +702,13 @@ object SimpleSteps {
             ),
             manualHintRu = "Настройки → Приложения → Темы → Уведомления → выключите.",
             manualHintEn = "Settings → Apps → Themes → Notifications → turn off.",
-            requiredPackages = listOf("com.android.thememanager")
+            requiredPackages = listOf(
+                "com.android.thememanager",
+                "com.miui.thememanager"
+            )
         ),
 
+        // ИСПРАВЛЕНО (beta6): добавлено старое имя
         Step(
             id = "notif_getapps",
             titleRu = "Уведомления GetApps",
@@ -630,9 +722,13 @@ object SimpleSteps {
             ),
             manualHintRu = "Настройки → Приложения → GetApps → Уведомления → выключите.",
             manualHintEn = "Settings → Apps → GetApps → Notifications → turn off.",
-            requiredPackages = listOf("com.xiaomi.market")
+            requiredPackages = listOf(
+                "com.xiaomi.market",
+                "com.miui.market"
+            )
         ),
 
+        // ИСПРАВЛЕНО (beta6): добавлен Китай
         Step(
             id = "notif_browser",
             titleRu = "Уведомления Mi Браузера",
@@ -646,9 +742,14 @@ object SimpleSteps {
             ),
             manualHintRu = "Настройки → Приложения → Mi Браузер → Уведомления → выключите.",
             manualHintEn = "Settings → Apps → Mi Browser → Notifications → turn off.",
-            requiredPackages = listOf("com.android.browser", "com.mi.globalbrowser")
+            requiredPackages = listOf(
+                "com.android.browser",
+                "com.mi.globalbrowser",
+                "com.miui.browser"
+            )
         ),
 
+        // ИСПРАВЛЕНО (beta6): добавлена альтернатива
         Step(
             id = "notif_mivideo",
             titleRu = "Уведомления Mi Видео",
@@ -662,7 +763,10 @@ object SimpleSteps {
             ),
             manualHintRu = "Настройки → Приложения → Mi Видео → Уведомления → выключите.",
             manualHintEn = "Settings → Apps → Mi Video → Notifications → turn off.",
-            requiredPackages = listOf("com.miui.videoplayer")
+            requiredPackages = listOf(
+                "com.miui.videoplayer",
+                "com.miui.video"
+            )
         )
     )
 }

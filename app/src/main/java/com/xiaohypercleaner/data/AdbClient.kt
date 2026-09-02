@@ -24,12 +24,12 @@ import java.net.SocketTimeoutException
  * совместимым с ShizukuExecutor и RootExecutor, которые тоже stripping-уют префикс.
  *
  * УЛУЧШЕНИЯ:
- * 1. Явные типы для всех переменных
- * 2. isConnected() метод для проверки состояния
- * 3. ReadResult data class для readUntilEof() с truncated flag
- * 4. Константы для магических чисел (BUFFER_SIZE)
- * 5. Русские сообщения в логах
- * 6. Улучшенная обработка ошибок
+ *  - Явные типы для всех переменных
+ *  - isConnected() метод для проверки состояния
+ *  - ReadResult data class для readUntilEof() с truncated flag
+ *  - Константы для магических чисел (BUFFER_SIZE)
+ *  - Русские сообщения в логах
+ *  - Улучшенная обработка ошибок
  */
 class AdbClient(
     private val host: String = AppConstants.ADB_HOST,
@@ -71,13 +71,14 @@ class AdbClient(
      * Проверяет, активно ли соединение.
      * Используется для диагностики перед выполнением команд.
      */
-    fun isConnected(): Boolean {
+    override fun isConnected(): Boolean {
         val s = socket ?: return false
         return s.isConnected && !s.isClosed
     }
 
     override suspend fun connect(): Boolean = withContext(Dispatchers.IO) {
         AppLog.i(TAG, "connect: пробуем ${ports.size} портов: $ports")
+
         for (port in ports) {
             AppLog.i(TAG, "connect: пытаемся подключиться к порту $port")
             if (tryConnect(port)) {
@@ -87,6 +88,7 @@ class AdbClient(
             }
             AppLog.w(TAG, "connect: НЕ УДАЛОСЬ на порту $port")
         }
+
         AppLog.e(TAG, "connect: все порты не сработали")
         return@withContext false
     }
@@ -94,6 +96,7 @@ class AdbClient(
     private fun tryConnect(port: Int): Boolean {
         return try {
             disconnect()
+
             val s = Socket()
             AppLog.i(
                 TAG,
@@ -101,12 +104,14 @@ class AdbClient(
             )
             s.connect(InetSocketAddress(host, port), AppConstants.ADB_TIMEOUT_MS)
             s.soTimeout = AppConstants.ADB_TIMEOUT_MS
+
             socket = s
             input = BufferedInputStream(s.getInputStream())
             output = s.getOutputStream()
-            AppLog.i(TAG, "tryConnect: сокет открыт, отправляем transport-any")
 
+            AppLog.i(TAG, "tryConnect: сокет открыт, отправляем transport-any")
             sendMessage("host:transport-any")
+
             val status = readStatus()
             AppLog.i(TAG, "tryConnect: transport-any status=$status")
 
@@ -168,6 +173,7 @@ class AdbClient(
                             "cmd#$commandCount: AdbException: ${LogMasker.mask(e.message ?: "")}, реконнект"
                         )
                         disconnect()
+
                         if (!connect()) {
                             AppLog.e(
                                 TAG,
@@ -175,6 +181,7 @@ class AdbClient(
                             )
                             return@withTimeout Result.failure(e)
                         }
+
                         AppLog.i(TAG, "cmd#$commandCount: реконнект ОК, повторяем команду")
                         try {
                             val result = runShell(normalized)
@@ -206,14 +213,13 @@ class AdbClient(
             val status = readStatus()
             AppLog.i(TAG, "runShell: status=$status")
             check(status == "OKAY") { "Некорректный status: $status" }
-            val result = readUntilEof()
 
+            val result = readUntilEof()
             AppLog.i(
                 TAG,
                 "runShell: прочитано ${result.bytesRead} байт за ${result.chunks} чанков " +
                         "(truncated=${result.truncated}, ${result.elapsedMs}мс)"
             )
-
             return result.data
         } catch (e: Exception) {
             AppLog.w(TAG, "runShell: ошибка, закрываем сокет: ${LogMasker.mask(e.message ?: "")}")
@@ -239,6 +245,7 @@ class AdbClient(
             AppLog.e(TAG, "sendMessage: payload слишком большой: ${data.size} байт")
             throw AdbException("Payload слишком большой: ${data.size}")
         }
+
         val header = String.format("%04x", data.size).toByteArray(Charsets.US_ASCII)
         val out = output ?: throw AdbException("Нет output stream")
         out.write(header)
@@ -256,10 +263,10 @@ class AdbClient(
 
     /**
      * Читает ответ shell до EOF с трёхуровневой защитой от зависания:
-     * 1. Hard timeout внутри цикла (READ_HARD_TIMEOUT_MS) — прерывает бесконечный
-     *    цикл если wireless ADB шлёт данные каплями без закрытия соединения
-     * 2. Лимит размера ответа (MAX_RESPONSE_SIZE) — защита от огромных выводов
-     * 3. soTimeout на сокете (AppConstants.ADB_TIMEOUT_MS) — защита от тишины
+     *  1. Hard timeout внутри цикла (READ_HARD_TIMEOUT_MS) — прерывает бесконечный
+     *     цикл если wireless ADB шлёт данные каплями без закрытия соединения
+     *  2. Лимит размера ответа (MAX_RESPONSE_SIZE) — защита от огромных выводов
+     *  3. soTimeout на сокете (AppConstants.ADB_TIMEOUT_MS) — защита от тишины
      *
      * Возвращает ReadResult с информацией о truncation, не бросает исключение.
      */
@@ -267,6 +274,7 @@ class AdbClient(
         val sb = StringBuilder()
         val buf = ByteArray(BUFFER_SIZE)
         val stream = input ?: return ReadResult("", false, 0, 0, 0L)
+
         var chunks = 0
         var totalBytes = 0
         var truncated = false
@@ -281,8 +289,10 @@ class AdbClient(
                     )
                     break
                 }
+
                 val n = stream.read(buf)
                 if (n <= 0) break
+
                 if (totalBytes + n > MAX_RESPONSE_SIZE) {
                     val remaining = MAX_RESPONSE_SIZE - totalBytes
                     if (remaining > 0) sb.append(String(buf, 0, remaining, Charsets.UTF_8))
@@ -293,6 +303,7 @@ class AdbClient(
                     )
                     break
                 }
+
                 sb.append(String(buf, 0, n, Charsets.UTF_8))
                 chunks++
                 totalBytes += n
@@ -311,6 +322,7 @@ class AdbClient(
         }
 
         val elapsedMs = System.currentTimeMillis() - startTime
+        // ИСПРАВЛЕНО: убрано дублирование лога (был второй идентичный лог ниже)
         AppLog.i(
             TAG,
             "readUntilEof: прочитано ${sb.length} символов за $chunks чанков " +

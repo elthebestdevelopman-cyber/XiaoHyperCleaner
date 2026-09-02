@@ -2,14 +2,71 @@ package com.xiaohypercleaner.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Blue500 = Color(0xFF2196F3)
-val Teal200 = Color(0xFF03DAC5)
-val White = Color(0xFFFFFFFF)
-val DarkBackground = Color(0xFF121212)
-val DarkSurface = Color(0xFF1E1E1E)
+// ═══════════════════════════════════════════════════════════════
+// Акцентные цвета
+// ═══════════════════════════════════════════════════════════════
 
-// Новые цвета для градиента
-val GradientStart = Color(0xFFE8F0FE)
-val GradientEnd = Color(0xFFD4E4FF)
-val DarkGradientStart = Color(0xFF1A1A2E)
-val DarkGradientEnd = Color(0xFF16213E)
+/**
+ * Основной акцентный цвет (Material Blue 500).
+ * Используется для:
+ * - Кнопок действий (Оптимизировать, Начать)
+ * - Прогресс-баров
+ * - Индикаторов выбранного режима
+ * - Иконок в InfoCard
+ */
+val Blue500: Color = Color(0xFF2196F3)
+
+/**
+ * Вторичный акцентный цвет (Teal 200).
+ * Используется для:
+ * - Pro-режима (в OptimizationLevelDialog)
+ * - Дополнительных элементов UI
+ */
+val Teal200: Color = Color(0xFF03DAC5)
+
+// ═══════════════════════════════════════════════════════════════
+// Базовые цвета
+// ═══════════════════════════════════════════════════════════════
+
+/** Чистый белый цвет */
+val White: Color = Color(0xFFFFFFFF)
+
+/**
+ * Фон для тёмной темы (Material Dark Background).
+ * Используется как основной фон в dark mode.
+ */
+val DarkBackground: Color = Color(0xFF121212)
+
+/**
+ * Поверхность для тёмной темы (Material Dark Surface).
+ * Используется для карточек и диалогов в dark mode.
+ */
+val DarkSurface: Color = Color(0xFF1E1E1E)
+
+// ═══════════════════════════════════════════════════════════════
+// Градиенты для фона главного экрана
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Начало градиента для светлой темы.
+ * Светло-голубой (почти белый с оттенком).
+ */
+val GradientStart: Color = Color(0xFFE8F0FE)
+
+/**
+ * Конец градиента для светлой темы.
+ * Голубой (чуть темнее начала).
+ */
+val GradientEnd: Color = Color(0xFFD4E4FF)
+
+/**
+ * Начало градиента для тёмной темы.
+ * Тёмно-синий с фиолетовым оттенком.
+ */
+val DarkGradientStart: Color = Color(0xFF1A1A2E)
+
+/**
+ * Конец градиента для тёмной темы.
+ * Глубокий тёмно-синий.
+ */
+val DarkGradientEnd: Color = Color(0xFF16213E)

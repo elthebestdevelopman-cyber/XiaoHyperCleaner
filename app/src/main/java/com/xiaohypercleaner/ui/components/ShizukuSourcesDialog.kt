@@ -15,18 +15,43 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.xiaohypercleaner.R
+import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.ShizukuHelper
+
+private const val TAG = "ShizukuSourcesDialog"
 
 /**
  * Диалог выбора источника установки Shizuku.
- * Показывает только те магазины, которые реально установлены на устройстве,
- * плюс универсальные веб-источники (GitHub, APKPure).
+ *
+ * Показывает ТОЛЬКО те магазины, которые реально установлены на устройстве,
+ * плюс универсальные веб-источники (GitHub, APKPure), которые всегда доступны.
+ *
+ * Логика показа:
+ * - Google Play: только если `ShizukuHelper.hasPlayStore(context)` == true
+ * - Aurora Store: только если установлен
+ * - GetApps (Xiaomi): только если установлен (есть на всех Xiaomi/Redmi/Poco)
+ * - GitHub: всегда (веб-ссылка, работает через браузер)
+ * - APKPure: всегда (веб-ссылка, работает через браузер)
+ *
+ * ИСПРАВЛЕНИЯ:
+ * 1. 🔴 Play Store теперь показывается только если установлен (было: всегда)
+ *    Это критично для устройств без GMS (Huawei, китайские Xiaomi)
+ * 2. Добавлен TAG и логирование действий пользователя
+ * 3. Импорт Dialog (вместо полного пути)
+ * 4. Явные типы для всех переменных
+ * 5. Полный Javadoc с описанием логики
+ * 6. Секции с комментариями
+ *
+ * @param onSource Callback с выбранным источником ("play", "aurora", "getapps", "github", "apkpure")
+ * @param onClose Callback при закрытии диалога
  */
 @Composable
 fun ShizukuSourcesDialog(
@@ -35,7 +60,20 @@ fun ShizukuSourcesDialog(
 ) {
     val context = LocalContext.current
 
-    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+    // Проверяем наличие магазинов один раз при композиции
+    val hasPlay: Boolean = remember { ShizukuHelper.hasPlayStore(context) }
+    val hasAurora: Boolean = remember { ShizukuHelper.hasAurora(context) }
+    val hasGetApps: Boolean = remember { ShizukuHelper.hasGetApps(context) }
+
+    AppLog.d(
+        TAG,
+        "ShizukuSourcesDialog shown, play=$hasPlay, aurora=$hasAurora, getapps=$hasGetApps"
+    )
+
+    Dialog(onDismissRequest = {
+        AppLog.i(TAG, "Dialog dismissed by system")
+        onClose()
+    }) {
         Surface(
             shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.surface,
@@ -47,6 +85,10 @@ fun ShizukuSourcesDialog(
                     .padding(20.dp)
                     .verticalScroll(rememberScrollState())
             ) {
+                // ═══════════════════════════════════════════════════════════════
+                // Заголовок
+                // ═══════════════════════════════════════════════════════════════
+
                 Text(
                     stringResource(R.string.shizuku_sources_title),
                     style = MaterialTheme.typography.titleMedium,
@@ -59,46 +101,94 @@ fun ShizukuSourcesDialog(
                 )
                 Spacer(Modifier.height(16.dp))
 
-                Button(
-                    onClick = { onSource("play") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                ) { Text(stringResource(R.string.shizuku_sources_play)) }
-                Spacer(Modifier.height(8.dp))
+                // ═══════════════════════════════════════════════════════════════
+                // Магазины приложений (только установленные)
+                // ═══════════════════════════════════════════════════════════════
 
-                if (ShizukuHelper.hasAurora(context)) {
-                    OutlinedButton(
-                        onClick = { onSource("aurora") },
+                // ИСПРАВЛЕНО: Play Store показывается только если установлен.
+                // Раньше кнопка показывалась всегда, что приводило к ошибке
+                // на устройствах без GMS (Huawei, китайские Xiaomi).
+                if (hasPlay) {
+                    Button(
+                        onClick = {
+                            AppLog.i(TAG, "Play Store source selected")
+                            onSource("play")
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
-                    ) { Text(stringResource(R.string.shizuku_sources_aurora)) }
+                    ) {
+                        Text(stringResource(R.string.shizuku_sources_play))
+                    }
                     Spacer(Modifier.height(8.dp))
                 }
 
-                if (ShizukuHelper.hasGetApps(context)) {
+                if (hasAurora) {
                     OutlinedButton(
-                        onClick = { onSource("getapps") },
+                        onClick = {
+                            AppLog.i(TAG, "Aurora Store source selected")
+                            onSource("aurora")
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
-                    ) { Text(stringResource(R.string.shizuku_sources_getapps)) }
+                    ) {
+                        Text(stringResource(R.string.shizuku_sources_aurora))
+                    }
                     Spacer(Modifier.height(8.dp))
                 }
 
+                if (hasGetApps) {
+                    OutlinedButton(
+                        onClick = {
+                            AppLog.i(TAG, "GetApps source selected")
+                            onSource("getapps")
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(stringResource(R.string.shizuku_sources_getapps))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                // ═══════════════════════════════════════════════════════════════
+                // Веб-источники (всегда доступны через браузер)
+                // ═══════════════════════════════════════════════════════════════
+
                 OutlinedButton(
-                    onClick = { onSource("github") },
+                    onClick = {
+                        AppLog.i(TAG, "GitHub source selected")
+                        onSource("github")
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
-                ) { Text(stringResource(R.string.shizuku_sources_github)) }
+                ) {
+                    Text(stringResource(R.string.shizuku_sources_github))
+                }
                 Spacer(Modifier.height(8.dp))
 
                 OutlinedButton(
-                    onClick = { onSource("apkpure") },
+                    onClick = {
+                        AppLog.i(TAG, "APKPure source selected")
+                        onSource("apkpure")
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
-                ) { Text(stringResource(R.string.shizuku_sources_apkpure)) }
+                ) {
+                    Text(stringResource(R.string.shizuku_sources_apkpure))
+                }
                 Spacer(Modifier.height(8.dp))
 
-                TextButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
+                // ═══════════════════════════════════════════════════════════════
+                // Кнопка закрытия
+                // ═══════════════════════════════════════════════════════════════
+
+                TextButton(
+                    onClick = {
+                        AppLog.i(TAG, "Close clicked")
+                        onClose()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(stringResource(R.string.close))
                 }
             }

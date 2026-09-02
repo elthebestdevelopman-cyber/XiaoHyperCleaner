@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+    Traducción al español (neutro latinoamericano) — XiaoHyperCleaner
+
+    AUDIENCIA OBJETIVO:
+    - Latinoamérica (México, Argentina, Colombia, Chile, Perú, etc.)
+    - España
+
+    TERMINOLOGÍA OFICIAL:
+    - Servicio de accesibilidad = Accessibility Service
+    - Configuración restringida = Restricted settings (Android 13+)
+    - Configuración prohibida = Forbidden settings (HyperOS)
+    - Mostrar sobre otras apps = Display over other apps
+    - Optimización de batería = Battery optimization
+    - Opciones de desarrollador = Developer options
+    - Depuración inalámbrica = Wireless debugging
+
+    COMPLIANCE:
+    - accessibility_policy_description cumple con Google Play Accessibility Services API Policy
+    - consent_dialog_* implementa consentimiento explícito del usuario
+
+    PLURALIZACIÓN:
+    - Español usa 2 formas: "one" (1) y "other" (0, 2+)
+-->
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- ========== COMÚN ========== -->
+    <string name="app_name">XiaoHyperCleaner</string>
+    <string name="app_description_short">Configura la privacidad y reduce la carga en segundo plano en Xiaomi / MIUI / HyperOS. Funciona mediante ajustes estándar de Android, sin root.</string>
+    <string name="cancel">Cancelar</string>
+    <string name="allow">Permitir</string>
+
+    <!-- ========== PANTALLA PRINCIPAL ========== -->
+    <string name="features_title">Qué hace la app</string>
+    <string name="feature_processes">Configura ajustes del sistema para mejorar la privacidad</string>
+    <string name="feature_speed">Acelera la interfaz y optimiza las animaciones</string>
+    <string name="feature_battery">Reduce la actividad en segundo plano para ahorrar batería</string>
+
+    <string name="btn_optimize">Optimizar</string>
+    <string name="btn_restore">Restaurar cambios</string>
+    <string name="status_working">Optimizando…</string>
+    <string name="status_done">Optimización completada</string>
+    <string name="status_done_description">Ajustes de privacidad aplicados. Todos los cambios se pueden revertir.</string>
+    <string name="reboot_now">Reiniciar ahora</string>
+
+    <!-- ========== SELECCIÓN DE NIVEL ========== -->
+    <string name="level_dialog_subtitle">Puedes cambiar el modo después en ajustes</string>
+    <string name="level_simple_title">🟢 Simple</string>
+    <string name="level_simple_desc">Seguro para todos. Optimización automática sin configuración compleja.</string>
+    <string name="level_pro_title">🔵 Avanzado</string>
+    <string name="level_pro_desc">Optimización profunda. Requiere configuración adicional (Shizuku / ADB).</string>
+    <string name="level_dialog_continue">Continuar</string>
+    <string name="robocat_caption">El robot-gato te ayuda a configurar el sistema</string>
+
+    <string name="level_confirm_simple_title">¿Iniciar optimización simple?</string>
+    <string name="level_confirm_simple_text">La app abrirá los ajustes y aplicará los parámetros de privacidad. Tomará 2–3 minutos.</string>
+    <string name="level_confirm_advanced_title">¿Iniciar optimización avanzada?</string>
+    <string name="level_confirm_advanced_text">Requiere configurar Shizuku o ADB inalámbrico. El proceso es más profundo y fiable, pero toma más tiempo.</string>
+    <string name="level_confirm_start">Iniciar</string>
+
+    <!-- ========== MODO SIMPLE: PASOS ========== -->
+    <string name="simple_step_of">Paso %1$d de %2$d</string>
+    <string name="simple_step_start">Iniciar</string>
+    <string name="simple_step_working">Trabajando…</string>
+    <string name="simple_step_attempt">Intento %1$d de %2$d</string>
+    <string name="simple_step_auto_next">Listo — continuando…</string>
+    <string name="simple_step_failed">No se pudo completar automáticamente</string>
+    <string name="simple_step_next">Siguiente</string>
+    <string name="simple_step_skip">Saltar paso</string>
+    <string name="simple_step_retry">Reintentar</string>
+
+    <!-- ========== MODO SIMPLE: FINAL ========== -->
+    <string name="simple_done_title">¡Todo listo!</string>
+    <string name="simple_done_text">Ajustes de privacidad aplicados. No se requiere reinicio.</string>
+    <plurals name="simple_done_steps_done">
+        <item quantity="one">Completado %1$d de %2$d paso</item>
+        <item quantity="many">Completados %1$d de %2$d pasos</item>
+        <item quantity="other">Completados %1$d de %2$d pasos</item>
+    </plurals>
+    <string name="simple_done_benefits">Qué cambió:</string>
+    <string name="simple_done_benefit_ads">✅ Ajustes de privacidad aplicados para servicios de telemetría</string>
+    <string name="simple_done_benefit_telemetry">✅ Reducida la recolección de datos de telemetría</string>
+    <string name="simple_done_benefit_spam">✅ Reducidas las notificaciones de apps del sistema</string>
+    <string name="simple_done_benefit_stable">✅ Reducida la carga del sistema en segundo plano</string>
+    <string name="simple_done_failed_title">No se pudo completar automáticamente:</string>
+    <string name="simple_done_skipped_title">Omitido (no está en este dispositivo):</string>
+    <string name="simple_done_rate">Calificar la app</string>
+    <string name="simple_done_donate">Apoyar al autor</string>
+    <string name="simple_done_close">Cerrar</string>
+
+    <!-- ========== DIÁLOGOS DE SHIZUKU ========== -->
+    <string name="shizuku_dialog_title">El modo avanzado requiere Shizuku</string>
+    <string name="shizuku_dialog_not_installed">Shizuku no está instalado. Instálalo desde una tienda de apps.</string>
+    <string name="shizuku_dialog_not_running">Shizuku está instalado pero no se está ejecutando. Abre la app y sigue los pasos 1–5.</string>
+    <string name="shizuku_dialog_permission">Shizuku se está ejecutando, pero nuestra app necesita permiso.</string>
+    <string name="shizuku_dialog_install">Instalar</string>
+    <string name="shizuku_dialog_howto">Cómo iniciar</string>
+    <string name="shizuku_dialog_later">Más tarde</string>
+    <string name="shizuku_card_other_sources">Otras fuentes de instalación</string>
+
+    <string name="shizuku_wizard_not_ready">Shizuku aún no está listo. Repite los pasos 1–5 en la app Shizuku y presiona "Verificar" de nuevo.</string>
+    <string name="shizuku_wizard_step6">Shizuku se está ejecutando. Ahora presiona "Solicitar permiso" abajo.</string>
+    <string name="shizuku_wizard_permission_denied">Permiso de Shizuku denegado. Abre Shizuku y otórgalo manualmente.</string>
+
+    <!-- ========== OPCIONES (DNS, AGRESIVO) ========== -->
+    <string name="options_dialog_title">Opciones de optimización</string>
+    <string name="options_dialog_text">Elige opciones adicionales. Puedes cambiarlas después.</string>
+    <string name="dns_option_title">Filtro DNS</string>
+    <string name="dns_option_description">Bloquea peticiones de red a dominios no deseados vía AdGuard DNS.</string>
+    <string name="aggressive_option_title">Optimización extendida</string>
+    <string name="aggressive_option_description">Ajustes avanzados para usuarios experimentados. Algunas funciones de Xiaomi pueden comportarse diferente.</string>
+    <string name="options_dialog_start">Iniciar optimización</string>
+
+    <!-- ========== ADVERTENCIA DNS ========== -->
+    <string name="dns_warning_title">Atención: filtro DNS</string>
+    <string name="dns_warning_text">Se configurará el DNS privado AdGuard. Esto reduce las peticiones de red a dominios no deseados, pero puede bloquear algunos sitios. Puedes desactivarlo en cualquier momento en los ajustes de Android.</string>
+    <string name="dns_warning_accept">Entendido, continuar</string>
+
+    <!-- ========== MODO DESARROLLADOR ========== -->
+    <string name="dev_mode_dialog_title">Se requiere modo desarrollador</string>
+    <string name="dev_mode_dialog_text">Para continuar, activa el modo desarrollador. Abre "Acerca del teléfono" y toca "Versión MIUI" 7 veces.</string>
+    <string name="dev_mode_dialog_open_about">Abrir "Acerca del teléfono"</string>
+    <string name="dev_mode_dialog_retry">Intentar de nuevo</string>
+
+    <!-- ========== ACCESIBILIDAD ========== -->
+    <string name="accessibility_explanation_text">La app necesita acceso al servicio de accesibilidad para tocar automáticamente botones en los ajustes. El acceso se usa solo para navegar por pantallas del sistema y nunca se transmite externamente. No se recopilan ni envían datos a servidores.</string>
+    <string name="hint_accessibility">Activa "XiaoHyperCleaner" en la lista de servicios</string>
+    <string name="hint_overlay">Permitir mostrar sobre otras apps</string>
+
+    <!-- ========== SUPERPOSICIÓN ========== -->
+    <string name="overlay_permission_title">Permiso "Mostrar sobre otras apps"</string>
+    <string name="overlay_permission_text">Necesario para mostrar pistas mientras configuras otras apps.</string>
+
+    <!-- ========== RESTRINGIDO / PROHIBIDO (Android 13+ sideload) ========== -->
+    <string name="restricted_dialog_title">Configuración restringida</string>
+    <string name="restricted_dialog_text">Para activar el servicio de accesibilidad, primero debes permitir "Configuración restringida" en la pantalla de información de la app.</string>
+    <string name="restricted_dialog_open">Abrir ajustes de la app</string>
+
+    <string name="forbidden_dialog_title">Configuración prohibida</string>
+    <string name="forbidden_dialog_text">En Android 14+ debes permitir "Configuración prohibida" en la pantalla de información de la app.</string>
+    <string name="forbidden_dialog_open">Abrir ajustes de la app</string>
+
+    <!-- ========== RESTAURAR / REINICIAR ========== -->
+    <string name="restore_dialog_title">¿Restaurar cambios?</string>
+    <string name="restore_dialog_text">Todos los ajustes volverán a su estado original. Los cambios son totalmente reversibles.</string>
+    <string name="restore_confirm">Restaurar</string>
+    <string name="restore_failed_text">No se pudieron restaurar completamente los cambios. Algunos ajustes permanecen modificados.</string>
+
+    <string name="reboot_dialog_title">Reiniciar</string>
+    <string name="reboot_dialog_text">Reinicia el dispositivo para que todos los ajustes surtan efecto.</string>
+    <string name="reboot_confirm">Reiniciar</string>
+    <string name="reboot_failed_text">No se pudo enviar el comando de reinicio. Por favor reinicia manualmente.</string>
+
+    <!-- ========== DIÁLOGO FINAL (modo avanzado) ========== -->
+    <string name="final_dialog_title">Resultado de la optimización</string>
+    <string name="final_dialog_success_text">Optimización completada con éxito. Ajustes de privacidad aplicados.</string>
+    <string name="final_dialog_failed_text">La optimización terminó con errores. Por favor envía el registro al desarrollador.</string>
+    <string name="final_dialog_rate">Calificar la app</string>
+    <string name="final_dialog_send_log">Enviar registro</string>
+
+    <!-- ========== ONBOARDING ========== -->
+    <string name="onboarding_page1_title">Bienvenido</string>
+    <string name="onboarding_page1_text">XiaoHyperCleaner te ayudará a configurar la privacidad y reducir la carga en segundo plano en tu dispositivo Xiaomi.</string>
+    <string name="onboarding_page2_title">Seguro y simple</string>
+    <string name="onboarding_page2_text">La app configurará los ajustes del sistema con tu permiso. Puedes saltar cualquier paso.</string>
+    <string name="onboarding_page3_title">Proceso transparente</string>
+    <string name="onboarding_page3_text">Ves cada paso. Todos los cambios se pueden revertir en cualquier momento.</string>
+    <string name="onboarding_skip">Saltar</string>
+    <string name="onboarding_next">Siguiente</string>
+    <string name="onboarding_start">Iniciar</string>
+    <string name="onboarding_privacy_prefix">Acepto la </string>
+    <string name="onboarding_privacy_link">política de privacidad</string>
+
+    <!-- ========== DIÁLOGO DE MENÚ ========== -->
+    <string name="menu_about">Acerca de</string>
+    <string name="menu_dark_theme">Tema oscuro</string>
+    <string name="menu_privacy_policy">Política de privacidad</string>
+    <string name="rate_app">Calificar la app</string>
+    <string name="support_yoomoney">Apoyar (YuMoney)</string>
+    <string name="support_cloudtips">Apoyar (CloudTips)</string>
+    <string name="log_share">Compartir registro</string>
+    <string name="about_title">Acerca de la app</string>
+    <string name="about_author">Autor</string>
+    <string name="about_text">XiaoHyperCleaner — una herramienta para configurar la privacidad de forma segura en MIUI/HyperOS. Funciona solo localmente en tu dispositivo.</string>
+    <string name="shizuku_attribution">Shizuku se usa con gratitud hacia sus desarrolladores.</string>
+    <string name="close">Cerrar</string>
+    <string name="privacy_policy_url" translatable="false" tools:ignore="MissingTranslation">https://elthebestdevelopman-cyber.github.io/privacy-policy/index.html</string>
+
+    <!-- ========== ASISTENTE DE SHIZUKU ========== -->
+    <string name="shizuku_wizard_title">Configuración de Shizuku</string>
+    <string name="shizuku_wizard_intro">Sigue los pasos para configurar Shizuku</string>
+    <string name="shizuku_wizard_skip_top">Saltar configuración</string>
+    <string name="shizuku_wizard_or">o</string>
+    <string name="shizuku_wizard_step1_title">Paso 1: Instala Shizuku</string>
+    <string name="shizuku_wizard_step1_desc">Descarga e instala Shizuku desde una tienda.</string>
+    <string name="shizuku_wizard_open_about">Abrir Acerca del teléfono</string>
+    <string name="shizuku_wizard_step2_title">Paso 2: Abre Shizuku</string>
+    <string name="shizuku_wizard_step2_desc">Inicia la app Shizuku.</string>
+    <string name="shizuku_wizard_step3_title">Paso 3: Modo desarrollador</string>
+    <string name="shizuku_wizard_step3_desc">Activa el modo desarrollador en los ajustes del teléfono.</string>
+    <string name="shizuku_wizard_open_dev">Abrir Opciones de desarrollador</string>
+    <string name="shizuku_wizard_step4_title">Paso 4: Depuración inalámbrica</string>
+    <string name="shizuku_wizard_step4_desc">Activa la depuración inalámbrica.</string>
+    <string name="shizuku_wizard_open_shizuku">Abrir Shizuku</string>
+    <string name="shizuku_wizard_step5_title">Paso 5: Iniciar vía depuración inalámbrica</string>
+    <string name="shizuku_wizard_step5_desc">En Shizuku, selecciona iniciar vía depuración inalámbrica.</string>
+    <string name="shizuku_wizard_check">Verificar</string>
+    <string name="shizuku_wizard_request_permission">Solicitar permiso</string>
+    <string name="shizuku_wizard_skip">Saltar</string>
+    <string name="shizuku_wizard_close">Cerrar</string>
+
+    <!-- ========== FUENTES DE SHIZUKU ========== -->
+    <string name="shizuku_sources_title">Fuentes de instalación de Shizuku</string>
+    <string name="shizuku_sources_text">Elige una forma conveniente de instalar Shizuku:</string>
+    <string name="shizuku_sources_play">Google Play</string>
+    <string name="shizuku_sources_aurora">Aurora Store</string>
+    <string name="shizuku_sources_getapps">GetApps</string>
+    <string name="shizuku_sources_github">GitHub</string>
+    <string name="shizuku_sources_apkpure">APKPure</string>
+
+    <!-- ========== PISTAS CON FLECHAS ========== -->
+    <string name="pointer_overlay_switch">Activa este interruptor</string>
+    <string name="pointer_accessibility_item">Busca "XiaoHyperCleaner" en la lista y activa el interruptor</string>
+    <string name="pointer_restricted_blocked">¿No puedes activar el servicio?</string>
+    <string name="pointer_restricted_explain">El sistema restringió temporalmente el acceso. Toca ⋮ en la tarjeta de la app y permite el acceso — toma 10 segundos.</string>
+
+    <!-- ========== ACLARACIÓN DE UBICACIÓN ========== -->
+    <string name="pointer_restricted_generic">Busca "Permitir configuración restringida" — generalmente en el menú ⋮ arriba o al final de esta pantalla</string>
+    <string name="pointer_restricted_not_found_title">¿No encuentras el elemento?</string>
+    <string name="pointer_restricted_location_question">¿Dónde está el permiso de configuración restringida en tu dispositivo?</string>
+    <string name="pointer_restricted_menu_option">En el menú ⋮ (esquina superior derecha)</string>
+    <string name="pointer_restricted_bottom_option">Al final de la lista de ajustes</string>
+    <string name="pointer_restricted_absent_option">No existe tal elemento</string>
+    <string name="pointer_restricted_top_hint">Toca ⋮ y selecciona "Permitir configuración restringida"</string>
+    <string name="pointer_restricted_bottom_hint">Desplázate hacia abajo y activa "Permitir configuración restringida"</string>
+
+    <!-- ========== DECLARACIÓN DE POLÍTICA DE ACCESIBILIDAD ========== -->
+    <string name="accessibility_policy_summary">Automatiza la navegación por ajustes para ahorrar tiempo a usuarios con movilidad limitada</string>
+    <string name="accessibility_policy_description">El servicio de accesibilidad de XiaoHyperCleaner se usa ÚNICAMENTE para navegar automáticamente por los ajustes del sistema Android a petición explícita del usuario. El servicio NO elude los controles de privacidad, NO cambia ajustes sin consentimiento explícito y NO recopila datos del usuario. Todas las acciones se realizan localmente en el dispositivo. El servicio se activa solo tras consentimiento explícito del usuario y puede desactivarse en cualquier momento en los ajustes de Android. El uso del servicio cumple totalmente con la Política de API de Servicios de Accesibilidad.</string>
+
+    <!-- ========== DIÁLOGO DE CONSENTIMIENTO ========== -->
+    <string name="consent_dialog_title">Consentimiento de uso del servicio</string>
+    <string name="consent_dialog_text">Para configurar automáticamente la app, el servicio de accesibilidad tocará botones en los ajustes del sistema en tu nombre. El servicio:\n\n• NO elude los controles de privacidad\n• NO cambia ajustes sin tu consentimiento\n• NO envía datos externamente\n• Puede desactivarse en cualquier momento</string>
+    <string name="consent_checkbox_label">Entiendo y consiento el uso del servicio de accesibilidad para automatizar la navegación por ajustes</string>
+    <string name="consent_confirm_button">Aceptar y continuar</string>
+    <string name="consent_cancel_button">Cancelar</string>
+
+    <!-- ========== DIÁLOGO DE RESPALDO TRAS 3 FALLOS ========== -->
+    <string name="fallback_accessibility_title">No se pudo activar el servicio automáticamente</string>
+    <string name="fallback_accessibility_text">Tras 3 intentos el sistema no permitió activar el servicio. Probablemente necesitas permitir "Configuración restringida" en la tarjeta de la app. Sigue los pasos:\n\n1. Toca "Abrir ajustes" abajo\n2. En la tarjeta de la app toca ⋮ (arriba a la derecha)\n3. Selecciona "Permitir configuración restringida"\n4. Vuelve a la app y toca "Intentar de nuevo"</string>
+    <string name="fallback_overlay_title">No se pudo activar mostrar sobre otras apps</string>
+    <string name="fallback_overlay_text">Tras 3 intentos no se concedió el permiso. Abre los ajustes manualmente y activa "Permitir mostrar sobre otras apps".</string>
+    <string name="fallback_retry">Intentar de nuevo</string>
+    <string name="fallback_open_settings">Abrir ajustes</string>
+    <string name="fallback_cancel">Cancelar optimización</string>
+
+    <!-- ========== RESPALDO PARA FASE APP_INFO ========== -->
+    <string name="fallback_appinfo_title">No se pudieron abrir los ajustes de la app</string>
+    <string name="fallback_appinfo_text">Tras 3 intentos no pudimos acceder a los ajustes de la app. Ábrelos manualmente vía Ajustes → Apps → XiaoHyperCleaner y permite "Configuración restringida".</string>
+
+    <!-- ========== TARJETAS DE PISTAS PARA FLECHAS ========== -->
+    <string name="pointer_hint_accessibility">Busca "XiaoHyperCleaner" en la lista de servicios y activa el interruptor a la derecha</string>
+    <string name="pointer_hint_overlay">Activa este interruptor para permitir mostrar pistas</string>
+    <string name="hint_restricted">Busca el interruptor "Permitir configuración restringida" en esta pantalla. Si no lo encuentras, toca ⋮ en la esquina superior derecha</string>
+
+    <!-- ========== PANTALLA DE CONFIGURACIÓN RESTRINGIDA ========== -->
+    <string name="restricted_screen_title">Desbloquear ajustes del sistema</string>
+    <string name="restricted_screen_intro">Para configurar la privacidad, necesitas permitir cambiar la configuración restringida. Este es un requisito del sistema Android 13+ para apps instaladas fuera de Google Play.</string>
+    <string name="restricted_screen_step1">Abre "Ajustes" → "Apps" → busca "XiaoHyperCleaner"</string>
+    <string name="restricted_screen_step2">Busca el interruptor "Permitir configuración restringida" (o "Configuración prohibida" en HyperOS) y actívalo</string>
+    <string name="restricted_screen_step3">Confirma con tu huella o contraseña</string>
+    <string name="restricted_screen_open">Abrir ajustes de la app</string>
+    <string name="restricted_screen_done">Ya lo permití, continuar</string>
+
+    <!-- ========== GUÍA VISUAL (adaptativa) ========== -->
+    <string name="restricted_guide_title">Permiso de acceso único</string>
+    <string name="restricted_guide_simple">Te mostraremos dónde tocar. Toma 30 segundos.</string>
+    <string name="restricted_guide_look_main">En la ventana que se abra, busca la fila de abajo y activa el interruptor:</string>
+    <string name="restricted_guide_look_menu">¿No funcionó la primera vez? Toca los tres puntos ⋮ arriba y selecciona:</string>
+    <string name="restricted_row_name">Permitir configuración restringida</string>
+    <string name="restricted_guide_turn_on">Activa este interruptor</string>
+    <string name="restricted_guide_tap_here">Toca aquí</string>
+    <string name="restricted_guide_confirm">Tu teléfono pedirá huella o contraseña — es normal, se está protegiendo.</string>
+    <string name="restricted_guide_not_found">Si no existe tal elemento — en algunos firmwares se llama "Configuración prohibida".</string>
+
+    <!-- ========== OPTIMIZACIÓN DE BATERÍA ========== -->
+    <string name="battery_dialog_title">Optimización de batería</string>
+    <string name="battery_dialog_text">Para un funcionamiento estable del servicio de accesibilidad, recomendamos desactivar la optimización de batería para XiaoHyperCleaner. De lo contrario, el sistema puede detener la automatización tras unos minutos.</string>
+    <string name="battery_dialog_open">Abrir ajustes de batería</string>
+    <string name="battery_dialog_skip">Saltar</string>
+    <string name="hint_battery_optimization">Selecciona "Sin restricciones" o "No optimizar"</string>
+
+    <!-- ========== AUTOMATIZACIÓN (robot-gato) ========== -->
+    <string name="automation_title">El robot-gato está limpiando…</string>
+    <string name="automation_step">Paso %1$d de %2$d</string>
+    <string name="automation_cancel">Cancelar optimización</string>
+    <string name="automation_status_search">Buscando: %s…</string>
+    <string name="automation_status_done">Listo, verificando…</string>
+    <string name="automation_status_fail">No se pudo, continuando…</string>
+    <string name="automation_status_skip">App no instalada — saltando</string>
+    <string name="result_title">¡Listo! El gato está contento 🧡</string>
+    <string name="result_summary">Completados %1$d de %2$d pasos</string>
+    <string name="result_skipped">Omitidos (no en el dispositivo): %d</string>
+    <string name="result_failed">No se pudo completar (protegido por el sistema): %d</string>
+    <string name="result_soft">Si te ayudó — una reseña o cualquier apoyo sería apreciado. Ayuda a otros a encontrar la app.</string>
+    <string name="result_rate">Calificar</string>
+    <string name="result_support">Apoyar</string>
+    <string name="result_close">Cerrar</string>
+</resources>

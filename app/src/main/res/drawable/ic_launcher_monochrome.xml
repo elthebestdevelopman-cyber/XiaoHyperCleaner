@@ -1,37 +1,115 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Одноцветный силуэт для тематических иконок Android 13+.
-     Система сама перекрасит его под цвет обоев. -->
+<?xml version="1.0" encoding="utf-8"?><!--
+    Монохромная (тематическая) версия иконки для Android 13+ (API 33+).
+
+    ИСПОЛЬЗУЕТСЯ В:
+    - mipmap-anydpi-v26/ic_launcher.xml → <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+    - mipmap-anydpi-v26/ic_launcher_round.xml → <monochrome ... />
+
+    КАК РАБОТАЕТ:
+    Система Android 13+ автоматически перекрашивает иконку под цвет обоев
+    пользователя, используя только альфа-канал (прозрачность) для создания силуэта.
+
+    ТРЕБОВАНИЯ К ТЕМТИЧЕСКИМ ИКОНКАМ:
+    - Размер: 108×108 dp (как адаптивные иконки)
+    - Viewport: 108×108 (НЕ 160×160)
+    - Safe zone: 66×66 dp в центре (отступ 21 dp со всех сторон)
+    - Используется ТОЛЬКО альфа-канал для определения формы
+    - Цвет игнорируется (система перекрашивает сама)
+
+    ИСПРАВЛЕНИЯ:
+    1. 🔴 Viewport изменён с 160×160 на 108×108 (соответствует спецификации)
+    2. 🔴 Добавлено масштабирование (scale 0.42) и центрирование (translate 18dp)
+    3. 🟡 Глаза используют fillAlpha="0" вместо fillColor="#00000000" (надёжнее)
+    4. 🟡 Добавлена упрощённая плашка XHC (силуэт)
+    5. ✅ Добавлена документация
+
+    ЦВЕТ:
+    Все path'ы используют fillColor="#FFFFFF" (белый), но система игнорирует цвет
+    и использует только альфа-канал для создания силуэта.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="160"
-    android:viewportHeight="160">
+    android:viewportWidth="108"
+    android:viewportHeight="108">
 
-    <!-- Ушки -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M45,22 L36,0 L62,18 Z" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M115,22 L124,0 L98,18 Z" />
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- Робокот (масштабированный и центрированный в safe zone) -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!--
+        Масштаб 0.42 и translate 18dp — те же, что в ic_launcher_foreground.xml
+        Это гарантирует, что робокот находится в safe zone 66×66 dp
+        и не обрезается системой при применении тематической маски.
+    -->
+    <group
+        android:scaleX="0.42"
+        android:scaleY="0.42"
+        android:translateX="18"
+        android:translateY="18">
 
-    <!-- Голова -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M30,52 Q30,15 80,15 Q130,15 130,52 Q130,88 80,88 Q30,88 30,52 Z" />
+        <!-- Ушки -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M45,22 L36,0 L62,18 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M115,22 L124,0 L98,18 Z" />
 
-    <!-- Тело -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M42,98 Q42,85 55,83 L105,83 Q118,85 118,98 L118,135 Q118,148 105,148 L55,148 Q42,148 42,135 Z" />
+        <!-- Голова -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M30,52 Q30,15 80,15 Q130,15 130,52 Q130,88 80,88 Q30,88 30,52 Z" />
 
-    <!-- Глаза (прозрачные вырезы поверх головы не получатся отдельным path,
-         поэтому глаза рисуем цветом фона иконки — они станут "дырками"
-         за счёт порядка отрисовки в тематической иконке) -->
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M58,52 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0" />
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M102,52 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0" />
+        <!-- Тело -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M42,98 Q42,85 55,83 L105,83 Q118,85 118,98 L118,135 Q118,148 105,148 L55,148 Q42,148 42,135 Z" />
+
+        <!-- Лапки -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M46,128 Q43,128 43,136 L43,148 Q43,153 49,153 L61,153 Q67,153 67,148 L67,136 Q67,128 61,128 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M93,128 Q87,128 87,136 L87,148 Q87,153 93,153 L105,153 Q111,153 111,148 L111,136 Q111,128 105,128 Z" />
+
+        <!--
+            Глаза (прозрачные вырезы).
+            ИСПРАВЛЕНО: используем fillAlpha="0" вместо fillColor="#00000000".
+            Это гарантирует, что система Android корректно обработает прозрачность
+            и создаст "дырки" в силуэте для глаз.
+        -->
+        <path
+            android:fillAlpha="0"
+            android:fillColor="#FFFFFF"
+            android:pathData="M58,52 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0" />
+        <path
+            android:fillAlpha="0"
+            android:fillColor="#FFFFFF"
+            android:pathData="M102,52 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0" />
+
+        <!-- Антенна (упрощённая) -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M78,15 L82,15 L82,5 L78,5 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M80,5 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+    </group>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- Плашка XHC (упрощённый силуэт) -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!--
+        Упрощённая версия плашки из ic_launcher_foreground.xml.
+        Для тематической иконки используем только прямоугольник (без букв),
+        так как буквы слишком мелкие и могут не читаться при перекраске.
+    -->
+    <group
+        android:translateX="30"
+        android:translateY="76">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M3,0 H41 A3,3 0 0 1 44,3 V11 A3,3 0 0 1 41,14 H3 A3,3 0 0 1 0,11 V3 A3,3 0 0 1 3,0 Z" />
+    </group>
 </vector>

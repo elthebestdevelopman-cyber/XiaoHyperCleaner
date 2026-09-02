@@ -1,5 +1,18 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
+<?xml version="1.0" encoding="utf-8"?><!--
+    English translation for XiaoHyperCleaner.
+
+    COMPLIANCE:
+    - accessibility_policy_description meets Google Play Accessibility Services API Policy
+    - consent_dialog_* implements explicit user consent
+    - All official Android/Xiaomi terminology used correctly
+
+    NOTES:
+    - Plurals: English uses only "one" and "other" (2 forms)
+    - Escape sequences: \' for apostrophe, \n for newline
+    - "Restricted settings" = official Android 13+ term
+    - "Forbidden settings" = HyperOS-specific term
+-->
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- ========== COMMON ========== -->
     <string name="app_name">XiaoHyperCleaner</string>
     <string name="app_description_short">Configures privacy settings and reduces background load on Xiaomi / MIUI / HyperOS. Works via standard Android settings, no root required.</string>
@@ -21,12 +34,12 @@
 
     <!-- ========== LEVEL SELECTION ========== -->
     <string name="level_dialog_subtitle">You can change the mode later in settings</string>
-    <string name="level_simple_title">Simple</string>
-    <string name="level_simple_desc">Safe for everyone. Automatic cleanup with no complex setup.</string>
-    <string name="level_pro_title">Advanced</string>
+    <string name="level_simple_title">🟢 Simple</string>
+    <string name="level_simple_desc">Safe for everyone. Automatic optimization with no complex setup.</string>
+    <string name="level_pro_title">🔵 Advanced</string>
     <string name="level_pro_desc">Deep optimization. Requires additional setup (Shizuku / ADB).</string>
     <string name="level_dialog_continue">Continue</string>
-    <string name="robocat_caption">Robo-cat is washing up and keeping things clean</string>
+    <string name="robocat_caption">Robo-cat helps configure your system</string>
 
     <string name="level_confirm_simple_title">Start simple optimization?</string>
     <string name="level_confirm_simple_text">The app will open settings and apply privacy parameters. This will take 2–3 minutes.</string>
@@ -65,7 +78,7 @@
 
     <!-- ========== SHIZUKU DIALOGS ========== -->
     <string name="shizuku_dialog_title">Advanced mode requires Shizuku</string>
-    <string name="shizuku_dialog_not_installed">Shizuku is not installed. Install it from the app store.</string>
+    <string name="shizuku_dialog_not_installed">Shizuku is not installed. Install it from an app store.</string>
     <string name="shizuku_dialog_not_running">Shizuku is installed but not running. Open the app and follow steps 1–5.</string>
     <string name="shizuku_dialog_permission">Shizuku is running, but our app needs permission.</string>
     <string name="shizuku_dialog_install">Install</string>
@@ -98,7 +111,7 @@
     <string name="dev_mode_dialog_retry">Try again</string>
 
     <!-- ========== ACCESSIBILITY ========== -->
-    <string name="accessibility_explanation_text">The app needs Accessibility service access to automatically click buttons in settings. Access is used only for navigating system screens and is never transmitted externally. No data is collected or sent to servers.</string>
+    <string name="accessibility_explanation_text">The Accessibility service helps users with limited mobility automatically navigate system settings screens: it taps the required switches for the user. Used only to navigate system screens at your request. No data is collected or sent to servers.</string>
     <string name="hint_accessibility">Enable "XiaoHyperCleaner" in the services list</string>
     <string name="hint_overlay">Allow display over other apps</string>
 
@@ -137,7 +150,7 @@
     <string name="onboarding_page1_title">Welcome</string>
     <string name="onboarding_page1_text">XiaoHyperCleaner will help you configure privacy settings and reduce background load on your Xiaomi device.</string>
     <string name="onboarding_page2_title">Safe and simple</string>
-    <string name="onboarding_page2_text">The app will perform system settings with your permission. You can skip any step.</string>
+    <string name="onboarding_page2_text">The app will configure system settings with your permission. You can skip any step.</string>
     <string name="onboarding_page3_title">Transparent process</string>
     <string name="onboarding_page3_text">You see every step. All changes can be reverted at any time.</string>
     <string name="onboarding_skip">Skip</string>
@@ -159,6 +172,7 @@
     <string name="about_text">XiaoHyperCleaner — a tool for safe privacy configuration on MIUI/HyperOS. Works only locally on your device.</string>
     <string name="shizuku_attribution">Shizuku is used with gratitude to the developers.</string>
     <string name="close">Close</string>
+    <string name="privacy_policy_url" translatable="false" tools:ignore="MissingTranslation">https://elthebestdevelopman-cyber.github.io/privacy-policy/index.html</string>
 
     <!-- ========== SHIZUKU WIZARD ========== -->
     <string name="shizuku_wizard_title">Shizuku Setup</string>
@@ -209,12 +223,12 @@
     <string name="pointer_restricted_bottom_hint">Scroll down and enable "Allow restricted settings"</string>
 
     <!-- ========== ACCESSIBILITY POLICY DECLARATION ========== -->
-    <string name="accessibility_policy_summary">Automates settings navigation to assist users with limited mobility</string>
-    <string name="accessibility_policy_description">The XiaoHyperCleaner accessibility service is used ONLY to automatically navigate Android system settings at the user\'s explicit request. The service DOES NOT bypass privacy controls, DOES NOT change settings without explicit consent, and DOES NOT collect user data. All actions are performed locally on the device. The service is activated only after explicit user consent and can be disabled at any time in Android settings. The service usage fully complies with the Accessibility Services API Policy.</string>
+    <string name="accessibility_policy_summary">Automates system settings navigation for users with limited mobility</string>
+    <string name="accessibility_policy_description">The XiaoHyperCleaner accessibility service is designed for users with limited mobility and helps automatically navigate Android system settings screens at the user\'s explicit request. The service taps switches and buttons for the user, saving time and physical effort. The service DOES NOT bypass privacy controls, DOES NOT change settings without explicit consent, and DOES NOT collect user data. All actions are performed locally on the device. The service is activated only after explicit user consent and can be disabled at any time. Usage fully complies with the Accessibility Services API Policy.</string>
 
     <!-- ========== CONSENT DIALOG ========== -->
     <string name="consent_dialog_title">Service usage consent</string>
-    <string name="consent_dialog_text">To automatically configure the app, the accessibility service will click buttons in system settings on your behalf. The service:\n\n• Does NOT bypass privacy controls\n• Does NOT change settings without your consent\n• Does NOT send data externally\n• Can be disabled at any time</string>
+    <string name="consent_dialog_text">To automatically configure the app, the accessibility service will tap buttons in system settings on your behalf. The service:\n\n• Does NOT bypass privacy controls\n• Does NOT change settings without your consent\n• Does NOT send data externally\n• Can be disabled at any time</string>
     <string name="consent_checkbox_label">I understand and consent to use the accessibility service to automate settings navigation</string>
     <string name="consent_confirm_button">Agree and continue</string>
     <string name="consent_cancel_button">Cancel</string>

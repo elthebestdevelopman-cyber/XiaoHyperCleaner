@@ -1,15 +1,56 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?><!--
+    Тёмная тема приложения (системный режим).
+    Применяется когда в системе включена тёмная тема.
+
+    ВАЖНЫЙ НЮАНС:
+    В приложении тема может выбираться ВРУЧНУЮ через Compose
+    (XiaoHyperCleanerTheme в Theme.kt). Системная тема влияет только на:
+    - Splash Screen (до загрузки Compose)
+    - Системные бары (статус, навигация)
+
+    Для полной синхронизации ручной темы с системными барами
+    используется WindowInsetsControllerCompat в MainActivity.
+
+    СОВМЕСТИМОСТЬ:
+    - Зеркальная версия values/themes.xml (дневная тема)
+    - Цвет фона синхронизирован с DarkBackground в Color.kt (0xFF121212)
+-->
 <resources>
 
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- Базовая тёмная тема приложения -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
     <style name="Theme.XiaoHyperCleaner" parent="android:Theme.Material.NoActionBar">
+        <!-- Тёмный фон окна до загрузки Compose (предотвращает чёрное мигание).
+             Синхронизирован с DarkBackground в Color.kt -->
+        <item name="android:windowBackground">@color/splash_background</item>
+
+        <!-- Прозрачные системные бары для edge-to-edge -->
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
+
+        <!-- Светлые иконки статус-бара на тёмном фоне -->
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+
+        <!-- Android 10+: система сама обеспечивает контрастность баров -->
+        <item name="android:enforceStatusBarContrast">true</item>
+        <item name="android:enforceNavigationBarContrast">true</item>
     </style>
 
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- Системный Splash Screen для тёмной темы -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
     <style name="Theme.XiaoHyperCleaner.Splash" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">#FF0D1B2A</item>
+        <!-- Тёмный фон сплэша (глубокий тёмно-синий) -->
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <!-- Анимированная иконка (робокот) -->
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_icon</item>
+
+        <!-- Длительность анимации иконки (мс) -->
         <item name="windowSplashScreenAnimationDuration">500</item>
+
+        <!-- Тема после закрытия сплэша -->
         <item name="postSplashScreenTheme">@style/Theme.XiaoHyperCleaner</item>
     </style>
 </resources>

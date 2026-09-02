@@ -38,6 +38,10 @@ sealed interface PreferenceKey {
         override val name = "hidden_settings_applied"
     }
 
+    data object PendingSimpleMode : PreferenceKey {
+        override val name = "pending_simple_mode"
+    }
+
     data object PendingOptimization : PreferenceKey {
         override val name = "pending_optimization"
     }
@@ -109,6 +113,9 @@ class PreferencesManager(private val context: Context) {
     val pendingOptimization: Flow<Boolean> =
         readBool(PreferenceKey.PendingOptimization, false)
 
+    val pendingSimpleMode: Flow<Boolean> =
+        readBool(PreferenceKey.PendingSimpleMode, false)
+
     val hasShownRestrictedDialog: Flow<Boolean> =
         readBool(PreferenceKey.HasShownRestrictedDialog, false)
 
@@ -133,6 +140,9 @@ class PreferencesManager(private val context: Context) {
     suspend fun setPendingOptimization(pending: Boolean) =
         writeBool(PreferenceKey.PendingOptimization, pending)
 
+    suspend fun setPendingSimpleMode(pending: Boolean) =
+        writeBool(PreferenceKey.PendingSimpleMode, pending)
+
     suspend fun setHasShownRestrictedDialog(shown: Boolean) =
         writeBool(PreferenceKey.HasShownRestrictedDialog, shown)
 
@@ -156,6 +166,13 @@ class PreferencesManager(private val context: Context) {
         pendingOptimization.first()
     }.getOrElse { e ->
         AppLog.w(TAG, "getPendingOptimization failed: ${e.message}")
+        false
+    }
+
+    suspend fun getPendingSimpleMode(): Boolean = runCatching {
+        pendingSimpleMode.first()
+    }.getOrElse { e ->
+        AppLog.w(TAG, "getPendingSimpleMode failed: ${e.message}")
         false
     }
 

@@ -25,16 +25,9 @@ import kotlin.time.Duration.Companion.milliseconds
  * 3. Автоматическое продвижение между шагами
  * 4. Обработку ошибок и пропусков
  *
- * Архитектура:
- * - PERMISSIONS фаза: запрос разрешений через PermissionFlowManager
- * - STEPS фаза: выполнение шагов через AdbEnablerService → SimpleRunner
- * - DONE фаза: показ результатов через OverlayController
- *
- * УЛУЧШЕНИЯ:
- * 1. Явные типы для всех переменных
- * 2. Полная документация для ключевых методов
- * 3. Улучшенное логирование для диагностики
- * 4. Защита от race condition в nextStep()
+ * ИСПРАВЛЕНИЯ (beta11):
+ * - Защита от повтора диалога батареи (MIUI кэширует isIgnoringBatteryOptimizations)
+ * - Освобождение Wake Lock при отмене и завершении оптимизации
  */
 class SimpleModeController(
     private val context: Context,
@@ -45,75 +38,28 @@ class SimpleModeController(
         private const val TAG = "SimpleModeController"
     }
 
-    /**
-     * Состояние Simple Mode.
-     * Используется в ViewModel для управления UI.
-     */
     data class SimpleModeState(
-        /** Активен ли Simple Mode */
         val active: Boolean = false,
-
-        /** Текущая фаза (PERMISSIONS, STEPS, DONE) */
         val phase: SimpleModePhase = SimpleModePhase.INACTIVE,
-
-        /** Подфаза запроса разрешений */
         val permissionSubPhase: PermissionSubPhase = PermissionSubPhase.INACTIVE,
-
-        /** Индекс текущего шага в SimpleSteps.ALL */
         val currentStepIndex: Int = 0,
-
-        /** Количество успешно завершённых шагов */
         val completedCount: Int = 0,
-
-        /** Состояние текущего шага */
         val step: SimpleStepState? = null,
-
-        /** Финальный результат (completed, total) */
         val done: Pair<Int, Int>? = null,
-
-        /** Показывать диалог App Info */
         val showAppInfoDialog: Boolean = false,
-
-        /** Показывать диалог Overlay */
         val showOverlayDialog: Boolean = false,
-
-        /** Показывать диалог Accessibility */
         val showAccessibilityDialog: Boolean = false,
-
-        /** Показывать диалог Restricted Settings */
         val showRestrictedDialog: Boolean = false,
-
-        /** Показывать диалог выбора местоположения кнопки */
         val showLocationDialog: Boolean = false,
-
-        /** Показывать fallback диалог */
         val showPermissionFallbackDialog: Boolean = false,
-
-        /** Застрявшая фаза (для retry) */
         val stuckPhase: PermissionSubPhase? = null,
-
-        /** Показывать экран Restricted Settings */
         val showRestrictedSettingsScreen: Boolean = false,
-
-        /** Был ли показан экран Restricted Settings */
         val restrictedSettingsShown: Boolean = false,
-
-        /** Количество попыток включения Accessibility */
         val accessibilityAttempts: Int = 0,
-
-        /** Количество попыток получения Overlay */
         val overlayAttempts: Int = 0,
-
-        /** Количество попыток открытия App Info */
         val appInfoAttempts: Int = 0,
-
-        /** Показывать диалог Battery Optimization */
         val showBatteryDialog: Boolean = false,
-
-        /** ID шагов, которые не удалось выполнить */
         val failedStepIds: List<String> = emptyList(),
-
-        /** ID шагов, которые были пропущены (приложение не установлено) */
         val skippedStepIds: List<String> = emptyList()
     )
 
@@ -137,28 +83,29 @@ class SimpleModeController(
         permissionFlow.isSideloadedOnAndroid13Plus()
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // ИСПРАВЛЕНИЕ (beta11): Защита от повтора диалога батареи
+    // ═══════════════════════════════════════════════════════════════
     /**
-     * Обновляет состояние и уведомляет ViewModel.
-     * Использует DSL-паттерн для удобного обновления.
+     * Флаг "уже показывали диалог батареи".
+     * Если true — больше не показываем диалог, сразу переходим к STEPS.
+     * Это решает проблему MIUI, когда isIgnoringBatteryOptimizations
+     * остаётся false даже после включения "нет ограничений".
      */
+    private var batteryDialogAlreadyShown: Boolean = false
+
     fun setState(update: SimpleModeState.() -> SimpleModeState) {
         state = state.update()
         onStateChanged(state)
     }
 
-    /**
-     * Освобождает ресурсы при уничтожении контроллера.
-     */
     fun destroy() {
         autoFlowJob?.cancel()
         OverlayController.hide(context)
+        releaseWakeLock()  // НОВОЕ (beta11): гарантированное освобождение
         scope.cancel()
     }
 
-    /**
-     * Обновляет статусы разрешений.
-     * Вызывается из ViewModel при возврате из настроек.
-     */
     fun updatePermissionStatuses(accEnabled: Boolean, overlayGranted: Boolean) {
         val accJustEnabled: Boolean = !isAccessibilityEnabled && accEnabled
         val overlayJustEnabled: Boolean = !isOverlayGranted && overlayGranted
@@ -178,9 +125,6 @@ class SimpleModeController(
         }
     }
 
-    /**
-     * Вызывается при возврате из настроек разрешений.
-     */
     fun onResumeAfterPermissionReturn() {
         if (!state.active || state.phase != SimpleModePhase.PERMISSIONS) return
         AppLog.i(TAG, "onResumeAfterPermissionReturn: subPhase=${state.permissionSubPhase}")
@@ -191,9 +135,6 @@ class SimpleModeController(
         }
     }
 
-    /**
-     * Перепроверяет текущую подфазу.
-     */
     fun refresh() {
         if (state.active && state.phase == SimpleModePhase.PERMISSIONS) {
             AppLog.d(TAG, "refresh() — re-checking current sub-phase")
@@ -201,9 +142,6 @@ class SimpleModeController(
         }
     }
 
-    /**
-     * Запускает Simple Mode.
-     */
     fun start() {
         AppLog.i(TAG, "Starting simple mode, needsRestrictedUnlock=$needsRestrictedUnlock")
         failedIds.clear()
@@ -211,6 +149,7 @@ class SimpleModeController(
         stepAttempt = 1
         stepsStarted = false
         restrictedLocation = RestrictedLocation.UNKNOWN
+        batteryDialogAlreadyShown = false  // НОВОЕ (beta11): сброс флага
         OverlayController.hide(context)
 
         state = SimpleModeState(
@@ -318,23 +257,28 @@ class SimpleModeController(
     fun onRestrictedScreenCancelled() = reset()
 
     // ═══════════════════════════════════════════════════════════════
-    // Батарея
+    // Батарея (ИСПРАВЛЕНО beta11)
     // ═══════════════════════════════════════════════════════════════
 
     fun onBatteryDialogAgreed() {
         AppLog.i(TAG, "Battery dialog agreed")
+        batteryDialogAlreadyShown = true  // НОВОЕ: запоминаем что показывали
         setState { copy(showBatteryDialog = false) }
         permissionFlow.openBatteryOptimizationWithPointer()
     }
 
     fun onBatteryDialogSkipped() {
         AppLog.i(TAG, "Battery dialog skipped — advancing to STEPS")
+        batteryDialogAlreadyShown = true  // НОВОЕ: запоминаем что показывали
         goSteps()
         nextStep(autoStart = true)
     }
 
     fun onBatteryReturn(ignoring: Boolean) {
-        AppLog.i(TAG, "onBatteryReturn: isIgnoringBatteryOptimizations=$ignoring")
+        AppLog.i(
+            TAG,
+            "onBatteryReturn: isIgnoringBatteryOptimizations=$ignoring, alreadyShown=$batteryDialogAlreadyShown"
+        )
         if (ignoring) {
             if (state.phase != SimpleModePhase.STEPS) {
                 setState {
@@ -345,10 +289,24 @@ class SimpleModeController(
                     )
                 }
             }
+        } else if (batteryDialogAlreadyShown) {
+            // ИСПРАВЛЕНО (beta11): если уже показывали диалог и пользователь вернулся
+            // БЕЗ включения — НЕ показываем повторно, сразу идём к STEPS.
+            // Это решает проблему MIUI, где isIgnoring всегда false.
+            AppLog.i(TAG, "onBatteryReturn: already shown dialog, advancing to STEPS")
+            goSteps()
+            nextStep(autoStart = true)
         }
     }
 
     fun reshowBatteryDialog() {
+        // ИСПРАВЛЕНО (beta11): НЕ показываем диалог повторно
+        if (batteryDialogAlreadyShown) {
+            AppLog.i(TAG, "reshowBatteryDialog: already shown, advancing to STEPS")
+            goSteps()
+            nextStep(autoStart = true)
+            return
+        }
         AppLog.i(TAG, "reshowBatteryDialog: user returned without disabling")
         if (state.permissionSubPhase == PermissionSubPhase.BATTERY_OPTIMIZATION) {
             setState { copy(showBatteryDialog = true) }
@@ -407,11 +365,6 @@ class SimpleModeController(
     // Шаги
     // ═══════════════════════════════════════════════════════════════
 
-    /**
-     * Запускает текущий шаг.
-     *
-     * @param force Если true, запускает даже если шаг уже WORKING
-     */
     fun startCurrentStep(force: Boolean = false) {
         val current: SimpleStepState = state.step ?: return
         if (current.status == SimpleStepState.Status.WORKING && !force) {
@@ -422,17 +375,11 @@ class SimpleModeController(
         launchStep()
     }
 
-    /**
-     * Повторяет текущий шаг с первой попытки.
-     */
     fun retryStep() {
         stepAttempt = 1
         launchStep()
     }
 
-    /**
-     * Запускает выполнение шага через AdbEnablerService.
-     */
     private fun launchStep() {
         autoFlowJob?.cancel()
         setState {
@@ -450,13 +397,6 @@ class SimpleModeController(
         context.startService(intent)
     }
 
-    /**
-     * Обрабатывает результат выполнения шага.
-     *
-     * @param success true, если шаг выполнен успешно
-     * @param attempt Номер попытки
-     * @param finalFailure true, если это финальная неудача (все попытки исчерпаны)
-     */
     fun onStepResult(success: Boolean, attempt: Int, finalFailure: Boolean = false) {
         AppLog.i(
             TAG,
@@ -499,9 +439,6 @@ class SimpleModeController(
         setState { copy(step = step.copy(status = SimpleStepState.Status.IDLE, attempt = attempt)) }
     }
 
-    /**
-     * Обрабатывает пропуск шага (приложение не установлено).
-     */
     fun onStepSkipped(stepId: String) {
         AppLog.i(TAG, "onStepSkipped: step=$stepId, index=${state.currentStepIndex}")
         if (!skippedIds.contains(stepId)) skippedIds.add(stepId)
@@ -509,10 +446,6 @@ class SimpleModeController(
         scheduleAdvance()
     }
 
-    /**
-     * Планирует автоматическое продвижение к следующему шагу.
-     * Использует AUTO_ADVANCE_DELAY_MS для задержки.
-     */
     private fun scheduleAdvance() {
         autoFlowJob?.cancel()
         autoFlowJob = scope.launch {
@@ -526,14 +459,6 @@ class SimpleModeController(
         }
     }
 
-    /**
-     * Переходит к следующему шагу.
-     *
-     * ВАЖНО: сохраняет completedCount в локальную переменную перед setState,
-     * потому что вложенный SimpleStepState(...) скрывал это поле от компилятора.
-     *
-     * @param autoStart Если true, автоматически запускает шаг
-     */
     fun nextStep(autoStart: Boolean = false) {
         if (state.phase == SimpleModePhase.DONE) return
 
@@ -544,14 +469,18 @@ class SimpleModeController(
         if (nextIndex >= steps.size) {
             AppLog.i(TAG, "All simple steps completed")
             val finalCompleted: Int = state.completedCount
+            val applicable: Int = (steps.size - skippedIds.size).coerceAtLeast(0)
+
+            releaseWakeLock()
+
             setState {
                 copy(
                     phase = SimpleModePhase.DONE, permissionSubPhase = PermissionSubPhase.DONE,
-                    step = null, done = Pair(finalCompleted, steps.size)
+                    step = null, done = Pair(finalCompleted, applicable)
                 )
             }
             OverlayController.showResult(
-                context, finalCompleted, steps.size, failedIds.size, skippedIds.size
+                context, finalCompleted, applicable, failedIds.size, skippedIds.size
             )
             return
         }
@@ -561,7 +490,6 @@ class SimpleModeController(
         }
 
         val nextStepObj: SimpleSteps.Step = steps[nextIndex]
-        // КЛЮЧЕВОЙ ФИКС: сохраняем completedCount ПЕРЕД setState
         val currentCompletedCount: Int = state.completedCount
         setState {
             copy(
@@ -580,9 +508,6 @@ class SimpleModeController(
     // advance (permission-фазы)
     // ═══════════════════════════════════════════════════════════════
 
-    /**
-     * Продвигает машину состояний к следующей подфазе.
-     */
     private fun advance() {
         if (!state.active) return
         if (state.phase != SimpleModePhase.PERMISSIONS) return
@@ -675,6 +600,30 @@ class SimpleModeController(
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // Wake Lock management (beta11)
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Освобождает wake lock через AdbEnablerService.
+     * Вызывается при:
+     * - Завершении всех шагов (nextStep -> DONE)
+     * - Сбросе контроллера (reset/destroy)
+     * - Отмене оптимизации пользователем
+     */
+    private fun releaseWakeLock() {
+        try {
+            context.startService(
+                Intent(context, AdbEnablerService::class.java).apply {
+                    action = AdbEnablerService.ACTION_RELEASE_WAKE
+                }
+            )
+            AppLog.i(TAG, "releaseWakeLock: sent ACTION_RELEASE_WAKE")
+        } catch (e: Exception) {
+            AppLog.w(TAG, "releaseWakeLock failed: ${e.message}")
+        }
+    }
+
     /**
      * Сбрасывает контроллер в начальное состояние.
      */
@@ -682,12 +631,14 @@ class SimpleModeController(
         AppLog.i(TAG, "Resetting simple mode controller")
         autoFlowJob?.cancel()
         OverlayController.hide(context)
+        releaseWakeLock()  // НОВОЕ (beta11): освобождаем wake lock
         permissionFlow.hideOverlay()
         failedIds.clear()
         skippedIds.clear()
         stepAttempt = 1
         stepsStarted = false
         restrictedLocation = RestrictedLocation.UNKNOWN
+        batteryDialogAlreadyShown = false  // НОВОЕ (beta11): сброс флага
         state = SimpleModeState()
         onStateChanged(state)
     }

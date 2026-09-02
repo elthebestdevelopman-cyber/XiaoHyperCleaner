@@ -4,14 +4,16 @@ package com.xiaohypercleaner.data
  * Под-фазы процесса запроса разрешений в Simple Mode.
  *
  * Порядок перехода (см. SimpleModeController.advance()):
- * INACTIVE → RESTRICTED_SETTINGS → APP_INFO → OVERLAY → ACCESSIBILITY → BATTERY_OPTIMIZATION → STEPS → DONE
+ * INACTIVE → RESTRICTED_SETTINGS → APP_INFO → OVERLAY → ACCESSIBILITY →
+ * BATTERY_OPTIMIZATION → STEPS → DONE
  *
  * ИСПРАВЛЕНО:
- * - Удалено упоминание TEST_CLICK из комментария (фаза была удалена из логики)
- * - Добавлено упоминание STEPS (фаза выполнения 26 шагов автоматизации)
- * - Добавлена полная документация для каждой фазы
+ *  - Восстановлены корректные закрытия KDoc-комментариев
+ *  - Удалено упоминание TEST_CLICK (фаза была удалена из логики)
+ *  - Добавлена полная документация для каждой фазы
  */
 enum class PermissionSubPhase {
+
     /** Начальное состояние — разрешения ещё не запрашивались */
     INACTIVE,
 
@@ -24,7 +26,7 @@ enum class PermissionSubPhase {
 
     /**
      * Открытие App Info для разблокировки ограниченных настроек.
-     * Пользователь нажимает ⋮ → "Разрешить" (или аналогичную кнопку).
+     * Пользователь нажимает ⋮ → «Разрешить» (или аналогичную кнопку).
      * Показывается стрелка-указатель через OverlayService.
      */
     APP_INFO,

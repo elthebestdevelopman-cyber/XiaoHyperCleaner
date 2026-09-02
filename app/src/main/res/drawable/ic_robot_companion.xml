@@ -1,4 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Эталонный дизайн робокота (маскот XiaoHyperCleaner).
+
+    ИСТОЧНИК ИСТИНЫ для всех версий робокота в проекте:
+    - ic_launcher_foreground.xml (адаптивная иконка, scale 0.42)
+    - ic_launcher_monochrome.xml (тематическая иконка, scale 0.42)
+    - OverlayService (showAutomation, showResult — 120x120 dp)
+    - OptimizationLevelDialog (с wobble-анимацией — 160x140 dp)
+    - OnboardingScreen (страницы 1 и 3 — 160x160 dp)
+
+    РАЗМЕР: 160x160 dp (viewport 1:1)
+
+    ЦВЕТОВАЯ ПАЛИТРА (Material Design):
+    - Blue Grey 200 (#B0BEC5) — основной металл (тело, голова)
+    - Blue Grey 300 (#90A4AE) — тёмные детали (лапки, ушки, хвост)
+    - Blue Grey 700 (#546E7A) — акцентные тёмные (грудная панель, винтики)
+    - Light Blue 300 (#4FC3F7) — "живое" свечение (глаза, индикаторы)
+    - Light Blue 50 (#E1F5FE) — яркие блики
+    - Red A200 (#FF5252) — кончик антенны
+    - Pink A100 (#FF80AB, α=0.8) — румянец
+    - Blue Grey 900 (#263238) — экран-лицо
+
+    ПОРЯДОК СЛОЁВ (важно для z-order):
+    1. Хвостик-антенна (ЗА телом)
+    2. Тело + грудная панель + индикатор
+    3. Лапки с подушечками
+    4. Голова
+    5. Ушки (металл + свечение внутри)
+    6. Антенна на голове (красный шарик)
+    7. Экран-лицо + глаза + рот + румянец + винтики
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="160dp"
     android:height="160dp"
@@ -81,6 +112,7 @@
 
     <!-- Антенна на голове -->
     <path
+        android:name="antenna_tip"
         android:fillColor="@android:color/transparent"
         android:pathData="M80,15 L80,5"
         android:strokeWidth="2.5"

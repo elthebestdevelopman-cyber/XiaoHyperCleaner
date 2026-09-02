@@ -9,10 +9,10 @@ android {
 
     defaultConfig {
         applicationId = "com.xiaohypercleaner"
-        minSdk = 28
+        minSdk = 29
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0-beta2"
+        versionCode = 5
+        versionName = "1.0-beta5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -52,7 +52,6 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
-    implementation("androidx.lifecycle:lifecycle-runtime:2.11.0")
     implementation(libs.lifecycle.runtime)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
@@ -68,12 +67,10 @@ dependencies {
     // Shizuku API (MIT License)
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)
-    implementation(libs.lottie)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.core)
     testImplementation(libs.mockito.core)
-    testImplementation(libs.mockito.inline)
 }

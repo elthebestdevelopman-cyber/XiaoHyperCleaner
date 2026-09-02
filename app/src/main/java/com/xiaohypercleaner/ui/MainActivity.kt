@@ -1,7 +1,6 @@
 package com.xiaohypercleaner.ui
 
 import android.animation.ObjectAnimator
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -57,16 +56,16 @@ import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationMode
 import com.xiaohypercleaner.data.PermissionSubPhase
-import com.xiaohypercleaner.service.OverlayService
+import com.xiaohypercleaner.service.OverlayController
 import com.xiaohypercleaner.ui.components.AccessibilityConsentDialog
 import com.xiaohypercleaner.ui.components.DevModeDialog
 import com.xiaohypercleaner.ui.components.InfoCard
 import com.xiaohypercleaner.ui.components.InfoDialog
 import com.xiaohypercleaner.ui.components.LocationChoiceDialog
 import com.xiaohypercleaner.ui.components.MenuDialog
+import com.xiaohypercleaner.ui.components.OptionsDialog
 import com.xiaohypercleaner.ui.components.OptimizationCard
 import com.xiaohypercleaner.ui.components.OptimizationLevelDialog
-import com.xiaohypercleaner.ui.components.OptionsDialog
 import com.xiaohypercleaner.ui.components.PermissionFallbackDialog
 import com.xiaohypercleaner.ui.components.RestrictedSettingsDialog
 import com.xiaohypercleaner.ui.components.ShizukuGuideDialog
@@ -86,32 +85,52 @@ import rikka.shizuku.Shizuku
 /**
  * Главный экран приложения.
  *
- * ИСПРАВЛЕНО в этой версии:
- *  - Добавлен фильтр «ложных» onResume через wasStopped: системный диалог MIUI
- *    (поверх настроек батареи) даёт onPause без onStop, а реальный уход
- *    в чужое Activity — даёт onStop. Обрабатываем возврат из батареи только
- *    после onStop — это устраняет «ложное» всплытие диалога.
+ * Архитектура:
+ * - MVVM: MainViewModel управляет состоянием
+ * - Compose: декларативный UI
+ * - Splash screen: анимация при старте
+ * - Shizuku: listener для запроса разрешений
+ *
+ * Ключевые фичи:
+ * - wasStopped флаг: фильтрация ложных onResume от системных диалогов MIUI
+ * - repeatOnLifecycle(RESUMED): автообновление статусов при возврате
+ * - Онбординг: показывается один раз при первом запуске
+ *
+ * УЛУЧШЕНИЯ:
+ * 1. Убран stopService() — используем OverlayController.hide() для consistency
+ * 2. TAG переименован в "MainActivity"
+ * 3. Убраны inline функции (вынесены в UiActions.kt)
  */
 class MainActivity : ComponentActivity() {
 
     companion object {
-        private const val TAG = "MainAct"
+        const val TAG = "MainActivity"
+
+        /** Конвертация dp в px для анимаций (не зависит от Context в composable) */
+        private fun dpToPx(context: android.content.Context, dp: Int): Int {
+            return android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_DIP,
+                dp.toFloat(),
+                context.resources.displayMetrics
+            ).toInt()
+        }
     }
 
     private lateinit var vm: MainViewModel
 
     /**
-     * НОВОЕ: флаг реального ухода из приложения.
-     * Системный диалог MIUI поверх настроек даёт onPause, но НЕ onStop.
+     * Флаг реального ухода из приложения.
+     *
+     * Системный диалог MIUI поверх настроек батареи даёт onPause, но НЕ onStop.
      * Реальный уход в чужое Activity (настройки) — даёт onStop.
      * Обрабатываем возврат из батареи только когда wasStopped = true.
      */
-    private var wasStopped = false
+    private var wasStopped: Boolean = false
 
     private val shizukuPermissionListener =
         Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
             if (requestCode == MainViewModel.SHIZUKU_PERMISSION_CODE) {
-                val granted = grantResult == PackageManager.PERMISSION_GRANTED
+                val granted: Boolean = grantResult == PackageManager.PERMISSION_GRANTED
                 AppLog.i(
                     TAG,
                     "shizukuPermissionListener: requestCode=$requestCode, granted=$granted"
@@ -122,7 +141,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
-        var keepSplashVisible = true
+        var keepSplashVisible: Boolean = true
         splashScreen.setKeepOnScreenCondition { keepSplashVisible }
 
         super.onCreate(savedInstanceState)
@@ -134,20 +153,75 @@ class MainActivity : ComponentActivity() {
         Handler(mainLooper).postDelayed({
             keepSplashVisible = false
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                splashScreen.setOnExitAnimationListener { sv ->
-                    val fade = ObjectAnimator.ofFloat(sv.view, View.ALPHA, 1f, 0f).apply {
-                        interpolator = AccelerateInterpolator(); duration = 400L
+                splashScreen.setOnExitAnimationListener { splashScreenView ->
+                    val iconView: View? = splashScreenView.iconView
+
+                    // ═══════════════════════════════════════════════════════════════
+                    // ИСПРАВЛЕНО (beta12): АНИМАЦИЯ «РОБОКОТ МАШЕТ ЛАПКОЙ И УЛЕТАЕТ»
+                    // ═══════════════════════════════════════════════════════════════
+
+                    // Фаза 1: Махание лапкой (0 — 700 мс)
+                    // Робот покачивается из стороны в сторону, как будто машет.
+                    // Rotation: 0° → -15° → +15° → -15° → +15° → 0° (3 взмаха)
+                    val waveAnimator = if (iconView != null) {
+                        ObjectAnimator.ofFloat(
+                            iconView,
+                            View.ROTATION,
+                            0f, -15f, 15f, -15f, 15f, -15f, 15f, 0f
+                        ).apply {
+                            duration = 700L
+                            interpolator = android.view.animation.LinearInterpolator()
+                        }
+                    } else null
+
+                    // Фаза 2: Улёт (600 — 1000 мс, начинается с задержкой 600мс)
+                    // Робот увеличивается, поднимается вверх и растворяется.
+
+                    // Увеличение (scale up) — «отталкивается от земли»
+                    val scaleUpAnimator = if (iconView != null) {
+                        ObjectAnimator.ofPropertyValuesHolder(
+                            iconView,
+                            android.animation.PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.25f),
+                            android.animation.PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.25f)
+                        ).apply {
+                            duration = 400L
+                            startDelay = 600L
+                            interpolator = android.view.animation.DecelerateInterpolator()
+                        }
+                    } else null
+
+                    // Подъём вверх — «улетает»
+                    val flyUpAnimator = if (iconView != null) {
+                        ObjectAnimator.ofFloat(
+                            iconView,
+                            View.TRANSLATION_Y,
+                            0f,
+                            -dpToPx(this@MainActivity, 80).toFloat()
+                        ).apply {
+                            duration = 400L
+                            startDelay = 600L
+                            interpolator = AccelerateInterpolator()
+                        }
+                    } else null
+
+                    // Fade out всего splash-view (исчезновение фона вместе с роботом)
+                    val fadeOutAnimator = ObjectAnimator.ofFloat(
+                        splashScreenView.view,
+                        View.ALPHA,
+                        1f, 0f
+                    ).apply {
+                        duration = 350L
+                        startDelay = 650L
+                        interpolator = AccelerateInterpolator()
+                        // ВАЖНО: удаляем splash-view после завершения всех анимаций
+                        doOnEnd { splashScreenView.remove() }
                     }
-                    val scaleX =
-                        ObjectAnimator.ofFloat(sv.iconView, View.SCALE_X, 1f, 0.85f).apply {
-                            interpolator = AccelerateInterpolator(); duration = 400L
-                        }
-                    val scaleY =
-                        ObjectAnimator.ofFloat(sv.iconView, View.SCALE_Y, 1f, 0.85f).apply {
-                            interpolator = AccelerateInterpolator(); duration = 400L
-                        }
-                    fade.doOnEnd { sv.remove() }
-                    fade.start(); scaleX.start(); scaleY.start()
+
+                    // Запускаем все анимации параллельно (со своими startDelay)
+                    waveAnimator?.start()
+                    scaleUpAnimator?.start()
+                    flyUpAnimator?.start()
+                    fadeOutAnimator.start()
                 }
             }
         }, 1200L)
@@ -155,14 +229,14 @@ class MainActivity : ComponentActivity() {
         setContent {
             val isDarkFromPrefs by prefs.isDarkTheme.collectAsState(initial = false)
             val hasManuallyChosen by prefs.hasManuallyChosenTheme.collectAsState(initial = false)
-            val isDark = if (hasManuallyChosen) isDarkFromPrefs else isSystemInDarkTheme()
+            val isDark: Boolean = if (hasManuallyChosen) isDarkFromPrefs else isSystemInDarkTheme()
 
             val scope = rememberCoroutineScope()
             var showOnboarding by remember { mutableStateOf(false) }
             var onboardingChecked by remember { mutableStateOf(false) }
 
             LaunchedEffect(Unit) {
-                val completed = prefs.hasCompletedOnboarding.first()
+                val completed: Boolean = prefs.hasCompletedOnboarding.first()
                 AppLog.i(TAG, "hasCompletedOnboarding=$completed")
                 showOnboarding = !completed
                 onboardingChecked = true
@@ -187,6 +261,7 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(lifecycle) {
                         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                             vm.refreshStatuses()
+                            vm.tryResumePendingSimpleMode()
                         }
                     }
                     MainContent(
@@ -207,7 +282,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * НОВОЕ: реальный уход в чужое Activity (настройки батареи).
+     * Реальный уход в чужое Activity (настройки батареи).
      * Системный диалог MIUI поверх НЕ вызывает onStop.
      */
     override fun onStop() {
@@ -221,24 +296,22 @@ class MainActivity : ComponentActivity() {
         if (!::vm.isInitialized) return
 
         vm.checkRestrictedSettingsOnResume()
-        val currentState = vm.state.value
+        val currentState: MainUiState = vm.state.value
 
+        // ИСПРАВЛЕНО: используем OverlayController.hide() вместо stopService()
+        // для consistency с OverlayService (hide без stopSelf)
         if (!currentState.isWorking && !currentState.simpleModeActive) {
-            stopService(Intent(this, OverlayService::class.java))
+            OverlayController.hide(this)
         }
 
-        // ИСПРАВЛЕНО: обрабатываем возврат из настроек батареи в ДВУХ случаях:
+        // Обрабатываем возврат из настроек батареи в ДВУХ случаях:
         //   1. wasStopped=true  — реальный уход в чужое Activity
         //   2. isIgnoring=true  — пользователь отключил экономию через
         //      диалог MIUI поверх (который не вызывает onStop)
-        // Раньше ловили только случай 1, поэтому при отключении через
-        // MIUI-диалог приложение зависало, не показывая «Продолжить».
         if (currentState.simpleModeActive &&
             currentState.permissionSubPhase == PermissionSubPhase.BATTERY_OPTIMIZATION
         ) {
-            val vm_state = vm.state.value
-            // Проверяем isIgnoring через PermissionFlowManager
-            val ignoring = vm.permissionFlow_isIgnoringBatteryOptimizations()
+            val ignoring: Boolean = vm.permissionFlow_isIgnoringBatteryOptimizations()
             if (wasStopped || ignoring) {
                 AppLog.i(
                     TAG,
@@ -265,6 +338,7 @@ private fun MainContent(
     vm: MainViewModel
 ) {
     val view = LocalView.current
+    val context = LocalContext.current
     var menuOpen by remember { mutableStateOf(false) }
     var confirmRestore by remember { mutableStateOf(false) }
 
@@ -276,7 +350,8 @@ private fun MainContent(
         menuOpen,
         { menuOpen = it },
         isDark,
-        onDarkChange
+        onDarkChange,
+        context
     )
 
     Box(
@@ -298,7 +373,7 @@ private fun MainContent(
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 IconButton(onClick = {
-                    AppLog.i("MainUI", "menu button clicked"); menuOpen = true
+                    AppLog.i(MainActivity.TAG, "menu button clicked"); menuOpen = true
                 }) {
                     Text("⋮", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurface)
                 }
@@ -320,14 +395,19 @@ private fun MainContent(
                 OptimizationCard(
                     state = state,
                     onOptimize = {
-                        AppLog.i("MainUI", "optimize button clicked")
+                        AppLog.i(MainActivity.TAG, "optimize button clicked")
                         view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                         vm.startFlow()
                     },
                     onRestore = {
-                        AppLog.i("MainUI", "restore button clicked"); confirmRestore = true
+                        AppLog.i(MainActivity.TAG, "restore button clicked"); confirmRestore = true
                     },
-                    onReboot = { AppLog.i("MainUI", "reboot button clicked"); vm.requestReboot() }
+                    onReboot = {
+                        AppLog.i(
+                            MainActivity.TAG,
+                            "reboot button clicked"
+                        ); vm.requestReboot()
+                    }
                 )
             }
             Spacer(Modifier.height(16.dp))
@@ -344,10 +424,10 @@ private fun MainDialogsHost(
     menuOpen: Boolean,
     onMenuOpenChange: (Boolean) -> Unit,
     isDark: Boolean,
-    onDarkChange: (Boolean) -> Unit
+    onDarkChange: (Boolean) -> Unit,
+    context: android.content.Context
 ) {
-    val context = LocalContext.current
-    val isAndroid14Plus = Build.VERSION.SDK_INT >= 34
+    val isAndroid14Plus: Boolean = Build.VERSION.SDK_INT >= 34
 
     if (state.showLevelDialog) {
         OptimizationLevelDialog(
@@ -362,17 +442,22 @@ private fun MainDialogsHost(
         )
     }
     if (state.showLevelConfirm) {
-        val level = state.selectedLevel
-        val isSimple = level != OptimizationMode.PRO
+        val level: OptimizationMode? = state.selectedLevel
+        val isSimple: Boolean = level != OptimizationMode.PRO
         InfoDialog(
             title = stringResource(if (isSimple) R.string.level_confirm_simple_title else R.string.level_confirm_advanced_title),
             text = stringResource(if (isSimple) R.string.level_confirm_simple_text else R.string.level_confirm_advanced_text),
             confirmText = stringResource(R.string.level_confirm_start),
             onConfirm = {
-                AppLog.i("MainUI", "level confirm: start clicked, level=$level")
-                level?.let { vm.confirmLevelStart(it) }
+                AppLog.i(MainActivity.TAG, "level confirm: start clicked, level=$level")
+                level?.let { vm.confirmLevelStart(it) }  // ✅ передаём level
             },
-            onDismiss = { AppLog.i("MainUI", "level confirm: cancelled"); vm.cancelLevelConfirm() }
+            onDismiss = {
+                AppLog.i(
+                    MainActivity.TAG,
+                    "level confirm: cancelled"
+                ); vm.cancelLevelConfirm()
+            }
         )
     }
 
@@ -409,11 +494,11 @@ private fun MainDialogsHost(
             text = stringResource(if (isAndroid14Plus) R.string.forbidden_dialog_text else R.string.restricted_dialog_text),
             confirmText = stringResource(if (isAndroid14Plus) R.string.forbidden_dialog_open else R.string.restricted_dialog_open),
             onConfirm = {
-                AppLog.i("MainUI", "restricted dialog: open settings clicked")
+                AppLog.i(MainActivity.TAG, "restricted dialog: open settings clicked")
                 vm.restrictedDialogAgreed()
             },
             onDismiss = {
-                AppLog.i("MainUI", "restricted dialog: cancelled")
+                AppLog.i(MainActivity.TAG, "restricted dialog: cancelled")
                 vm.restrictedDialogCancelled()
             }
         )
@@ -423,9 +508,14 @@ private fun MainDialogsHost(
             title = stringResource(R.string.pointer_restricted_blocked),
             text = stringResource(R.string.pointer_restricted_explain),
             confirmText = stringResource(if (isAndroid14Plus) R.string.forbidden_dialog_open else R.string.restricted_dialog_open),
-            onConfirm = { AppLog.i("MainUI", "appInfo dialog: agreed"); vm.appInfoDialogAgreed() },
+            onConfirm = {
+                AppLog.i(
+                    MainActivity.TAG,
+                    "appInfo dialog: agreed"
+                ); vm.appInfoDialogAgreed()
+            },
             onDismiss = {
-                AppLog.i("MainUI", "appInfo dialog: cancelled")
+                AppLog.i(MainActivity.TAG, "appInfo dialog: cancelled")
                 vm.appInfoDialogCancelled()
             }
         )
@@ -434,15 +524,15 @@ private fun MainDialogsHost(
         RestrictedSettingsDialog(
             attempt = state.appInfoAttempts,
             onOpenSettings = {
-                AppLog.i("MainUI", "restricted screen: open settings clicked")
+                AppLog.i(MainActivity.TAG, "restricted screen: open settings clicked")
                 vm.onRestrictedScreenOpenSettings()
             },
             onDone = {
-                AppLog.i("MainUI", "restricted screen: done clicked")
+                AppLog.i(MainActivity.TAG, "restricted screen: done clicked")
                 vm.onRestrictedScreenDone()
             },
             onCancel = {
-                AppLog.i("MainUI", "restricted screen: cancelled")
+                AppLog.i(MainActivity.TAG, "restricted screen: cancelled")
                 vm.onRestrictedScreenCancelled()
             }
         )
@@ -453,11 +543,11 @@ private fun MainDialogsHost(
             text = stringResource(R.string.battery_dialog_text),
             confirmText = stringResource(R.string.battery_dialog_open),
             onConfirm = {
-                AppLog.i("MainUI", "battery dialog: agreed")
+                AppLog.i(MainActivity.TAG, "battery dialog: agreed")
                 vm.onBatteryDialogAgreed()
             },
             onDismiss = {
-                AppLog.i("MainUI", "battery dialog: skipped")
+                AppLog.i(MainActivity.TAG, "battery dialog: skipped")
                 vm.onBatteryDialogSkipped()
             }
         )
@@ -478,20 +568,20 @@ private fun MainDialogsHost(
             text = text,
             onRetry = {
                 AppLog.i(
-                    "MainUI",
+                    MainActivity.TAG,
                     "permission fallback: retry clicked for phase=${state.stuckPhase}"
                 )
                 vm.onPermissionFallbackRetry()
             },
             onOpenSettings = {
                 AppLog.i(
-                    "MainUI",
+                    MainActivity.TAG,
                     "permission fallback: open settings clicked for phase=${state.stuckPhase}"
                 )
                 vm.onPermissionFallbackOpenSettings()
             },
             onCancel = {
-                AppLog.i("MainUI", "permission fallback: cancelled (full reset)")
+                AppLog.i(MainActivity.TAG, "permission fallback: cancelled (full reset)")
                 vm.onPermissionFallbackCancelled()
             }
         )
@@ -499,11 +589,14 @@ private fun MainDialogsHost(
     if (state.showAccessibilityDialog) {
         AccessibilityConsentDialog(
             onConfirm = {
-                AppLog.i("MainUI", "accessibility consent dialog: confirmed with explicit consent")
+                AppLog.i(
+                    MainActivity.TAG,
+                    "accessibility consent dialog: confirmed with explicit consent"
+                )
                 vm.dialogAgreed()
             },
             onDismiss = {
-                AppLog.i("MainUI", "accessibility consent dialog: dismissed")
+                AppLog.i(MainActivity.TAG, "accessibility consent dialog: dismissed")
                 vm.dialogCancelled()
             }
         )
@@ -513,8 +606,13 @@ private fun MainDialogsHost(
             title = stringResource(R.string.overlay_permission_title),
             text = stringResource(R.string.overlay_permission_text),
             confirmText = stringResource(R.string.allow),
-            onConfirm = { AppLog.i("MainUI", "overlay dialog: agreed"); vm.dialogAgreed() },
-            onDismiss = { AppLog.i("MainUI", "overlay dialog: cancelled"); vm.dialogCancelled() }
+            onConfirm = { AppLog.i(MainActivity.TAG, "overlay dialog: agreed"); vm.dialogAgreed() },
+            onDismiss = {
+                AppLog.i(
+                    MainActivity.TAG,
+                    "overlay dialog: cancelled"
+                ); vm.dialogCancelled()
+            }
         )
     }
     if (state.showOptionsDialog) {
@@ -524,11 +622,11 @@ private fun MainDialogsHost(
             onDnsToggle = { vm.toggleDnsFilter(it) },
             onAggressiveToggle = { vm.toggleAggressiveMode(it) },
             onConfirm = {
-                AppLog.i("MainUI", "options dialog: confirmed")
+                AppLog.i(MainActivity.TAG, "options dialog: confirmed")
                 vm.optionsDialogConfirmed()
             },
             onCancel = {
-                AppLog.i("MainUI", "options dialog: cancelled")
+                AppLog.i(MainActivity.TAG, "options dialog: cancelled")
                 vm.optionsDialogCancelled()
             }
         )
@@ -538,22 +636,32 @@ private fun MainDialogsHost(
             title = stringResource(R.string.dns_warning_title),
             text = stringResource(R.string.dns_warning_text),
             confirmText = stringResource(R.string.dns_warning_accept),
-            onConfirm = { AppLog.i("MainUI", "DNS warning: accepted"); vm.dnsWarningAccepted() },
-            onDismiss = { AppLog.i("MainUI", "DNS warning: declined"); vm.dnsWarningDeclined() }
+            onConfirm = {
+                AppLog.i(
+                    MainActivity.TAG,
+                    "DNS warning: accepted"
+                ); vm.dnsWarningAccepted()
+            },
+            onDismiss = {
+                AppLog.i(
+                    MainActivity.TAG,
+                    "DNS warning: declined"
+                ); vm.dnsWarningDeclined()
+            }
         )
     }
     if (state.showDevModeDialog) {
         DevModeDialog(
             onOpenDeviceInfo = {
-                AppLog.i("MainUI", "dev mode dialog: open device info")
+                AppLog.i(MainActivity.TAG, "dev mode dialog: open device info")
                 openDeviceInfoSettings(context)
             },
             onRetry = {
-                AppLog.i("MainUI", "dev mode dialog: retry clicked")
+                AppLog.i(MainActivity.TAG, "dev mode dialog: retry clicked")
                 vm.devModeDialogRetry()
             },
             onCancel = {
-                AppLog.i("MainUI", "dev mode dialog: cancelled")
+                AppLog.i(MainActivity.TAG, "dev mode dialog: cancelled")
                 vm.devModeDialogCancel()
             }
         )
@@ -564,11 +672,11 @@ private fun MainDialogsHost(
             text = stringResource(R.string.restore_dialog_text),
             confirmText = stringResource(R.string.restore_confirm),
             onConfirm = {
-                AppLog.i("MainUI", "restore dialog: confirmed")
+                AppLog.i(MainActivity.TAG, "restore dialog: confirmed")
                 onConfirmRestoreChange(false); vm.restoreOptimization()
             },
             onDismiss = {
-                AppLog.i("MainUI", "restore dialog: cancelled")
+                AppLog.i(MainActivity.TAG, "restore dialog: cancelled")
                 onConfirmRestoreChange(false)
             }
         )
@@ -578,8 +686,18 @@ private fun MainDialogsHost(
             title = stringResource(R.string.reboot_dialog_title),
             text = stringResource(R.string.reboot_dialog_text),
             confirmText = stringResource(R.string.reboot_confirm),
-            onConfirm = { AppLog.i("MainUI", "reboot dialog: confirmed"); vm.confirmReboot() },
-            onDismiss = { AppLog.i("MainUI", "reboot dialog: dismissed"); vm.dismissRebootDialog() }
+            onConfirm = {
+                AppLog.i(
+                    MainActivity.TAG,
+                    "reboot dialog: confirmed"
+                ); vm.confirmReboot()
+            },
+            onDismiss = {
+                AppLog.i(
+                    MainActivity.TAG,
+                    "reboot dialog: dismissed"
+                ); vm.dismissRebootDialog()
+            }
         )
     }
     if (state.rebootFailed) {
@@ -587,7 +705,7 @@ private fun MainDialogsHost(
             title = stringResource(R.string.reboot_dialog_title),
             text = stringResource(R.string.reboot_failed_text),
             onDismiss = {
-                AppLog.i("MainUI", "reboot failed dialog: dismissed")
+                AppLog.i(MainActivity.TAG, "reboot failed dialog: dismissed")
                 vm.dismissRebootFailed()
             }
         )
@@ -597,7 +715,7 @@ private fun MainDialogsHost(
             title = stringResource(R.string.restore_dialog_title),
             text = stringResource(R.string.restore_failed_text),
             onDismiss = {
-                AppLog.i("MainUI", "restore failed dialog: dismissed")
+                AppLog.i(MainActivity.TAG, "restore failed dialog: dismissed")
                 vm.dismissRestoreFailed()
             }
         )
@@ -614,31 +732,45 @@ private fun MainDialogsHost(
                 if (state.optimizationSuccess) R.string.final_dialog_rate else R.string.final_dialog_send_log
             ),
             onConfirm = {
-                AppLog.i("MainUI", "final dialog: confirmed, success=${state.optimizationSuccess}")
+                AppLog.i(
+                    MainActivity.TAG,
+                    "final dialog: confirmed, success=${state.optimizationSuccess}"
+                )
                 vm.dismissFinalDialog()
+                // ИСПРАВЛЕНО: используем функции из UiActions.kt
                 if (state.optimizationSuccess) openRateApp(context) else shareLog(context)
             },
-            onDismiss = { AppLog.i("MainUI", "final dialog: dismissed"); vm.dismissFinalDialog() }
+            onDismiss = {
+                AppLog.i(
+                    MainActivity.TAG,
+                    "final dialog: dismissed"
+                ); vm.dismissFinalDialog()
+            }
         )
     }
     if (menuOpen) {
-        val privacyUrl = stringResource(R.string.privacy_policy_url)
+        val privacyUrl: String = stringResource(R.string.privacy_policy_url)
         MenuDialog(
             isDark = isDark,
             onDarkChange = onDarkChange,
-            onClose = { AppLog.i("MainUI", "menu: closed"); onMenuOpenChange(false) },
-            onRate = { AppLog.i("MainUI", "menu: rate clicked"); openRateApp(context) },
+            onClose = { AppLog.i(MainActivity.TAG, "menu: closed"); onMenuOpenChange(false) },
+            onRate = { AppLog.i(MainActivity.TAG, "menu: rate clicked"); openRateApp(context) },
             onYooMoney = {
-                AppLog.i("MainUI", "menu: yoomoney clicked")
+                AppLog.i(MainActivity.TAG, "menu: yoomoney clicked")
                 openWebView(context, "https://yoomoney.ru/to/410011379195150", "ЮMoney")
             },
             onCloudTips = {
-                AppLog.i("MainUI", "menu: cloudtips clicked")
+                AppLog.i(MainActivity.TAG, "menu: cloudtips clicked")
                 openWebView(context, "https://pay.cloudtips.ru/p/90614cff", "CloudTips")
             },
-            onShareLog = { AppLog.i("MainUI", "menu: share log clicked"); shareLog(context) },
+            onShareLog = {
+                AppLog.i(
+                    MainActivity.TAG,
+                    "menu: share log clicked"
+                ); shareLog(context)
+            },
             onPrivacyPolicyClick = {
-                AppLog.i("MainUI", "menu: privacy policy clicked")
+                AppLog.i(MainActivity.TAG, "menu: privacy policy clicked")
                 openUrl(context, privacyUrl)
             }
         )

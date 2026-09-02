@@ -26,21 +26,36 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.xiaohypercleaner.R
+import com.xiaohypercleaner.util.AppLog
 
 /**
  * Диалог явного согласия на использование AccessibilityService.
+ *
+ * КРИТИЧНО ДЛЯ GOOGLE PLAY:
  * Соответствует Accessibility Services API Policy — показывает явный чекбокс
  * и объясняет, что служба НЕ обходит приватность.
+ *
+ * Без этого диалога приложение будет отклонено при публикации в Google Play.
+ *
+ * УЛУЧШЕНИЯ:
+ * 1. Явные типы для state переменных
+ * 2. Импорт Dialog (вместо полного пути)
+ * 3. Логирование действий пользователя
+ * 4. Полная документация
+ *
+ * @param onConfirm Callback при подтверждении согласия (чекбокс должен быть установлен)
+ * @param onDismiss Callback при отмене (нажатие кнопки "Отмена" или клик вне диалога)
  */
 @Composable
 fun AccessibilityConsentDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    var consentGiven by remember { mutableStateOf(false) }
+    var consentGiven: Boolean by remember { mutableStateOf(false) }
 
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+    Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.surface,
@@ -66,14 +81,17 @@ fun AccessibilityConsentDialog(
                 )
                 Spacer(Modifier.height(20.dp))
 
-                // Явный чекбокс согласия
+                // Явный чекбокс согласия (требование Google Play)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Checkbox(
                         checked = consentGiven,
-                        onCheckedChange = { consentGiven = it }
+                        onCheckedChange = { checked: Boolean ->
+                            consentGiven = checked
+                            AppLog.i("AccessibilityConsent", "Checkbox changed: $checked")
+                        }
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
@@ -86,7 +104,10 @@ fun AccessibilityConsentDialog(
                 Spacer(Modifier.height(20.dp))
 
                 Button(
-                    onClick = onConfirm,
+                    onClick = {
+                        AppLog.i("AccessibilityConsent", "User confirmed consent")
+                        onConfirm()
+                    },
                     enabled = consentGiven,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -97,7 +118,10 @@ fun AccessibilityConsentDialog(
                 }
                 Spacer(Modifier.height(8.dp))
                 TextButton(
-                    onClick = onDismiss,
+                    onClick = {
+                        AppLog.i("AccessibilityConsent", "User cancelled consent dialog")
+                        onDismiss()
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(stringResource(R.string.consent_cancel_button))

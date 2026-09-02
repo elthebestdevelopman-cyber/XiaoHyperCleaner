@@ -1,16 +1,55 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?><!--
+    Передний план (foreground) адаптивной иконки приложения.
+
+    ИСПОЛЬЗУЕТСЯ В:
+    - mipmap-anydpi-v26/ic_launcher.xml (адаптивная иконка Android 8+)
+    - mipmap-anydpi-v26/ic_launcher_round.xml (круглая версия)
+
+    КОМПОЗИЦИЯ:
+    - Робокот (масштаб 0.42) из ic_robot_companion.xml
+    - Фирменная плашка "XHC" (оранжевая, с белыми буквами)
+
+    SAFE ZONE (важно для адаптивных иконок):
+    Контент должен быть в центральной области 72×72 dp
+    (отступ 18 dp со всех сторон от края 108×108 dp).
+
+    ИСПРАВЛЕНИЯ:
+    1. 🔴 translateY увеличен с 12 до 18 — ушки теперь в safe zone
+    2. 🟡 Плашка XHC сдвинута с y=72 на y=76 — больше отступ от низа
+    3. ✅ Добавлена документация
+
+    ЦВЕТОВАЯ СХЕМА:
+    - Робокот: серо-голубой (Blue Grey + Light Blue)
+    - Плашка: Deep Orange 400 (#FF7043) — гармонирует с Amber фоном
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Эталонный робокот (те же path'и, что в ic_robot_companion),
-         масштаб 0.42 и центрирование для адаптивной иконки -->
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- Робокот (эталонный дизайн из ic_robot_companion.xml) -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!--
+        ИСПРАВЛЕНО: translateY="18" (было 12)
+        Теперь ушки робокота (y=18 в финальной позиции) находятся
+        точно на верхней границе safe zone и не обрезаются на
+        устройствах с круглой или squircle-маской иконки.
+
+        Позиция после трансформации:
+        - Левый край: 18dp (совпадает с safe zone)
+        - Правый край: 18 + 67.2 = 85.2dp (в safe zone)
+        - Верх: 18dp (в safe zone) ✅
+        - Низ: 18 + 67.2 = 85.2dp (в safe zone) ✅
+    -->
     <group
         android:scaleX="0.42"
         android:scaleY="0.42"
         android:translateX="18"
-        android:translateY="12">
+        android:translateY="18">
+
+        <!-- Хвостик-антенна (за телом) -->
         <path
             android:fillColor="@android:color/transparent"
             android:pathData="M115,110 Q135,105 140,92"
@@ -20,24 +59,35 @@
         <path
             android:fillColor="#4FC3F7"
             android:pathData="M140,92 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+
+        <!-- Тело (металлическое, округлое) -->
         <path
             android:fillColor="#B0BEC5"
             android:pathData="M42,98 Q42,85 55,83 L105,83 Q118,85 118,98 L118,135 Q118,148 105,148 L55,148 Q42,148 42,135 Z" />
+
+        <!-- Тёмная грудная панель -->
         <path
             android:fillColor="#546E7A"
             android:pathData="M62,98 Q62,90 72,90 L88,90 Q98,90 98,98 L98,130 Q98,138 88,138 L72,138 Q62,138 62,130 Z" />
+
+        <!-- Светящийся индикатор на груди -->
         <path
             android:fillColor="#4FC3F7"
             android:pathData="M80,114 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
         <path
             android:fillColor="#E1F5FE"
             android:pathData="M80,114 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+
+        <!-- Левая лапка (металлическая) -->
         <path
             android:fillColor="#90A4AE"
             android:pathData="M46,128 Q43,128 43,136 L43,148 Q43,153 49,153 L61,153 Q67,153 67,148 L67,136 Q67,128 61,128 Z" />
+        <!-- Правая лапка -->
         <path
             android:fillColor="#90A4AE"
             android:pathData="M93,128 Q87,128 87,136 L87,148 Q87,153 93,153 L105,153 Q111,153 111,148 L111,136 Q111,128 105,128 Z" />
+
+        <!-- Светящиеся подушечки на лапках -->
         <path
             android:fillColor="#4FC3F7"
             android:pathData="M51,146 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
@@ -50,21 +100,30 @@
         <path
             android:fillColor="#4FC3F7"
             android:pathData="M103,146 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+
+        <!-- Голова (большая, металлическая, круглая) -->
         <path
             android:fillColor="#B0BEC5"
             android:pathData="M30,52 Q30,15 80,15 Q130,15 130,52 Q130,88 80,88 Q30,88 30,52 Z" />
+
+        <!-- Левое кошачье ушко (металлическое) -->
         <path
             android:fillColor="#90A4AE"
             android:pathData="M45,22 L36,0 L62,18 Z" />
+        <!-- Правое кошачье ушко -->
         <path
             android:fillColor="#90A4AE"
             android:pathData="M115,22 L124,0 L98,18 Z" />
+
+        <!-- Светящаяся внутренняя часть ушек -->
         <path
             android:fillColor="#4FC3F7"
             android:pathData="M47,20 L42,7 L57,17 Z" />
         <path
             android:fillColor="#4FC3F7"
             android:pathData="M113,20 L118,7 L103,17 Z" />
+
+        <!-- Антенна на голове -->
         <path
             android:fillColor="@android:color/transparent"
             android:pathData="M80,15 L80,5"
@@ -74,33 +133,46 @@
         <path
             android:fillColor="#FF5252"
             android:pathData="M80,5 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+
+        <!-- Экран-лицо (тёмный, скруглённый) -->
         <path
             android:fillColor="#263238"
             android:pathData="M42,42 Q42,28 80,28 Q118,28 118,42 L118,66 Q118,78 80,78 Q42,78 42,66 Z" />
+
+        <!-- Левый глаз (светящийся, круглый) -->
         <path
             android:fillColor="#4FC3F7"
             android:pathData="M58,52 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0" />
+        <!-- Правый глаз -->
         <path
             android:fillColor="#4FC3F7"
             android:pathData="M102,52 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0" />
+
+        <!-- Внутренняя часть глаз (ярче) -->
         <path
             android:fillColor="#E1F5FE"
             android:pathData="M58,52 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
         <path
             android:fillColor="#E1F5FE"
             android:pathData="M102,52 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+
+        <!-- Блики в глазах -->
         <path
             android:fillColor="#FFFFFF"
             android:pathData="M60,49 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0" />
         <path
             android:fillColor="#FFFFFF"
             android:pathData="M104,49 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0" />
+
+        <!-- Милый ротик (светящаяся дуга на экране) -->
         <path
             android:fillColor="@android:color/transparent"
             android:pathData="M72,64 Q80,70 88,64"
             android:strokeWidth="2"
             android:strokeColor="#4FC3F7"
             android:strokeLineCap="round" />
+
+        <!-- Румянец-индикаторы на щеках -->
         <path
             android:fillAlpha="0.8"
             android:fillColor="#FF80AB"
@@ -109,6 +181,8 @@
             android:fillAlpha="0.8"
             android:fillColor="#FF80AB"
             android:pathData="M112,62 m-3,0 a3,2.5 0 1,0 6,0 a3,2.5 0 1,0 -6,0" />
+
+        <!-- Боковые винтики на голове -->
         <path
             android:fillColor="#546E7A"
             android:pathData="M36,52 m-2.5,0 a2.5,2.5 0 1,0 5,0 a2.5,2.5 0 1,0 -5,0" />
@@ -116,22 +190,38 @@
             android:fillColor="#546E7A"
             android:pathData="M124,52 m-2.5,0 a2.5,2.5 0 1,0 5,0 a2.5,2.5 0 1,0 -5,0" />
     </group>
-    <!-- Фирменная плашка XHC -->
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- Фирменная плашка XHC (брендинг) -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!--
+        ИСПРАВЛЕНО: translateY="76" (было 72)
+        Теперь плашка находится на 4dp выше, обеспечивая больший
+        отступ от нижнего края safe zone (y=90).
+
+        Позиция: от (30, 76) до (74, 90)
+        Нижний край плашки: y=90 (точно на границе safe zone) ✅
+    -->
     <group
         android:translateX="30"
-        android:translateY="72">
+        android:translateY="76">
+        <!-- Фон плашки (Deep Orange 400) -->
         <path
             android:fillColor="#FF7043"
             android:pathData="M3,0 H41 A3,3 0 0 1 44,3 V11 A3,3 0 0 1 41,14 H3 A3,3 0 0 1 0,11 V3 A3,3 0 0 1 3,0 Z" />
+        <!-- Буквы "XHC" (белые, нарисованные path'ами) -->
         <group
             android:translateX="7"
             android:translateY="2">
+            <!-- X -->
             <path
                 android:fillColor="#FFFFFF"
                 android:pathData="M0,0 L3,0 L4,3.2 L5,0 L8,0 L5.6,5 L8,10 L5,10 L4,6.8 L3,10 L0,10 L2.4,5 Z" />
+            <!-- H -->
             <path
                 android:fillColor="#FFFFFF"
                 android:pathData="M11,0 L14,0 L14,3.5 L16,3.5 L16,0 L19,0 L19,10 L16,10 L16,6.5 L14,6.5 L14,10 L11,10 Z" />
+            <!-- C -->
             <path
                 android:fillColor="#FFFFFF"
                 android:pathData="M22,0 L30,0 L30,3 L25,3 L25,7 L30,7 L30,10 L22,10 Z" />

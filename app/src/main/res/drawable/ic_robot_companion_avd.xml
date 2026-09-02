@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Анимированная версия робокота для сплэша.
+    Покачивание + пульсация антенны = "живой" маскот.
+-->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:drawable="@drawable/ic_robot_companion">
+
+    <!-- Антенна-хвостик пульсирует (светится ярче-тусклее) -->
+    <target android:name="antenna_tip">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:propertyName="fillAlpha"
+                android:duration="800"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse"
+                android:valueFrom="1.0"
+                android:valueTo="0.3"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+</animated-vector>

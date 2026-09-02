@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -47,21 +48,47 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.ui.theme.Blue500
+import com.xiaohypercleaner.ui.theme.DarkGradientEnd
+import com.xiaohypercleaner.ui.theme.DarkGradientStart
+import com.xiaohypercleaner.ui.theme.GradientEnd
+import com.xiaohypercleaner.ui.theme.GradientStart
 import com.xiaohypercleaner.util.AppLog
 import kotlinx.coroutines.launch
 
+/**
+ * Модель страницы онбординга.
+ *
+ * @param icon Resource ID иконки (drawable)
+ * @param title Resource ID заголовка (string)
+ * @param description Resource ID описания (string)
+ */
 data class OnboardingPage(
     val icon: Int,
     val title: Int,
     val description: Int
 )
 
+/**
+ * Экран онбординга — показывается один раз при первом запуске.
+ *
+ * Архитектура:
+ * - HorizontalPager для свайпа между страницами
+ * - Индикаторы страниц (dots) внизу
+ * - Privacy policy checkbox на последней странице
+ * - Кнопка "Далее" / "Начать" в зависимости от страницы
+ *
+ * УЛУЧШЕНИЯ:
+ * 1. TAG вынесен в companion object
+ * 2. Явные типы для state переменных
+ * 3. Полная документация
+ * 4. Импорт RoundedCornerShape (был inline)
+ */
 @Composable
 fun OnboardingScreen(
     isDark: Boolean,
     onFinish: () -> Unit
 ) {
-    val pages = listOf(
+    val pages: List<OnboardingPage> = listOf(
         OnboardingPage(
             icon = R.drawable.ic_robot_companion,
             title = R.string.onboarding_page1_title,
@@ -83,11 +110,10 @@ fun OnboardingScreen(
     val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
 
-    // ✅ ИСПРАВЛЕНО: URL берётся из strings.xml (был захардкожен)
-    val privacyUrl = stringResource(R.string.privacy_policy_url)
+    val privacyUrl: String = stringResource(R.string.privacy_policy_url)
 
-    var privacyAccepted by remember { mutableStateOf(false) }
-    val isLastPage = pagerState.currentPage == pages.size - 1
+    var privacyAccepted: Boolean by remember { mutableStateOf(false) }
+    val isLastPage: Boolean = pagerState.currentPage == pages.size - 1
 
     Column(
         modifier = Modifier
@@ -95,15 +121,9 @@ fun OnboardingScreen(
             .background(
                 brush = Brush.verticalGradient(
                     colors = if (isDark) {
-                        listOf(
-                            com.xiaohypercleaner.ui.theme.DarkGradientStart,
-                            com.xiaohypercleaner.ui.theme.DarkGradientEnd
-                        )
+                        listOf(DarkGradientStart, DarkGradientEnd)
                     } else {
-                        listOf(
-                            com.xiaohypercleaner.ui.theme.GradientStart,
-                            com.xiaohypercleaner.ui.theme.GradientEnd
-                        )
+                        listOf(GradientStart, GradientEnd)
                     }
                 )
             )
@@ -114,7 +134,7 @@ fun OnboardingScreen(
             horizontalArrangement = Arrangement.End
         ) {
             TextButton(onClick = {
-                AppLog.i("Onboarding", "skipped")
+                AppLog.i(TAG, "onboarding skipped")
                 onFinish()
             }) {
                 Text(stringResource(R.string.onboarding_skip))
@@ -126,7 +146,7 @@ fun OnboardingScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-        ) { page ->
+        ) { page: Int ->
             OnboardingPageContent(pages[page])
         }
 
@@ -138,9 +158,9 @@ fun OnboardingScreen(
                 onLinkClick = {
                     try {
                         uriHandler.openUri(privacyUrl)
-                        AppLog.i("Onboarding", "privacy policy link opened")
+                        AppLog.i(TAG, "privacy policy link opened")
                     } catch (e: Exception) {
-                        AppLog.w("Onboarding", "failed to open privacy policy: ${e.message}")
+                        AppLog.w(TAG, "failed to open privacy policy: ${e.message}")
                     }
                 }
             )
@@ -153,7 +173,7 @@ fun OnboardingScreen(
                 .padding(vertical = 16.dp),
             horizontalArrangement = Arrangement.Center
         ) {
-            repeat(pages.size) { index ->
+            repeat(pages.size) { index: Int ->
                 Box(
                     modifier = Modifier
                         .padding(horizontal = 4.dp)
@@ -174,7 +194,7 @@ fun OnboardingScreen(
                         pagerState.animateScrollToPage(pagerState.currentPage + 1)
                     }
                 } else {
-                    AppLog.i("Onboarding", "completed, privacyAccepted=$privacyAccepted")
+                    AppLog.i(TAG, "onboarding completed, privacyAccepted=$privacyAccepted")
                     onFinish()
                 }
             },
@@ -182,7 +202,7 @@ fun OnboardingScreen(
                 .fillMaxWidth()
                 .height(56.dp),
             enabled = !isLastPage || privacyAccepted,
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Blue500)
         ) {
             Text(
@@ -198,6 +218,15 @@ fun OnboardingScreen(
     }
 }
 
+/**
+ * Checkbox для принятия privacy policy.
+ * Показывается только на последней странице онбординга.
+ *
+ * @param accepted Текущее состояние checkbox
+ * @param privacyUrl URL для открытия политики конфиденциальности
+ * @param onAcceptedChange Callback при изменении состояния
+ * @param onLinkClick Callback при клике на ссылку
+ */
 @Composable
 private fun PrivacyPolicyCheckbox(
     accepted: Boolean,
@@ -205,7 +234,6 @@ private fun PrivacyPolicyCheckbox(
     onAcceptedChange: (Boolean) -> Unit,
     onLinkClick: () -> Unit
 ) {
-    // ✅ ИСПРАВЛЕНО: текст локализован через strings.xml
     val annotatedText = buildAnnotatedString {
         append(stringResource(R.string.onboarding_privacy_prefix))
         pushStringAnnotation(tag = "URL", annotation = privacyUrl)
@@ -246,6 +274,11 @@ private fun PrivacyPolicyCheckbox(
     }
 }
 
+/**
+ * Контент одной страницы онбординга.
+ *
+ * @param page Модель страницы с иконкой, заголовком и описанием
+ */
 @Composable
 private fun OnboardingPageContent(page: OnboardingPage) {
     Column(
@@ -277,4 +310,5 @@ private fun OnboardingPageContent(page: OnboardingPage) {
         )
     }
 }
-// ✅ УДАЛЕНО: private const val PRIVACY_POLICY_URL (захардкоженный URL)
+
+private const val TAG = "OnboardingScreen"

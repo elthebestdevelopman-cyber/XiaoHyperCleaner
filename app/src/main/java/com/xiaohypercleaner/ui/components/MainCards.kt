@@ -44,16 +44,42 @@ import com.xiaohypercleaner.R
 import com.xiaohypercleaner.ui.MainUiState
 import com.xiaohypercleaner.ui.theme.Blue500
 
-/** Информационная карточка: название + описание + список возможностей */
+/**
+ * Стадии карточки оптимизации для анимации.
+ * Используется вместо String для type safety.
+ */
+private enum class OptimizationStage {
+    /** Готов к оптимизации — показываем кнопку "Оптимизировать" */
+    READY,
+
+    /** Оптимизация выполняется — показываем прогресс */
+    WORKING,
+
+    /** Оптимизация завершена — показываем кнопки восстановления */
+    DONE
+}
+
+/**
+ * Информационная карточка: название + описание + список возможностей.
+ *
+ * Показывается вверху главного экрана. Содержит:
+ * - Название приложения
+ * - Краткое описание
+ * - Список из 3 возможностей (процессы, скорость, батарея)
+ */
 @Composable
 fun InfoCard() {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        )
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -92,9 +118,18 @@ fun InfoCard() {
     }
 }
 
+/**
+ * Строка с иконкой и текстом для списка возможностей.
+ *
+ * @param icon Иконка слева от текста
+ * @param text Текст возможности
+ */
 @Composable
 private fun FeatureRow(icon: ImageVector, text: String) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
@@ -102,11 +137,27 @@ private fun FeatureRow(icon: ImageVector, text: String) {
             modifier = Modifier.size(22.dp)
         )
         Spacer(Modifier.width(12.dp))
-        Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 
-/** Карточка оптимизации с анимацией состояний ready/working/done */
+/**
+ * Карточка оптимизации с анимацией состояний.
+ *
+ * Переключается между тремя стадиями:
+ * - READY: кнопка "Оптимизировать"
+ * - WORKING: прогресс-бар с процентами
+ * - DONE: кнопки "Восстановить" и "Перезагрузить"
+ *
+ * @param state Текущее состояние UI
+ * @param onOptimize Callback при нажатии "Оптимизировать"
+ * @param onRestore Callback при нажатии "Восстановить"
+ * @param onReboot Callback при нажатии "Перезагрузить"
+ */
 @Composable
 fun OptimizationCard(
     state: MainUiState,
@@ -117,35 +168,45 @@ fun OptimizationCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        )
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            val stageKey = when {
-                state.isWorking -> "working"
-                state.isOptimized -> "done"
-                else -> "ready"
+            val stage: OptimizationStage = when {
+                state.isWorking -> OptimizationStage.WORKING
+                state.isOptimized -> OptimizationStage.DONE
+                else -> OptimizationStage.READY
             }
+
             AnimatedContent(
-                targetState = stageKey,
+                targetState = stage,
                 transitionSpec = {
                     (fadeIn(tween(300)) + scaleIn(tween(300), initialScale = 0.95f)) togetherWith
                             (fadeOut(tween(200)) + scaleOut(tween(200), targetScale = 0.95f))
                 },
-                label = "stage"
-            ) { stage ->
-                when (stage) {
-                    "working" -> WorkingView(state.progress)
-                    "done" -> DoneView(onRestore, onReboot)
-                    else -> ReadyView(onOptimize)
+                label = "OptimizationStage"
+            ) { currentStage: OptimizationStage ->
+                when (currentStage) {
+                    OptimizationStage.WORKING -> WorkingView(state.progress)
+                    OptimizationStage.DONE -> DoneView(onRestore, onReboot)
+                    OptimizationStage.READY -> ReadyView(onOptimize)
                 }
             }
         }
     }
 }
 
+/**
+ * Вид для стадии READY: кнопка "Оптимизировать".
+ *
+ * @param onClick Callback при нажатии кнопки
+ */
 @Composable
 private fun ReadyView(onClick: () -> Unit) {
     Button(
@@ -164,6 +225,11 @@ private fun ReadyView(onClick: () -> Unit) {
     }
 }
 
+/**
+ * Вид для стадии WORKING: прогресс-бар с процентами.
+ *
+ * @param progress Прогресс в процентах (0-100)
+ */
 @Composable
 private fun WorkingView(progress: Float) {
     Column(
@@ -176,12 +242,14 @@ private fun WorkingView(progress: Float) {
             color = MaterialTheme.colorScheme.onSurface
         )
         Spacer(Modifier.height(16.dp))
+
         LinearProgressIndicator(
             progress = { (progress / 100f).coerceIn(0f, 1f) },
             modifier = Modifier.fillMaxWidth(),
             color = Blue500
         )
         Spacer(Modifier.height(8.dp))
+
         Text(
             "${progress.toInt().coerceIn(0, 100)}%",
             style = MaterialTheme.typography.bodySmall,
@@ -190,6 +258,12 @@ private fun WorkingView(progress: Float) {
     }
 }
 
+/**
+ * Вид для стадии DONE: кнопки "Восстановить" и "Перезагрузить".
+ *
+ * @param onRestore Callback при нажатии "Восстановить"
+ * @param onReboot Callback при нажатии "Перезагрузить"
+ */
 @Composable
 private fun DoneView(onRestore: () -> Unit, onReboot: () -> Unit) {
     Text(
@@ -201,6 +275,7 @@ private fun DoneView(onRestore: () -> Unit, onReboot: () -> Unit) {
         textAlign = TextAlign.Center
     )
     Spacer(Modifier.height(8.dp))
+
     Text(
         stringResource(R.string.status_done_description),
         modifier = Modifier.fillMaxWidth(),
@@ -209,19 +284,25 @@ private fun DoneView(onRestore: () -> Unit, onReboot: () -> Unit) {
         textAlign = TextAlign.Center
     )
     Spacer(Modifier.height(24.dp))
+
     Button(
         onClick = onRestore,
         modifier = Modifier
             .fillMaxWidth()
             .height(48.dp),
         shape = RoundedCornerShape(16.dp)
-    ) { Text(stringResource(R.string.btn_restore)) }
+    ) {
+        Text(stringResource(R.string.btn_restore))
+    }
     Spacer(Modifier.height(12.dp))
+
     OutlinedButton(
         onClick = onReboot,
         modifier = Modifier
             .fillMaxWidth()
             .height(48.dp),
         shape = RoundedCornerShape(16.dp)
-    ) { Text(stringResource(R.string.reboot_now)) }
+    ) {
+        Text(stringResource(R.string.reboot_now))
+    }
 }

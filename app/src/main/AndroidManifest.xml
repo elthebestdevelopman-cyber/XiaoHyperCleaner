@@ -1,14 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- Разрешения -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- Разрешение для SimpleRunner.forceStopPackage() -->
+    <!-- Позволяет сбрасывать кэш состояния Settings после применения -->
+    <!-- настроек через ADB (force-stop не удаляет данные пользователя). -->
+    <!-- Защита: normal — выдаётся автоматически при установке. -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+
+    <!-- Для ADB подключения к localhost -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Для OverlayService (оверлей с роботом и подсказками) -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <!-- НОВОЕ: для Battery Optimization -->
+
+    <!-- Для запроса исключения из Battery Optimization (критично для MIUI/HyperOS) -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- Package visibility (Android 11+) -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
     <queries>
+        <!-- Shizuku (для проверки установки) -->
         <package android:name="moe.shizuku.privileged.api" />
 
+        <!-- Магазины приложений (для установки Shizuku) -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="market" />
@@ -23,17 +45,28 @@
         </intent>
     </queries>
 
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- Application -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
     <application
         android:name=".XiaoHyperApp"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
+        android:hardwareAccelerated="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.XiaoHyperCleaner">
+        android:theme="@style/Theme.XiaoHyperCleaner"
+        android:usesCleartextTraffic="false"
+        tools:targetApi="31">
 
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- Activities -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+
+        <!-- Главный экран -->
         <activity
             android:name=".ui.MainActivity"
             android:configChanges="orientation|screenSize|uiMode"
@@ -45,11 +78,22 @@
             </intent-filter>
         </activity>
 
+        <!-- WebView для внешних ссылок (ЮMoney, GitHub) -->
         <activity
             android:name=".ui.WebViewActivity"
             android:exported="false" />
 
-        <!-- Основной Accessibility Service для выполнения шагов -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- Services -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+
+        <!--
+            Основной Accessibility Service для выполнения шагов Simple Mode.
+
+            ВАЖНО: android:exported="true" ОБЯЗАТЕЛЕН для Accessibility Service,
+            иначе система не сможет его запустить. Защита обеспечивается через
+            android:permission="BIND_ACCESSIBILITY_SERVICE".
+        -->
         <service
             android:name=".service.AdbEnablerService"
             android:description="@string/accessibility_explanation_text"
@@ -64,10 +108,16 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
+        <!-- OverlayService для показа оверлеев (робот, стрелки, hints) -->
         <service
             android:name=".service.OverlayService"
             android:exported="false" />
 
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- Providers -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+
+        <!-- Shizuku Provider для Pro-режима -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
             android:authorities="${applicationId}.shizuku"
@@ -76,6 +126,7 @@
             android:multiprocess="false"
             android:permission="moe.shizuku.manager.permission.API_V23" />
 
+        <!-- FileProvider для безопасного доступа к файлам (экспорт логов) -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

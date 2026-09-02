@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -21,9 +22,37 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.xiaohypercleaner.BuildConfig
 import com.xiaohypercleaner.R
+import com.xiaohypercleaner.util.AppLog
 
+private const val TAG = "MenuDialog"
+
+/**
+ * Диалог меню приложения (⋮ в правом верхнем углу).
+ *
+ * Содержит:
+ * - Настройки (тёмная тема)
+ * - Действия (оценить, поддержать, поделиться логом, политика конфиденциальности)
+ * - Информация о приложении (версия, автор, описание, Shizuku attribution)
+ *
+ * УЛУЧШЕНИЯ:
+ * 1. Импортированы Dialog и RoundedCornerShape
+ * 2. Добавлен TAG и логирование действий
+ * 3. Полный JavaDoc для параметров
+ * 4. Явные типы для consistency
+ * 5. Логическая группировка элементов
+ *
+ * @param isDark Текущее состояние тёмной темы
+ * @param onDarkChange Callback при переключении тёмной темы
+ * @param onClose Callback при закрытии меню
+ * @param onRate Callback при нажатии "Оценить приложение"
+ * @param onYooMoney Callback при нажатии "Поддержать через ЮMoney"
+ * @param onCloudTips Callback при нажатии "Поддержать через CloudTips"
+ * @param onShareLog Callback при нажатии "Поделиться логом"
+ * @param onPrivacyPolicyClick Callback при нажатии "Политика конфиденциальности"
+ */
 @Composable
 fun MenuDialog(
     isDark: Boolean,
@@ -33,11 +62,16 @@ fun MenuDialog(
     onYooMoney: () -> Unit,
     onCloudTips: () -> Unit,
     onShareLog: () -> Unit,
-    onPrivacyPolicyClick: () -> Unit  // ← ДОБАВЛЕНО
+    onPrivacyPolicyClick: () -> Unit
 ) {
-    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+    AppLog.d(TAG, "MenuDialog shown")
+
+    Dialog(onDismissRequest = {
+        AppLog.i(TAG, "MenuDialog dismissed by system")
+        onClose()
+    }) {
         Surface(
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 8.dp
         ) {
@@ -47,6 +81,10 @@ fun MenuDialog(
                     .padding(20.dp)
                     .verticalScroll(rememberScrollState())
             ) {
+                // ═══════════════════════════════════════════════════════════════
+                // Заголовок
+                // ═══════════════════════════════════════════════════════════════
+
                 Text(
                     stringResource(R.string.menu_about),
                     style = MaterialTheme.typography.titleMedium,
@@ -56,7 +94,10 @@ fun MenuDialog(
                 )
                 Spacer(Modifier.height(16.dp))
 
-                // Тёмная тема
+                // ═══════════════════════════════════════════════════════════════
+                // Настройки
+                // ═══════════════════════════════════════════════════════════════
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -66,25 +107,66 @@ fun MenuDialog(
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f)
                     )
-                    Switch(checked = isDark, onCheckedChange = onDarkChange)
+                    Switch(
+                        checked = isDark,
+                        onCheckedChange = { checked: Boolean ->
+                            AppLog.i(TAG, "Dark theme toggled: $checked")
+                            onDarkChange(checked)
+                        }
+                    )
                 }
                 Spacer(Modifier.height(8.dp))
 
-                TextButton(onClick = onRate, modifier = Modifier.fillMaxWidth()) {
+                // ═══════════════════════════════════════════════════════════════
+                // Действия
+                // ═══════════════════════════════════════════════════════════════
+
+                TextButton(
+                    onClick = {
+                        AppLog.i(TAG, "Rate app clicked")
+                        onRate()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(stringResource(R.string.rate_app))
                 }
-                TextButton(onClick = onYooMoney, modifier = Modifier.fillMaxWidth()) {
+
+                TextButton(
+                    onClick = {
+                        AppLog.i(TAG, "YooMoney support clicked")
+                        onYooMoney()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(stringResource(R.string.support_yoomoney))
                 }
-                TextButton(onClick = onCloudTips, modifier = Modifier.fillMaxWidth()) {
+
+                TextButton(
+                    onClick = {
+                        AppLog.i(TAG, "CloudTips support clicked")
+                        onCloudTips()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(stringResource(R.string.support_cloudtips))
                 }
-                TextButton(onClick = onShareLog, modifier = Modifier.fillMaxWidth()) {
+
+                TextButton(
+                    onClick = {
+                        AppLog.i(TAG, "Share log clicked")
+                        onShareLog()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(stringResource(R.string.log_share))
                 }
+
                 TextButton(
-                    onClick = onPrivacyPolicyClick,
-                    modifier = Modifier.fillMaxWidth()  // ← ДОБАВЛЕНО для консистентности
+                    onClick = {
+                        AppLog.i(TAG, "Privacy policy clicked")
+                        onPrivacyPolicyClick()
+                    },
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(stringResource(R.string.menu_privacy_policy))
                 }
@@ -93,37 +175,51 @@ fun MenuDialog(
                 HorizontalDivider()
                 Spacer(Modifier.height(12.dp))
 
+                // ═══════════════════════════════════════════════════════════════
                 // О приложении
+                // ═══════════════════════════════════════════════════════════════
+
                 Text(
                     stringResource(R.string.about_title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
                 Spacer(Modifier.height(4.dp))
+
                 Text(
                     "Version ${BuildConfig.VERSION_NAME}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
                 Text(
                     stringResource(R.string.about_author),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(8.dp))
+
                 Text(
                     stringResource(R.string.about_text),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(8.dp))
+
                 Text(
                     stringResource(R.string.shizuku_attribution),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(8.dp))
-                TextButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
+
+                TextButton(
+                    onClick = {
+                        AppLog.i(TAG, "Close menu clicked")
+                        onClose()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(stringResource(R.string.close))
                 }
             }

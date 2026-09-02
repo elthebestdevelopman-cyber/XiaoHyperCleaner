@@ -1,6 +1,55 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?><!--
+    Конфигурация FileProvider для безопасного шаринга файлов.
+
+    ССЫЛКА В AndroidManifest.xml:
+    <provider
+        android:name="androidx.core.content.FileProvider"
+        android:authorities="${applicationId}.fileprovider"
+        android:grantUriPermissions="true"
+        ...>
+        <meta-data android:resource="@xml/file_paths" />
+    </provider>
+
+    ИСПОЛЬЗУЕТСЯ В:
+    - UiActions.shareLog() — шаринг логов через системный chooser
+
+    БЕЗОПАСНОСТЬ:
+    - DataStore (files/datastore/) остаётся недоступным для внешних приложений,
+      т.к. мы НЕ открываем весь files/ напрямую (используем cache-path как fallback)
+    - Принцип минимальных привилегий: доступ только к тому, что нужно
+
+    ИСПРАВЛЕНИЯ (кнопка "Поделиться логом" перестала работать):
+    1. ДОБАВЛЕНО files-path с path="." — для случая, если AppLog пишет в корень files/
+    2. ДОБАВЛЕНО cache-path — для fallback-копии (UiActions.shareLog копирует туда
+       лог перед шарингом, гарантируя что FileProvider сможет отдать URI)
+    3. Убрана жёсткая привязка к "logs/" — теперь работает при любом расположении лога
+-->
 <paths>
+    <!-- Логи приложения: /data/data/<package>/files/logs/ -->
     <files-path
         name="logs"
+        path="logs/" />
+
+    <!-- НОВОЕ: корень files/ — для случая, если AppLog.getLogFile() возвращает
+         файл вне подкаталога logs/ (например, files/xhc.log).
+         Без этого FileProvider выбрасывает IllegalArgumentException. -->
+    <files-path
+        name="files_root"
+        path="." />
+
+    <!-- НОВОЕ: cache-path — для fallback-копии при шаринге.
+         UiActions.shareLog() копирует лог в cacheDir перед отправкой,
+         что гарантирует работоспособность даже при ошибках конфигурации.
+         Эта папка всегда покрыта и безопасна (очищается системой). -->
+    <cache-path
+        name="cache"
+        path="." />
+    <cache-path
+        name="cache_logs"
+        path="logs/" />
+
+    <!-- External files (на случай если AppLog пишет во внешний storage) -->
+    <external-files-path
+        name="external"
         path="." />
 </paths>

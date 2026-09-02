@@ -3,6 +3,7 @@ package com.xiaohypercleaner.service
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.os.Build
+import android.os.PowerManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.R
@@ -17,76 +18,164 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Accessibility Service.
+ * Accessibility Service для XiaoHyperCleaner.
  *
- * Выполняет две роли:
- *   1. Запускает шаги Simple Mode через [SimpleRunner] (по ACTION_SIMPLE_STEP)
- *   2. Авто-кликер диалогов:
- *      - Во время шага ([SimpleRunner.isRunning]) — ТОЛЬКО исключения:
- *          * Проводник: «Добро пожаловать» → «Отмена»
- *          * Экран блокировки: «Обновите» → «Отклонить»
- *          * Системные ошибки (Facebook/QR/«Невозможно подключиться»)
- *      - Вне шага — watchdog PRO-цепочки (dev options / wireless debug / allow dialog)
- *        + обычные согласия первого запуска
+ * Выполняет две основные роли:
  *
- * Гейтинг через статический флаг [SimpleRunner.isRunning] — единый источник истины,
- * чтобы автокликер не конфликтовал с [SimpleRunner.dismissDialogs].
+ * **1. Исполнитель Simple Mode** (через [SimpleRunner])
+ *    - Запускает шаги по [ACTION_SIMPLE_STEP]
+ *    - Обновляет статусы в оверлее через [OverlayController]
+ *    - Сообщает результаты через [SimpleStepBridge]
  *
- * УЛУЧШЕНИЯ:
- * 1. LogMasker для маскировки чувствительных данных в логах
- * 2. collectTextRecursive depth=7 (как в SimpleRunner) для глубоких диалогов
- * 3. Явные типы для всех переменных
- * 4. Защита от ConcurrentModificationException
- * 5. Улучшенное логирование для диагностики
+ * **2. Авто-кликер системных диалогов** (watchdog):
+ *    - **Во время шага** ([SimpleRunner.isRunning] == true) — ТОЛЬКО исключения:
+ *      * Lock screen update → «Отклонить»
+ *      * Системные ошибки (реальные, а не ложные срабатывания)
+ *    - **Вне шага** — watchdog PRO-цепочки:
+ *      * Developer options → включение
+ *      * Wireless debugging → включение
+ *      * Allow dialog → подтверждение
+ *      * Диалоги первого запуска → авто-согласие
+ *
+ * ИСПРАВЛЕНИЯ (beta11):
+ * - Wake Lock: экран не гаснет во время оптимизации (SCREEN_DIM_WAKE_LOCK)
+ * - Автосброс wake lock: на последнем шаге / при отмене / в onDestroy
+ * - ACTION_RELEASE_WAKE — для внешнего принудительного освобождения
+ * - ERROR_MARKERS сужены до специфичных текстов (beta5)
+ * - Debounce 10 сек для handleSystemErrors — защита от цикла "OK + BACK"
+ * - Убраны delay(STATUS_VISIBLE_MS) между шагами — быстрее UX
  */
 class AdbEnablerService : AccessibilityService() {
 
     companion object {
         private const val TAG = "AdbEnablerService"
-        private const val DEV_WATCHDOG_MS = 15_000L
-        private const val EVENT_THROTTLE_MS = 300L
-        private const val STATUS_VISIBLE_MS = 600L
-        private const val TEXT_DEPTH = 7  // Как в SimpleRunner для глубоких диалогов
 
+        /** Таймаут watchdog'а PRO-цепочки (15 секунд после redirect) */
+        private const val DEV_WATCHDOG_MS = 15_000L
+
+        /** Минимальный интервал между обработкой событий (защита от спама) */
+        private const val EVENT_THROTTLE_MS = 300L
+
+        /** Глубина рекурсии при сборе текста (как в SimpleRunner) */
+        private const val TEXT_DEPTH = 7
+
+        /** Максимальная глубина поиска кликабельного родителя */
+        private const val MAX_PARENT_DEPTH = 5
+
+        /**
+         * Debounce для handleSystemErrors.
+         * Защита от бесконечного цикла, когда ERROR_MARKERS случайно
+         * совпадает с обычным контентом в приложениях.
+         */
+        private const val SYSTEM_ERROR_DEBOUNCE_MS = 10_000L
+
+        /** Максимальное время удержания Wake Lock (30 минут) как страховка от утечки */
+        private const val WAKE_LOCK_TIMEOUT_MS = 30 * 60 * 1000L
+
+        // ── Actions для Intent ──
         const val ACTION_SIMPLE_STEP = "com.xiaohypercleaner.ACTION_SIMPLE_STEP"
         const val ACTION_RETRY_DEV = "com.xiaohypercleaner.ACTION_RETRY_DEV"
         const val ACTION_START_CHAIN = "com.xiaohypercleaner.ACTION_START_CHAIN"
 
+        /** НОВОЕ (beta11): принудительное освобождение wake lock */
+        const val ACTION_RELEASE_WAKE = "com.xiaohypercleaner.ACTION_RELEASE_WAKE"
+
+        /** Синглтон-ссылка на активный сервис (null если не подключён) */
         var instance: AdbEnablerService? = null
             private set
 
         // ── PRO-цепочка: тексты для watchdog ──
-        private val DEV_OPTIONS_TEXTS = arrayOf(
+        private val DEV_OPTIONS_TEXTS: Array<String> = arrayOf(
             "Developer options", "Параметры разработчика", "Для разработчиков",
             "Режим разработчика", "Настройки разработчика"
         )
-        private val WIRELESS_DEBUG_TEXTS = arrayOf(
+        private val WIRELESS_DEBUG_TEXTS: Array<String> = arrayOf(
             "Wireless debugging", "Беспроводная отладка", "Отладка по Wi-Fi"
         )
-        private val ALLOW_TEXTS = arrayOf("Allow", "Разрешить", "OK", "ОК", "Да", "Yes")
+        private val ALLOW_TEXTS: Array<String> = arrayOf(
+            "Allow", "Разрешить", "OK", "ОК", "Да", "Yes"
+        )
 
         // ── Кнопки диалогов первого запуска (только ВНЕ шага) ──
-        private val AUTO_ALLOW_TEXTS = arrayOf(
+        private val AUTO_ALLOW_TEXTS: Array<String> = arrayOf(
             "Согласиться", "Принять", "Разрешить", "Продолжить", "Начать",
             "Agree", "Accept", "Allow", "Continue", "Start", "OK", "Got it"
         )
 
-        // ── Маркеры системных ошибок: закрываем всегда (во время и вне шага) ──
-        private val ERROR_MARKERS = arrayOf(
-            "Невозможно подключиться", "Отсканируйте QR", "Facebook",
-            "Проверьте подключение", "нет подключения", "Ошибка соединения",
-            "Не удалось загрузить", "Cannot connect", "Scan QR"
+        // ── Маркеры системных ошибок: узкие, специфичные ──
+        private val ERROR_MARKERS: Array<String> = arrayOf(
+            "Невозможно подключиться к серверу",
+            "Не удается подключиться к серверу",
+            "Не удалось подключиться к серверу",
+            "Нет подключения к интернету",
+            "Нет интернет-соединения",
+            "Ошибка соединения",
+            "Cannot connect to server",
+            "Unable to connect to server",
+            "No internet connection",
+            "Network error"
         )
-        private val ERROR_DISMISS = arrayOf(
-            "ОТМЕНА", "Отмена", "Закрыть", "Назад", "ОК", "Cancel", "Close", "Back"
+
+        private val ERROR_DISMISS: Array<String> = arrayOf(
+            "ОТМЕНА", "Отмена", "Закрыть", "ОК", "OK", "Cancel", "Close"
         )
     }
 
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val simpleRunner: SimpleRunner by lazy { SimpleRunner(this) }
 
+    /** Timestamp последнего обработанного события (для throttling) */
     private var lastActionTime: Long = 0L
+
+    /** Флаг: открыто ли окно dev options (для watchdog) */
     private var devWindowOpen: Boolean = false
+
+    /** Timestamp последней обработки системной ошибки (debounce) */
+    private var lastSystemErrorHandledAt: Long = 0L
+
+    // ═══════════════════════════════════════════════════════════════
+    // Wake Lock — предотвращает отключение экрана во время оптимизации
+    // ═══════════════════════════════════════════════════════════════
+    private var wakeLock: PowerManager.WakeLock? = null
+
+    /**
+     * Захватывает wake lock. Используем SCREEN_DIM_WAKE_LOCK (deprecated но работает) —
+     * экран остаётся тускло освещённым, CPU не спит.
+     * Таймаут 30 минут как страховка от утечки.
+     */
+    private fun acquireWakeLock() {
+        if (wakeLock?.isHeld == true) return
+        try {
+            val pm = getSystemService(POWER_SERVICE) as PowerManager
+            @Suppress("DEPRECATION")
+            wakeLock = pm.newWakeLock(
+                PowerManager.SCREEN_DIM_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                "XHC:Optimization"
+            ).apply {
+                setReferenceCounted(false)
+                acquire(WAKE_LOCK_TIMEOUT_MS)
+            }
+            AppLog.i(TAG, "Wake lock acquired")
+        } catch (e: Exception) {
+            AppLog.w(TAG, "Wake lock acquire failed: ${e.message}")
+        }
+    }
+
+    private fun releaseWakeLock() {
+        try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+                AppLog.i(TAG, "Wake lock released")
+            }
+        } catch (e: Exception) {
+            AppLog.w(TAG, "Wake lock release failed: ${e.message}")
+        }
+        wakeLock = null
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Lifecycle
+    // ═══════════════════════════════════════════════════════════════
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -99,11 +188,19 @@ class AdbEnablerService : AccessibilityService() {
         when (intent?.action) {
             ACTION_SIMPLE_STEP -> {
                 val index: Int = intent.getIntExtra("step_index", -1)
+                val total: Int = SimpleSteps.ALL.size
                 if (index in SimpleSteps.ALL.indices) {
-                    scope.launch { runSimpleStep(index) }
+                    // НОВОЕ (beta11): захватываем wake lock на первом шаге
+                    if (index == 0) acquireWakeLock()
+                    scope.launch { runSimpleStep(index, total) }
                 } else {
                     AppLog.w(TAG, "onStartCommand: invalid step_index=$index")
                 }
+            }
+
+            ACTION_RELEASE_WAKE -> {
+                // НОВОЕ (beta11): принудительное освобождение извне
+                releaseWakeLock()
             }
 
             ACTION_RETRY_DEV, ACTION_START_CHAIN -> {
@@ -115,12 +212,31 @@ class AdbEnablerService : AccessibilityService() {
         return START_NOT_STICKY
     }
 
-    private suspend fun runSimpleStep(index: Int) {
-        // Флаг isRunning устанавливается ВНУТРИ SimpleRunner.run(),
-        // поэтому здесь его трогать не нужно.
+    override fun onInterrupt() {
+        AppLog.w(TAG, "Service interrupted")
+    }
+
+    override fun onDestroy() {
+        AppLog.i(TAG, "onDestroy: cleaning up")
+        releaseWakeLock()  // НОВОЕ (beta11): гарантированное освобождение
+        instance = null
+        scope.cancel()
+        super.onDestroy()
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Исполнитель Simple Mode
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Выполняет один шаг Simple Mode.
+     *
+     * @param index индекс шага в [SimpleSteps.ALL]
+     * @param total общее количество шагов (для определения последнего)
+     */
+    private suspend fun runSimpleStep(index: Int, total: Int) {
         try {
             val step: SimpleSteps.Step = SimpleSteps.ALL[index]
-            val total: Int = SimpleSteps.ALL.size
 
             AppLog.i(TAG, "runSimpleStep: starting step ${index + 1}/$total (${step.id})")
 
@@ -138,15 +254,17 @@ class AdbEnablerService : AccessibilityService() {
             when {
                 result.skipped -> {
                     AppLog.i(TAG, "runSimpleStep: step ${step.id} skipped (app not installed)")
-                    OverlayController.updateStatus(this, getString(R.string.automation_status_skip))
-                    delay(STATUS_VISIBLE_MS)
+                    OverlayController.updateStatus(
+                        this, getString(R.string.automation_status_skip)
+                    )
                     SimpleStepBridge.onSkipped?.invoke(step.id)
                 }
 
                 else -> {
                     AppLog.i(
                         TAG,
-                        "runSimpleStep: step ${step.id} result=${result.success}, reason=${result.reason}"
+                        "runSimpleStep: step ${step.id} result=${result.success}, " +
+                                "reason=${result.reason}"
                     )
                     OverlayController.updateStatus(
                         this,
@@ -155,9 +273,13 @@ class AdbEnablerService : AccessibilityService() {
                             else R.string.automation_status_fail
                         )
                     )
-                    delay(STATUS_VISIBLE_MS)
                     SimpleStepBridge.onResult?.invoke(result.success)
                 }
+            }
+
+            // НОВОЕ (beta11): освобождаем wake lock на последнем шаге
+            if (index == total - 1) {
+                releaseWakeLock()
             }
         } catch (e: Exception) {
             AppLog.e(TAG, "runSimpleStep error: ${LogMasker.mask(e.message ?: "")}", e)
@@ -165,10 +287,19 @@ class AdbEnablerService : AccessibilityService() {
         }
     }
 
+    /**
+     * Отменяет выполнение текущего шага SimpleRunner.
+     * Вызывается при отмене оптимизации пользователем.
+     */
     fun cancelRunner() {
         AppLog.i(TAG, "cancelRunner: cancelling SimpleRunner")
+        releaseWakeLock()  // НОВОЕ (beta11): освобождаем при отмене
         simpleRunner.cancel()
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Accessibility Event Handling
+    // ═══════════════════════════════════════════════════════════════
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
@@ -177,20 +308,16 @@ class AdbEnablerService : AccessibilityService() {
         if (currentTime - lastActionTime < EVENT_THROTTLE_MS) return
         lastActionTime = currentTime
 
-        // ИСПРАВЛЕНО: единый источник истины — SimpleRunner.isRunning
         if (SimpleRunner.isRunning) {
-            // ВО ВРЕМЯ ШАГА: только исключения и ошибки (остальное делает runner)
             handleStepTimeExceptions()
             return
         }
 
-        // ВНЕ ШАГА: watchdog PRO-цепочки + обычные согласия
         if (currentTime - ChainFlags.lastRedirectTime > DEV_WATCHDOG_MS) {
             if (devWindowOpen) {
                 devWindowOpen = false
                 AppLog.i(TAG, "Dev watchdog window closed")
             }
-            // Системные ошибки обрабатываем и вне шага
             val root: AccessibilityNodeInfo = rootInActiveWindow ?: return
             try {
                 if (handleSystemErrors(root)) {
@@ -203,8 +330,8 @@ class AdbEnablerService : AccessibilityService() {
             }
             return
         }
-        devWindowOpen = true
 
+        devWindowOpen = true
         val root: AccessibilityNodeInfo = rootInActiveWindow ?: return
         try {
             when {
@@ -222,16 +349,13 @@ class AdbEnablerService : AccessibilityService() {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * Во время шага обрабатываем ТОЛЬКО:
-     *   - Исключения (Проводник, Lock screen) — они специфичны и не в runner
-     *   - Системные ошибки (FB/QR/«Невозможно подключиться») — появляются поверх
-     * Обычные согласия («Согласиться»/«Разрешить») обрабатывает сам runner
-     * через dismissDialogs(), чтобы не было дублирования кликов.
+     * Во время шага: системные ошибки, lock-screen upsell, и first-launch попапы
+     * (Пропустить / Позже) — иначе на свежем телефоне шаги залипают.
+     * Agree/Accept НЕ жмём здесь — этим управляет SimpleRunner (политика vs decline).
      */
     private fun handleStepTimeExceptions() {
         val root: AccessibilityNodeInfo = rootInActiveWindow ?: return
         try {
-            // Системные ошибки — всегда гасим
             if (handleSystemErrors(root)) {
                 AppLog.i(TAG, "Auto-dialog: system error dismissed (step running)")
                 return
@@ -239,22 +363,21 @@ class AdbEnablerService : AccessibilityService() {
 
             val screenText: String = collectAllText(root)
 
-            // ИСКЛЮЧЕНИЕ 1: Проводник — НЕ принимаем политику, жмём «Отмена»
-            if (screenText.contains("Добро пожаловать в Проводник", ignoreCase = true) ||
-                screenText.contains("Welcome to File Manager", ignoreCase = true)
-            ) {
-                clickByText(root, arrayOf("Отмена", "Cancel"))
-                AppLog.i(TAG, "Auto-dialog: File Manager welcome → Cancel")
-                return
-            }
-
-            // ИСКЛЮЧЕНИЕ 2: редактор экрана блокировки — жмём «Отклонить»
             if (screenText.contains("Обновите свой Экран блокировки", ignoreCase = true) ||
                 screenText.contains("Update your Lock screen", ignoreCase = true)
             ) {
-                clickByText(root, arrayOf("Отклонить", "Decline", "Нет", "No"))
+                clickByText(root, arrayOf("Отклонить", "Decline", "Нет", "No", "Закрыть", "Close"))
                 AppLog.i(TAG, "Auto-dialog: Lock screen update → Decline")
                 return
+            }
+
+            // Свежий телефон: асинхронные попапы поверх шага
+            val skipTexts = arrayOf(
+                "Пропустить", "Skip", "Позже", "Later", "Не сейчас", "Not now",
+                "Закрыть", "Close", "Напомнить позже", "Remind me later"
+            )
+            if (clickByText(root, skipTexts)) {
+                AppLog.i(TAG, "Auto-dialog: fresh-device skip (step running)")
             }
         } finally {
             recycleNode(root)
@@ -262,26 +385,36 @@ class AdbEnablerService : AccessibilityService() {
     }
 
     /**
-     * Системные ошибки: Facebook/QR/«Невозможно подключиться» — гасим всегда.
-     * Появляются на уровне системы поверх приложений, runner их не ловит.
+     * Системные ошибки: реальные сетевые ошибки — гасим всегда.
+     * Debounce 10 сек — защита от бесконечного цикла "OK + BACK".
      */
     private fun handleSystemErrors(root: AccessibilityNodeInfo): Boolean {
+        val currentTime = System.currentTimeMillis()
+
+        if (currentTime - lastSystemErrorHandledAt < SYSTEM_ERROR_DEBOUNCE_MS) {
+            return false
+        }
+
         val screenText: String = collectAllText(root)
-        val hasError: Boolean = ERROR_MARKERS.any { screenText.contains(it, ignoreCase = true) }
+        val hasError: Boolean = ERROR_MARKERS.any {
+            screenText.contains(it, ignoreCase = true)
+        }
         if (!hasError) return false
+
+        lastSystemErrorHandledAt = currentTime
 
         if (clickByText(root, ERROR_DISMISS)) {
             AppLog.i(TAG, "Auto-dialog: system error dismissed")
             return true
         }
-        // Если кнопки нет — давим системную «Назад»
-        try {
+
+        return try {
             performGlobalAction(GLOBAL_ACTION_BACK)
             AppLog.i(TAG, "Auto-dialog: system error → BACK")
-            return true
+            true
         } catch (e: Exception) {
             AppLog.w(TAG, "Auto-dialog: system error BACK failed: ${e.message}")
-            return false
+            false
         }
     }
 
@@ -290,20 +423,15 @@ class AdbEnablerService : AccessibilityService() {
     // ═══════════════════════════════════════════════════════════════
 
     private fun handleFirstRunDialogs(root: AccessibilityNodeInfo) {
-        val screenText: String = collectAllText(root)
-
-        // Системные ошибки обрабатываем и здесь
         if (handleSystemErrors(root)) return
 
-        // Обычные диалоги первого запуска: согласия/разрешения
-        for (text in AUTO_ALLOW_TEXTS) {
-            val nodes: List<AccessibilityNodeInfo>? = runCatching {
+        for (text: String in AUTO_ALLOW_TEXTS) {
+            val nodes: List<AccessibilityNodeInfo> = runCatching {
                 root.findAccessibilityNodeInfosByText(text)
-            }.getOrNull() ?: continue
+            }.getOrNull() ?: emptyList()
 
             val btn: AccessibilityNodeInfo = nodes.firstOrNull { it.isClickable } ?: continue
 
-            // Нажимаем только если это похоже на диалог (кнопка в диалоговом окне)
             if (btn.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
                 AppLog.i(TAG, "Auto-dialog: clicked '${LogMasker.mask(text)}'")
             }
@@ -313,36 +441,18 @@ class AdbEnablerService : AccessibilityService() {
     }
 
     private fun clickByText(root: AccessibilityNodeInfo, texts: Array<String>): Boolean {
-        for (text in texts) {
-            val nodes: List<AccessibilityNodeInfo>? = runCatching {
+        for (text: String in texts) {
+            val nodes: List<AccessibilityNodeInfo> = runCatching {
                 root.findAccessibilityNodeInfosByText(text)
-            }.getOrNull() ?: continue
+            }.getOrNull() ?: emptyList()
 
             val btn: AccessibilityNodeInfo = nodes.firstOrNull { it.isClickable } ?: continue
+
             val ok: Boolean = btn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             recycleNode(btn)
             if (ok) return true
         }
         return false
-    }
-
-    /**
-     * Собирает весь текст из дерева узлов.
-     * depth=7 (как в SimpleRunner) для поддержки глубоких диалогов.
-     */
-    private fun collectAllText(node: AccessibilityNodeInfo?): String {
-        val sb = StringBuilder()
-        collectTextRecursive(node, sb, 0)
-        return sb.toString()
-    }
-
-    private fun collectTextRecursive(node: AccessibilityNodeInfo?, sb: StringBuilder, depth: Int) {
-        if (node == null || depth > TEXT_DEPTH) return
-        node.text?.let { sb.append(it).append(' ') }
-        node.contentDescription?.let { sb.append(it).append(' ') }
-        for (i in 0 until node.childCount) {
-            collectTextRecursive(node.getChild(i), sb, depth + 1)
-        }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -398,16 +508,20 @@ class AdbEnablerService : AccessibilityService() {
         return result
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // Утилиты для работы с деревом узлов
+    // ═══════════════════════════════════════════════════════════════
+
     private fun findNodeByTexts(
         root: AccessibilityNodeInfo,
         texts: Array<String>
     ): AccessibilityNodeInfo? {
-        for (text in texts) {
-            val nodes: List<AccessibilityNodeInfo>? = runCatching {
+        for (text: String in texts) {
+            val nodes: List<AccessibilityNodeInfo> = runCatching {
                 root.findAccessibilityNodeInfosByText(text)
-            }.getOrNull() ?: continue
+            }.getOrNull() ?: emptyList()
 
-            if (nodes.isNotEmpty()) return nodes[0]
+            nodes.firstOrNull()?.let { return it }
         }
         return null
     }
@@ -415,12 +529,31 @@ class AdbEnablerService : AccessibilityService() {
     private fun findClickableParent(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         var current: AccessibilityNodeInfo? = node
         var depth: Int = 0
-        while (current != null && depth < 5) {
+        while (current != null && depth < MAX_PARENT_DEPTH) {
             if (current.isClickable) return current
             current = current.parent
             depth++
         }
         return null
+    }
+
+    private fun collectAllText(node: AccessibilityNodeInfo?): String {
+        val sb = StringBuilder()
+        collectTextRecursive(node, sb, 0)
+        return sb.toString()
+    }
+
+    private fun collectTextRecursive(
+        node: AccessibilityNodeInfo?,
+        sb: StringBuilder,
+        depth: Int
+    ) {
+        if (node == null || depth > TEXT_DEPTH) return
+        node.text?.let { sb.append(it).append(' ') }
+        node.contentDescription?.let { sb.append(it).append(' ') }
+        for (i in 0 until node.childCount) {
+            collectTextRecursive(node.getChild(i), sb, depth + 1)
+        }
     }
 
     private fun recycleNode(node: AccessibilityNodeInfo?) {
@@ -429,19 +562,7 @@ class AdbEnablerService : AccessibilityService() {
                 @Suppress("DEPRECATION")
                 node?.recycle()
             } catch (_: Exception) {
-                // Игнорируем: узел мог быть освобождён ранее
             }
         }
-    }
-
-    override fun onInterrupt() {
-        AppLog.w(TAG, "Service interrupted")
-    }
-
-    override fun onDestroy() {
-        AppLog.i(TAG, "onDestroy: cleaning up")
-        instance = null
-        scope.cancel()
-        super.onDestroy()
     }
 }

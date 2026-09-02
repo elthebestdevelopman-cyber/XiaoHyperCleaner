@@ -19,7 +19,7 @@ class AdbException(
             this("$message (code=$errorCode)", cause)
 
     /**
-     * Convenience конструктор для таймаутов.
+     * Convenience конструктор для тайм-аутов.
      * Пример: AdbException.timeout(5000)
      */
     companion object {

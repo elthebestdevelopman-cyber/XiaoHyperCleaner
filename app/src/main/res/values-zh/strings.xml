@@ -1,0 +1,306 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+    简体中文翻译 (Simplified Chinese) — XiaoHyperCleaner
+
+    ЦЕЛЕВАЯ АУДИТОРИЯ:
+    - Материковый Китай (основной рынок Xiaomi/Redmi/POCO)
+    - Сингапур, Малайзия (китайскоязычные пользователи)
+
+    ТЕРМИНОЛОГИЯ:
+    - 无障碍服务 = Accessibility Service (официальный термин Android)
+    - 受限设置 = Restricted settings (Android 13+)
+    - 禁止的设置 = Forbidden settings (HyperOS)
+    - 悬浮窗 = Display over other apps
+    - 省电优化 = Battery optimization
+    - 开发者选项 = Developer options
+    - 无线调试 = Wireless debugging
+
+    COMPLIANCE:
+    - accessibility_policy_description соответствует Google Play Accessibility Services API Policy
+    - consent_dialog_* реализует явное согласие пользователя
+
+    ПЛЮРАЛИЗАЦИЯ:
+    - В китайском языке нет формы множественного числа
+    - Используется только "other" (все числа)
+-->
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- ========== 通用 ========== -->
+    <string name="app_name">XiaoHyperCleaner</string>
+    <string name="app_description_short">为小米 / MIUI / HyperOS 设备配置隐私设置并减少后台负载。通过标准 Android 设置工作，无需 root 权限。</string>
+    <string name="cancel">取消</string>
+    <string name="allow">允许</string>
+
+    <!-- ========== 主屏幕 ========== -->
+    <string name="features_title">应用功能</string>
+    <string name="feature_processes">配置系统设置以提升隐私保护</string>
+    <string name="feature_speed">加速界面并优化动画效果</string>
+    <string name="feature_battery">减少后台活动以节省电量</string>
+
+    <string name="btn_optimize">优化</string>
+    <string name="btn_restore">还原更改</string>
+    <string name="status_working">正在优化…</string>
+    <string name="status_done">优化完成</string>
+    <string name="status_done_description">隐私设置已应用。所有更改均可还原。</string>
+    <string name="reboot_now">立即重启</string>
+
+    <!-- ========== 级别选择 ========== -->
+    <string name="level_dialog_subtitle">稍后可在设置中更改</string>
+    <string name="level_simple_title">🟢 简单模式</string>
+    <string name="level_simple_desc">适合所有用户。自动清理，无需复杂设置。</string>
+    <string name="level_pro_title">🔵 高级模式</string>
+    <string name="level_pro_desc">深度优化。需要额外设置（Shizuku / ADB）。</string>
+    <string name="level_dialog_continue">继续</string>
+    <string name="robocat_caption">机器猫正在帮您整理系统</string>
+
+    <string name="level_confirm_simple_title">开始简单优化？</string>
+    <string name="level_confirm_simple_text">应用将打开设置并应用隐私参数。这将需要 2–3 分钟。</string>
+    <string name="level_confirm_advanced_title">开始高级优化？</string>
+    <string name="level_confirm_advanced_text">需要配置 Shizuku 或无线 ADB。流程更深入可靠，但耗时更长。</string>
+    <string name="level_confirm_start">开始</string>
+
+    <!-- ========== 简单模式：步骤 ========== -->
+    <string name="simple_step_of">第 %1$d 步，共 %2$d 步</string>
+    <string name="simple_step_start">开始</string>
+    <string name="simple_step_working">正在执行…</string>
+    <string name="simple_step_attempt">第 %1$d 次尝试，共 %2$d 次</string>
+    <string name="simple_step_auto_next">完成 — 继续下一步…</string>
+    <string name="simple_step_failed">无法自动完成</string>
+    <string name="simple_step_next">下一步</string>
+    <string name="simple_step_skip">跳过此步</string>
+    <string name="simple_step_retry">重试</string>
+
+    <!-- ========== 简单模式：完成 ========== -->
+    <string name="simple_done_title">全部完成！</string>
+    <string name="simple_done_text">隐私设置已应用。无需重启。</string>
+    <plurals name="simple_done_steps_done">
+        <item quantity="other">已完成 %1$d / %2$d 步</item>
+    </plurals>
+    <string name="simple_done_benefits">已更改：</string>
+    <string name="simple_done_benefit_ads">✅ 已应用遥测服务的隐私设置</string>
+    <string name="simple_done_benefit_telemetry">✅ 已减少遥测数据收集</string>
+    <string name="simple_done_benefit_spam">✅ 已减少系统应用通知</string>
+    <string name="simple_done_benefit_stable">✅ 已减少系统后台负载</string>
+    <string name="simple_done_failed_title">无法自动完成：</string>
+    <string name="simple_done_skipped_title">已跳过（此设备上不存在）：</string>
+    <string name="simple_done_rate">评价应用</string>
+    <string name="simple_done_donate">支持作者</string>
+    <string name="simple_done_close">关闭</string>
+
+    <!-- ========== SHIZUKU 对话框 ========== -->
+    <string name="shizuku_dialog_title">高级模式需要 Shizuku</string>
+    <string name="shizuku_dialog_not_installed">未安装 Shizuku。请从应用商店安装。</string>
+    <string name="shizuku_dialog_not_running">Shizuku 已安装但未运行。请打开应用并按步骤 1–5 操作。</string>
+    <string name="shizuku_dialog_permission">Shizuku 正在运行，但需要授予本应用权限。</string>
+    <string name="shizuku_dialog_install">安装</string>
+    <string name="shizuku_dialog_howto">如何启动</string>
+    <string name="shizuku_dialog_later">稍后</string>
+    <string name="shizuku_card_other_sources">其他安装来源</string>
+
+    <string name="shizuku_wizard_not_ready">Shizuku 尚未准备好。请在 Shizuku 应用中重复步骤 1–5，然后再次点击"检查"。</string>
+    <string name="shizuku_wizard_step6">Shizuku 正在运行。现在请点击下方的"请求权限"。</string>
+    <string name="shizuku_wizard_permission_denied">Shizuku 权限被拒绝。请打开 Shizuku 并手动授予。</string>
+
+    <!-- ========== 选项（DNS、激进模式） ========== -->
+    <string name="options_dialog_title">优化选项</string>
+    <string name="options_dialog_text">选择附加选项。稍后可更改。</string>
+    <string name="dns_option_title">DNS 过滤器</string>
+    <string name="dns_option_description">通过 AdGuard DNS 阻止对不良域名的网络请求。</string>
+    <string name="aggressive_option_title">扩展优化</string>
+    <string name="aggressive_option_description">适合经验丰富用户的高级设置。某些小米功能可能会有所不同。</string>
+    <string name="options_dialog_start">开始优化</string>
+
+    <!-- ========== DNS 警告 ========== -->
+    <string name="dns_warning_title">注意：DNS 过滤器</string>
+    <string name="dns_warning_text">将设置 AdGuard 私人 DNS。这将减少对不良域名的网络请求，但可能会阻止某些网站。您可以随时在 Android 设置中禁用它。</string>
+    <string name="dns_warning_accept">明白了，继续</string>
+
+    <!-- ========== 开发者模式 ========== -->
+    <string name="dev_mode_dialog_title">需要开发者模式</string>
+    <string name="dev_mode_dialog_text">要继续，请启用开发者模式。打开"关于手机"并点击"MIUI 版本"7 次。</string>
+    <string name="dev_mode_dialog_open_about">打开"关于手机"</string>
+    <string name="dev_mode_dialog_retry">重试</string>
+
+    <!-- ========== 无障碍服务 ========== -->
+    <string name="accessibility_explanation_text">应用需要无障碍服务权限以自动点击设置中的按钮。该权限仅用于导航系统界面，绝不会对外传输。不会收集或向服务器发送任何数据。</string>
+    <string name="hint_accessibility">在服务列表中启用"XiaoHyperCleaner"</string>
+    <string name="hint_overlay">允许在其他应用上层显示</string>
+
+    <!-- ========== 悬浮窗 ========== -->
+    <string name="overlay_permission_title">"悬浮窗"权限</string>
+    <string name="overlay_permission_text">需要在设置其他应用时显示提示。</string>
+
+    <!-- ========== 受限/禁止设置（Android 13+ 侧载） ========== -->
+    <string name="restricted_dialog_title">受限设置</string>
+    <string name="restricted_dialog_text">要启用无障碍服务，您需要先在应用信息界面允许"受限设置"。</string>
+    <string name="restricted_dialog_open">打开应用设置</string>
+
+    <string name="forbidden_dialog_title">禁止的设置</string>
+    <string name="forbidden_dialog_text">在 Android 14+ 上，您需要在应用信息界面允许"禁止的设置"。</string>
+    <string name="forbidden_dialog_open">打开应用设置</string>
+
+    <!-- ========== 还原/重启 ========== -->
+    <string name="restore_dialog_title">还原更改？</string>
+    <string name="restore_dialog_text">所有设置将恢复为原始状态。更改完全可逆。</string>
+    <string name="restore_confirm">还原</string>
+    <string name="restore_failed_text">无法完全还原更改。某些设置仍保持修改状态。</string>
+
+    <string name="reboot_dialog_title">重启</string>
+    <string name="reboot_dialog_text">请重启设备以使所有设置生效。</string>
+    <string name="reboot_confirm">重启</string>
+    <string name="reboot_failed_text">无法发送重启命令。请手动重启设备。</string>
+
+    <!-- ========== 最终对话框（高级模式） ========== -->
+    <string name="final_dialog_title">优化结果</string>
+    <string name="final_dialog_success_text">优化成功完成。隐私设置已应用。</string>
+    <string name="final_dialog_failed_text">优化完成但出现错误。请将日志发送给开发者。</string>
+    <string name="final_dialog_rate">评价应用</string>
+    <string name="final_dialog_send_log">发送日志</string>
+
+    <!-- ========== 新手引导 ========== -->
+    <string name="onboarding_page1_title">欢迎</string>
+    <string name="onboarding_page1_text">XiaoHyperCleaner 将帮助您配置隐私设置并减少小米设备的后台负载。</string>
+    <string name="onboarding_page2_title">安全简单</string>
+    <string name="onboarding_page2_text">应用将在您的许可下配置系统设置。您可以跳过任何步骤。</string>
+    <string name="onboarding_page3_title">透明的过程</string>
+    <string name="onboarding_page3_text">您可以看到每一步。所有更改都可以随时还原。</string>
+    <string name="onboarding_skip">跳过</string>
+    <string name="onboarding_next">下一步</string>
+    <string name="onboarding_start">开始</string>
+    <string name="onboarding_privacy_prefix">我接受 </string>
+    <string name="onboarding_privacy_link">隐私政策</string>
+
+    <!-- ========== 菜单对话框 ========== -->
+    <string name="menu_about">关于</string>
+    <string name="menu_dark_theme">深色主题</string>
+    <string name="menu_privacy_policy">隐私政策</string>
+    <string name="rate_app">评价应用</string>
+    <string name="support_yoomoney">支持（ЮMoney）</string>
+    <string name="support_cloudtips">支持（CloudTips）</string>
+    <string name="log_share">分享日志</string>
+    <string name="about_title">关于应用</string>
+    <string name="about_author">作者</string>
+    <string name="about_text">XiaoHyperCleaner — 一款用于在 MIUI/HyperOS 上安全配置隐私的工具。仅在您的设备本地运行。</string>
+    <string name="shizuku_attribution">感谢 Shizuku 开发者的贡献。</string>
+    <string name="close">关闭</string>
+    <string name="privacy_policy_url" translatable="false" tools:ignore="MissingTranslation">https://elthebestdevelopman-cyber.github.io/privacy-policy/index.html</string>
+
+    <!-- ========== SHIZUKU 向导 ========== -->
+    <string name="shizuku_wizard_title">Shizuku 设置</string>
+    <string name="shizuku_wizard_intro">按照步骤设置 Shizuku</string>
+    <string name="shizuku_wizard_skip_top">跳过设置</string>
+    <string name="shizuku_wizard_or">或</string>
+    <string name="shizuku_wizard_step1_title">第 1 步：安装 Shizuku</string>
+    <string name="shizuku_wizard_step1_desc">从应用商店下载并安装 Shizuku。</string>
+    <string name="shizuku_wizard_open_about">打开"关于手机"</string>
+    <string name="shizuku_wizard_step2_title">第 2 步：打开 Shizuku</string>
+    <string name="shizuku_wizard_step2_desc">启动 Shizuku 应用。</string>
+    <string name="shizuku_wizard_step3_title">第 3 步：开发者模式</string>
+    <string name="shizuku_wizard_step3_desc">在手机设置中启用开发者模式。</string>
+    <string name="shizuku_wizard_open_dev">打开开发者选项</string>
+    <string name="shizuku_wizard_step4_title">第 4 步：无线调试</string>
+    <string name="shizuku_wizard_step4_desc">启用无线调试。</string>
+    <string name="shizuku_wizard_open_shizuku">打开 Shizuku</string>
+    <string name="shizuku_wizard_step5_title">第 5 步：通过无线调试启动</string>
+    <string name="shizuku_wizard_step5_desc">在 Shizuku 中，选择通过无线调试启动。</string>
+    <string name="shizuku_wizard_check">检查</string>
+    <string name="shizuku_wizard_request_permission">请求权限</string>
+    <string name="shizuku_wizard_skip">跳过</string>
+    <string name="shizuku_wizard_close">关闭</string>
+
+    <!-- ========== SHIZUKU 来源 ========== -->
+    <string name="shizuku_sources_title">Shizuku 安装来源</string>
+    <string name="shizuku_sources_text">选择便捷的方式安装 Shizuku：</string>
+    <string name="shizuku_sources_play">Google Play</string>
+    <string name="shizuku_sources_aurora">Aurora Store</string>
+    <string name="shizuku_sources_getapps">GetApps（小米应用商店）</string>
+    <string name="shizuku_sources_github">GitHub</string>
+    <string name="shizuku_sources_apkpure">APKPure</string>
+
+    <!-- ========== 箭头提示 ========== -->
+    <string name="pointer_overlay_switch">打开此开关</string>
+    <string name="pointer_accessibility_item">在列表中找到"XiaoHyperCleaner"并打开开关</string>
+    <string name="pointer_restricted_blocked">无法启用服务？</string>
+    <string name="pointer_restricted_explain">系统暂时限制了访问。点击应用卡片中的 ⋮ 并允许访问 — 只需 10 秒。</string>
+
+    <!-- ========== 位置澄清 ========== -->
+    <string name="pointer_restricted_generic">找到"允许受限设置" — 通常在顶部 ⋮ 菜单或此界面底部</string>
+    <string name="pointer_restricted_not_found_title">找不到该项目？</string>
+    <string name="pointer_restricted_location_question">您的设备上受限设置权限在哪里？</string>
+    <string name="pointer_restricted_menu_option">在 ⋮ 菜单中（右上角）</string>
+    <string name="pointer_restricted_bottom_option">在设置列表底部</string>
+    <string name="pointer_restricted_absent_option">没有此项目</string>
+    <string name="pointer_restricted_top_hint">点击 ⋮ 并选择"允许受限设置"</string>
+    <string name="pointer_restricted_bottom_hint">向下滚动并启用"允许受限设置"</string>
+
+    <!-- ========== 无障碍政策声明 ========== -->
+    <string name="accessibility_policy_summary">为行动不便的用户自动化设置导航以节省时间</string>
+    <string name="accessibility_policy_description">XiaoHyperCleaner 无障碍服务仅在用户明确请求时用于自动导航 Android 系统设置。该服务不会绕过隐私控制、不会在未经明确同意的情况下更改设置、也不会收集用户数据。所有操作均在设备本地执行。该服务仅在用户明确同意后激活，并可随时在 Android 设置中禁用。该服务的使用完全符合无障碍服务 API 政策。</string>
+
+    <!-- ========== 同意对话框 ========== -->
+    <string name="consent_dialog_title">服务使用同意</string>
+    <string name="consent_dialog_text">为了自动配置应用，无障碍服务将代表您点击系统设置中的按钮。该服务：\n\n• 不会绕过隐私控制\n• 不会在未经您同意的情况下更改设置\n• 不会向外发送数据\n• 可随时禁用</string>
+    <string name="consent_checkbox_label">我理解并同意使用无障碍服务自动化设置导航</string>
+    <string name="consent_confirm_button">同意并继续</string>
+    <string name="consent_cancel_button">取消</string>
+
+    <!-- ========== 3 次失败后的后备对话框 ========== -->
+    <string name="fallback_accessibility_title">无法自动启用服务</string>
+    <string name="fallback_accessibility_text">经过 3 次尝试，系统不允许启用该服务。很可能您需要在应用卡片中允许"受限设置"。请按以下步骤操作：\n\n1. 点击下方"打开设置"\n2. 在应用卡片中点击 ⋮（右上角）\n3. 选择"允许受限设置"\n4. 返回应用并点击"重试"</string>
+    <string name="fallback_overlay_title">无法启用悬浮窗</string>
+    <string name="fallback_overlay_text">经过 3 次尝试未获得权限。请手动打开设置并启用"允许在其他应用上层显示"。</string>
+    <string name="fallback_retry">重试</string>
+    <string name="fallback_open_settings">打开设置</string>
+    <string name="fallback_cancel">取消优化</string>
+
+    <!-- ========== APP_INFO 阶段的后备 ========== -->
+    <string name="fallback_appinfo_title">无法打开应用设置</string>
+    <string name="fallback_appinfo_text">经过 3 次尝试我们无法访问应用设置。请通过 设置 → 应用 → XiaoHyperCleaner 手动打开，并允许"受限设置"。</string>
+
+    <!-- ========== 箭头提示卡片 ========== -->
+    <string name="pointer_hint_accessibility">在服务列表中找到"XiaoHyperCleaner"并打开右侧的开关</string>
+    <string name="pointer_hint_overlay">打开此开关以允许显示提示</string>
+    <string name="hint_restricted">在此界面找到"允许受限设置"开关。如果找不到，请点击右上角的 ⋮</string>
+
+    <!-- ========== 受限设置界面 ========== -->
+    <string name="restricted_screen_title">解锁系统设置</string>
+    <string name="restricted_screen_intro">要配置隐私设置，您需要允许更改受限设置。这是 Android 13+ 对非 Google Play 安装的应用的系统要求。</string>
+    <string name="restricted_screen_step1">打开"设置" → "应用" → 找到"XiaoHyperCleaner"</string>
+    <string name="restricted_screen_step2">找到"允许受限设置"（或在 HyperOS 中为"禁止的设置"）开关并打开</string>
+    <string name="restricted_screen_step3">使用指纹或密码确认</string>
+    <string name="restricted_screen_open">打开应用设置</string>
+    <string name="restricted_screen_done">我已允许，继续</string>
+
+    <!-- ========== 视觉指南（自适应） ========== -->
+    <string name="restricted_guide_title">一次性访问权限</string>
+    <string name="restricted_guide_simple">我们会告诉您点哪里。只需 30 秒。</string>
+    <string name="restricted_guide_look_main">在打开的窗口中，找到下面的行并打开开关：</string>
+    <string name="restricted_guide_look_menu">第一次没成功？点击顶部的三个点 ⋮ 并选择：</string>
+    <string name="restricted_row_name">允许受限设置</string>
+    <string name="restricted_guide_turn_on">打开此开关</string>
+    <string name="restricted_guide_tap_here">点击这里</string>
+    <string name="restricted_guide_confirm">手机会要求指纹或密码 — 这是正常的，它在保护自己。</string>
+    <string name="restricted_guide_not_found">如果没有此项目 — 在某些固件上它被称为"禁止的设置"。</string>
+
+    <!-- ========== 电池优化 ========== -->
+    <string name="battery_dialog_title">电池优化</string>
+    <string name="battery_dialog_text">为了无障碍服务稳定运行，建议为 XiaoHyperCleaner 禁用电池优化。否则系统可能会在几分钟后停止自动化。</string>
+    <string name="battery_dialog_open">打开电池设置</string>
+    <string name="battery_dialog_skip">跳过</string>
+    <string name="hint_battery_optimization">选择"无限制"或"不优化"</string>
+
+    <!-- ========== 自动化（机器猫） ========== -->
+    <string name="automation_title">机器猫正在清理…</string>
+    <string name="automation_step">第 %1$d 步，共 %2$d 步</string>
+    <string name="automation_cancel">取消优化</string>
+    <string name="automation_status_search">正在查找：%s…</string>
+    <string name="automation_status_done">完成，正在验证…</string>
+    <string name="automation_status_fail">无法完成，继续下一步…</string>
+    <string name="automation_status_skip">应用未安装 — 跳过</string>
+    <string name="result_title">完成！猫咪很满意 🧡</string>
+    <string name="result_summary">已完成 %1$d / %2$d 步</string>
+    <string name="result_skipped">已跳过（设备上不存在）：%d</string>
+    <string name="result_failed">无法完成（系统保护）：%d</string>
+    <string name="result_soft">如果有帮助 — 欢迎评价或支持。这能帮助其他人找到这款应用。</string>
+    <string name="result_rate">评价</string>
+    <string name="result_support">支持</string>
+    <string name="result_close">关闭</string>
+</resources>

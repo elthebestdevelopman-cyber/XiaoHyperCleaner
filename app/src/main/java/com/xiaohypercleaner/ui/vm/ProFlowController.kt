@@ -2,6 +2,7 @@ package com.xiaohypercleaner.ui.vm
 
 import android.app.Application
 import android.content.Intent
+import com.xiaohypercleaner.AppDependencies
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationEngine
 import com.xiaohypercleaner.data.PreferencesManager
@@ -16,9 +17,33 @@ import kotlinx.coroutines.launch
 /**
  * Делегат PRO-цепочки (Shizuku/ADB): переходы разрешений, авто-редиректы,
  * запуск цепочки, откат, перезагрузка, диалоги dev-mode.
- * Снимает с MainViewModel ~250 строк.
+ *
+ * Снимает с MainViewModel ~250 строк сложной логики управления состоянием.
+ *
+ * Архитектура:
+ * 1. `proceedToChain()` — точка входа после выбора опций
+ * 2. `handleRefresh()` — вызывается при возврате из настроек
+ * 3. `advance()` — машина состояний: accessibility → overlay → start chain
+ * 4. `startChain()` — запуск OptimizationEngine через AdbEnablerService
+ * 5. Redirect-логика — автоматические редиректы при отказе в разрешениях
  *
  * Теги логов оставлены "MainVM", чтобы logcat-фильтры продолжали работать.
+ *
+ * УЛУЧШЕНИЯ:
+ * 1. Явные типы для всех переменных
+ * 2. Полный JavaDoc для класса, конструктора, полей и методов
+ * 3. Комментарии для сложной redirect-логики
+ * 4. Импортирован AppDependencies для явных типов
+ *
+ * @param app Application контекст
+ * @param prefs PreferencesManager для работы с DataStore
+ * @param getState Функция получения текущего MainUiState
+ * @param update Функция обновления MainUiState (DSL-паттерн)
+ * @param openAccessibilityWithHint Callback для открытия настроек Accessibility с подсказкой
+ * @param openAppInfoWithHint Callback для открытия App Info с подсказкой
+ * @param openAccessibilitySettings Callback для открытия настроек Accessibility
+ * @param openOverlaySettings Callback для открытия настроек Overlay
+ * @param scope CoroutineScope для асинхронных операций (обычно viewModelScope)
  */
 class ProFlowController(
     private val app: Application,
@@ -32,15 +57,34 @@ class ProFlowController(
     private val scope: CoroutineScope
 ) {
     companion object {
+        /** TAG для логирования (оставлен "MainVM" для совместимости с logcat-фильтрами) */
         private const val TAG = "MainVM"
     }
 
+    /**
+     * Тип последнего редиректа для предотвращения бесконечных циклов.
+     *
+     * Используется в handleRefresh() для определения, куда редиректить пользователя
+     * при отказе в разрешениях:
+     * - NONE — редирект не активен
+     * - ACCESSIBILITY — последний редирект был в настройки Accessibility
+     * - APP_INFO — последний редирект был в App Info (для разблокировки restricted)
+     */
     private enum class Redirect { NONE, ACCESSIBILITY, APP_INFO }
 
-    private var flowActive = false
-    private var lastRedirect = Redirect.NONE
-    private var restrictedFlowStarted = false
+    /** Активна ли PRO-цепочка (запущена через proceedToChain) */
+    private var flowActive: Boolean = false
 
+    /** Тип последнего редиректа (для предотвращения циклов) */
+    private var lastRedirect: Redirect = Redirect.NONE
+
+    /** Был ли уже запущен restricted flow (для loop breaker) */
+    private var restrictedFlowStarted: Boolean = false
+
+    /**
+     * Точка входа в PRO-цепочку.
+     * Вызывается после подтверждения опций (DNS filter, aggressive mode).
+     */
     fun proceedToChain() {
         AppLog.i(TAG, "proceedToChain")
         flowActive = true
@@ -48,51 +92,67 @@ class ProFlowController(
     }
 
     /**
-     * PRO-ветка refreshStatuses: авто-продолжение цепочки и редиректы
-     * при отказе в accessibility/overlay. Возвращает управление вызывающему —
-     * Simple Mode обрабатывается ДО этого вызова и сюда не доходит.
+     * PRO-ветка refreshStatuses: авто-продвижение цепочки и редиректы
+     * при отказе в accessibility/overlay.
+     *
+     * Логика redirect (предотвращение бесконечных циклов):
+     * 1. Пользователь отказал в accessibility → редирект в APP_INFO
+     * 2. Пользователь вернулся из APP_INFO без результата → редирект в ACCESSIBILITY
+     * 3. Пользователь снова отказал → показ restricted dialog (loop breaker)
+     *
+     * Возвращает управление вызывающему — Simple Mode обрабатывается ДО этого вызова.
+     *
+     * @param acc Текущий статус Accessibility Service
+     * @param overlay Текущий статус Overlay permission
+     * @param prevState Предыдущее состояние UI (для определения изменений)
      */
     fun handleRefresh(acc: Boolean, overlay: Boolean, prevState: MainUiState) {
         if (!flowActive) return
 
-        val accessibilityJustChanged = !prevState.previousAccessibility && acc
-        val overlayJustChanged = !prevState.previousOverlay && overlay
+        val accessibilityJustChanged: Boolean = !prevState.previousAccessibility && acc
+        val overlayJustChanged: Boolean = !prevState.previousOverlay && overlay
 
         when {
+            // Accessibility только что включён → продолжаем цепочку
             accessibilityJustChanged -> {
-                AppLog.i(TAG, "refreshStatuses: accessibility just enabled, continuing chain")
+                AppLog.i(TAG, "handleRefresh: accessibility just enabled, continuing chain")
                 resetRedirectFlow()
                 update { it.copy(accessibilityAttempts = 0) }
                 advance()
             }
 
+            // Overlay только что включён → продолжаем цепочку
             overlayJustChanged -> {
-                AppLog.i(TAG, "refreshStatuses: overlay just enabled, continuing chain")
+                AppLog.i(TAG, "handleRefresh: overlay just enabled, continuing chain")
                 update { it.copy(overlayAttempts = 0) }
                 advance()
             }
 
+            // Пользователь отказал в accessibility после попытки → redirect логика
             !acc && prevState.accessibilityAttempts > 0 -> {
-                AppLog.i(TAG, "refreshStatuses: accessibility not enabled after attempt")
+                AppLog.i(TAG, "handleRefresh: accessibility not enabled after attempt")
                 when {
+                    // Первый отказ → редирект в APP_INFO (для разблокировки restricted)
                     lastRedirect == Redirect.ACCESSIBILITY && !restrictedFlowStarted -> {
-                        AppLog.i(TAG, "refreshStatuses: denied — auto-redirect to app info")
+                        AppLog.i(TAG, "handleRefresh: denied — auto-redirect to app info")
                         restrictedFlowStarted = true
                         lastRedirect = Redirect.APP_INFO
                         openAppInfoWithHint()
                     }
 
+                    // Вернулся из APP_INFO без результата → редирект обратно в ACCESSIBILITY
                     lastRedirect == Redirect.APP_INFO -> {
                         AppLog.i(
                             TAG,
-                            "refreshStatuses: back from app info — auto-redirect to accessibility"
+                            "handleRefresh: back from app info — auto-redirect to accessibility"
                         )
                         lastRedirect = Redirect.ACCESSIBILITY
                         openAccessibilityWithHint()
                     }
 
+                    // Loop breaker — пользователь уже пробовал оба пути, показываем диалог
                     else -> {
-                        AppLog.i(TAG, "refreshStatuses: loop breaker — showing restricted dialog")
+                        AppLog.i(TAG, "handleRefresh: loop breaker — showing restricted dialog")
                         update {
                             it.copy(
                                 showRestrictedDialog = true,
@@ -105,10 +165,11 @@ class ProFlowController(
                 }
             }
 
+            // Пользователь отказал в overlay после попытки → показываем диалог снова
             !overlay && prevState.overlayAttempts > 0 -> {
                 AppLog.i(
                     TAG,
-                    "refreshStatuses: overlay not enabled after attempt, showing dialog again"
+                    "handleRefresh: overlay not enabled after attempt, showing dialog again"
                 )
                 update {
                     it.copy(
@@ -119,13 +180,18 @@ class ProFlowController(
                 }
             }
 
+            // Нет изменений → продолжаем цепочку
             else -> advance()
         }
     }
 
-    /** PRO-ветка dialogAgreed */
+    /**
+     * Обрабатывает подтверждение диалога (accessibility или overlay).
+     * Увеличивает счётчик попыток и открывает соответствующие настройки.
+     */
     fun dialogAgreed() {
-        val s = getState()
+        val s: MainUiState = getState()
+
         if (s.showAccessibilityDialog) {
             update {
                 it.copy(
@@ -159,7 +225,10 @@ class ProFlowController(
         }
     }
 
-    /** PRO-ветка dialogCancelled */
+    /**
+     * Обрабатывает отмену диалога.
+     * Сбрасывает flowActive и все счётчики попыток.
+     */
     fun dialogCancelled() {
         flowActive = false
         resetRedirectFlow()
@@ -175,6 +244,10 @@ class ProFlowController(
         }
     }
 
+    /**
+     * Пользователь согласился с restricted dialog.
+     * Редирект в App Info для разблокировки restricted settings.
+     */
     fun restrictedDialogAgreed() {
         update {
             it.copy(
@@ -187,6 +260,10 @@ class ProFlowController(
         openAppInfoWithHint()
     }
 
+    /**
+     * Пользователь отменил restricted dialog.
+     * Сбрасывает flowActive и все счётчики.
+     */
     fun restrictedDialogCancelled() {
         flowActive = false
         resetRedirectFlow()
@@ -204,8 +281,16 @@ class ProFlowController(
     // Запуск цепочки
     // ═══════════════════════════════════════════════════════════════
 
+    /**
+     * Машина состояний: проверяет разрешения и показывает нужный диалог.
+     *
+     * Порядок проверки:
+     * 1. Accessibility → если нет, показываем диалог
+     * 2. Overlay → если нет, показываем диалог
+     * 3. Всё есть → запускаем цепочку
+     */
     private fun advance() {
-        val s = getState()
+        val s: MainUiState = getState()
         AppLog.i(TAG, "advance: acc=${s.isAccessibilityEnabled}, overlay=${s.isOverlayGranted}")
 
         when {
@@ -250,25 +335,37 @@ class ProFlowController(
         }
     }
 
+    /**
+     * Запускает цепочку оптимизации через AdbEnablerService.
+     *
+     * Сохраняет pending flag в DataStore, затем:
+     * - Если accessibility уже включён → запускает сервис напрямую
+     * - Иначе → открывает настройки accessibility с флагом waitingAccessibilityReturn
+     */
     private fun startChain() {
+        val currentState: MainUiState = getState()
         AppLog.i(
             TAG,
-            "startChain: setting pending flag, dnsFilter=${getState().dnsFilterEnabled}, aggressive=${getState().aggressiveMode}"
+            "startChain: setting pending flag, dnsFilter=${currentState.dnsFilterEnabled}, " +
+                    "aggressive=${currentState.aggressiveMode}"
         )
 
         scope.launch {
             prefs.setPendingOptimization(true)
-            prefs.setDnsFilterEnabled(getState().dnsFilterEnabled)
-            prefs.setAggressiveMode(getState().aggressiveMode)
+            prefs.setDnsFilterEnabled(currentState.dnsFilterEnabled)
+            prefs.setAggressiveMode(currentState.aggressiveMode)
             AppLog.i(TAG, "startChain: pending flag set")
 
-            if (getState().isAccessibilityEnabled) {
+            // Повторная проверка состояния (защита от race condition)
+            val freshState: MainUiState = getState()
+            if (freshState.isAccessibilityEnabled) {
                 AppLog.i(
                     TAG,
                     "startChain: accessibility already enabled, starting service directly"
                 )
-                val intent = Intent(app, AdbEnablerService::class.java)
-                intent.action = AdbEnablerService.ACTION_START_CHAIN
+                val intent: Intent = Intent(app, AdbEnablerService::class.java).apply {
+                    action = AdbEnablerService.ACTION_START_CHAIN
+                }
                 app.startService(intent)
             } else {
                 AppLog.i(TAG, "startChain: opening accessibility settings")
@@ -278,6 +375,10 @@ class ProFlowController(
         }
     }
 
+    /**
+     * Сбрасывает состояние redirect-логики.
+     * Вызывается при успешном завершении или отмене цепочки.
+     */
     private fun resetRedirectFlow() {
         lastRedirect = Redirect.NONE
         restrictedFlowStarted = false
@@ -287,17 +388,22 @@ class ProFlowController(
     // Откат / перезагрузка / dev-mode
     // ═══════════════════════════════════════════════════════════════
 
+    /**
+     * Откатывает все изменения оптимизации.
+     * Вызывается из диалога подтверждения.
+     */
     fun restoreOptimization() {
         if (getState().isWorking) return
 
         scope.launch {
             try {
                 update { it.copy(isWorking = true, progress = 0f) }
-                val deps = XiaoHyperApp.testDeps ?: (app as XiaoHyperApp).deps
-                val ok = deps.newEngine().restore(
+                val deps: AppDependencies = XiaoHyperApp.testDeps ?: (app as XiaoHyperApp).deps
+                val ok: Boolean = deps.newEngine().restore(
                     OptimizationEngine.Callbacks(
-                    onProgress = { p -> update { it.copy(progress = p) } }
-                ))
+                        onProgress = { p: Float -> update { it.copy(progress = p) } }
+                    )
+                )
 
                 if (ok) {
                     prefs.setHiddenSettingsApplied(false)
@@ -312,13 +418,17 @@ class ProFlowController(
         }
     }
 
+    /**
+     * Подтверждает перезагрузку устройства.
+     * Вызывается из диалога подтверждения.
+     */
     fun confirmReboot() {
         update { it.copy(showRebootDialog = false, isWorking = true) }
 
         scope.launch {
             try {
-                val deps = XiaoHyperApp.testDeps ?: (app as XiaoHyperApp).deps
-                val ok = deps.newEngine().reboot()
+                val deps: AppDependencies = XiaoHyperApp.testDeps ?: (app as XiaoHyperApp).deps
+                val ok: Boolean = deps.newEngine().reboot()
                 update { it.copy(isWorking = false, rebootFailed = !ok) }
             } catch (e: Exception) {
                 AppLog.e(TAG, "reboot failed: ${e.message}", e)
@@ -327,22 +437,35 @@ class ProFlowController(
         }
     }
 
+    /** Показывает диалог подтверждения перезагрузки */
     fun requestReboot() = update { it.copy(showRebootDialog = true) }
 
+    /** Скрывает диалог подтверждения перезагрузки */
     fun dismissRebootDialog() = update { it.copy(showRebootDialog = false) }
 
+    /** Скрывает диалог ошибки перезагрузки */
     fun dismissRebootFailed() = update { it.copy(rebootFailed = false) }
 
+    /** Скрывает диалог ошибки отката */
     fun dismissRestoreFailed() = update { it.copy(restoreFailed = false) }
 
+    /**
+     * Повторяет попытку после диалога "нужен режим разработчика".
+     * Перезапускает AdbEnablerService с ACTION_RETRY_DEV.
+     */
     fun devModeDialogRetry() {
         AppLog.i(TAG, "devModeDialog: retry — resuming chain (service will restart overlay)")
         update { it.copy(showDevModeDialog = false) }
-        val intent = Intent(app, AdbEnablerService::class.java)
-        intent.action = AdbEnablerService.ACTION_RETRY_DEV
+        val intent: Intent = Intent(app, AdbEnablerService::class.java).apply {
+            action = AdbEnablerService.ACTION_RETRY_DEV
+        }
         app.startService(intent)
     }
 
+    /**
+     * Отменяет цепочку после диалога "нужен режим разработчика".
+     * Вызывает OverlayController.triggerCancel() для остановки оверлея.
+     */
     fun devModeDialogCancel() {
         AppLog.i(TAG, "devModeDialog: cancel — stopping chain")
         update { it.copy(showDevModeDialog = false) }

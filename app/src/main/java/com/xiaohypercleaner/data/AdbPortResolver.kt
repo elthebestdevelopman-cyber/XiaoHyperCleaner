@@ -6,8 +6,11 @@ import android.net.nsd.NsdServiceInfo
 import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.util.AppLog
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
@@ -16,13 +19,18 @@ import kotlin.coroutines.resume
  * Обнаруживает ADB порты через mDNS (multicast DNS).
  * Используется для автоматического поиска устройств с включенным wireless debugging.
  *
- * УЛУЧШЕНИЯ:
- * 1. resolveAsync() — неблокирующая версия для корутин
- * 2. Опциональное кэширование результатов
- * 3. Детальное логирование найденных сервисов
- * 4. Защита от повторного discovery
+ * АРХИТЕКТУРА:
+ * - resolve() — блокирующая версия для background threads
+ * - resolveAsync() — неблокирующая версия для корутин
+ * - Внутреннее кэширование на 30 секунд для избежания повторных запросов
+ * - Поддержка нового (Android 11+) и legacy типов сервисов
+ *
+ * ИСПРАВЛЕНИЯ:
+ * 1. 🔴 Убран GlobalScope.launch — теперь используется coroutineScope
+ * 2. 🟡 Таймаут связан с lifecycle корутины через withTimeoutOrNull
+ * 3. 🟡 Вынесена общая логика listener'а в helper-метод
+ * 4. 🟢 Улучшена обработка ошибок и логирование
  */
-@Suppress("DEPRECATION")
 class AdbPortResolver(private val context: Context) {
 
     companion object {
@@ -38,7 +46,7 @@ class AdbPortResolver(private val context: Context) {
             (discovered + fallback).distinct()
     }
 
-    /** Кэш последних обнаруженных портов (опционально) */
+    /** Кэш последних обнаруженных портов */
     private var cachedPorts: List<Int>? = null
     private var cacheTimestamp: Long = 0L
     private val cacheValidMs: Long = 30_000L // 30 секунд
@@ -71,6 +79,9 @@ class AdbPortResolver(private val context: Context) {
      * Неблокирующая версия resolve() для использования в корутинах.
      * НЕ блокирует поток, использует suspendCancellableCoroutine.
      *
+     * ИСПРАВЛЕНО: больше не использует GlobalScope для таймаута —
+     * теперь таймаут связан с lifecycle корутины через withTimeoutOrNull.
+     *
      * @return список обнаруженных портов (может быть пустым)
      */
     suspend fun resolveAsync(): List<Int> = withContext(Dispatchers.IO) {
@@ -81,7 +92,13 @@ class AdbPortResolver(private val context: Context) {
             return@withContext cached
         }
 
-        val discovered = discoverMdnsAsync()
+        // ИСПРАВЛЕНО: используем withTimeoutOrNull вместо GlobalScope.launch
+        val discovered = withTimeoutOrNull(AppConstants.PORT_DISCOVERY_TIMEOUT_MS) {
+            discoverMdnsAsync()
+        } ?: emptyList<Int>().also {
+            AppLog.w(TAG, "resolveAsync: timeout after ${AppConstants.PORT_DISCOVERY_TIMEOUT_MS}ms")
+        }
+
         val result = mergePorts(discovered, AppConstants.ADB_DEFAULT_PORT)
 
         // Сохраняем в кэш
@@ -107,6 +124,7 @@ class AdbPortResolver(private val context: Context) {
      *
      * @return список обнаруженных портов
      */
+    @Suppress("DEPRECATION")
     private fun discoverMdns(): List<Int> {
         val foundPorts = mutableListOf<Int>()
         val foundServices = mutableListOf<String>()
@@ -119,27 +137,16 @@ class AdbPortResolver(private val context: Context) {
                 return emptyList()
             }
 
-            val listener = createDiscoveryListener(nsdManager, foundPorts, foundServices, latch)
+            val listener = createDiscoveryListener(
+                nsdManager = nsdManager,
+                foundPorts = foundPorts,
+                foundServices = foundServices,
+                onComplete = { latch.countDown() }
+            )
 
-            // Пробуем новый тип сервиса (Android 11+)
-            try {
-                nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
-            } catch (e: Exception) {
-                AppLog.w(TAG, "discoverMdns: new service type failed, trying legacy: ${e.message}")
-                // Fallback на legacy тип
-                try {
-                    nsdManager.discoverServices(
-                        SERVICE_TYPE_LEGACY,
-                        NsdManager.PROTOCOL_DNS_SD,
-                        listener
-                    )
-                } catch (e2: Exception) {
-                    AppLog.e(TAG, "discoverMdns: legacy service type also failed: ${e2.message}")
-                    latch.countDown()
-                }
-            }
+            startDiscoveryWithFallback(nsdManager, listener)
 
-            // Ждем завершения discovery
+            // Ждём завершения discovery
             val completed = latch.await(
                 AppConstants.PORT_DISCOVERY_TIMEOUT_MS,
                 TimeUnit.MILLISECONDS
@@ -153,11 +160,7 @@ class AdbPortResolver(private val context: Context) {
             }
 
             // Останавливаем discovery
-            try {
-                nsdManager.stopServiceDiscovery(listener)
-            } catch (e: Exception) {
-                AppLog.w(TAG, "discoverMdns: stopServiceDiscovery failed: ${e.message}")
-            }
+            stopDiscoverySafely(nsdManager, listener)
 
         } catch (e: Exception) {
             AppLog.e(TAG, "discoverMdns: exception: ${e.message}")
@@ -170,159 +173,78 @@ class AdbPortResolver(private val context: Context) {
 
     /**
      * Неблокирующая версия discoverMdns() для корутин.
+     *
+     * ИСПРАВЛЕНО: таймаут теперь управляется снаружи через withTimeoutOrNull,
+     * что гарантирует корректную отмену при таймауте.
      */
-    private suspend fun discoverMdnsAsync(): List<Int> = suspendCancellableCoroutine { cont ->
-        val foundPorts = mutableListOf<Int>()
-        val foundServices = mutableListOf<String>()
+    @Suppress("DEPRECATION")
+    private suspend fun discoverMdnsAsync(): List<Int> = coroutineScope {
+        suspendCancellableCoroutine { cont ->
+            val foundPorts = mutableListOf<Int>()
+            val foundServices = mutableListOf<String>()
 
-        try {
-            val nsdManager = context.getSystemService(Context.NSD_SERVICE) as? NsdManager
-            if (nsdManager == null) {
-                AppLog.w(TAG, "discoverMdnsAsync: NSD_SERVICE not available")
-                cont.resume(emptyList())
-                return@suspendCancellableCoroutine
-            }
-
-            val listener = object : NsdManager.DiscoveryListener {
-                override fun onDiscoveryStarted(regType: String) {
-                    AppLog.i(TAG, "discoverMdnsAsync: discovery started")
-                }
-
-                override fun onServiceFound(service: NsdServiceInfo) {
-                    AppLog.i(TAG, "discoverMdnsAsync: service found: ${service.serviceName}")
-
-                    try {
-                        nsdManager.resolveService(service, object : NsdManager.ResolveListener {
-                            override fun onResolveFailed(
-                                serviceInfo: NsdServiceInfo,
-                                errorCode: Int
-                            ) {
-                                AppLog.w(
-                                    TAG,
-                                    "discoverMdnsAsync: resolve failed for ${serviceInfo.serviceName}, error=$errorCode"
-                                )
-                            }
-
-                            override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
-                                val port = serviceInfo.port
-                                if (port > 0) {
-                                    synchronized(foundPorts) {
-                                        foundPorts.add(port)
-                                        foundServices.add(serviceInfo.serviceName)
-                                    }
-                                    AppLog.i(
-                                        TAG,
-                                        "discoverMdnsAsync: resolved ${serviceInfo.serviceName} on port $port"
-                                    )
-                                }
-                            }
-                        })
-                    } catch (e: Exception) {
-                        AppLog.e(
-                            TAG,
-                            "discoverMdnsAsync: exception resolving service: ${e.message}"
-                        )
-                    }
-                }
-
-                override fun onServiceLost(service: NsdServiceInfo) {
-                    AppLog.i(TAG, "discoverMdnsAsync: service lost: ${service.serviceName}")
-                }
-
-                override fun onDiscoveryStopped(serviceType: String) {
-                    AppLog.i(TAG, "discoverMdnsAsync: discovery stopped")
-                    if (cont.isActive) {
-                        cont.resume(foundPorts.toList())
-                    }
-                }
-
-                override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-                    AppLog.e(TAG, "discoverMdnsAsync: start discovery failed, error=$errorCode")
-                    if (cont.isActive) {
-                        cont.resume(emptyList())
-                    }
-                }
-
-                override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-                    AppLog.e(TAG, "discoverMdnsAsync: stop discovery failed, error=$errorCode")
-                    if (cont.isActive) {
-                        cont.resume(foundPorts.toList())
-                    }
-                }
-            }
-
-            // Обработка отмены корутины
-            cont.invokeOnCancellation {
-                try {
-                    nsdManager.stopServiceDiscovery(listener)
-                } catch (e: Exception) {
-                    AppLog.w(TAG, "discoverMdnsAsync: cancellation stop failed: ${e.message}")
-                }
-            }
-
-            // Пробуем новый тип сервиса
             try {
-                nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
-            } catch (e: Exception) {
-                AppLog.w(
-                    TAG,
-                    "discoverMdnsAsync: new service type failed, trying legacy: ${e.message}"
+                val nsdManager = context.getSystemService(Context.NSD_SERVICE) as? NsdManager
+                if (nsdManager == null) {
+                    AppLog.w(TAG, "discoverMdnsAsync: NSD_SERVICE not available")
+                    if (cont.isActive) cont.resume(emptyList())
+                    return@suspendCancellableCoroutine
+                }
+
+                val listener = createDiscoveryListener(
+                    nsdManager = nsdManager,
+                    foundPorts = foundPorts,
+                    foundServices = foundServices,
+                    onComplete = {
+                        AppLog.i(TAG, "discoverMdnsAsync: completed with ${foundPorts.size} ports")
+                        if (cont.isActive) {
+                            cont.resume(foundPorts.toList())
+                        }
+                    }
                 )
-                try {
-                    nsdManager.discoverServices(
-                        SERVICE_TYPE_LEGACY,
-                        NsdManager.PROTOCOL_DNS_SD,
-                        listener
-                    )
-                } catch (e2: Exception) {
-                    AppLog.e(
-                        TAG,
-                        "discoverMdnsAsync: legacy service type also failed: ${e2.message}"
-                    )
-                    if (cont.isActive) {
-                        cont.resume(emptyList())
-                    }
-                }
-            }
 
-            // Таймаут через coroutine delay
-            kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
-                kotlinx.coroutines.delay(AppConstants.PORT_DISCOVERY_TIMEOUT_MS)
+                // Обработка отмены корутины
+                cont.invokeOnCancellation {
+                    AppLog.i(TAG, "discoverMdnsAsync: coroutine cancelled, stopping discovery")
+                    stopDiscoverySafely(nsdManager, listener)
+                }
+
+                startDiscoveryWithFallback(nsdManager, listener)
+
+            } catch (e: Exception) {
+                AppLog.e(TAG, "discoverMdnsAsync: exception: ${e.message}")
                 if (cont.isActive) {
-                    AppLog.w(TAG, "discoverMdnsAsync: timeout, stopping discovery")
-                    try {
-                        nsdManager.stopServiceDiscovery(listener)
-                    } catch (e: Exception) {
-                        AppLog.w(TAG, "discoverMdnsAsync: timeout stop failed: ${e.message}")
-                    }
+                    cont.resume(emptyList())
                 }
-            }
-
-        } catch (e: Exception) {
-            AppLog.e(TAG, "discoverMdnsAsync: exception: ${e.message}")
-            if (cont.isActive) {
-                cont.resume(emptyList())
             }
         }
     }
 
     /**
      * Создаёт listener для mDNS discovery.
-     * Вынесен в отдельный метод для переиспользования.
+     *
+     * УНИВЕРСАЛЬНЫЙ: используется и в блокирующей (через onComplete → latch.countDown),
+     * и в асинхронной (через onComplete → cont.resume) версиях.
+     *
+     * @param nsdManager NsdManager для resolveService
+     * @param foundPorts список для накопления найденных портов (thread-safe через synchronized)
+     * @param foundServices список для накопления имен сервисов
+     * @param onComplete callback при завершении discovery (stopped/failed)
      */
+    @Suppress("DEPRECATION") // resolveService deprecated in API 34, but still functional
     private fun createDiscoveryListener(
         nsdManager: NsdManager,
         foundPorts: MutableList<Int>,
         foundServices: MutableList<String>,
-        latch: CountDownLatch
+        onComplete: () -> Unit
     ): NsdManager.DiscoveryListener {
         return object : NsdManager.DiscoveryListener {
             override fun onDiscoveryStarted(regType: String) {
-                AppLog.i(TAG, "discoverMdns: discovery started")
+                AppLog.i(TAG, "listener: discovery started for $regType")
             }
 
             override fun onServiceFound(service: NsdServiceInfo) {
-                AppLog.i(TAG, "discoverMdns: service found: ${service.serviceName}")
+                AppLog.i(TAG, "listener: service found: ${service.serviceName}")
 
                 try {
                     nsdManager.resolveService(service, object : NsdManager.ResolveListener {
@@ -332,7 +254,7 @@ class AdbPortResolver(private val context: Context) {
                         ) {
                             AppLog.w(
                                 TAG,
-                                "discoverMdns: resolve failed for ${serviceInfo.serviceName}, error=$errorCode"
+                                "listener: resolve failed for ${serviceInfo.serviceName}, error=$errorCode"
                             )
                         }
 
@@ -345,34 +267,87 @@ class AdbPortResolver(private val context: Context) {
                                 }
                                 AppLog.i(
                                     TAG,
-                                    "discoverMdns: resolved ${serviceInfo.serviceName} on port $port"
+                                    "listener: resolved ${serviceInfo.serviceName} on port $port"
+                                )
+                            } else {
+                                AppLog.w(
+                                    TAG,
+                                    "listener: resolved ${serviceInfo.serviceName} but port=$port (invalid)"
                                 )
                             }
                         }
                     })
                 } catch (e: Exception) {
-                    AppLog.e(TAG, "discoverMdns: exception resolving service: ${e.message}")
+                    AppLog.e(
+                        TAG,
+                        "listener: exception resolving service: ${e.message}"
+                    )
                 }
             }
 
             override fun onServiceLost(service: NsdServiceInfo) {
-                AppLog.i(TAG, "discoverMdns: service lost: ${service.serviceName}")
+                AppLog.i(TAG, "listener: service lost: ${service.serviceName}")
             }
 
             override fun onDiscoveryStopped(serviceType: String) {
-                AppLog.i(TAG, "discoverMdns: discovery stopped")
-                latch.countDown()
+                AppLog.i(TAG, "listener: discovery stopped for $serviceType")
+                onComplete()
             }
 
             override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-                AppLog.e(TAG, "discoverMdns: start discovery failed, error=$errorCode")
-                latch.countDown()
+                AppLog.e(TAG, "listener: start discovery failed for $serviceType, error=$errorCode")
+                onComplete()
             }
 
             override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-                AppLog.e(TAG, "discoverMdns: stop discovery failed, error=$errorCode")
-                latch.countDown()
+                AppLog.e(TAG, "listener: stop discovery failed for $serviceType, error=$errorCode")
+                onComplete()
             }
+        }
+    }
+
+    /**
+     * Запускает discovery с fallback'ом на legacy тип сервиса.
+     *
+     * Логика:
+     * 1. Пробуем новый тип (_adb-tls-connect._tcp.) — Android 11+
+     * 2. Если не получилось — пробуем legacy (_adb._tcp.) — Android 10 и ниже
+     * 3. Если оба не сработали — логируем ошибку (listener сам вызовет onComplete через onStartDiscoveryFailed)
+     */
+    private fun startDiscoveryWithFallback(
+        nsdManager: NsdManager,
+        listener: NsdManager.DiscoveryListener
+    ) {
+        try {
+            AppLog.i(TAG, "startDiscovery: trying new service type: $SERVICE_TYPE")
+            nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
+        } catch (e: Exception) {
+            AppLog.w(TAG, "startDiscovery: new service type failed: ${e.message}, trying legacy")
+            try {
+                nsdManager.discoverServices(
+                    SERVICE_TYPE_LEGACY,
+                    NsdManager.PROTOCOL_DNS_SD,
+                    listener
+                )
+            } catch (e2: Exception) {
+                AppLog.e(TAG, "startDiscovery: legacy service type also failed: ${e2.message}")
+                // listener.onStartDiscoveryFailed вызовет onComplete
+            }
+        }
+    }
+
+    /**
+     * Безопасно останавливает discovery, игнорируя исключения.
+     * Используется при таймауте, отмене корутины и нормальном завершении.
+     */
+    private fun stopDiscoverySafely(
+        nsdManager: NsdManager,
+        listener: NsdManager.DiscoveryListener
+    ) {
+        try {
+            nsdManager.stopServiceDiscovery(listener)
+        } catch (e: Exception) {
+            AppLog.w(TAG, "stopDiscoverySafely: failed: ${e.message}")
         }
     }
 }
