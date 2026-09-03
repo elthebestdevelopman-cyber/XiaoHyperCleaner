@@ -145,7 +145,8 @@ object ServiceRegistry {
         "secure limit_ad_tracking" to "1",      // Ограничивает трекинг для персонализации
         "secure user_experience_program" to "0", // Отключает программу улучшения UX (телеметрия)
         "secure upload_log_pref" to "0",         // Отключает автозагрузку логов на серверы Xiaomi
-        "secure show_recommendations" to "0"     // Отключает показ рекомендаций в системных приложениях
+        "secure show_recommendations" to "0",    // Отключает показ рекомендаций в системных приложениях
+        "system miui_recents_show_recommend" to "0" // Отключает рекламные предложения в недавних приложениях
     )
 
     /**
@@ -156,7 +157,8 @@ object ServiceRegistry {
         "secure limit_ad_tracking" to "0",
         "secure user_experience_program" to "1",
         "secure upload_log_pref" to "1",
-        "secure show_recommendations" to "1"
+        "secure show_recommendations" to "1",
+        "system miui_recents_show_recommend" to "1"
     )
 
     // ═══════════════════════════════════════════════════════════════

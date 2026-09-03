@@ -31,18 +31,18 @@
 
     <!--
         Группа с робокотом.
-        Масштаб 0.875: robocat 160×160 → ~140×140
-        Translate 50dp: центрирование в drawable 240×240
-        Отступы: (240-140)/2 = 50dp со всех сторон
+        Масштаб 0.65: robocat 160×160 → 104×104
+        Translate 68dp: центрирование в drawable 240×240
+        Радиус от центра до углов: sqrt(52^2 + 52^2) ≈ 73.5dp < 80dp (маска Android 12)
 
-        Это гарантирует, что ушки и хвостик не обрезаются
-        при применении маски Splash Screen.
+        Это гарантирует, что ушки, хвостик и усы НЕ обрезаются
+        круглой маской Splash Screen на Android 12+.
     -->
     <group
-        android:scaleX="0.875"
-        android:scaleY="0.875"
-        android:translateX="50"
-        android:translateY="50">
+        android:scaleX="0.65"
+        android:scaleY="0.65"
+        android:translateX="68"
+        android:translateY="68">
 
         <!-- Хвостик-антенна (за телом) -->
         <path

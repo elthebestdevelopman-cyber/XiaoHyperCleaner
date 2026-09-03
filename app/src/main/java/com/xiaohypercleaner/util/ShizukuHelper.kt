@@ -252,16 +252,38 @@ object ShizukuHelper {
     }
 
     /**
+     * Открывает экран беспроводной отладки (Android 11+).
+     * Нужен для старта Shizuku без ПК — новичкам это самый сложный шаг.
+     */
+    fun openWirelessDebuggingSettings(context: Context): Boolean {
+        val intents = listOf(
+            Intent("android.settings.APPLICATION_DEVELOPMENT_SETTINGS"),
+            Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS),
+            Intent("com.android.settings.APPLICATION_DEVELOPMENT_SETTINGS")
+        )
+        for (intent in intents) {
+            try {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (intent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(intent)
+                    AppLog.i(TAG, "Opened developer / wireless debugging settings")
+                    return true
+                }
+            } catch (e: Exception) {
+                AppLog.w(TAG, "openWirelessDebugging failed: ${e.message}")
+            }
+        }
+        return false
+    }
+
+    /**
      * Проверяет, что Shizuku установлен, запущен и имеет привилегии.
-     * ТРЕБУЕТ зависимость: rikka.shizuku:shizuku-api
-     *
-     * @return true, если Shizuku готов к использованию
      */
     fun isShizukuGranted(): Boolean {
         return try {
-            // rikka.shizuku.Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-            // rikka.shizuku.Shizuku.pingBinder()
-            false // TODO: реализовать при добавлении Shizuku API
+            rikka.shizuku.Shizuku.pingBinder() &&
+                rikka.shizuku.Shizuku.checkSelfPermission() ==
+                PackageManager.PERMISSION_GRANTED
         } catch (e: Exception) {
             AppLog.w(TAG, "Проверка привилегий Shizuku не удалась: ${e.message}")
             false

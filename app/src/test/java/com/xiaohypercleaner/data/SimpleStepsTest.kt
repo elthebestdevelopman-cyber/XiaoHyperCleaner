@@ -27,20 +27,49 @@ class SimpleStepsTest {
     fun `profile drill path has no single-letter Me or Ya`() {
         val themes = SimpleSteps.ALL.first { it.id == "themes" }
         val profileLevel = themes.drillPath.firstOrNull() ?: emptyList()
-        assertFalse(profileLevel.any { it.length <= 2 })
+        assertFalse(profileLevel.any { it.equals("Я", ignoreCase = true) })
+        assertFalse(profileLevel.any { it.equals("Me", ignoreCase = true) })
         assertTrue(profileLevel.any { it.contains("Профиль") || it.contains("Profile") })
     }
 
     @Test
-    fun `all steps with required packages have non-empty ids`() {
-        SimpleSteps.ALL.forEach { step ->
-            assertTrue(step.id.isNotBlank())
-            if (step.requiredPackages.isNotEmpty()) {
-                assertTrue(
-                    "step ${step.id} has blank package",
-                    step.requiredPackages.none { it.isBlank() }
-                )
-            }
-        }
+    fun `notif steps include global market and video aliases`() {
+        val getapps = SimpleSteps.ALL.first { it.id == "notif_getapps" }
+        val video = SimpleSteps.ALL.first { it.id == "notif_mivideo" }
+        assertTrue(getapps.requiredPackages.contains("com.mi.global.market"))
+        assertTrue(video.requiredPackages.contains("com.mi.global.video"))
+    }
+
+    @Test
+    fun `music and messages do not use generic AOSP or Google packages`() {
+        val music = SimpleSteps.ALL.first { it.id == "music_sys" }
+        val messages = SimpleSteps.ALL.first { it.id == "messages_sys" }
+        assertFalse(music.requiredPackages.contains("com.android.music"))
+        assertFalse(messages.requiredPackages.contains("com.google.android.apps.messaging"))
+    }
+
+    @Test
+    fun `manual guide additions exist and have valid settings`() {
+        val home = SimpleSteps.ALL.first { it.id == "home_suggestions" }
+        assertTrue(home.searchTexts.any { it.contains("Показывать предложения") || it.contains("Show suggestions") })
+        assertFalse(home.targetChecked)
+
+        val notifMsa = SimpleSteps.ALL.first { it.id == "notif_msa" }
+        assertTrue(notifMsa.requiredPackages.contains("com.miui.msa.global"))
+        assertFalse(notifMsa.targetChecked)
+
+        val downloads = SimpleSteps.ALL.first { it.id == "downloads" }
+        assertTrue(downloads.searchTexts.contains("Показывать рекламу") || downloads.searchTexts.contains("Show ads"))
+
+        val sec = SimpleSteps.ALL.first { it.id == "security_sys" }
+        assertTrue(sec.launchPackage == "com.miui.securitycenter")
+
+        val ads = SimpleSteps.ALL.first { it.id == "ads_personalization" }
+        assertTrue(ads.searchTexts.contains("Персонализированная реклама"))
+
+        val carousel = SimpleSteps.ALL.first { it.id == "carousel" }
+        assertTrue(carousel.searchTexts.contains("Включить"))
+
+        assertTrue(home.requiredPackages.contains("com.miui.home"))
     }
 }

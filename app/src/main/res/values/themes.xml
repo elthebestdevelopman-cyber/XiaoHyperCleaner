@@ -48,8 +48,8 @@
         <!-- Фон сплэша (брендовый синий) -->
         <item name="windowSplashScreenBackground">@color/splash_background</item>
 
-        <!-- ИСПРАВЛЕНО (beta12): робокот вместо абстрактной иконки -->
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_robot_companion</item>
+        <!-- Робокот со сбалансированным масштабом и безопасной зоной для круглого Splash Screen API (Android 12+) -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_icon</item>
 
         <!-- Длительность показа сплэша ДО начала exit-анимации (мс).
              Увеличено с 500 до 800, чтобы пользователь успел увидеть робокота

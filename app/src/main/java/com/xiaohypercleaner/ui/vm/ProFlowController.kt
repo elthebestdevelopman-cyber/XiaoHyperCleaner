@@ -6,6 +6,7 @@ import com.xiaohypercleaner.AppDependencies
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationEngine
 import com.xiaohypercleaner.data.PreferencesManager
+import com.xiaohypercleaner.data.RootExecutor
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.ChainFlags
 import com.xiaohypercleaner.service.OverlayController
@@ -399,17 +400,41 @@ class ProFlowController(
             try {
                 update { it.copy(isWorking = true, progress = 0f) }
                 val deps: AppDependencies = XiaoHyperApp.testDeps ?: (app as XiaoHyperApp).deps
-                val ok: Boolean = deps.newEngine().restore(
-                    OptimizationEngine.Callbacks(
-                        onProgress = { p: Float -> update { it.copy(progress = p) } }
-                    )
-                )
 
-                if (ok) {
-                    prefs.setHiddenSettingsApplied(false)
-                    update { it.copy(isWorking = false, isOptimized = false) }
-                } else {
-                    update { it.copy(isWorking = false, restoreFailed = true) }
+                // 1) ADB/Shizuku restore (Pro) — best effort
+                val adbOk = runCatching {
+                    deps.newEngine().restore(
+                        OptimizationEngine.Callbacks(
+                            onProgress = { p: Float -> update { it.copy(progress = p * 0.4f) } }
+                        )
+                    )
+                }.getOrDefault(false)
+
+                // 2) Simple Mode: реальный откат тумблеров (targetChecked инвертирован)
+                val toggled = prefs.getSimpleToggledSteps()
+                var simpleOk = toggled.isEmpty()
+                if (toggled.isNotEmpty()) {
+                    val svc = AdbEnablerService.instance
+                    if (svc != null) {
+                        AppLog.i(TAG, "restoreOptimization: reversing ${toggled.size} simple toggles")
+                        simpleOk = svc.reverseSimpleToggles(toggled) { p ->
+                            update { it.copy(progress = 0.4f + p * 0.6f) }
+                        }
+                    } else {
+                        AppLog.w(TAG, "restoreOptimization: accessibility offline, skip simple reverse")
+                        simpleOk = false
+                    }
+                }
+
+                prefs.clearSimpleToggledSteps()
+                prefs.setHiddenSettingsApplied(false)
+                update {
+                    it.copy(
+                        isWorking = false,
+                        isOptimized = false,
+                        // Успех если хоть один канал отработал, или откатывать было нечего
+                        restoreFailed = !adbOk && !simpleOk
+                    )
                 }
             } catch (e: Exception) {
                 AppLog.e(TAG, "restore failed: ${e.message}", e)
@@ -427,8 +452,15 @@ class ProFlowController(
 
         scope.launch {
             try {
-                val deps: AppDependencies = XiaoHyperApp.testDeps ?: (app as XiaoHyperApp).deps
-                val ok: Boolean = deps.newEngine().reboot()
+                // Автоперезагрузка только через root — без ADB/Shizuku fallback
+                val root = RootExecutor()
+                if (!root.isAvailable()) {
+                    AppLog.w(TAG, "confirmReboot: root unavailable — abort")
+                    update { it.copy(isWorking = false, rebootFailed = true) }
+                    return@launch
+                }
+                val engine = OptimizationEngine(root)
+                val ok: Boolean = engine.reboot()
                 update { it.copy(isWorking = false, rebootFailed = !ok) }
             } catch (e: Exception) {
                 AppLog.e(TAG, "reboot failed: ${e.message}", e)

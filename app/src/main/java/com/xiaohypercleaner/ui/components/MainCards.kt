@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -194,7 +193,11 @@ fun OptimizationCard(
             ) { currentStage: OptimizationStage ->
                 when (currentStage) {
                     OptimizationStage.WORKING -> WorkingView(state.progress)
-                    OptimizationStage.DONE -> DoneView(onRestore, onReboot)
+                    OptimizationStage.DONE -> DoneView(
+                        onRestore = onRestore,
+                        onReboot = onReboot,
+                        canAutoReboot = state.canAutoReboot
+                    )
                     OptimizationStage.READY -> ReadyView(onOptimize)
                 }
             }
@@ -259,13 +262,15 @@ private fun WorkingView(progress: Float) {
 }
 
 /**
- * Вид для стадии DONE: кнопки "Восстановить" и "Перезагрузить".
- *
- * @param onRestore Callback при нажатии "Восстановить"
- * @param onReboot Callback при нажатии "Перезагрузить"
+ * Вид для стадии DONE: «Восстановить» + перезагрузка только при root,
+ * иначе текстовая подсказка перезагрузить вручную.
  */
 @Composable
-private fun DoneView(onRestore: () -> Unit, onReboot: () -> Unit) {
+private fun DoneView(
+    onRestore: () -> Unit,
+    onReboot: () -> Unit,
+    canAutoReboot: Boolean
+) {
     Text(
         stringResource(R.string.status_done),
         modifier = Modifier.fillMaxWidth(),
@@ -296,13 +301,23 @@ private fun DoneView(onRestore: () -> Unit, onReboot: () -> Unit) {
     }
     Spacer(Modifier.height(12.dp))
 
-    OutlinedButton(
-        onClick = onReboot,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Text(stringResource(R.string.reboot_now))
+    if (canAutoReboot) {
+        OutlinedButton(
+            onClick = onReboot,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Text(stringResource(R.string.reboot_now))
+        }
+    } else {
+        Text(
+            stringResource(R.string.reboot_manual_hint),
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
     }
 }

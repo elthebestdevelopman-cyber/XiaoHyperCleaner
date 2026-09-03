@@ -40,6 +40,7 @@
     <string name="status_done">Optimización completada</string>
     <string name="status_done_description">Ajustes de privacidad aplicados. Todos los cambios se pueden revertir.</string>
     <string name="reboot_now">Reiniciar ahora</string>
+    <string name="reboot_manual_hint">Para aplicar todos los cambios, reinicia el teléfono manualmente (botón de encendido → Reiniciar).</string>
 
     <!-- ========== SELECCIÓN DE NIVEL ========== -->
     <string name="level_dialog_subtitle">Puedes cambiar el modo después en ajustes</string>

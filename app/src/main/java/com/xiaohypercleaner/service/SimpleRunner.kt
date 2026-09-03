@@ -9,7 +9,11 @@ import android.content.pm.PackageManager
 import android.graphics.Path
 import android.graphics.Rect
 import android.os.Build
+import android.media.AudioManager
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
+import com.xiaohypercleaner.data.AdaptiveCatalog
+import com.xiaohypercleaner.data.RomProfile
 import com.xiaohypercleaner.data.SimpleSteps
 import com.xiaohypercleaner.util.AppLog
 import kotlinx.coroutines.delay
@@ -21,70 +25,87 @@ import kotlin.coroutines.resume
  * SimpleRunner — UI-автоматизация Simple Mode.
  *
  * Критичные фиксы:
- * - getBestRoot(): окно целевого пакета (Settings/app), не оверлей
- * - resolvePackage(): launch/notifications по реально установленному alias
- * - MSA: клик «Отозвать» сразу как кнопка enabled, без слепого ожидания 11с
- * - settings-шаги без resetToHome (экономия бюджета таймаута)
+ * - getBestRoot(): целевой app-пакет строго выше Settings
+ * - resolvePackage(): alias + RomProfile (CN/Global)
+ * - MSA: короткий poll подтверждения; success если тумблер уже в цели
+ * - Intent clone (не мутируем static SimpleSteps)
+ * - AdaptiveCatalog из assets для OTA-адаптации строк/пакетов
  */
 class SimpleRunner(private val service: AccessibilityService) {
 
     companion object {
         private const val TAG = "SimpleRunner"
 
-        private const val BASE_STEP_TIMEOUT_MS = 35_000L
-        private const val MSA_STEP_TIMEOUT_MS = 65_000L
-        private const val CONFIRM_TIMEOUT_EXTRA_MS = 3_000L
-        private const val SCREEN_WAIT_MS = 3_500L
-        private const val CONTENT_WAIT_MS = 3_500L
-        private const val UI_SETTLE_DELAY_MS = 400L
-        private const val POPUP_MENU_DELAY_MS = 1_000L
-        private const val HOME_RESET_DELAY_MS = 400L
-        private const val FORCE_STOP_DELAY_MS = 500L
-        private const val SCROLL_SETTLE_DELAY_MS = 350L
-        private const val TAP_DURATION_MS = 100L
-        private const val RETRY_DELAY_MS = 800L
+        private const val BASE_STEP_TIMEOUT_MS = 16_000L
+        private const val MSA_STEP_TIMEOUT_MS = 40_000L
+        private const val CONFIRM_TIMEOUT_EXTRA_MS = 1_500L
+        /** Короткий poll: если кнопки нет (HyperOS toggle-only) — не жжём 13с */
+        private const val CONFIRM_QUICK_POLL_MS = 1_600L
+        private const val SCREEN_WAIT_MS = 1_400L
+        private const val CONTENT_WAIT_MS = 1_400L
+        private const val UI_SETTLE_DELAY_MS = 120L
+        private const val POPUP_MENU_DELAY_MS = 350L
+        private const val HOME_RESET_DELAY_MS = 200L
+        private const val FORCE_STOP_DELAY_MS = 250L
+        private const val SCROLL_SETTLE_DELAY_MS = 160L
+        private const val TAP_DURATION_MS = 60L
+        private const val RETRY_DELAY_MS = 280L
 
-        private const val MAX_POLLING_MS = 2_500L
-        private const val POLLING_INTERVAL_MS = 150L
-        private const val MIN_CONTENT_LENGTH = 8
-
+        private const val MAX_POLLING_MS = 1_200L
+        private const val POLLING_INTERVAL_MS = 70L
+        private const val MIN_CONTENT_LENGTH = 6
         private const val MAX_PARENT_DEPTH = 5
-        private const val MAX_SCROLL_ATTEMPTS = 4
-        private const val SWITCH_FALLBACK_SCROLLS = 3
-        private const val TEXT_DEPTH = 12
+        private const val MAX_SCROLL_ATTEMPTS = 5
+        private const val SWITCH_FALLBACK_SCROLLS = 4
+        private const val TEXT_DEPTH = 40
+        private const val MAX_COLLECT_TEXT_CHARS = 4000
         private const val NEARBY_ANCESTORS = 3
         private const val SWITCH_ANCESTOR_DEPTH = 6
         private const val MAX_SCROLL_WITHOUT_PROGRESS = 2
+        private const val MAX_FRESH_DISMISS_ROUNDS = 4
 
         private val TOP_RIGHT_Y_DP = listOf(56, 76, 96)
 
         private val OVERFLOW_TEXTS = listOf(
-            "Ещё", "More options", "Дополнительно", "Другие параметры", "⋮"
+            "Ещё", "Еще", "More options", "More", "Дополнительно", "Другие параметры", "⋮"
         )
 
         /** Свежий телефон: сначала уход / пропуск, не «Согласиться» */
         private val SKIP_TEXTS = listOf(
-            "Пропустить", "Skip", "Позже", "Later", "Не сейчас", "Not now",
+            "Пропуск", "Пропустить", "Skip", "Позже", "Later", "Не сейчас", "Not now",
             "Закрыть", "Close", "Нет, спасибо", "No thanks", "Без входа",
             "Continue without account", "Гостевой режим", "Guest",
-            "Напомнить позже", "Remind me later", "Не входить", "Skip login"
+            "Напомнить позже", "Remind me later", "Не входить", "Skip login",
+            "Понятно", "Got it", "Не обновлять", "Don't update",
+            "跳过", "稍后", "关闭", "Omitir", "Más tarde", "Cerrar"
         )
 
         private val DECLINE_TEXTS = listOf(
             "Отмена", "Cancel", "Отклонить", "Decline", "Не согласен", "Disagree",
-            "Запретить", "Deny", "Don't allow", "Не разрешать"
+            "Запретить", "Deny", "Don't allow", "Не разрешать",
+            "取消", "拒绝", "Cancelar", "Rechazar"
         )
 
-        /** Чтобы войти в приложение и дойти до тумблеров рекламы */
-        private val ENTER_TEXTS = listOf(
-            "Согласиться", "Принять", "Agree", "Accept", "Начать", "Start",
-            "Продолжить", "Continue", "Понятно", "Got it", "Далее", "Next",
-            "OK", "ОК", "Хорошо", "Done"
+        /** Согласие первого запуска — БЕЗ «Начать»/«Start» (Безопасность запускает очистку) */
+        private val ENTER_TEXTS_DEFAULT = listOf(
+            "Согласиться", "Принять", "Agree", "Accept",
+            "Понятно", "Got it", "Далее", "Next",
+            "Продолжить", "Continue", "Начать использование", "Начать работу",
+            "同意", "接受", "下一步",
+            "Aceptar", "Siguiente", "Entendido"
         )
 
-        private val PERMISSION_ALLOW_TEXTS = listOf(
+        /** Runtime-разрешения: для медиа/файлов предпочитаем отказ — рекламные тумблеры
+         *  не требуют доступ к фото, а «Разрешить» ломает оверлей и цикл кликов */
+        private val PERMISSION_DENY_TEXTS = listOf(
+            "Запретить", "Deny", "Don't allow", "Не разрешать", "Отклонить",
+            "拒绝", "不允许", "Rechazar", "Denegar"
+        )
+
+        private val PERMISSION_ALLOW_TEXTS_DEFAULT = listOf(
             "Разрешить", "Allow", "While using the app", "При использовании",
-            "Только в этот раз", "Only this time"
+            "Только в этот раз", "Only this time",
+            "允许", "仅在使用中允许", "Permitir"
         )
 
         private val SETTINGS_PACKAGES = setOf(
@@ -94,8 +115,6 @@ class SimpleRunner(private val service: AccessibilityService) {
             "com.xiaomi.misettings"
         )
 
-        private const val MAX_FRESH_DISMISS_ROUNDS = 6
-
         @Volatile
         var isRunning: Boolean = false
             private set
@@ -104,9 +123,27 @@ class SimpleRunner(private val service: AccessibilityService) {
     @Volatile
     private var cancelled: Boolean = false
 
-    /** Пакеты, которые считаем «целевым» окном на текущем шаге */
+    /** Целевой app-пакет шага (строго предпочтителен над Settings) */
+    private var targetPackages: Set<String> = emptySet()
+
+    /** Settings + target — fallback-пул */
     private var preferredPackages: Set<String> = emptySet()
 
+    private val romProfile: RomProfile by lazy { RomProfile.detect(service) }
+
+    private fun catalog() = AdaptiveCatalog.ensureLoaded(service)
+
+    private fun skipTexts(): List<String> =
+        (catalog().skip + SKIP_TEXTS).distinct()
+
+    private fun declineTexts(): List<String> =
+        (catalog().decline + DECLINE_TEXTS).distinct()
+
+    private fun enterTexts(): List<String> =
+        (catalog().enter + ENTER_TEXTS_DEFAULT).distinct()
+
+    private fun permissionAllowTexts(): List<String> =
+        (catalog().permissionAllow + PERMISSION_ALLOW_TEXTS_DEFAULT).distinct()
     data class Result(
         val success: Boolean,
         val reason: String? = null,
@@ -143,8 +180,36 @@ class SimpleRunner(private val service: AccessibilityService) {
                     Result(false, "timeout")
                 }
         } finally {
+            restoreMediaVolume()
             isRunning = false
         }
+    }
+
+    private var savedMusicVolume: Int = -1
+
+    private fun muteMediaVolume() {
+        try {
+            val am = service.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            if (savedMusicVolume < 0) {
+                savedMusicVolume = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+            }
+            am.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
+            AppLog.i(TAG, "media muted (was=$savedMusicVolume)")
+        } catch (e: Exception) {
+            AppLog.w(TAG, "mute failed: ${e.message}")
+        }
+    }
+
+    private fun restoreMediaVolume() {
+        if (savedMusicVolume < 0) return
+        try {
+            val am = service.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            am.setStreamVolume(AudioManager.STREAM_MUSIC, savedMusicVolume, 0)
+            AppLog.i(TAG, "media volume restored to $savedMusicVolume")
+        } catch (e: Exception) {
+            AppLog.w(TAG, "unmute failed: ${e.message}")
+        }
+        savedMusicVolume = -1
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -152,12 +217,16 @@ class SimpleRunner(private val service: AccessibilityService) {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * Корень целевого окна: предпочитаем preferredPackages / Settings,
-     * никогда не берём окно нашего пакета (оверлей).
+     * Корень целевого окна.
+     * Приоритет: 1) target app  2) Settings  3) прочие  — никогда наш оверлей.
      */
     private fun getBestRoot(): AccessibilityNodeInfo? {
-        var bestPreferred: AccessibilityNodeInfo? = null
-        var bestPreferredScore = -1L
+        var bestTarget: AccessibilityNodeInfo? = null
+        var bestTargetScore = -1L
+        var bestSettings: AccessibilityNodeInfo? = null
+        var bestSettingsScore = -1L
+        var bestPermissionDialog: AccessibilityNodeInfo? = null
+        var bestPermissionDialogScore = -1L
         var bestOther: AccessibilityNodeInfo? = null
         var bestOtherScore = -1L
 
@@ -168,33 +237,64 @@ class SimpleRunner(private val service: AccessibilityService) {
                 if (pkg == service.packageName) continue
 
                 val textLen = collectAllText(r).length.toLong()
-                val score = textLen +
-                        (if (w.isFocused) 100_000L else 0L) +
-                        (if (w.isActive) 50_000L else 0L)
+                val isAppWindow = w.type == AccessibilityWindowInfo.TYPE_APPLICATION
+                val isSystemUi = pkg == "com.android.systemui"
+                val isLauncher = pkg.contains("launcher") || pkg.contains("home")
+                val isPermissionDialog = pkg == "com.google.android.permissioncontroller" ||
+                        pkg == "com.android.packageinstaller"
+                val isFocusedDialog = w.isFocused && (textLen in 1..500)
 
-                val isPreferred = preferredPackages.contains(pkg) ||
-                        SETTINGS_PACKAGES.contains(pkg)
+                val score = (textLen * 10L) +
+                        (if (isAppWindow) 50_000L else 0L) +
+                        (if (isFocusedDialog) 60_000L else 0L) +
+                        (if (w.isFocused) 5_000L else 0L) +
+                        (if (w.isActive) 2_000L else 0L) -
+                        (if (!w.isFocused && textLen < 50L) 40_000L else 0L) -
+                        (if (isSystemUi) 200_000L else 0L) -
+                        (if (isLauncher) 150_000L else 0L)
 
-                if (isPreferred) {
-                    if (score > bestPreferredScore) {
-                        bestPreferredScore = score
-                        bestPreferred = r
+                when {
+                    isPermissionDialog -> {
+                        if (score > bestPermissionDialogScore) {
+                            bestPermissionDialogScore = score
+                            bestPermissionDialog = r
+                        }
                     }
-                } else if (score > bestOtherScore) {
-                    bestOtherScore = score
-                    bestOther = r
+                    targetPackages.contains(pkg) -> {
+                        if (score > bestTargetScore) {
+                            bestTargetScore = score
+                            bestTarget = r
+                        }
+                    }
+                    SETTINGS_PACKAGES.contains(pkg) || preferredPackages.contains(pkg) -> {
+                        if (score > bestSettingsScore) {
+                            bestSettingsScore = score
+                            bestSettings = r
+                        }
+                    }
+                    score > bestOtherScore -> {
+                        bestOtherScore = score
+                        bestOther = r
+                    }
                 }
             }
         } catch (e: Exception) {
             AppLog.w(TAG, "getBestRoot scan failed: ${e.message}")
         }
 
-        val chosen = bestPreferred ?: bestOther
+        val chosen = bestTarget ?: bestPermissionDialog ?: if (targetPackages.isNotEmpty()) {
+            null
+        } else {
+            bestSettings ?: bestOther
+        }
         if (chosen != null) return chosen
 
         val active = service.rootInActiveWindow
         if (active != null && active.packageName?.toString() != service.packageName) {
-            return active
+            val actPkg = active.packageName?.toString()
+            if (targetPackages.isEmpty() || targetPackages.contains(actPkg)) {
+                return active
+            }
         }
         return null
     }
@@ -243,7 +343,7 @@ class SimpleRunner(private val service: AccessibilityService) {
             AppLog.i(TAG, "Step ${step.id}: resolved package $resolvedPkg")
         }
 
-        preferredPackages = buildPreferredPackages(step, resolvedPkg)
+        buildPreferredPackages(step, resolvedPkg)
 
         val launchesApp = step.launchPackage != null ||
                 step.actionType == SimpleSteps.ActionType.CLEAR_DATA_DECLINE
@@ -266,6 +366,13 @@ class SimpleRunner(private val service: AccessibilityService) {
             step.actionType != SimpleSteps.ActionType.CLEAR_DATA_DECLINE
         ) {
             OverlayController.updateStatus(service, "Открываем приложение…")
+            // Mi Video / Music — приглушаем звук, чтобы рекомендации не играли на всю громкость
+            if (packageName.contains("video", ignoreCase = true) ||
+                packageName.contains("player", ignoreCase = true) ||
+                packageName.contains("music", ignoreCase = true)
+            ) {
+                muteMediaVolume()
+            }
             appLaunched = launchApp(packageName, clearTask = needForceStop)
 
             if (appLaunched) {
@@ -279,10 +386,28 @@ class SimpleRunner(private val service: AccessibilityService) {
 
         if (!appLaunched) {
             OverlayController.updateStatus(service, "Открываем нужный экран…")
-            val intents = buildResolvedIntents(step, resolvedPkg)
-            if (!openTargetScreen(intents) && !waitForContent(MAX_POLLING_MS)) {
-                AppLog.w(TAG, "Step ${step.id}: no screen opened")
-                return Result(false, "no_screen_opened")
+            val isSettingsRootStep = step.launchPackage == null &&
+                    step.intents.any { it.action == android.provider.Settings.ACTION_SETTINGS }
+
+            if (isSettingsRootStep) {
+                resetSettingsToRoot()
+            }
+
+            // Быстрый путь: поиск в Настройках только для системных шагов без launchPackage
+            val useSearch = isSettingsRootStep &&
+                    !step.id.startsWith("notif_") &&
+                    step.actionType != SimpleSteps.ActionType.CLEAR_DATA_DECLINE &&
+                    step.searchTexts.any { it.length >= 6 }
+            val jumped = useSearch && tryJumpViaSettingsSearch(step.searchTexts)
+            if (!jumped) {
+                val intents = buildResolvedIntents(step, resolvedPkg)
+                if (!openTargetScreen(intents) && !waitForContent(MAX_POLLING_MS)) {
+                    AppLog.w(TAG, "Step ${step.id}: no screen opened")
+                    return Result(false, "no_screen_opened")
+                }
+                if (isSettingsRootStep) {
+                    resetSettingsToRoot()
+                }
             }
             waitForContent()
             dismissFreshDeviceObstacles(preferDecline = false)
@@ -304,7 +429,7 @@ class SimpleRunner(private val service: AccessibilityService) {
 
         if (step.preDrillWaitMs > 0L) {
             OverlayController.updateStatus(service, "Ждём загрузку экрана…")
-            delay(step.preDrillWaitMs.coerceAtMost(2_500L))
+            delay(step.preDrillWaitMs)
             dismissFreshDeviceObstacles(preferDecline = false)
         }
 
@@ -327,23 +452,59 @@ class SimpleRunner(private val service: AccessibilityService) {
             AppLog.i(TAG, "Step ${step.id}: fail, final screen=[$finalScreen]")
         }
 
+        // Если шаг открывал экран уведомлений или внешнее приложение — возвращаемся назад,
+        // чтобы не оставаться внутри чужого приложения (например, Темы / Браузер)
+        val openedSubScreen = step.id.startsWith("notif_") || step.launchPackage != null
+        if (openedSubScreen && !cancelled) {
+            delay(250L)
+            service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+            delay(UI_SETTLE_DELAY_MS)
+        }
+
+        // ФИНАЛЬНЫЙ ВОЗВРАТ В ПРИЛОЖЕНИЕ (для экрана результата и восстановления фокуса)
+        if (step.id == SimpleSteps.ALL.lastOrNull()?.id && !cancelled) {
+            AppLog.i(TAG, "Last step finished — returning to app")
+            val intent = service.packageManager.getLaunchIntentForPackage(service.packageName)
+            intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            if (intent != null) {
+                runCatching { service.startActivity(intent) }
+            }
+        }
+
         return result
     }
 
     private fun resolveInstalledPackage(step: SimpleSteps.Step): String? {
-        val candidates = linkedSetOf<String>()
-        step.requiredPackages.forEach { candidates.add(it) }
-        step.launchPackage?.let { candidates.add(it) }
-        return candidates.firstOrNull { isPackageInstalled(it) }
+        val defaults = linkedSetOf<String>()
+        step.requiredPackages.forEach { defaults.add(it) }
+        step.launchPackage?.let { defaults.add(it) }
+        val ordered = AdaptiveCatalog.packagesForStep(
+            service,
+            step.id,
+            defaults.toList(),
+            romProfile
+        )
+        return ordered.firstOrNull { isPackageInstalled(it) }
     }
 
-    private fun buildPreferredPackages(step: SimpleSteps.Step, resolved: String?): Set<String> {
+    private fun buildPreferredPackages(step: SimpleSteps.Step, resolved: String?) {
+        val targets = linkedSetOf<String>()
+        resolved?.let { targets.add(it) }
+        step.launchPackage?.let { targets.add(it) }
+        // Для in-app шагов Settings не должен перебивать окно приложения
+        val isAppWindowStep = step.launchPackage != null || (
+            resolved != null &&
+                step.actionType != SimpleSteps.ActionType.CLEAR_DATA_DECLINE &&
+                !step.id.startsWith("notif_") &&
+                step.intents.none { it.action == android.provider.Settings.ACTION_SETTINGS }
+            )
+        targetPackages = if (isAppWindowStep) targets else emptySet()
+
         val set = linkedSetOf<String>()
         set.addAll(SETTINGS_PACKAGES)
-        resolved?.let { set.add(it) }
-        step.launchPackage?.let { set.add(it) }
+        set.addAll(targets)
         step.requiredPackages.forEach { set.add(it) }
-        return set
+        preferredPackages = set
     }
 
     private fun buildResolvedIntents(
@@ -388,6 +549,34 @@ class SimpleRunner(private val service: AccessibilityService) {
             AppLog.i(TAG, "resetToHome: ok")
         } catch (e: Exception) {
             AppLog.w(TAG, "resetToHome failed: ${e.message}")
+        }
+    }
+
+    private suspend fun resetSettingsToRoot() {
+        val root = getBestRoot() ?: return
+        val pkg = root.packageName?.toString().orEmpty()
+        if (pkg != "com.android.settings") return
+
+        val backTexts = listOf("Назад", "Back", "返回", "Atrás")
+        var popCount = 0
+        while (popCount < 5) {
+            val currentRoot = getBestRoot() ?: break
+            if (currentRoot.packageName?.toString() != "com.android.settings") break
+
+            val currentText = collectAllText(currentRoot)
+            val hasSearch = currentText.contains("Поиск настроек", ignoreCase = true) ||
+                    currentText.contains("Search settings", ignoreCase = true)
+            val backNode = searchAllWindows(backTexts) ?: findAnyNodeInAllWindows(backTexts)
+            if (backNode == null || (hasSearch && popCount > 0)) break
+
+            AppLog.i(TAG, "resetSettingsToRoot: popping sub-screen #$popCount via back button")
+            tapNode(backNode)
+            delay(350L)
+            popCount++
+        }
+        if (popCount > 0) {
+            delay(UI_SETTLE_DELAY_MS)
+            AppLog.i(TAG, "resetSettingsToRoot: completed, popped $popCount screens")
         }
     }
 
@@ -437,14 +626,16 @@ class SimpleRunner(private val service: AccessibilityService) {
         for (intent in intents) {
             if (cancelled) return false
             try {
-                val resolved = intent.resolveActivity(service.packageManager)
+                // Клонируем: static Intent из SimpleSteps нельзя мутировать
+                val launch = Intent(intent)
+                val resolved = launch.resolveActivity(service.packageManager)
                 if (resolved == null &&
-                    intent.action != null &&
-                    !intent.action!!.startsWith("android.settings")
+                    launch.action != null &&
+                    !launch.action!!.startsWith("android.settings")
                 ) continue
 
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                service.startActivity(intent)
+                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                service.startActivity(launch)
                 if (waitForContent(MAX_POLLING_MS)) return true
                 delay(UI_SETTLE_DELAY_MS)
                 if (getBestRoot() != null) return true
@@ -526,20 +717,30 @@ class SimpleRunner(private val service: AccessibilityService) {
         }
 
         tapNode(clearBtn)
-        delay(800L)
+        delay(600L)
 
-        val root2 = waitForContentRoot() ?: return Result(false, "no_root")
+        val confirmAllTexts = listOf(
+            "Очистить все", "Clear all",
+            "Очистить все данные", "Clear all data",
+            "Удалить все данные", "Delete all data",
+            "Удалить данные", "Delete data",
+            "Все данные", "All data",
+            "Очистить", "Clear",
+            "OK", "ОК", "Да", "Yes", "Подтвердить"
+        )
 
-        val allBtn = findClickableByText(
-            root2,
-            listOf(
-                "Очистить все",
-                "Clear all",
-                "Очистить все данные",
-                "Очистить данные",
-                "Clear data"
-            )
-        ) ?: searchAllWindows(listOf("Очистить все", "Clear all"))
+        var allBtn: AccessibilityNodeInfo? = null
+        val deadline = System.currentTimeMillis() + 2_500L
+        while (System.currentTimeMillis() < deadline) {
+            allBtn = searchAllWindows(confirmAllTexts) ?: findAnyNodeInAllWindows(confirmAllTexts)
+            if (allBtn != null) break
+            delay(150L)
+        }
+
+        if (allBtn == null) {
+            val root2 = getBestRoot()
+            allBtn = root2?.let { findClickableByText(it, confirmAllTexts) }
+        }
 
         if (allBtn == null) {
             AppLog.w(TAG, "Step ${step.id}: 'Очистить все' not found")
@@ -547,7 +748,15 @@ class SimpleRunner(private val service: AccessibilityService) {
         }
 
         tapNode(allBtn)
-        delay(1_200L)
+        delay(600L)
+
+        val secondConfirmTexts = listOf("OK", "ОК", "Да", "Yes", "Удалить", "Delete", "Подтвердить")
+        val secondBtn = searchAllWindows(secondConfirmTexts) ?: findAnyNodeInAllWindows(secondConfirmTexts)
+        if (secondBtn != null) {
+            AppLog.i(TAG, "Step ${step.id}: second confirmation clicked")
+            tapNode(secondBtn)
+            delay(800L)
+        }
 
         step.launchPackage?.let { pkg ->
             val launchPkg = resolveInstalledPackage(step) ?: pkg
@@ -596,7 +805,15 @@ class SimpleRunner(private val service: AccessibilityService) {
                 delay(POPUP_MENU_DELAY_MS)
             } else {
                 val cur = root?.let { collectAllText(it).take(120) } ?: "no_root"
-                AppLog.w(TAG, "Step ${step.id}: level not found — assuming inside, screen=[$cur]")
+                val markers = nextScreenMarkers(step, index)
+                val alreadyInside = markers.isNotEmpty() && (
+                    searchAllWindows(markers) != null || markers.any { cur.contains(it, ignoreCase = true) }
+                )
+                if (alreadyInside) {
+                    AppLog.i(TAG, "Step ${step.id}: already inside next level '${markers.firstOrNull()}'")
+                } else {
+                    AppLog.w(TAG, "Step ${step.id}: drill level '${level.firstOrNull()}' not found, screen=[$cur]")
+                }
             }
 
             dismissFreshDeviceObstacles(preferDecline = false)
@@ -614,25 +831,186 @@ class SimpleRunner(private val service: AccessibilityService) {
         else step.searchTexts.filterNot { it.isBlank() }.distinct()
     }
 
+    private suspend fun tryJumpViaSettingsSearch(queries: List<String>): Boolean {
+        // Более длинные фразы реже дают ложный hit в поиске Настроек
+        val query = queries
+            .filter { it.length in 4..48 }
+            .maxByOrNull { it.length }
+            ?: return false
+        return try {
+            OverlayController.updateStatus(service, "Поиск в настройках…")
+            val settings = Intent(android.provider.Settings.ACTION_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            service.startActivity(settings)
+            if (!waitForContent(MAX_POLLING_MS)) return false
+
+            val searchLabels = (catalog().settingsSearch + listOf(
+                "Поиск", "Search", "搜索", "Buscar", "Search settings", "Поиск настроек"
+            )).distinct()
+            val searchNode = searchAllWindows(searchLabels)
+                ?: findAnyNodeInAllWindows(searchLabels)
+            if (searchNode != null) {
+                tapNode(searchNode)
+                delay(200L)
+            }
+
+            val root = getBestRoot() ?: return false
+            val edit = findEditable(root) ?: return false
+            val args = android.os.Bundle()
+            args.putCharSequence(
+                AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+                query
+            )
+            if (!edit.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
+                AppLog.w(TAG, "settings search: SET_TEXT failed")
+                return false
+            }
+            delay(350L)
+
+            val hit = findClickableByTextWithScroll(getBestRoot(), queries)
+                ?: searchAllWindows(queries)
+                ?: return false
+            tapNode(hit)
+            waitForContent(MAX_POLLING_MS)
+            AppLog.i(TAG, "settings search jump ok for '$query'")
+            true
+        } catch (e: Exception) {
+            AppLog.w(TAG, "tryJumpViaSettingsSearch: ${e.message}")
+            false
+        }
+    }
+
+    private fun findEditable(root: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        root ?: return null
+        val cls = root.className?.toString().orEmpty()
+        if (root.isEditable || cls.contains("EditText")) return root
+        for (i in 0 until root.childCount) {
+            findEditable(root.getChild(i))?.let { return it }
+        }
+        return null
+    }
+
     /**
      * Свежий ROM: онбординг / политика / логин / runtime-разрешения.
-     * Порядок: Skip → Decline(если нужно) → Allow(permission) → Agree(чтобы войти в UI).
+     * Медиа/фото — ЗАПРЕТИТЬ (не нужны для тумблеров рекламы; «Разрешить» ломает оверлей).
      */
     private suspend fun dismissFreshDeviceObstacles(preferDecline: Boolean) {
         OverlayController.updateStatus(service, "Закрываем диалоги первого запуска…")
         repeat(MAX_FRESH_DISMISS_ROUNDS) {
             if (cancelled) return
+            val currentRoot = getBestRoot()
+            val screenText = currentRoot?.let { collectAllText(it) } ?: ""
+
+            // 1. Диалог «Установите по умолчанию» — всегда отклоняем
+            if (screenText.contains("по умолчанию", ignoreCase = true) ||
+                screenText.contains("default browser", ignoreCase = true) ||
+                screenText.contains("set as default", ignoreCase = true)
+            ) {
+                val cancelTexts = listOf("Отмена", "Cancel", "Не сейчас", "Not now", "Позже", "Later", "Нет, спасибо", "No thanks")
+                if (tryClickAny(cancelTexts)) {
+                    AppLog.i(TAG, "fresh-device dismiss: default app prompt -> cancel")
+                    delay(250L)
+                    return@repeat
+                }
+            }
+
+            // 2. Runtime permission на медиа/файлы/микрофон
+            val isMediaPermission = screenText.contains("фото", ignoreCase = true) ||
+                    screenText.contains("мультимедиа", ignoreCase = true) ||
+                    screenText.contains("файл", ignoreCase = true) ||
+                    screenText.contains("хранилищ", ignoreCase = true) ||
+                    screenText.contains("media", ignoreCase = true) ||
+                    screenText.contains("photos", ignoreCase = true) ||
+                    screenText.contains("storage", ignoreCase = true) ||
+                    screenText.contains("микрофон", ignoreCase = true) ||
+                    screenText.contains("microphone", ignoreCase = true)
+
+            val currentPkg = currentRoot?.packageName?.toString().orEmpty()
+            val isMediaConsumerApp = targetPackages.contains("com.miui.player") ||
+                    targetPackages.contains("com.miui.videoplayer") ||
+                    currentPkg == "com.miui.player" ||
+                    currentPkg == "com.miui.videoplayer"
+
+            if (isMediaPermission) {
+                if (isMediaConsumerApp) {
+                    if (tryClickAny(permissionAllowTexts())) {
+                        AppLog.i(TAG, "fresh-device dismiss: media permission -> ALLOW (required for media app)")
+                        delay(300L)
+                        return@repeat
+                    }
+                } else if (tryClickAny(PERMISSION_DENY_TEXTS)) {
+                    AppLog.i(TAG, "fresh-device dismiss: media permission -> DENY")
+                    delay(250L)
+                    return@repeat
+                }
+            }
+
+            // 2c. Сброс режима удаления/редактирования на рабочем столе
+            if (screenText.contains("ОТМЕНА", ignoreCase = true) &&
+                screenText.contains("УДАЛИТЬ", ignoreCase = true) &&
+                (currentPkg.contains("launcher") || currentPkg.contains("home"))
+            ) {
+                if (tryClickAny(listOf("ОТМЕНА", "Отмена", "Cancel", "CANCEL"))) {
+                    AppLog.i(TAG, "fresh-device dismiss: launcher edit mode -> CANCEL")
+                    delay(300L)
+                    return@repeat
+                }
+            }
+
+            // 2b. Диалог «Требуются разрешения» после отказа — закрываем «Отмена»
+            if (screenText.contains("Требуются разрешения", ignoreCase = true) ||
+                screenText.contains("Permissions required", ignoreCase = true) ||
+                screenText.contains("не может получить доступ", ignoreCase = true) ||
+                screenText.contains("can't access", ignoreCase = true) ||
+                screenText.contains("cannot access", ignoreCase = true)
+            ) {
+                val cancelTexts = listOf("Отмена", "Cancel", "OK", "Понятно", "Got it")
+                // Предпочитаем Отмена, чтобы не уходить в системные настройки
+                if (tryClickAny(listOf("Отмена", "Cancel")) || tryClickAny(cancelTexts)) {
+                    AppLog.i(TAG, "fresh-device dismiss: permission-required dialog -> cancel")
+                    delay(250L)
+                    return@repeat
+                }
+            }
+
+            // 3. Соглашения первого запуска (в т.ч. «Выбрать все» → «Согласиться»)
+            if (screenText.contains("Политика конфиденциальности", ignoreCase = true) ||
+                screenText.contains("Условия использования", ignoreCase = true) ||
+                screenText.contains("Юридические документы", ignoreCase = true) ||
+                screenText.contains("Privacy Policy", ignoreCase = true) ||
+                screenText.contains("Terms of Service", ignoreCase = true) ||
+                screenText.contains("Legal documents", ignoreCase = true)
+            ) {
+                // Mi Music / свежий MIUI: чекбоксы обязательны — сначала «Выбрать все»
+                if (screenText.contains("Выбрать все", ignoreCase = true) ||
+                    screenText.contains("Select all", ignoreCase = true)
+                ) {
+                    if (tryClickAny(listOf("Выбрать все", "Select all", "全选"))) {
+                        AppLog.i(TAG, "fresh-device dismiss: select-all legal checkboxes")
+                        delay(200L)
+                    }
+                }
+                val acceptTexts = listOf("Согласиться", "Согласен", "Принять", "Agree", "Accept", "Agree and continue")
+                if (tryClickAny(acceptTexts)) {
+                    AppLog.i(TAG, "fresh-device dismiss: terms accepted")
+                    delay(280L)
+                    return@repeat
+                }
+            }
+
             val clicked = when {
-                tryClickAny(SKIP_TEXTS) -> "skip"
-                preferDecline && tryClickAny(DECLINE_TEXTS) -> "decline"
-                tryClickAny(PERMISSION_ALLOW_TEXTS) -> "permission"
-                !preferDecline && tryClickAny(ENTER_TEXTS) -> "enter"
+                tryClickAny(skipTexts()) -> "skip"
+                preferDecline && tryClickAny(declineTexts()) -> "decline"
+                // Обычные (не медиа) разрешения — разрешить один раз
+                !isMediaPermission && tryClickAny(permissionAllowTexts()) -> "permission"
+                !preferDecline && tryClickAny(enterTexts()) -> "enter"
                 else -> null
             }
             if (clicked == null) return
             AppLog.i(TAG, "fresh-device dismiss: $clicked")
-            delay(500L)
-            waitForContent(1_200L)
+            delay(220L)
+            waitForContent(600L)
         }
     }
 
@@ -645,6 +1023,11 @@ class SimpleRunner(private val service: AccessibilityService) {
 
     private suspend fun tapTopRight(expected: List<String>): Boolean {
         val root = getBestRoot()
+        val pkg = root?.packageName?.toString().orEmpty()
+        if (pkg.contains("launcher") || pkg.contains("home")) {
+            AppLog.w(TAG, "tapTopRight: current window is launcher ($pkg), skipping blind gesture")
+            return false
+        }
 
         if (root != null) {
             val overflow = findClickableByText(root, OVERFLOW_TEXTS)
@@ -756,22 +1139,24 @@ class SimpleRunner(private val service: AccessibilityService) {
 
         val path = Path().apply {
             moveTo(x, dm.heightPixels * 0.75f)
-            lineTo(x, dm.heightPixels * 0.30f)
+            lineTo(x, dm.heightPixels * 0.25f)
         }
         val gesture = GestureDescription.Builder()
             .addStroke(GestureDescription.StrokeDescription(path, 0, 300))
             .build()
 
-        suspendCancellableCoroutine<Unit> { cont ->
-            service.dispatchGesture(gesture, object : AccessibilityService.GestureResultCallback() {
-                override fun onCompleted(g: GestureDescription?) {
-                    if (cont.isActive) cont.resume(Unit)
-                }
+        withOverlayPassThrough {
+            suspendCancellableCoroutine<Unit> { cont ->
+                service.dispatchGesture(gesture, object : AccessibilityService.GestureResultCallback() {
+                    override fun onCompleted(g: GestureDescription?) {
+                        if (cont.isActive) cont.resume(Unit)
+                    }
 
-                override fun onCancelled(g: GestureDescription?) {
-                    if (cont.isActive) cont.resume(Unit)
-                }
-            }, null)
+                    override fun onCancelled(g: GestureDescription?) {
+                        if (cont.isActive) cont.resume(Unit)
+                    }
+                }, null)
+            }
         }
         delay(UI_SETTLE_DELAY_MS)
     }
@@ -810,33 +1195,43 @@ class SimpleRunner(private val service: AccessibilityService) {
         var switchNode = findSwitchByText(root, step.searchTexts)
 
         if (switchNode == null && step.searchTexts.isNotEmpty()) {
-            var noProgress = 0
+            var lastFingerprint = ""
+            var unchangedCount = 0
 
-            repeat(SWITCH_FALLBACK_SCROLLS) {
+            repeat(SWITCH_FALLBACK_SCROLLS) { scrollIdx ->
                 if (cancelled) return Result(false, "cancelled")
 
                 val scrollRoot = getBestRoot() ?: return Result(false, "no_root_window")
                 val scrollable = findScrollableContainer(scrollRoot)
-                if (scrollable == null) return@repeat
-
-                val scrolled = scrollable.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
-                if (!scrolled) return@repeat
-
-                delay(400L)
+                val scrolled = scrollable?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) ?: false
+                if (!scrolled) {
+                    AppLog.d(TAG, "Step ${step.id}: switch scroll action false, fallback to swipeUp (scroll #$scrollIdx)")
+                    swipeUp()
+                } else {
+                    AppLog.d(TAG, "Step ${step.id}: switch ACTION_SCROLL_FORWARD succeeded (scroll #$scrollIdx)")
+                    delay(400L)
+                }
 
                 val newRoot = getBestRoot() ?: return Result(false, "no_root_window")
                 val found = findSwitchByText(newRoot, step.searchTexts)
 
                 if (found != null) {
+                    AppLog.i(TAG, "Step ${step.id}: switch found after scroll #$scrollIdx")
                     switchNode = found
                     return@repeat
                 }
 
-                noProgress++
-                if (noProgress >= MAX_SCROLL_WITHOUT_PROGRESS) {
-                    AppLog.w(TAG, "Step ${step.id}: scrolls without progress — stopping")
-                    return@repeat
+                val after = collectAllText(newRoot)
+                if (after == lastFingerprint) {
+                    unchangedCount++
+                    if (unchangedCount >= 3) {
+                        AppLog.w(TAG, "Step ${step.id}: scroll content unchanged — stopping")
+                        return@repeat
+                    }
+                } else {
+                    unchangedCount = 0
                 }
+                lastFingerprint = after
             }
 
             if (switchNode == null) {
@@ -846,7 +1241,15 @@ class SimpleRunner(private val service: AccessibilityService) {
 
         if (switchNode == null) {
             val screenText = collectAllText(root).take(600)
-            AppLog.w(TAG, "Step ${step.id}: NO SWITCH FOUND. screen=[$screenText]")
+            val allSwitches = mutableListOf<AccessibilityNodeInfo>()
+            collectSwitchLike(root, allSwitches)
+            val switchDetails = allSwitches.joinToString { sw ->
+                "${sw.className}(checked=${sw.isChecked})"
+            }
+            AppLog.w(
+                TAG,
+                "Step ${step.id}: NO SWITCH FOUND. searchTexts=${step.searchTexts}. switchesCount=${allSwitches.size} details=[$switchDetails]. screen=[$screenText]"
+            )
             return Result(false, "switch_not_found")
         }
 
@@ -870,23 +1273,21 @@ class SimpleRunner(private val service: AccessibilityService) {
 
         delay(UI_SETTLE_DELAY_MS)
 
-        // Диалог подтверждения (MSA)
+        // Диалог подтверждения (MSA) — короткий poll; HyperOS часто без «Отозвать»
         var confirmationClicked = false
         if (step.confirmTexts.isNotEmpty()) {
             confirmationClicked = handleConfirmation(step)
             if (!confirmationClicked) {
-                AppLog.w(TAG, "Step ${step.id}: confirmation not completed")
+                AppLog.w(TAG, "Step ${step.id}: confirmation not completed — verify switch")
             }
         }
 
-        // ФИКС (beta10): если «Отозвать» кликнут успешно — успех СРАЗУ.
-        // Раньше верификация после клика съедала остаток таймаута MSA.
         if (confirmationClicked) {
             if (step.additionalToggles.isNotEmpty()) toggleAdditional(step.additionalToggles)
             return Result(true, "confirmed")
         }
 
-        // Верификация для обычных шагов
+        // Верификация для обычных шагов / MSA без кнопки revoke
         val newRoot = getBestRoot()
         if (newRoot == null) {
             return Result(true, "toggled_no_verify")
@@ -908,26 +1309,54 @@ class SimpleRunner(private val service: AccessibilityService) {
         OverlayController.updateStatus(service, "Ждём диалог подтверждения…")
 
         val start = System.currentTimeMillis()
-        val deadline = start + step.confirmWaitMs + CONFIRM_TIMEOUT_EXTRA_MS
+        // MSA: 10-сек таймер. Кнопка «Отозвать» может быть isEnabled=true сразу,
+        // но клик не срабатывает до конца отсчёта — всегда ждём confirmWaitMs.
+        val mustWaitMs = step.confirmWaitMs
+        val fullDeadline = start + mustWaitMs + CONFIRM_TIMEOUT_EXTRA_MS
+        var sawDisabledButton = false
         var button: AccessibilityNodeInfo? = null
 
-        while (System.currentTimeMillis() < deadline) {
+        // Фаза 1: ждём минимальное время таймера (MSA ~11с).
+        // Короткий confirmWaitMs (диалог Безопасности) — без принудительной паузы.
+        if (mustWaitMs > 5_000L) {
+            OverlayController.updateStatus(service, "Ждём таймер отзыва…")
+            while (System.currentTimeMillis() - start < mustWaitMs) {
+                if (cancelled) return false
+                val node = searchAllWindows(step.confirmTexts)
+                    ?: findAnyNodeInAllWindows(step.confirmTexts)
+                if (node != null && !node.isEnabled) sawDisabledButton = true
+                delay(200L)
+            }
+        }
+
+        // Фаза 2: ждём пока кнопка станет enabled (или быстрый выход если кнопки нет)
+        val quickDeadline = System.currentTimeMillis() + CONFIRM_QUICK_POLL_MS
+        while (System.currentTimeMillis() < fullDeadline) {
             if (cancelled) return false
             val node = searchAllWindows(step.confirmTexts)
                 ?: findAnyNodeInAllWindows(step.confirmTexts)
-            if (node != null && node.isEnabled) {
-                button = node
-                break
+            if (node != null) {
+                if (node.isEnabled) {
+                    button = node
+                    break
+                }
+                sawDisabledButton = true
+            } else if (!sawDisabledButton &&
+                mustWaitMs <= 5_000L &&
+                System.currentTimeMillis() >= quickDeadline
+            ) {
+                AppLog.i(TAG, "Step ${step.id}: no confirm button after quick poll")
+                return false
             }
-            delay(250L)
+            delay(120L)
         }
 
         if (button == null) {
             button = searchAllWindows(step.confirmTexts)
                 ?: findAnyNodeInAllWindows(step.confirmTexts)
         }
-        if (button == null) {
-            AppLog.w(TAG, "Step ${step.id}: confirmation button not found")
+        if (button == null || !button.isEnabled) {
+            AppLog.w(TAG, "Step ${step.id}: confirmation button not ready")
             return false
         }
 
@@ -1011,41 +1440,69 @@ class SimpleRunner(private val service: AccessibilityService) {
     ): AccessibilityNodeInfo? {
         root ?: return null
         findClickableByText(root, texts)?.let { return it }
+        searchAllWindows(texts)?.let { return it }
 
-        var noProgress = 0
+        var lastFingerprint = collectAllText(root)
+        var unchangedCount = 0
 
-        repeat(MAX_SCROLL_ATTEMPTS) {
+        repeat(MAX_SCROLL_ATTEMPTS) { attemptIndex ->
             if (cancelled) return null
 
             val currentRoot = getBestRoot() ?: return null
             val scrollable = findScrollableContainer(currentRoot)
-            if (scrollable == null) return null
-
-            val scrolled = scrollable.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
-            if (!scrolled) return null
-
-            delay(SCROLL_SETTLE_DELAY_MS)
+            val scrolled = scrollable?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) ?: false
+            if (!scrolled) {
+                // Если performAction не сработал или scrollable не найден напрямую, делаем жестовый свайп
+                AppLog.d(TAG, "findClickableByTextWithScroll: scroll action false, fallback to swipeUp (attempt $attemptIndex)")
+                swipeUp()
+            } else {
+                AppLog.d(TAG, "findClickableByTextWithScroll: ACTION_SCROLL_FORWARD succeeded (attempt $attemptIndex)")
+                delay(SCROLL_SETTLE_DELAY_MS)
+            }
 
             val newRoot = getBestRoot() ?: return null
-            val found = findClickableByText(newRoot, texts)
-            if (found != null) return found
-
-            noProgress++
-            if (noProgress >= MAX_SCROLL_WITHOUT_PROGRESS) {
-                AppLog.w(TAG, "findClickableByTextWithScroll: no progress — stopping")
-                return null
+            val found = findClickableByText(newRoot, texts) ?: searchAllWindows(texts)
+            if (found != null) {
+                AppLog.i(TAG, "findClickableByTextWithScroll: found '${texts.firstOrNull()}' after scroll #$attemptIndex")
+                return found
             }
+
+            val after = collectAllText(newRoot)
+            if (after == lastFingerprint) {
+                unchangedCount++
+                if (unchangedCount >= 3) {
+                    AppLog.w(TAG, "findClickableByTextWithScroll: no content change after 3 scrolls — stopping")
+                    return null
+                }
+            } else {
+                unchangedCount = 0
+            }
+            lastFingerprint = after
         }
         return null
     }
 
     private fun findScrollableContainer(root: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
         root ?: return null
-        if (root.isScrollable && root.childCount > 0) return root
+        findScrollableRecursive(root)?.let { return it }
 
-        for (i in 0 until root.childCount) {
-            val child = root.getChild(i) ?: continue
-            findScrollableContainer(child)?.let { return it }
+        val targetPkg = root.packageName?.toString()
+        for (w in service.windows) {
+            val r = w.root ?: continue
+            if (r == root || r.packageName?.toString() == service.packageName) continue
+            if (targetPkg == null || r.packageName?.toString() == targetPkg) {
+                findScrollableRecursive(r)?.let { return it }
+            }
+        }
+        return null
+    }
+
+    private fun findScrollableRecursive(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        node ?: return null
+        if (node.isScrollable && node.childCount > 0) return node
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            findScrollableRecursive(child)?.let { return it }
         }
         return null
     }
@@ -1088,6 +1545,17 @@ class SimpleRunner(private val service: AccessibilityService) {
         val switches = mutableListOf<AccessibilityNodeInfo>()
         collectSwitchLike(root, switches)
 
+        if (switches.isEmpty()) {
+            val targetPkg = root.packageName?.toString()
+            for (w in service.windows) {
+                val r = w.root ?: continue
+                if (r == root || r.packageName?.toString() == service.packageName) continue
+                if (targetPkg == null || r.packageName?.toString() == targetPkg) {
+                    collectSwitchLike(r, switches)
+                }
+            }
+        }
+
         for (sw in switches) {
             if (findNearbyText(sw, texts) != null) return sw
         }
@@ -1107,13 +1575,16 @@ class SimpleRunner(private val service: AccessibilityService) {
                 while (current != null && depth < SWITCH_ANCESTOR_DEPTH) {
                     val cls = current.className?.toString() ?: ""
                     if (cls.contains("Switch") || cls.contains("CheckBox") ||
-                        cls.contains("Toggle") || current.isCheckable
+                        cls.contains("Toggle") || cls.contains("SlidingButton") || current.isCheckable
                     ) return current
                     current = current.parent
                     depth++
                 }
             }
         }
+
+        // Если на экране ровно один переключатель — НЕ автовыбираем без совпадения текста.
+        // Ложный клик (карусель на экране Конфиденциальность) ломает статистику.
         return null
     }
 
@@ -1130,7 +1601,7 @@ class SimpleRunner(private val service: AccessibilityService) {
     ) {
         val cls = node.className?.toString() ?: ""
         if (cls.contains("Switch") || cls.contains("CheckBox") ||
-            cls.contains("Toggle") || node.isCheckable
+            cls.contains("Toggle") || cls.contains("SlidingButton") || node.isCheckable
         ) {
             result.add(node)
         }
@@ -1144,7 +1615,17 @@ class SimpleRunner(private val service: AccessibilityService) {
         repeat(NEARBY_ANCESTORS) {
             val a = anc ?: return null
             val collected = collectAllText(a)
-            for (t in texts) if (collected.contains(t, ignoreCase = true)) return t
+            for (t in texts) {
+                if (collected.contains(t, ignoreCase = true)) return t
+                // Сравнение по корням ключевых слов (длина >= 4) для учёта падежей и склонений
+                val words = t.split(" ", "_", "-").filter { it.length >= 4 }
+                if (words.isNotEmpty() && words.all { w ->
+                    val stem = w.take(w.length - 2).lowercase()
+                    collected.lowercase().contains(stem)
+                }) {
+                    return t
+                }
+            }
             anc = a.parent
         }
         return null
@@ -1157,10 +1638,11 @@ class SimpleRunner(private val service: AccessibilityService) {
     }
 
     private fun collectTextRecursive(node: AccessibilityNodeInfo?, sb: StringBuilder, depth: Int) {
-        if (node == null || depth > TEXT_DEPTH) return
+        if (node == null || depth > TEXT_DEPTH || sb.length >= MAX_COLLECT_TEXT_CHARS) return
         node.text?.let { sb.append(it).append(' ') }
         node.contentDescription?.let { sb.append(it).append(' ') }
         for (i in 0 until node.childCount) {
+            if (sb.length >= MAX_COLLECT_TEXT_CHARS) break
             collectTextRecursive(node.getChild(i), sb, depth + 1)
         }
     }

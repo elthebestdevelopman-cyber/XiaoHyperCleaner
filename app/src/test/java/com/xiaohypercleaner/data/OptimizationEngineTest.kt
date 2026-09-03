@@ -63,6 +63,7 @@ private open class FakeAdb : AdbExecutor {
             command.contains("settings get secure user_experience_program") -> "1"
             command.contains("settings get secure upload_log_pref") -> "1"
             command.contains("settings get secure show_recommendations") -> "1"
+            command.contains("settings get system miui_recents_show_recommend") -> "1"
             command.contains("settings get secure miui_region") -> originalRegion
             command.contains("settings get global window_animation_scale") -> "0.5"
             command.contains("settings get global transition_animation_scale") -> "0.5"
@@ -87,9 +88,24 @@ private open class FakeAdb : AdbExecutor {
             command.contains("pm list packages -d") ->
                 disabledPackages.joinToString("\n") { "package:$it" }
 
+            command.contains("pm list packages --suspended") -> ""
+
             command.contains("pm list packages -e") ->
                 listOf("com.miui.analytics", "com.miui.systemAdSolution")
                     .joinToString("\n") { "package:$it" }
+
+            command.contains("pm list packages") ->
+                (ServiceRegistry.ANALYTICS_PACKAGES + ServiceRegistry.AD_SERVICES_PACKAGES)
+                    .distinct()
+                    .joinToString("\n") { "package:$it" }
+
+            command.contains("pm path") -> {
+                val pkg = command.substringAfterLast(' ')
+                if ((ServiceRegistry.ANALYTICS_PACKAGES + ServiceRegistry.AD_SERVICES_PACKAGES)
+                        .contains(pkg)
+                ) "package:/system/app/$pkg/$pkg.apk"
+                else ""
+            }
 
             command.contains("pm disable-user") -> {
                 if (failDisable) "Failure" else {

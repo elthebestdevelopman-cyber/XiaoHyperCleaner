@@ -5,9 +5,9 @@ package com.xiaohypercleaner.service
  * Защита openedSpecificScreen=openedIndex<step.intents.lastIndex — не тронута.
  */
 object SimpleStepBridge {
-    /** Результат шага: true = успех, false = ошибка (будут ретраи) */
-    var onResult: ((Boolean) -> Unit)? = null
+    /** Результат шага: success + reason (toggled/already_done/…) */
+    var onResult: ((success: Boolean, reason: String) -> Unit)? = null
 
-    /** НОВОЕ: шаг пропущен (приложение не установлено) — ретраев НЕТ, сразу следующий */
+    /** Шаг пропущен (приложение не установлено) — ретраев НЕТ, сразу следующий */
     var onSkipped: ((String) -> Unit)? = null
 }

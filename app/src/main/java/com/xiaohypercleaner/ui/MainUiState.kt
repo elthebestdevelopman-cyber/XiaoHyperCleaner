@@ -26,6 +26,12 @@ data class MainUiState(
     /** Оптимизация уже выполнена */
     val isOptimized: Boolean = false,
 
+    /**
+     * Можно ли автоматически перезагрузить устройство (только root).
+     * Без root кнопка «Перезагрузить» скрыта — показываем подсказку вручную.
+     */
+    val canAutoReboot: Boolean = false,
+
     /** Сейчас выполняется оптимизация (Simple или Pro) */
     val isWorking: Boolean = false,
 

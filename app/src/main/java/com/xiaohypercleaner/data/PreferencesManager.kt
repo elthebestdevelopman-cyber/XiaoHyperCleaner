@@ -66,6 +66,10 @@ sealed interface PreferenceKey {
         override val name = "last_report_json"
     }
 
+    data object SimpleToggledSteps : PreferenceKey {
+        override val name = "simple_toggled_steps"
+    }
+
     data object OptimizationModeKey : PreferenceKey {
         override val name = "optimization_mode"
     }
@@ -90,6 +94,8 @@ class PreferencesManager(private val context: Context) {
         private val LAST_REPORT_KEY = stringPreferencesKey(PreferenceKey.LastReportJson.name)
         private val OPTIMIZATION_MODE_KEY =
             stringPreferencesKey(PreferenceKey.OptimizationModeKey.name)
+        private val SIMPLE_TOGGLED_KEY =
+            stringPreferencesKey(PreferenceKey.SimpleToggledSteps.name)
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -251,6 +257,27 @@ class PreferencesManager(private val context: Context) {
         }
     }.onFailure { e ->
         AppLog.e(TAG, "setOptimizationMode failed: ${e.message}")
+    }
+
+    /** ID шагов Simple Mode, где тумблер реально переключали (для «Вернуть назад») */
+    suspend fun addSimpleToggledStep(stepId: String) = runCatching {
+        context.dataStore.edit { prefs ->
+            val cur = prefs[SIMPLE_TOGGLED_KEY].orEmpty()
+            val set = cur.split(',').filter { it.isNotBlank() }.toMutableSet()
+            set.add(stepId)
+            prefs[SIMPLE_TOGGLED_KEY] = set.joinToString(",")
+        }
+    }
+
+    suspend fun getSimpleToggledSteps(): Set<String> = runCatching {
+        val raw = context.dataStore.data.first()[SIMPLE_TOGGLED_KEY].orEmpty()
+        raw.split(',').filter { it.isNotBlank() }.toSet()
+    }.getOrElse { emptySet() }
+
+    suspend fun clearSimpleToggledSteps() = runCatching {
+        context.dataStore.edit { prefs ->
+            prefs.remove(SIMPLE_TOGGLED_KEY)
+        }
     }
 
     /**

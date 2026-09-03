@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "comment": "UI button/label synonyms for accessibility automation. Add new HyperOS strings here after OTA.",
+  "skip": [
+    "Пропустить", "Skip", "Позже", "Later", "Не сейчас", "Not now",
+    "Напомнить позже", "Remind me later", "Не входить", "Skip login",
+    "跳过", "稍后", "关闭", "Omitir", "Más tarde", "Cerrar"
+  ],
+  "decline": [
+    "Отмена", "Cancel", "Отклонить", "Decline", "Не согласен", "Disagree",
+    "Запретить", "Deny", "Don't allow", "Не разрешать",
+    "取消", "拒绝", "Cancelar", "Rechazar"
+  ],
+  "enter": [
+    "Согласиться", "Принять", "Agree", "Accept", "Начать", "Start",
+    "Понятно", "Got it", "Далее", "Next",
+    "同意", "接受", "开始", "下一步",
+    "Aceptar", "Siguiente", "Entendido"
+  ],
+  "permissionAllow": [
+    "Разрешить", "Allow", "While using the app", "При использовании",
+    "Только в этот раз", "Only this time",
+    "允许", "仅在使用中允许", "Permitir"
+  ],
+  "settingsSearch": [
+    "Поиск", "Search", "搜索", "Buscar", "Search settings", "Поиск настроек"
+  ]
+}

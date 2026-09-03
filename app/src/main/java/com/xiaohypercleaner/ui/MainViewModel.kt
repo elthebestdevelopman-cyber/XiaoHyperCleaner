@@ -30,6 +30,7 @@ import com.xiaohypercleaner.ui.vm.ProFlowController
 import com.xiaohypercleaner.ui.vm.ShizukuUiController
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
+import com.xiaohypercleaner.util.ShizukuHelper
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -95,8 +96,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         AppLog.i(TAG, "init started")
 
-        SimpleStepBridge.onResult = { success ->
-            AppLog.i(TAG, "SimpleStepBridge result: $success")
+        SimpleStepBridge.onResult = { success, reason ->
+            AppLog.i(TAG, "SimpleStepBridge result: $success reason=$reason")
+            if (success && (reason == "toggled" || reason == "confirmed" || reason == "already_done")) {
+                val stepId = _state.value.simpleStep?.step?.id
+                if (stepId != null) {
+                    viewModelScope.launch {
+                        prefs.addSimpleToggledStep(stepId)
+                        prefs.setHiddenSettingsApplied(true)
+                    }
+                }
+            }
             onSimpleStepResult(success)
         }
 
@@ -124,6 +134,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 AppLog.i(TAG, "isHiddenSettingsApplied changed to $applied")
                 update { it.copy(isOptimized = applied) }
             }
+        }
+
+        viewModelScope.launch {
+            val rootOk = try {
+                com.xiaohypercleaner.data.RootExecutor().isAvailable()
+            } catch (_: Exception) {
+                false
+            }
+            AppLog.i(TAG, "canAutoReboot (root)=$rootOk")
+            update { it.copy(canAutoReboot = rootOk) }
         }
 
         viewModelScope.launch {
@@ -363,10 +383,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val status: ShizukuExecutor.Status = ShizukuExecutor.checkStatus(app)
         AppLog.i(TAG, "startAdvancedFlow: shizuku status=$status")
 
-        if (status != ShizukuExecutor.Status.AVAILABLE) {
-            shizuku.showDialog(status)
-        } else {
-            shizuku.showOptionsDialog()
+        when (status) {
+            ShizukuExecutor.Status.AVAILABLE -> shizuku.showOptionsDialog()
+            ShizukuExecutor.Status.PERMISSION_REQUIRED -> {
+                // Один тап меньше: сразу запрашиваем разрешение
+                shizuku.requestPermission(SHIZUKU_PERMISSION_CODE)
+            }
+            ShizukuExecutor.Status.NOT_RUNNING -> {
+                shizuku.showDialog(status)
+                // Параллельно открываем беспроводную отладку — главный блокер новичков
+                ShizukuHelper.openWirelessDebuggingSettings(app)
+            }
+            ShizukuExecutor.Status.NOT_INSTALLED -> shizuku.showDialog(status)
         }
     }
 
@@ -413,7 +441,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun closeSimpleMode() {
         AppLog.i(TAG, "closeSimpleMode")
         autoFlowJob?.cancel()
+        AdbEnablerService.instance?.cancelRunner()
         OverlayController.hide(app)
+        simpleController.cancelAndReset()
+        ChainFlags.reset()
         viewModelScope.launch { prefs.setPendingSimpleMode(false) }
 
         update {
@@ -474,7 +505,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun skipSimpleStep() {
         val stepId: String = _state.value.simpleStep?.step?.id ?: "unknown"
         if (!failedSimpleStepIds.contains(stepId)) failedSimpleStepIds.add(stepId)
-        onSimpleStepResult(false)
+        stepAttempt = 1
+        simpleController.onStepSkipped(stepId)
     }
 
     fun retrySimpleStep() = simpleController.retryStep()

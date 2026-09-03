@@ -41,6 +41,7 @@
     <string name="status_done">优化完成</string>
     <string name="status_done_description">隐私设置已应用。所有更改均可还原。</string>
     <string name="reboot_now">立即重启</string>
+    <string name="reboot_manual_hint">为使更改完全生效，请手动重启手机（电源键 → 重新启动）。</string>
 
     <!-- ========== 级别选择 ========== -->
     <string name="level_dialog_subtitle">稍后可在设置中更改</string>

@@ -18,6 +18,7 @@
     <string name="status_done">Оптимизация завершена</string>
     <string name="status_done_description">Настройки приватности применены. Все изменения можно откатить.</string>
     <string name="reboot_now">Перезагрузить сейчас</string>
+    <string name="reboot_manual_hint">Чтобы изменения полностью вступили в силу, перезагрузите телефон вручную (кнопка питания → Перезагрузить).</string>
 
     <!-- ========== ВЫБОР УРОВНЯ ========== -->
     <string name="level_dialog_subtitle">Можно изменить позже в настройках</string>
@@ -67,9 +68,9 @@
 
     <!-- ========== SHIZUKU ДИАЛОГИ ========== -->
     <string name="shizuku_dialog_title">Для продвинутого режима нужен Shizuku</string>
-    <string name="shizuku_dialog_not_installed">Shizuku не установлен. Установите его из магазина приложений.</string>
-    <string name="shizuku_dialog_not_running">Shizuku установлен, но не запущен. Откройте приложение и выполните шаги 1–5.</string>
-    <string name="shizuku_dialog_permission">Shizuku работает, но нужно дать разрешение нашему приложению.</string>
+    <string name="shizuku_dialog_not_installed">Shizuku — отдельное приложение (RikkaApps, Apache 2.0). Мы не встраиваем его внутрь: так безопаснее и честнее к автору. Установите из магазина — дальше мастер подскажет 5 коротких шагов.</string>
+    <string name="shizuku_dialog_not_running">Shizuku установлен, но не запущен. Сейчас откроем настройки разработчика — включите «Беспроводную отладку», затем в Shizuku нажмите «Запустить».</string>
+    <string name="shizuku_dialog_permission">Shizuku уже работает. Нужно один раз разрешить доступ нашему приложению.</string>
     <string name="shizuku_dialog_install">Установить</string>
     <string name="shizuku_dialog_howto">Как запустить</string>
     <string name="shizuku_dialog_later">Позже</string>
@@ -106,7 +107,7 @@
 
     <!-- ========== OVERLAY ========== -->
     <string name="overlay_permission_title">Разрешение «Поверх других окон»</string>
-    <string name="overlay_permission_text">Нужно, чтобы показывать подсказки во время настройки в других приложениях.</string>
+    <string name="overlay_permission_text">Разрешение требуется для отображения экрана автоматизации и подсказок.\n\n1. В открывшемся списке найдите «XiaoHyperCleaner».\n2. Включите переключатель «Показывать поверх других приложений».\n3. Нажмите кнопку «Назад», чтобы вернуться.</string>
 
     <!-- ========== RESTRICTED / FORBIDDEN (Android 13+ sideload) ========== -->
     <string name="restricted_dialog_title">Ограниченные настройки</string>
@@ -159,7 +160,7 @@
     <string name="about_title">О приложении</string>
     <string name="about_author">Автор</string>
     <string name="about_text">XiaoHyperCleaner — инструмент для безопасной настройки приватности на MIUI/HyperOS. Работает только локально на вашем устройстве.</string>
-    <string name="shizuku_attribution">Shizuku используется с благодарностью к разработчикам.</string>
+    <string name="shizuku_attribution">Shizuku by RikkaApps (Apache 2.0). Не встроен в приложение — используется официальный клиент.</string>
     <string name="close">Закрыть</string>
     <string name="privacy_policy_url" translatable="false">https://elthebestdevelopman-cyber.github.io/privacy-policy/index.html</string>
 
@@ -282,5 +283,6 @@
     <string name="result_soft">Если было полезно — буду рад отзыву или любой поддержке. Это помогает другим найти приложение.</string>
     <string name="result_rate">Оценить</string>
     <string name="result_support">Поддержать</string>
-    <string name="result_close">Закрыть</string>
+    <string name="result_share_log">Отправить лог</string>
+    <string name="result_close">В приложение</string>
 </resources>

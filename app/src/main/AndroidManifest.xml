@@ -23,6 +23,9 @@
     <!-- Для запроса исключения из Battery Optimization (критично для MIUI/HyperOS) -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- Для предотвращения засыпания экрана во время автоматизации -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <!-- Package visibility (Android 11+) -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
@@ -71,6 +74,7 @@
             android:name=".ui.MainActivity"
             android:configChanges="orientation|screenSize|uiMode"
             android:exported="true"
+            android:launchMode="singleTask"
             android:theme="@style/Theme.XiaoHyperCleaner.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

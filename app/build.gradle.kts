@@ -11,8 +11,8 @@ android {
         applicationId = "com.xiaohypercleaner"
         minSdk = 29
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.0-beta5"
+        versionCode = 2
+        versionName = "1.0-beta2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

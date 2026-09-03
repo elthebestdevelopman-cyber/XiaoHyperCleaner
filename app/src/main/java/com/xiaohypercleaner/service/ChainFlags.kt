@@ -30,6 +30,10 @@ object ChainFlags {
     @Volatile
     var lastRedirectTime: Long = 0L
 
+    /** PRO: wireless debugging / ADB allow dialog был подтверждён accessibility-сервисом */
+    @Volatile
+    var adbAllowGranted: Boolean = false
+
     /**
      * Сбрасывает все флаги в начальное состояние.
      * Вызывается при завершении Simple Mode или при отмене.
@@ -37,5 +41,6 @@ object ChainFlags {
     fun reset() {
         waitingAccessibilityReturn = false
         lastRedirectTime = 0L
+        adbAllowGranted = false
     }
 }

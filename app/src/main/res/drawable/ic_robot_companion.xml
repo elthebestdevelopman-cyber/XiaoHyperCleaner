@@ -65,22 +65,26 @@
         android:fillColor="#E1F5FE"
         android:pathData="M80,114 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
 
-    <!-- Левая лапка (металлическая) -->
-    <path
-        android:fillColor="#90A4AE"
-        android:pathData="M46,128 Q43,128 43,136 L43,148 Q43,153 49,153 L61,153 Q67,153 67,148 L67,136 Q67,128 61,128 Z" />
+    <!-- Левая лапка (группа — для анимации «умывания») -->
+    <group
+        android:name="left_paw_group"
+        android:pivotX="55"
+        android:pivotY="130">
+        <path
+            android:name="left_paw"
+            android:fillColor="#90A4AE"
+            android:pathData="M46,128 Q43,128 43,136 L43,148 Q43,153 49,153 L61,153 Q67,153 67,148 L67,136 Q67,128 61,128 Z" />
+        <path
+            android:fillColor="#4FC3F7"
+            android:pathData="M51,146 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+        <path
+            android:fillColor="#4FC3F7"
+            android:pathData="M58,146 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+    </group>
     <!-- Правая лапка -->
     <path
         android:fillColor="#90A4AE"
         android:pathData="M93,128 Q87,128 87,136 L87,148 Q87,153 93,153 L105,153 Q111,153 111,148 L111,136 Q111,128 105,128 Z" />
-
-    <!-- Светящиеся подушечки на лапках -->
-    <path
-        android:fillColor="#4FC3F7"
-        android:pathData="M51,146 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
-    <path
-        android:fillColor="#4FC3F7"
-        android:pathData="M58,146 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
     <path
         android:fillColor="#4FC3F7"
         android:pathData="M96,146 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />

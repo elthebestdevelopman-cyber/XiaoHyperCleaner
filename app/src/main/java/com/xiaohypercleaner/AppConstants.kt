@@ -23,8 +23,8 @@ object AppConstants {
     const val DELAY_AFTER_CONNECT_MS = 500L
     const val DELAY_BEFORE_REBOOT_MS = 1500L
     const val COMMAND_DELAY_MS = 150L
-    const val RETRY_DELAY_MS = 1500L
-    const val AUTO_ADVANCE_DELAY_MS = 700L
+    const val RETRY_DELAY_MS = 800L
+    const val AUTO_ADVANCE_DELAY_MS = 400L
 
     // ═══════════════════════════════════════════════════════════════
     // Попытки и повторы

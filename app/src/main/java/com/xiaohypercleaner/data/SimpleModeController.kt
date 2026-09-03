@@ -1,7 +1,9 @@
 package com.xiaohypercleaner.data
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.provider.Settings
 import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.ChainFlags
@@ -67,9 +69,19 @@ class SimpleModeController(
     val failedStepIds: List<String> get() = state.failedStepIds
     val skippedStepIds: List<String> get() = state.skippedStepIds
 
+    private fun checkAccessibility(): Boolean {
+        val component = ComponentName(context, AdbEnablerService::class.java).flattenToString()
+        return Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        )?.contains(component) == true
+    }
+
+    private fun checkOverlay(): Boolean = Settings.canDrawOverlays(context)
+
     private var state: SimpleModeState = SimpleModeState()
-    private var isAccessibilityEnabled: Boolean = false
-    private var isOverlayGranted: Boolean = false
+    private var isAccessibilityEnabled: Boolean = checkAccessibility()
+    private var isOverlayGranted: Boolean = checkOverlay()
     private var stepAttempt: Int = 1
     private var stepsStarted: Boolean = false
     private var autoFlowJob: Job? = null
@@ -100,6 +112,10 @@ class SimpleModeController(
     }
 
     fun destroy() {
+        if (state.active && state.phase == SimpleModePhase.STEPS) {
+            AppLog.i(TAG, "destroy() skipped while STEPS are actively running")
+            return
+        }
         autoFlowJob?.cancel()
         OverlayController.hide(context)
         releaseWakeLock()  // НОВОЕ (beta11): гарантированное освобождение
@@ -144,6 +160,8 @@ class SimpleModeController(
 
     fun start() {
         AppLog.i(TAG, "Starting simple mode, needsRestrictedUnlock=$needsRestrictedUnlock")
+        isAccessibilityEnabled = checkAccessibility()
+        isOverlayGranted = checkOverlay()
         failedIds.clear()
         skippedIds.clear()
         stepAttempt = 1
@@ -155,10 +173,7 @@ class SimpleModeController(
         state = SimpleModeState(
             active = true,
             phase = SimpleModePhase.PERMISSIONS,
-            permissionSubPhase = when {
-                needsRestrictedUnlock -> PermissionSubPhase.RESTRICTED_SETTINGS
-                else -> PermissionSubPhase.OVERLAY
-            }
+            permissionSubPhase = PermissionSubPhase.OVERLAY
         )
         onStateChanged(state)
         advance()
@@ -239,16 +254,17 @@ class SimpleModeController(
 
     fun onRestrictedScreenOpenSettings() {
         setState {
-            copy(showRestrictedSettingsScreen = false, appInfoAttempts = appInfoAttempts + 1)
+            copy(appInfoAttempts = appInfoAttempts + 1)
         }
-        permissionFlow.openAppInfoSettings()
+        permissionFlow.openAppInfoWithSmartPointer(restrictedLocation)
     }
 
     fun onRestrictedScreenDone() {
         setState {
             copy(
-                showRestrictedSettingsScreen = false, restrictedSettingsShown = true,
-                permissionSubPhase = PermissionSubPhase.OVERLAY
+                showRestrictedSettingsScreen = false,
+                restrictedSettingsShown = true,
+                permissionSubPhase = PermissionSubPhase.ACCESSIBILITY
             )
         }
         advance()
@@ -269,7 +285,11 @@ class SimpleModeController(
 
     fun onBatteryDialogSkipped() {
         AppLog.i(TAG, "Battery dialog skipped — advancing to STEPS")
-        batteryDialogAlreadyShown = true  // НОВОЕ: запоминаем что показывали
+        batteryDialogAlreadyShown = true
+        if (state.phase == SimpleModePhase.STEPS || state.phase == SimpleModePhase.DONE) {
+            AppLog.w(TAG, "onBatteryDialogSkipped: already in STEPS/DONE, ignoring")
+            return
+        }
         goSteps()
         nextStep(autoStart = true)
     }
@@ -279,6 +299,14 @@ class SimpleModeController(
             TAG,
             "onBatteryReturn: isIgnoringBatteryOptimizations=$ignoring, alreadyShown=$batteryDialogAlreadyShown"
         )
+
+        // СТРОГАЯ ЗАЩИТА: если мы уже в фазе шагов, повторный вызов (гонка onResume)
+        // НЕ должен перезапускать цепочку или отменять текущий шаг.
+        if (state.phase == SimpleModePhase.STEPS || state.phase == SimpleModePhase.DONE) {
+            AppLog.i(TAG, "onBatteryReturn: already in STEPS/DONE, ignoring duplicate")
+            return
+        }
+
         if (ignoring) {
             if (state.phase != SimpleModePhase.STEPS) {
                 setState {
@@ -288,6 +316,8 @@ class SimpleModeController(
                         showBatteryDialog = false
                     )
                 }
+                goSteps()
+                nextStep(autoStart = true)
             }
         } else if (batteryDialogAlreadyShown) {
             // ИСПРАВЛЕНО (beta11): если уже показывали диалог и пользователь вернулся
@@ -300,9 +330,14 @@ class SimpleModeController(
     }
 
     fun reshowBatteryDialog() {
-        // ИСПРАВЛЕНО (beta11): НЕ показываем диалог повторно
+        // КРИТИЧНО: если шаги уже идут — НЕ вызывать nextStep повторно
+        // (иначе отменяется текущий шаг JobCancellationException, как в логе msa→step2)
+        if (state.phase == SimpleModePhase.STEPS || state.phase == SimpleModePhase.DONE) {
+            AppLog.i(TAG, "reshowBatteryDialog: already in STEPS/DONE, ignoring")
+            return
+        }
         if (batteryDialogAlreadyShown) {
-            AppLog.i(TAG, "reshowBatteryDialog: already shown, advancing to STEPS")
+            AppLog.i(TAG, "reshowBatteryDialog: already shown, advancing to STEPS once")
             goSteps()
             nextStep(autoStart = true)
             return
@@ -315,12 +350,23 @@ class SimpleModeController(
 
     fun continueToSteps() {
         AppLog.i(TAG, "continueToSteps: user confirmed, starting steps")
+        if (state.phase == SimpleModePhase.STEPS || state.phase == SimpleModePhase.DONE) {
+            AppLog.w(TAG, "continueToSteps: already in STEPS/DONE, ignoring")
+            return
+        }
         goSteps()
         nextStep(autoStart = true)
     }
 
     private fun goSteps() {
         autoFlowJob?.cancel()
+        // Не возобновлять Simple Mode после смерти процесса посреди шагов
+        scope.launch {
+            runCatching {
+                com.xiaohypercleaner.XiaoHyperApp.instance.preferencesManager
+                    .setPendingSimpleMode(false)
+            }
+        }
         setState {
             copy(
                 phase = SimpleModePhase.STEPS,
@@ -393,6 +439,7 @@ class SimpleModeController(
         val intent: Intent = Intent(context, AdbEnablerService::class.java).apply {
             action = AdbEnablerService.ACTION_SIMPLE_STEP
             putExtra("step_index", state.currentStepIndex)
+            putExtra(AdbEnablerService.EXTRA_STEP_ID, state.step?.step?.id)
         }
         context.startService(intent)
     }
@@ -405,6 +452,15 @@ class SimpleModeController(
         val step: SimpleStepState = state.step ?: return
         if (!state.active) {
             AppLog.w(TAG, "onStepResult: controller inactive, ignoring")
+            return
+        }
+
+        // Гарантия индекса: если результат пришёл от предыдущего шага (гонка), игнорируем
+        if (step.stepIndex != state.currentStepIndex) {
+            AppLog.w(
+                TAG,
+                "onStepResult: stale result ignored (stepIndex=${step.stepIndex} != current=${state.currentStepIndex})"
+            )
             return
         }
 
@@ -450,6 +506,8 @@ class SimpleModeController(
         autoFlowJob?.cancel()
         autoFlowJob = scope.launch {
             delay(AppConstants.AUTO_ADVANCE_DELAY_MS.milliseconds)
+            // Даём сервису доп. время освободить мьютекс после завершения шага
+            delay(150)
             if (state.active) {
                 AppLog.i(TAG, "auto-advance -> nextStep")
                 nextStep(autoStart = true)
@@ -501,7 +559,16 @@ class SimpleModeController(
                 )
             )
         }
-        if (autoStart) startCurrentStep()
+        if (autoStart) {
+            // Пауза перед запуском следующего шага, чтобы предыдущий SimpleRunner
+            // успел освободить stepMutex и закончить работу без JobCancellationException
+            scope.launch {
+                delay(150)
+                if (state.active && state.step?.stepIndex == nextIndex) {
+                    startCurrentStep()
+                }
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -512,91 +579,89 @@ class SimpleModeController(
         if (!state.active) return
         if (state.phase != SimpleModePhase.PERMISSIONS) return
 
-        when (state.permissionSubPhase) {
-            PermissionSubPhase.INACTIVE -> return
-
-            PermissionSubPhase.RESTRICTED_SETTINGS -> {
-                if (state.showRestrictedSettingsScreen) return
-                setState { copy(showRestrictedSettingsScreen = true) }
-            }
-
-            PermissionSubPhase.APP_INFO -> {
-                if (isAccessibilityEnabled) {
-                    setState { copy(permissionSubPhase = PermissionSubPhase.OVERLAY) }
-                    advance(); return
-                }
-                if (state.appInfoAttempts >= AppConstants.MAX_ACCESSIBILITY_ATTEMPTS) {
-                    setState {
-                        copy(
-                            showPermissionFallbackDialog = true, showAppInfoDialog = false,
-                            stuckPhase = PermissionSubPhase.APP_INFO
-                        )
-                    }
-                    return
-                }
-                if (state.showAppInfoDialog || state.showLocationDialog) return
-                setState { copy(showAppInfoDialog = true) }
-            }
-
-            PermissionSubPhase.OVERLAY -> {
-                if (isOverlayGranted) {
-                    setState { copy(permissionSubPhase = PermissionSubPhase.ACCESSIBILITY) }
-                    advance(); return
-                }
+        when {
+            // 1. Разрешение «Поверх других окон»
+            !isOverlayGranted -> {
                 if (state.overlayAttempts >= AppConstants.MAX_ACCESSIBILITY_ATTEMPTS) {
                     setState {
                         copy(
-                            showPermissionFallbackDialog = true, showOverlayDialog = false,
+                            showPermissionFallbackDialog = true,
+                            showOverlayDialog = false,
                             stuckPhase = PermissionSubPhase.OVERLAY
                         )
                     }
                     return
                 }
-                if (state.showOverlayDialog) return
-                setState { copy(showOverlayDialog = true) }
+                setState {
+                    copy(
+                        permissionSubPhase = PermissionSubPhase.OVERLAY,
+                        showOverlayDialog = true,
+                        showRestrictedSettingsScreen = false,
+                        showAccessibilityDialog = false,
+                        showBatteryDialog = false
+                    )
+                }
             }
 
-            PermissionSubPhase.ACCESSIBILITY -> {
-                if (isAccessibilityEnabled) {
-                    AppLog.i(TAG, "Accessibility enabled — switching to BATTERY_OPTIMIZATION")
-                    setState {
-                        copy(
-                            permissionSubPhase = PermissionSubPhase.BATTERY_OPTIMIZATION,
-                            showBatteryDialog = true
-                        )
-                    }
-                    return
+            // 2. Ограниченные настройки (Android 13+) — оверлей уже выдан, pointer работает
+            needsRestrictedUnlock && !state.restrictedSettingsShown -> {
+                setState {
+                    copy(
+                        permissionSubPhase = PermissionSubPhase.RESTRICTED_SETTINGS,
+                        showRestrictedSettingsScreen = true,
+                        showOverlayDialog = false,
+                        showAccessibilityDialog = false,
+                        showBatteryDialog = false
+                    )
                 }
+            }
+
+            // 3. Специальные возможности (AdbEnablerService)
+            !isAccessibilityEnabled -> {
                 if (state.accessibilityAttempts >= AppConstants.MAX_ACCESSIBILITY_ATTEMPTS) {
                     setState {
                         copy(
                             showPermissionFallbackDialog = true,
-                            showAccessibilityDialog = false, showRestrictedDialog = false,
+                            showAccessibilityDialog = false,
                             stuckPhase = PermissionSubPhase.ACCESSIBILITY
                         )
                     }
                     return
                 }
-                if (state.showAccessibilityDialog) return
-                setState { copy(showAccessibilityDialog = true) }
+                setState {
+                    copy(
+                        permissionSubPhase = PermissionSubPhase.ACCESSIBILITY,
+                        showAccessibilityDialog = true,
+                        showOverlayDialog = false,
+                        showRestrictedSettingsScreen = false,
+                        showBatteryDialog = false
+                    )
+                }
             }
 
-            PermissionSubPhase.BATTERY_OPTIMIZATION -> {
-                if (permissionFlow.isIgnoringBatteryOptimizations()) {
-                    AppLog.i(TAG, "Battery already ignored — waiting for user confirmation")
-                    setState {
-                        copy(
-                            phase = SimpleModePhase.STEPS,
-                            permissionSubPhase = PermissionSubPhase.DONE,
-                            showBatteryDialog = false
-                        )
-                    }
+            // 4. Оптимизация батареи (показываем один раз)
+            !permissionFlow.isIgnoringBatteryOptimizations() && !batteryDialogAlreadyShown -> {
+                setState {
+                    copy(
+                        permissionSubPhase = PermissionSubPhase.BATTERY_OPTIMIZATION,
+                        showBatteryDialog = true,
+                        showOverlayDialog = false,
+                        showRestrictedSettingsScreen = false,
+                        showAccessibilityDialog = false
+                    )
+                }
+            }
+
+            // 5. Все разрешения предоставлены — переходим к автоматизации
+            // (батарея: либо выдана, либо диалог уже показали один раз)
+            else -> {
+                if (state.phase == SimpleModePhase.STEPS) {
+                    AppLog.i(TAG, "advance: already STEPS, skip re-entry")
                     return
                 }
-                return
+                goSteps()
+                nextStep(autoStart = true)
             }
-
-            PermissionSubPhase.DONE -> {}
         }
     }
 
@@ -622,6 +687,14 @@ class SimpleModeController(
         } catch (e: Exception) {
             AppLog.w(TAG, "releaseWakeLock failed: ${e.message}")
         }
+    }
+
+    /**
+     * Полная отмена Simple Mode: UI + контроллер + runner.
+     */
+    fun cancelAndReset() {
+        AppLog.i(TAG, "cancelAndReset")
+        reset()
     }
 
     /**

@@ -51,6 +51,6 @@ data class SimpleStepState(
 
     companion object {
         /** Максимальное количество попыток выполнения шага */
-        const val DEFAULT_MAX_ATTEMPTS = 3
+        const val DEFAULT_MAX_ATTEMPTS = 2
     }
 }

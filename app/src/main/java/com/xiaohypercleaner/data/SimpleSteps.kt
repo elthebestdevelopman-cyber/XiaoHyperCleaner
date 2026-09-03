@@ -90,19 +90,33 @@ object SimpleSteps {
         "Отпечатки, данные лица и защита устройства",
         "Отпечатки, данные лица и за…",
         "Fingerprints, face data & device security",
-        "Пароли и безопасность", "Passwords & security"
+        "Fingerprints, face data and device security",
+        "Пароли и безопасность", "Passwords & security", "Passwords and security",
+        "密码与安全", "指纹、面容与设备保护", "指纹、面孔数据与设备保护",
+        "Contraseñas y seguridad", "Huellas, datos faciales y seguridad"
     )
 
-    private val APPS: List<String> = listOf("Приложения", "Apps")
+    private val APPS: List<String> = listOf(
+        "Приложения", "Apps", "Applications", "应用", "应用管理", "Aplicaciones"
+    )
     private val OVERFLOW: List<String> =
-        listOf("⋮", "Ещё", "More options", "More", "Дополнительно")
+        listOf("⋮", "Ещё", "More options", "More", "Дополнительно", "更多", "Más")
     private val OTHER_SETTINGS: List<String> =
-        listOf("Прочие настройки", "Additional settings", "Advanced settings")
-    private val SYS_APPS: List<String> = listOf("Системные приложения", "System apps")
-    private val PRIVACY: List<String> = listOf("Конфиденциальность", "Privacy")
-    private val GEAR: List<String> = listOf("⚙", "⚙️")
+        listOf(
+            "Прочие настройки", "Additional settings", "Advanced settings",
+            "其他设置", "其他設定", "Ajustes adicionales"
+        )
+    private val SYS_APPS: List<String> = listOf(
+        "Системные приложения", "System apps", "系统应用", "系统应用管理", "Apps del sistema"
+    )
+    private val PRIVACY: List<String> = listOf(
+        "Конфиденциальность", "Privacy", "隐私", "隐私保护", "Privacidad"
+    )
+    private val GEAR: List<String> = listOf("⚙", "⚙️", "Настройки", "Settings", "Configuración", "Ajustes", "设置", "Paramètres")
     private val PROFILE: List<String> = listOf(
-        "Профиль", "Profile", "Мой профиль", "My profile", "Account"
+        "Профиль", "Profile", "Мой профиль", "My profile", "Account",
+        "Мой аккаунт", "Аккаунт", "Пользователь", "User",
+        "我的", "个人中心", "Perfil", "Mi perfil", "profile_tab"
     )
 
     // ═════════════════════════════════════════════════════════════════
@@ -121,7 +135,9 @@ object SimpleSteps {
             descRu = "Отзываем разрешение msa на доступ к личным данным.",
             descEn = "Revoking msa permission to personal data.",
             intents = listOf(settingsRoot()),
-            searchTexts = listOf("msa"),
+            searchTexts = listOf(
+                "msa", "MSA", "系统服务msa", "系统广告", "广告服务"
+            ),
             manualHintRu = "Настройки → Отпечатки… → Доступ к личным данным → выключите msa.\n\n" +
                     "На старых MIUI: Авторизация и отзыв → msa → дождитесь конца 10-секундного " +
                     "отсчёта → «Отозвать».",
@@ -130,10 +146,14 @@ object SimpleSteps {
                 SEC,
                 listOf(
                     "Доступ к личным данным", "Access to personal data",
-                    "Авторизация и отзыв", "Authorization & revocation"
+                    "Авторизация и отзыв", "Authorization & revocation",
+                    "授权管理", "个人数据访问", "访问个人数据",
+                    "Acceso a datos personales", "Autorización y revocación"
                 )
             ),
-            confirmTexts = listOf("Отозвать", "Revoke"),
+            confirmTexts = listOf(
+                "Отозвать", "Revoke", "撤销", "撤销授权", "Revocar"
+            ),
             confirmWaitMs = 11_000L,
             riskLevel = RiskLevel.CONDITIONAL
         ),
@@ -146,7 +166,10 @@ object SimpleSteps {
             descRu = "Выключаем «Получать рекомендации» в прочих настройках приложений.",
             descEn = "Turning off \"Receive recommendations\".",
             intents = listOf(settingsRoot()),
-            searchTexts = listOf("Получать рекомендации", "Receive recommendations"),
+            searchTexts = listOf(
+                "Получать рекомендации", "Receive recommendations",
+                "接收推荐", "个性化推荐", "Recibir recomendaciones"
+            ),
             manualHintRu = "Настройки → Приложения → ⋮ → Прочие настройки → " +
                     "выключите «Получать рекомендации».",
             manualHintEn = "Settings → Apps → ⋮ → Additional settings → " +
@@ -163,9 +186,13 @@ object SimpleSteps {
             descEn = "Turning off ads personalization.",
             intents = listOf(settingsRoot()),
             searchTexts = listOf(
+                "Персонализированная реклама",
                 "Персонализация рекламы",
+                "Рекламные службы",
                 "Ads personalization",
-                "Personalization of ads"
+                "Personalized ads",
+                "Personalization of ads",
+                "Personalized ad recommendations"
             ),
             manualHintRu = "Настройки → Отпечатки… → Конфиденциальность → Рекламные службы → " +
                     "выключите «Персонализация рекламы».",
@@ -202,7 +229,15 @@ object SimpleSteps {
             descRu = "Выключаем карусель обоев и обновление через мобильный интернет.",
             descEn = "Turning off Wallpaper Carousel and mobile updates.",
             intents = listOf(settingsRoot()),
-            searchTexts = listOf("Карусель обоев", "Wallpaper Carousel", "Wallpaper carousel"),
+            searchTexts = listOf(
+                "Включить",
+                "Карусель обоев",
+                "Wallpaper Carousel",
+                "Wallpaper carousel",
+                "Turn on",
+                "Enable",
+                "Вкл"
+            ),
             additionalToggles = listOf(
                 "Обновлять через мобильный Интернет",
                 "Update via mobile network"
@@ -215,29 +250,60 @@ object SimpleSteps {
             )
         ),
 
-        // П.4a: Системные приложения → Mi Браузер → Дополнительные настройки
-        // ИСПРАВЛЕНО (beta6): добавлен com.miui.browser (Китай)
+        // П.7/10 из инструкции: Настройки → Рабочий стол → «Показывать предложения»
+        Step(
+            id = "home_suggestions",
+            titleRu = "Предложения на Рабочем столе",
+            titleEn = "Home screen suggestions",
+            descRu = "Выключаем рекламные предложения в недавних приложениях.",
+            descEn = "Turning off promotional suggestions in recent apps.",
+            intents = listOf(settingsRoot()),
+            searchTexts = listOf(
+                "Показывать предложения", "Show suggestions",
+                "Показывать рекомендации", "Show recommendations",
+                "Рекомендации", "Suggestions", "显示建议"
+            ),
+            manualHintRu = "Настройки → Рабочий стол → выключите «Показывать предложения».",
+            manualHintEn = "Settings → Home screen → turn off \"Show suggestions\".",
+            drillPath = listOf(
+                listOf("Рабочий стол", "Home screen", "Pantalla de inicio", "桌面")
+            ),
+            requiredPackages = listOf("com.miui.home", "com.mi.global.home"),
+            targetChecked = false
+        ),
+
+        // П.4a (п.4.9 в инструкции): Mi Браузер → Профиль → ⚙ → Дополнительно → Показывать рекламу
         Step(
             id = "browser_sys",
             titleRu = "Рекомендации Mi Браузера",
             titleEn = "Mi Browser recommendations",
-            descRu = "Выключаем показ рекомендаций в системном браузере.",
+            descRu = "Выключаем показ рекламы в системном браузере.",
             descEn = "Turning off recommendations in Mi Browser.",
-            intents = listOf(settingsRoot()),
-            searchTexts = listOf("Показывать рекламу", "Show ads"),
-            manualHintRu = "Настройки → Приложения → ⋮ → Прочие настройки → " +
-                    "Системные приложения → Mi Браузер → Дополнительные настройки → " +
+            intents = listOf(
+                launchIntent("com.mi.globalbrowser"),
+                launchIntent("com.android.browser"),
+                settingsRoot()
+            ),
+            searchTexts = listOf(
+                "Показывать рекламу", "Show ads",
+                "Персонализированные услуги", "Personalized services",
+                "Реклама", "Ads", "显示广告"
+            ),
+            manualHintRu = "Mi Браузер → Профиль → ⚙ → Дополнительно → " +
                     "выключите «Показывать рекламу».",
-            manualHintEn = "Settings → Apps → ⋮ → Additional settings → " +
-                    "System apps → Mi Browser → Advanced → turn off \"Show ads\".",
+            manualHintEn = "Mi Browser → Profile → ⚙ → Advanced → turn off \"Show ads\".",
+            launchPackage = "com.mi.globalbrowser",
             drillPath = listOf(
-                APPS, OVERFLOW, OTHER_SETTINGS, SYS_APPS,
-                listOf("Mi Браузер", "Mi Browser"),
-                listOf("Дополнительные настройки", "Advanced settings")
+                PROFILE,
+                GEAR,
+                listOf(
+                    "Дополнительно", "Дополнительные настройки", "Advanced",
+                    "Advanced settings", "Privacy", "Конфиденциальность"
+                )
             ),
             requiredPackages = listOf(
-                "com.android.browser",          // Глобал (старое имя)
                 "com.mi.globalbrowser",         // Глобал (новое имя)
+                "com.android.browser",          // Глобал (старое имя)
                 "com.miui.browser"              // Китай
             ),
             forceStopBeforeLaunch = true
@@ -251,25 +317,44 @@ object SimpleSteps {
             titleEn = "Music recommendations",
             descRu = "Выключаем рекомендации и персонализацию в Музыке.",
             descEn = "Turning off recommendations in Music.",
-            intents = listOf(settingsRoot()),
-            searchTexts = listOf("Показывать рекламу", "Show ads"),
+            intents = listOf(
+                launchIntent("com.miui.player"),
+                launchIntent("com.miui.music"),
+                launchIntent("com.mi.music"),
+                settingsRoot()
+            ),
+            searchTexts = listOf(
+                "Показывать рекламу",
+                "Show ads",
+                "Персональные рекомендации",
+                "Personalized recommendations",
+                "Рекомендации",
+                "Recommendations",
+                "Сервисы онлайн-контента",
+                "Онлайн-рекомендации",
+                "Реклама",
+                "Показывать рекомендуемый контент",
+                "Show recommended content"
+            ),
             additionalToggles = listOf(
                 "Показывать рекомендации в интернете", "Show recommendations online",
                 "Персональные рекомендации", "Personalized recommendations"
             ),
-            manualHintRu = "Настройки → … → Системные приложения → Музыка → " +
-                    "выключите «Показывать рекламу» и рекомендации.",
-            manualHintEn = "Settings → … → System apps → Music → " +
-                    "turn off recommendations.",
+            manualHintRu = "Музыка → ⚙ → Расширенные настройки → выключите «Показывать рекламу».",
+            manualHintEn = "Music → ⚙ → Advanced settings → turn off \"Show ads\".",
+            launchPackage = "com.miui.player",
             drillPath = listOf(
-                APPS, OVERFLOW, OTHER_SETTINGS, SYS_APPS,
-                listOf("Музыка", "Music")
+                listOf("⚙", "⚙️", "Настройки", "Settings", "⋮", "Меню", "Menu"),
+                listOf(
+                    "Расширенные настройки", "Advanced settings", "Advanced", "Дополнительно",
+                    "Показывать рекламу", "Show ads"
+                )
             ),
             requiredPackages = listOf(
                 "com.miui.player",              // Китай
                 "com.miui.music",               // Глобал (старое имя)
-                "com.android.music",            // AOSP
                 "com.mi.music"                  // HyperOS 3 (новое имя)
+                // без com.android.music — AOSP Music не имеет Xiaomi UI рекомендаций
             ),
             forceStopBeforeLaunch = true
         ),
@@ -298,38 +383,44 @@ object SimpleSteps {
             requiredPackages = listOf(
                 "com.miui.mms",                 // Китай
                 "com.android.mms",              // Глобал
-                "com.miui.mms.global",          // Глобал альтернатива
-                "com.google.android.apps.messaging"  // Google Messages
+                "com.miui.mms.global"           // Глобал альтернатива
+                // без Google Messages — другой UI, не Xiaomi system ads
             ),
             forceStopBeforeLaunch = true
         ),
 
-        // П.4d: Системные приложения → Безопасность (2 тумблера)
-        // ИСПРАВЛЕНО (beta6): добавлен com.miui.securitycore (HyperOS 3)
+        // П.4d (п.5 в инструкции): Безопасность → ⚙ → Получать рекомендации + Wi-Fi
         Step(
             id = "security_sys",
             titleRu = "Рекомендации Безопасности",
             titleEn = "Security recommendations",
             descRu = "Выключаем рекомендации в приложении Безопасность.",
             descEn = "Turning off Security app recommendations.",
-            intents = listOf(settingsRoot()),
-            searchTexts = listOf("Получать рекомендации", "Receive recommendations"),
+            intents = listOf(launchIntent("com.miui.securitycenter"), settingsRoot()),
+            searchTexts = listOf(
+                "Получать рекомендации", "Receive recommendations",
+                "接收推荐", "Recibir recomendaciones"
+            ),
             additionalToggles = listOf(
                 "Загружать только по Wi-Fi",
-                "Download only over Wi-Fi"
+                "Download only over Wi-Fi",
+                "仅在Wi-Fi下下载"
             ),
-            manualHintRu = "… → Системные приложения → Безопасность → " +
+            manualHintRu = "Безопасность → ⚙ → " +
                     "выключите «Получать рекомендации» и «Загружать только по Wi-Fi».",
-            manualHintEn = "… → System apps → Security → " +
+            manualHintEn = "Security → ⚙ → " +
                     "turn off recommendations and Wi-Fi-only.",
-            drillPath = listOf(
-                APPS, OVERFLOW, OTHER_SETTINGS, SYS_APPS,
-                listOf("Безопасность", "Security")
-            ),
+            launchPackage = "com.miui.securitycenter",
+            drillPath = listOf(GEAR),
             requiredPackages = listOf(
                 "com.miui.securitycenter",      // Китай/Глобал
                 "com.miui.securitycore"         // HyperOS 3 (новое имя)
             ),
+            // После выключения «Получать рекомендации» MIUI показывает диалог отзыва согласия
+            confirmTexts = listOf(
+                "OK", "ОК", "Согласен", "Agree", "Подтвердить", "Confirm", "Да", "Yes"
+            ),
+            confirmWaitMs = 2_500L,
             forceStopBeforeLaunch = true
         ),
 
@@ -353,9 +444,10 @@ object SimpleSteps {
                     "выключите «Получать рекомендации» и «Загружать только по Wi-Fi».",
             manualHintEn = "Security → Cleaner → ⚙ → turn off recommendations.",
             launchPackage = "com.miui.securitycenter",
-            preDrillWaitMs = 4_000L,
+            preDrillWaitMs = 800L,
             drillPath = listOf(
-                listOf("Очистка", "Cleaner", "Ускорить", "Speed up"),
+                // Не кликаем «Очистка» как кнопку запуска скана — ищем пункт меню / карточку настроек
+                listOf("Очистка", "Cleaner", "Очиститель", "Cleanup"),
                 GEAR
             ),
             requiredPackages = listOf(
@@ -365,8 +457,7 @@ object SimpleSteps {
             forceStopBeforeLaunch = true
         ),
 
-        // П.4f: Загрузки → ⋮ → Настройки
-        // ИСПРАВЛЕНО (beta6): добавлен com.android.downloads
+        // П.4f (п.4.2 в инструкции): Загрузки → ⋮ / ⚙ → Настройки
         Step(
             id = "downloads",
             titleRu = "Рекомендации Загрузок",
@@ -374,11 +465,20 @@ object SimpleSteps {
             descRu = "Выключаем рекомендации в Загрузках.",
             descEn = "Turning off Downloads recommendations.",
             intents = listOf(launchIntent("com.android.providers.downloads.ui")),
-            searchTexts = listOf("Получать рекомендации", "Receive recommendations"),
+            searchTexts = listOf(
+                "Получать рекомендации", "Receive recommendations",
+                "Показывать рекламу", "Show ads",
+                "Показывать рекомендуемый контент", "Show recommended content",
+                "Показать рекламу", "Рекомендации", "Recommendations",
+                "接收推荐", "显示广告", "Recibir recomendaciones"
+            ),
             manualHintRu = "Загрузки → ⋮ → Настройки → выключите «Получать рекомендации».",
             manualHintEn = "Downloads → ⋮ → Settings → turn off recommendations.",
             launchPackage = "com.android.providers.downloads.ui",
-            drillPath = listOf(OVERFLOW, GEAR),
+            drillPath = listOf(
+                listOf("⋮", "Ещё", "More", "Дополнительно", "Настройки", "Settings", "⚙", "⚙️"),
+                GEAR
+            ),
             requiredPackages = listOf(
                 "com.android.providers.downloads.ui",  // AOSP
                 "com.miui.android.downloads",           // MIUI
@@ -454,7 +554,12 @@ object SimpleSteps {
             intents = listOf(launchIntent("com.miui.videoplayer")),
             searchTexts = listOf(
                 "Персональные рекомендации",
-                "Personalized recommendations"
+                "Personalized recommendations",
+                "Показывать рекламу",
+                "Show ads",
+                "Онлайн-рекомендации",
+                "Рекомендации",
+                "Recommendations"
             ),
             manualHintRu = "Mi Видео → Профиль → ⚙ → " +
                     "выключите «Персональные рекомендации».",
@@ -581,7 +686,7 @@ object SimpleSteps {
             forceStopBeforeLaunch = true
         ),
 
-        // П.8: Лента виджетов → ⋮ → Управление службами → «Предложения»
+        // П.8 в инструкции: Лента виджетов → ⋮ → Управление службами → «Предложения»
         // ИСПРАВЛЕНО (beta6): добавлены глобал и AOSP имена
         Step(
             id = "appvault_services",
@@ -590,10 +695,14 @@ object SimpleSteps {
             descRu = "Выключаем «Предложения» в ленте виджетов.",
             descEn = "Turning off App Vault suggestions.",
             intents = listOf(launchIntent("com.miui.personalassistant")),
-            searchTexts = listOf("Предложение", "Suggestions"),
+            searchTexts = listOf(
+                "Предложения", "Предложение", "Suggestions", "Suggestion",
+                "Рекомендации", "Recommendations",
+                "Рекомендации приложений", "App recommendations"
+            ),
             additionalToggles = listOf(
-                "Рекомендации приложений",
-                "App recommendations"
+                "Реклама", "Ads", "Promotions",
+                "Рекомендации приложений", "App recommendations"
             ),
             manualHintRu = "Лента виджетов → ⋮ → Управление службами → " +
                     "выключите «Предложения».",
@@ -643,6 +752,28 @@ object SimpleSteps {
         ),
 
         // ── БЛОК Г: УВЕДОМЛЕНИЯ (п.11) ────────────────────────────────
+
+        // П.11 в инструкции: Отключение уведомлений системного сервиса рекламы MSA
+        Step(
+            id = "notif_msa",
+            titleRu = "Уведомления сервиса MSA",
+            titleEn = "MSA notifications",
+            descRu = "Полностью выключаем уведомления системного сервиса рекламы MSA.",
+            descEn = "Turning off notifications for MSA system ad service.",
+            intents = listOf(notificationsIntent("com.miui.msa.global")),
+            searchTexts = listOf(
+                "Разрешить уведомления", "Allow notifications",
+                "Показывать уведомления", "Show notifications",
+                "允许通知", "Permitir notificaciones"
+            ),
+            manualHintRu = "Настройки → Приложения → msa → Уведомления → выключите.",
+            manualHintEn = "Settings → Apps → msa → Notifications → turn off.",
+            requiredPackages = listOf(
+                "com.miui.msa.global",
+                "com.miui.msa.core"
+            ),
+            targetChecked = false
+        ),
 
         // ИСПРАВЛЕНО (beta6): добавлены альтернатива и GameLoop
         Step(
@@ -724,7 +855,8 @@ object SimpleSteps {
             manualHintEn = "Settings → Apps → GetApps → Notifications → turn off.",
             requiredPackages = listOf(
                 "com.xiaomi.market",
-                "com.miui.market"
+                "com.miui.market",
+                "com.mi.global.market"
             )
         ),
 
@@ -765,7 +897,8 @@ object SimpleSteps {
             manualHintEn = "Settings → Apps → Mi Video → Notifications → turn off.",
             requiredPackages = listOf(
                 "com.miui.videoplayer",
-                "com.miui.video"
+                "com.miui.video",
+                "com.mi.global.video"
             )
         )
     )

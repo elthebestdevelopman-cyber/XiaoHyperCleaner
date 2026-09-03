@@ -31,6 +31,7 @@
     <string name="status_done">Optimization complete</string>
     <string name="status_done_description">Privacy settings applied. All changes can be reverted.</string>
     <string name="reboot_now">Reboot now</string>
+    <string name="reboot_manual_hint">To fully apply the changes, reboot your phone manually (Power button → Restart).</string>
 
     <!-- ========== LEVEL SELECTION ========== -->
     <string name="level_dialog_subtitle">You can change the mode later in settings</string>
@@ -78,9 +79,9 @@
 
     <!-- ========== SHIZUKU DIALOGS ========== -->
     <string name="shizuku_dialog_title">Advanced mode requires Shizuku</string>
-    <string name="shizuku_dialog_not_installed">Shizuku is not installed. Install it from an app store.</string>
-    <string name="shizuku_dialog_not_running">Shizuku is installed but not running. Open the app and follow steps 1–5.</string>
-    <string name="shizuku_dialog_permission">Shizuku is running, but our app needs permission.</string>
+    <string name="shizuku_dialog_not_installed">Shizuku is a separate app (RikkaApps, Apache 2.0). We do not embed it — safer and fair to the author. Install from a store; the wizard then guides you in 5 short steps.</string>
+    <string name="shizuku_dialog_not_running">Shizuku is installed but not running. Developer settings will open — enable Wireless debugging, then tap Start in Shizuku.</string>
+    <string name="shizuku_dialog_permission">Shizuku is already running. Grant our app access once.</string>
     <string name="shizuku_dialog_install">Install</string>
     <string name="shizuku_dialog_howto">How to start</string>
     <string name="shizuku_dialog_later">Later</string>
@@ -117,7 +118,7 @@
 
     <!-- ========== OVERLAY ========== -->
     <string name="overlay_permission_title">"Display over other apps" permission</string>
-    <string name="overlay_permission_text">Needed to show hints while setting up other apps.</string>
+    <string name="overlay_permission_text">Required to display the automation screen and guidance hints.\n\n1. Find "XiaoHyperCleaner" in the app list.\n2. Turn on "Allow display over other apps".\n3. Tap Back to return to setup.</string>
 
     <!-- ========== RESTRICTED / FORBIDDEN (Android 13+ sideload) ========== -->
     <string name="restricted_dialog_title">Restricted settings</string>
@@ -170,7 +171,7 @@
     <string name="about_title">About the app</string>
     <string name="about_author">Author</string>
     <string name="about_text">XiaoHyperCleaner — a tool for safe privacy configuration on MIUI/HyperOS. Works only locally on your device.</string>
-    <string name="shizuku_attribution">Shizuku is used with gratitude to the developers.</string>
+    <string name="shizuku_attribution">Shizuku by RikkaApps (Apache 2.0). Not bundled — uses the official client.</string>
     <string name="close">Close</string>
     <string name="privacy_policy_url" translatable="false" tools:ignore="MissingTranslation">https://elthebestdevelopman-cyber.github.io/privacy-policy/index.html</string>
 
@@ -293,5 +294,6 @@
     <string name="result_soft">If it helped — a review or any support would be appreciated. It helps others find the app.</string>
     <string name="result_rate">Rate</string>
     <string name="result_support">Support</string>
-    <string name="result_close">Close</string>
+    <string name="result_share_log">Share log</string>
+    <string name="result_close">Open app</string>
 </resources>

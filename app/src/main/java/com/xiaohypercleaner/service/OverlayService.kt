@@ -5,6 +5,7 @@ import android.app.Service
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.drawable.Animatable
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.IBinder
@@ -21,6 +22,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.util.AppLog
 
@@ -206,9 +208,16 @@ class OverlayService : Service() {
             background = roundBg(0xF0202020.toInt(), radiusDp = 24)
         }
 
-        val cat = ImageView(this).apply { setImageResource(R.drawable.ic_robot_companion) }
+        val cat = ImageView(this).apply {
+            val d = ContextCompat.getDrawable(this@OverlayService, R.drawable.ic_robot_washing_avd)
+                ?: ContextCompat.getDrawable(this@OverlayService, R.drawable.ic_robot_companion)
+            setImageDrawable(d)
+            (d as? Animatable)?.start()
+        }
         layout.addView(cat, LinearLayout.LayoutParams(dp(120), dp(120)))
-        wobble(cat)
+        if (cat.drawable !is Animatable) {
+            washWobble(cat)
+        }
 
         tvTitle = TextView(this).apply {
             setText(R.string.automation_title)
@@ -300,31 +309,67 @@ class OverlayService : Service() {
             setPadding(0, dp(10), 0, 0)
         }, llWrap())
 
-        val row = LinearLayout(this).apply {
+        val row1 = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
         }
         val btnParams = { LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
 
-        row.addView(textBtn(getString(R.string.result_rate)) {
+        row1.addView(textBtn(getString(R.string.result_rate)) {
             hide()
+            returnToApp()
             openRate()
         }, btnParams())
-        row.addView(textBtn(getString(R.string.result_support)) {
+        row1.addView(textBtn(getString(R.string.result_support)) {
             hide()
+            returnToApp()
             openSupport()
         }, btnParams())
-        row.addView(textBtn(getString(R.string.result_close)) {
+
+        val row2 = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        row2.addView(textBtn(getString(R.string.result_share_log)) {
             hide()
+            shareLogFromOverlay()
+            OverlayController.triggerResultClose()
+        }, btnParams())
+        row2.addView(textBtn(getString(R.string.result_close)) {
+            hide()
+            returnToApp()
             OverlayController.triggerResultClose()
         }, btnParams())
 
-        layout.addView(row, llWrap().apply { topMargin = dp(10) })
+        layout.addView(row1, llWrap().apply { topMargin = dp(10) })
+        layout.addView(row2, llWrap().apply { topMargin = dp(4) })
+
+        returnToApp()
 
         addRoot(touchable = true, fullScreen = true).apply {
             addView(layout, flParams(Gravity.CENTER))
         }
         AppLog.i(TAG, "result shown: $completed/$total, failed=$failed, skipped=$skipped")
+    }
+
+    private fun returnToApp() {
+        try {
+            val intent = Intent(this, com.xiaohypercleaner.ui.MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            AppLog.w(TAG, "returnToApp failed: ${e.message}")
+        }
+    }
+
+    private fun shareLogFromOverlay() {
+        returnToApp()
+        try {
+            com.xiaohypercleaner.ui.shareLog(this)
+        } catch (e: Exception) {
+            AppLog.w(TAG, "shareLogFromOverlay failed: ${e.message}")
+        }
     }
 
     // ═══ Вспомогательные ═══
@@ -427,6 +472,14 @@ class OverlayService : Service() {
     private fun wobble(view: View) {
         ObjectAnimator.ofFloat(view, View.ROTATION, -5f, 5f, -5f).apply {
             duration = 1400; repeatCount = ObjectAnimator.INFINITE
+            interpolator = LinearInterpolator(); start()
+        }.also { animators.add(it) }
+    }
+
+    /** Fallback, если AVD не стартовал: лёгкое «умывание» поворотом */
+    private fun washWobble(view: View) {
+        ObjectAnimator.ofFloat(view, View.ROTATION, -12f, 8f, -12f).apply {
+            duration = 700; repeatCount = ObjectAnimator.INFINITE
             interpolator = LinearInterpolator(); start()
         }.also { animators.add(it) }
     }

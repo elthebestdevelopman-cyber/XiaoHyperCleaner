@@ -12,10 +12,13 @@ import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.LogMasker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Accessibility Service для XiaoHyperCleaner.
@@ -74,6 +77,7 @@ class AdbEnablerService : AccessibilityService() {
 
         // ── Actions для Intent ──
         const val ACTION_SIMPLE_STEP = "com.xiaohypercleaner.ACTION_SIMPLE_STEP"
+        const val EXTRA_STEP_ID = "step_id"
         const val ACTION_RETRY_DEV = "com.xiaohypercleaner.ACTION_RETRY_DEV"
         const val ACTION_START_CHAIN = "com.xiaohypercleaner.ACTION_START_CHAIN"
 
@@ -97,9 +101,17 @@ class AdbEnablerService : AccessibilityService() {
         )
 
         // ── Кнопки диалогов первого запуска (только ВНЕ шага) ──
+        // НЕ включать «Начать»/«Start» — в Безопасности это запускает автоочистку
+        // и убивает процесс приложения (см. лог: Auto-dialog clicked Начать → process restart)
         private val AUTO_ALLOW_TEXTS: Array<String> = arrayOf(
-            "Согласиться", "Принять", "Разрешить", "Продолжить", "Начать",
-            "Agree", "Accept", "Allow", "Continue", "Start", "OK", "Got it"
+            "Согласиться", "Принять", "Agree", "Accept", "Got it", "Понятно"
+        )
+
+        /** Кнопки, которые НИКОГДА нельзя нажимать автокликером */
+        private val AUTO_CLICK_BLOCKLIST: Array<String> = arrayOf(
+            "Начать", "Start", "Очистить", "Clean", "Очистка", "Cleaner",
+            "Оптимизировать", "Optimize", "Ускорить", "Speed up",
+            "Проверить", "Scan", "Проверка"
         )
 
         // ── Маркеры системных ошибок: узкие, специфичные ──
@@ -123,6 +135,8 @@ class AdbEnablerService : AccessibilityService() {
 
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val simpleRunner: SimpleRunner by lazy { SimpleRunner(this) }
+    private val stepMutex = Mutex()
+    private var stepJob: Job? = null
 
     /** Timestamp последнего обработанного события (для throttling) */
     private var lastActionTime: Long = 0L
@@ -188,11 +202,19 @@ class AdbEnablerService : AccessibilityService() {
         when (intent?.action) {
             ACTION_SIMPLE_STEP -> {
                 val index: Int = intent.getIntExtra("step_index", -1)
+                val stepId: String = intent.getStringExtra(EXTRA_STEP_ID) ?: ""
                 val total: Int = SimpleSteps.ALL.size
                 if (index in SimpleSteps.ALL.indices) {
                     // НОВОЕ (beta11): захватываем wake lock на первом шаге
                     if (index == 0) acquireWakeLock()
-                    scope.launch { runSimpleStep(index, total) }
+                    // Сериализация: отменяем предыдущий run, чтобы не было гонок
+                    stepJob?.cancel()
+                    simpleRunner.cancel()
+                    stepJob = scope.launch {
+                        stepMutex.withLock {
+                            runSimpleStep(index, total, stepId)
+                        }
+                    }
                 } else {
                     AppLog.w(TAG, "onStartCommand: invalid step_index=$index")
                 }
@@ -234,9 +256,16 @@ class AdbEnablerService : AccessibilityService() {
      * @param index индекс шага в [SimpleSteps.ALL]
      * @param total общее количество шагов (для определения последнего)
      */
-    private suspend fun runSimpleStep(index: Int, total: Int) {
+    private suspend fun runSimpleStep(index: Int, total: Int, expectedStepId: String) {
         try {
             val step: SimpleSteps.Step = SimpleSteps.ALL[index]
+
+            // Защита от устаревших/параллельных вызовов: если переданный id не совпадает
+            // с id шага по индексу (гонки или дубли из очереди) — тихо игнорируем.
+            if (expectedStepId.isNotEmpty() && step.id != expectedStepId) {
+                AppLog.w(TAG, "runSimpleStep: index=$index mismatch id='$expectedStepId' vs '${step.id}' — stale call ignored")
+                return
+            }
 
             AppLog.i(TAG, "runSimpleStep: starting step ${index + 1}/$total (${step.id})")
 
@@ -273,7 +302,7 @@ class AdbEnablerService : AccessibilityService() {
                             else R.string.automation_status_fail
                         )
                     )
-                    SimpleStepBridge.onResult?.invoke(result.success)
+                    SimpleStepBridge.onResult?.invoke(result.success, result.reason ?: "")
                 }
             }
 
@@ -281,10 +310,42 @@ class AdbEnablerService : AccessibilityService() {
             if (index == total - 1) {
                 releaseWakeLock()
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Ожидаемая отмена при переходе к следующему шагу — не трактуем как ошибку шага
+            AppLog.i(TAG, "runSimpleStep cancelled (step transition)")
+            throw e
         } catch (e: Exception) {
             AppLog.e(TAG, "runSimpleStep error: ${LogMasker.mask(e.message ?: "")}", e)
-            SimpleStepBridge.onResult?.invoke(false)
+            SimpleStepBridge.onResult?.invoke(false, "error")
         }
+    }
+
+    /**
+     * Откат Simple Mode: для каждого stepId запускает тот же маршрут с инвертированным targetChecked.
+     * Возвращает true если хотя бы один шаг успешно откатился (или список пуст).
+     */
+    suspend fun reverseSimpleToggles(
+        stepIds: Set<String>,
+        onProgress: (Float) -> Unit = {}
+    ): Boolean {
+        if (stepIds.isEmpty()) return true
+        acquireWakeLock()
+        var okCount = 0
+        val list = stepIds.toList()
+        try {
+            list.forEachIndexed { i, id ->
+                val original = SimpleSteps.ALL.firstOrNull { it.id == id } ?: return@forEachIndexed
+                val reverse = original.copy(targetChecked = !original.targetChecked)
+                AppLog.i(TAG, "reverseSimpleToggles: ${original.id} -> targetChecked=${reverse.targetChecked}")
+                val result = simpleRunner.run(reverse)
+                if (result.success) okCount++
+                onProgress((i + 1).toFloat() / list.size)
+            }
+        } finally {
+            releaseWakeLock()
+        }
+        AppLog.i(TAG, "reverseSimpleToggles done: $okCount/${list.size}")
+        return okCount > 0
     }
 
     /**
@@ -294,6 +355,8 @@ class AdbEnablerService : AccessibilityService() {
     fun cancelRunner() {
         AppLog.i(TAG, "cancelRunner: cancelling SimpleRunner")
         releaseWakeLock()  // НОВОЕ (beta11): освобождаем при отмене
+        stepJob?.cancel()
+        stepJob = null
         simpleRunner.cancel()
     }
 
@@ -425,7 +488,25 @@ class AdbEnablerService : AccessibilityService() {
     private fun handleFirstRunDialogs(root: AccessibilityNodeInfo) {
         if (handleSystemErrors(root)) return
 
+        val screenText = collectAllText(root)
+        if (screenText.contains("по умолчанию", ignoreCase = true) ||
+            screenText.contains("default browser", ignoreCase = true) ||
+            screenText.contains("set as default", ignoreCase = true)
+        ) {
+            if (clickByText(root, arrayOf("Отмена", "Cancel", "Не сейчас", "Not now", "Позже", "Later"))) {
+                AppLog.i(TAG, "Auto-dialog: default app prompt → Cancel")
+                return
+            }
+        }
+
         for (text: String in AUTO_ALLOW_TEXTS) {
+            if (AUTO_CLICK_BLOCKLIST.any { text.equals(it, ignoreCase = true) }) continue
+            if (AUTO_CLICK_BLOCKLIST.any { screenText.contains(it, ignoreCase = true) &&
+                    (text.equals("OK", true) || text.equals("ОК", true)) }) {
+                // На экране очистки/проверки не жмём OK
+                continue
+            }
+
             val nodes: List<AccessibilityNodeInfo> = runCatching {
                 root.findAccessibilityNodeInfosByText(text)
             }.getOrNull() ?: emptyList()
@@ -500,8 +581,9 @@ class AdbEnablerService : AccessibilityService() {
         val result: Boolean = clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK)
         if (result) {
             ChainFlags.waitingAccessibilityReturn = false
-            SimpleStepBridge.onResult?.invoke(true)
-            AppLog.i(TAG, "handleAllowDialog: permission granted, notifying bridge")
+            ChainFlags.adbAllowGranted = true
+            // НЕ трогаем SimpleStepBridge — иначе PRO-watchdog ложно завершает Simple-шаг
+            AppLog.i(TAG, "handleAllowDialog: ADB permission granted")
         }
         recycleNode(node)
         recycleNode(clickable)

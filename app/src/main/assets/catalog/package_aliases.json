@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "comment": "OTA-friendly package aliases. Prefer entries by RomProfile (cn/global). Update after HyperOS renames without rewriting Kotlin steps.",
+  "groups": {
+    "msa": ["com.miui.msa.global", "com.miui.msa.core", "com.miui.systemAdSolution"],
+    "getapps": ["com.xiaomi.market", "com.miui.market", "com.mi.global.market"],
+    "mivideo": ["com.miui.videoplayer", "com.miui.video", "com.mi.global.video"],
+    "browser": ["com.android.browser", "com.mi.globalbrowser", "com.miui.browser"],
+    "music": ["com.miui.player", "com.miui.music", "com.mi.music"],
+    "messages": ["com.miui.mms", "com.android.mms", "com.miui.mms.global"],
+    "themes": ["com.android.thememanager", "com.miui.thememanager", "com.mi.thememanager"],
+    "launcher": [
+      "com.miui.home",
+      "com.mi.android.globallauncher",
+      "com.mi.android.globalHome",
+      "com.mi.global.home"
+    ],
+    "security": ["com.miui.securitycenter", "com.miui.securitycore"],
+    "personalassistant": [
+      "com.miui.personalassistant",
+      "com.mi.android.global.personalassistant"
+    ]
+  },
+  "stepOverrides": {
+    "notif_msa": ["com.miui.msa.global", "com.miui.msa.core"],
+    "browser_sys": ["com.mi.globalbrowser", "com.android.browser", "com.miui.browser"],
+    "notif_getapps": ["com.xiaomi.market", "com.miui.market", "com.mi.global.market"],
+    "notif_mivideo": ["com.miui.videoplayer", "com.miui.video", "com.mi.global.video"],
+    "music_sys": ["com.miui.player", "com.miui.music", "com.mi.music"],
+    "messages_sys": ["com.miui.mms", "com.android.mms", "com.miui.mms.global"]
+  }
+}

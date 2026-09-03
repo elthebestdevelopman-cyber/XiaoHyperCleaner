@@ -475,18 +475,31 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         AppLog.i(TAG, "Применение DNS фильтра (AdGuard)")
         return try {
             val prevMode =
-                adb.executeCommand("settings get ${ServiceRegistry.Dns.MODE_KEY}").getOrNull()
-                    ?.trim() ?: ""
+                adb.executeCommand("shell settings get ${ServiceRegistry.Dns.MODE_KEY}").getOrNull()
+                    ?.trim()
+                    ?: adb.executeCommand("settings get ${ServiceRegistry.Dns.MODE_KEY}").getOrNull()
+                        ?.trim()
+                    ?: ""
             val prevHost =
-                adb.executeCommand("settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}").getOrNull()
-                    ?.trim() ?: ""
+                adb.executeCommand("shell settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}")
+                    .getOrNull()?.trim()
+                    ?: adb.executeCommand("settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}")
+                        .getOrNull()?.trim()
+                    ?: ""
 
             transaction.previousDnsMode = prevMode
             transaction.previousDnsHost = prevHost
             transaction.enabledDns = true
 
             val modeResult =
-                adb.executeCommand("settings put ${ServiceRegistry.Dns.MODE_KEY} ${ServiceRegistry.Dns.MODE_VALUE}")
+                adb.executeCommand(
+                    "shell settings put ${ServiceRegistry.Dns.MODE_KEY} ${ServiceRegistry.Dns.MODE_VALUE}"
+                ).let { r ->
+                    if (r.isSuccess) r
+                    else adb.executeCommand(
+                        "settings put ${ServiceRegistry.Dns.MODE_KEY} ${ServiceRegistry.Dns.MODE_VALUE}"
+                    )
+                }
 
             if (modeResult.isFailure) {
                 AppLog.w(TAG, "DNS mode put не удался: ${modeResult.exceptionOrNull()?.message}")
@@ -496,7 +509,14 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
 
             val hostResult =
-                adb.executeCommand("settings put ${ServiceRegistry.Dns.SPECIFIER_KEY} ${ServiceRegistry.Dns.SPECIFIER_VALUE}")
+                adb.executeCommand(
+                    "shell settings put ${ServiceRegistry.Dns.SPECIFIER_KEY} ${ServiceRegistry.Dns.SPECIFIER_VALUE}"
+                ).let { r ->
+                    if (r.isSuccess) r
+                    else adb.executeCommand(
+                        "settings put ${ServiceRegistry.Dns.SPECIFIER_KEY} ${ServiceRegistry.Dns.SPECIFIER_VALUE}"
+                    )
+                }
 
             if (hostResult.isFailure) {
                 AppLog.w(TAG, "DNS host put не удался: ${hostResult.exceptionOrNull()?.message}")
@@ -514,6 +534,17 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
     private suspend fun disablePackage(pkg: String): Boolean {
         AppLog.i(TAG, "Попытка отключения пакета $pkg")
+
+        // Пропускаем отсутствующие regional-пакеты — иначе verify/rollback ломаются шумом
+        try {
+            val path = adb.executeCommand("shell pm path $pkg").getOrNull().orEmpty()
+            if (path.isBlank() || path.contains("Error") || path.contains("Exception")) {
+                AppLog.i(TAG, "Пакет $pkg не установлен — skip")
+                return false
+            }
+        } catch (_: Exception) {
+            // продолжаем попытку disable
+        }
 
         try {
             val result = adb.executeCommand("shell pm disable-user --user 0 $pkg").getOrNull() ?: ""
@@ -681,23 +712,43 @@ class OptimizationEngine(private val adb: AdbExecutor) {
     }
 
     private suspend fun verifyAnalyticsDisabled(): Boolean {
-        return try {
-            val result = adb.executeCommand("shell pm list packages -d").getOrNull() ?: ""
-            ServiceRegistry.ANALYTICS_PACKAGES.all { pkg -> result.contains(pkg) }
-        } catch (e: Exception) {
-            AppLog.w(TAG, "Верификация аналитики не удалась: ${LogMasker.mask(e.message ?: "")}")
-            false
-        }
+        return verifyPackagesInactive(ServiceRegistry.ANALYTICS_PACKAGES, "analytics")
     }
 
     private suspend fun verifyAdServicesDisabled(): Boolean {
+        return verifyPackagesInactive(ServiceRegistry.AD_SERVICES_PACKAGES, "ad_services")
+    }
+
+    /**
+     * Проверяем только пакеты, которые реально установлены на устройстве.
+     * Union CN+Global реестра иначе валит verify на любой региональной прошивке.
+     */
+    private suspend fun verifyPackagesInactive(packages: List<String>, label: String): Boolean {
         return try {
-            val result = adb.executeCommand("shell pm list packages -d").getOrNull() ?: ""
-            ServiceRegistry.AD_SERVICES_PACKAGES.all { pkg -> result.contains(pkg) }
+            val installedRaw = adb.executeCommand("shell pm list packages").getOrNull() ?: ""
+            val targets = packages.filter { pkg ->
+                installedRaw.contains("package:$pkg") || installedRaw.contains(pkg)
+            }
+            if (targets.isEmpty()) {
+                AppLog.i(TAG, "verify $label: no listed packages installed — OK")
+                return true
+            }
+
+            val disabled = adb.executeCommand("shell pm list packages -d").getOrNull() ?: ""
+            val suspended = adb.executeCommand("shell pm list packages --suspended").getOrNull()
+                ?: ""
+
+            val failed = targets.filterNot { pkg ->
+                disabled.contains(pkg) || suspended.contains(pkg)
+            }
+            if (failed.isNotEmpty()) {
+                AppLog.w(TAG, "verify $label failed for: $failed")
+            }
+            failed.isEmpty()
         } catch (e: Exception) {
             AppLog.w(
                 TAG,
-                "Верификация рекламных сервисов не удалась: ${LogMasker.mask(e.message ?: "")}"
+                "Верификация $label не удалась: ${LogMasker.mask(e.message ?: "")}"
             )
             false
         }
@@ -705,17 +756,20 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
     private suspend fun verifyDnsFilter(): Boolean {
         return try {
-            // ИСПРАВЛЕНО: убраны лишние пробелы в командах
+            // shell-префикс для совместимости с разными AdbExecutor
             val mode =
-                adb.executeCommand("settings get ${ServiceRegistry.Dns.MODE_KEY}").getOrNull() ?: ""
+                adb.executeCommand("shell settings get ${ServiceRegistry.Dns.MODE_KEY}").getOrNull()
+                    ?: adb.executeCommand("settings get ${ServiceRegistry.Dns.MODE_KEY}").getOrNull()
+                    ?: ""
             val host =
-                adb.executeCommand("settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}").getOrNull()
+                adb.executeCommand("shell settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}")
+                    .getOrNull()
+                    ?: adb.executeCommand("settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}")
+                        .getOrNull()
                     ?: ""
 
-            // ИСПРАВЛЕНО: было "& &" с пробелами — синтаксическая ошибка
             mode.contains(ServiceRegistry.Dns.MODE_VALUE) && host.contains("adguard")
         } catch (e: Exception) {
-            // ИСПРАВЛЕНО: убраны лишние пробелы в логе
             AppLog.w(TAG, "Верификация DNS не удалась: ${LogMasker.mask(e.message ?: "")}")
             false
         }
