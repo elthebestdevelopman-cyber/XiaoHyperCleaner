@@ -1,0 +1,217 @@
+{
+  "version": 2,
+  "comment": "OTA-extensible step-level keywords for Xiaomi/HyperOS across RU, EN, ES, ZH, HI, PT, IN",
+  "steps": {
+    "msa": {
+      "searchTexts": [
+        "msa", "MSA", "系统服务msa", "系统广告", "广告服务",
+        "Xiaomi System Ads", "Servicio msa"
+      ],
+      "confirmTexts": [
+        "Отозвать", "Revoke", "撤销", "撤销授权", "Revocar",
+        "रद्द करें", "Revogar"
+      ],
+      "additionalToggles": [],
+      "drillExtras": [
+        [
+          "Отпечатки, данные лица и защита устройства", "Пароли и безопасность",
+          "Fingerprints, face data & device security", "Passwords & security",
+          "密码与安全", "指纹、面容与设备保护", "Contraseñas y seguridad",
+          "पासवर्ड और सुरक्षा", "Senhas e segurança", "Sandi & keamanan"
+        ],
+        [
+          "Доступ к личным данным", "Авторизация и отзыв",
+          "Access to personal data", "Authorization & revocation", "Authorisation and revocation",
+          "授权管理", "个人数据访问", "Acceso a datos personales", "Autorización y revocación",
+          "व्यक्तिगत डेटा तक पहुंच", "Acesso a dados pessoais", "Autorização e revogação",
+          "Akses ke data pribadi", "Otorisasi & pencabutan"
+        ]
+      ]
+    },
+    "sys_recommendations": {
+      "searchTexts": [
+        "Получать рекомендации", "Receive recommendations", "Рекомендации",
+        "接收推荐", "个性化推荐", "Recibir recomendaciones",
+        "सिफारिशें प्राप्त करें", "Receber recomendações", "Terima rekomendasi"
+      ],
+      "confirmTexts": [],
+      "additionalToggles": [],
+      "drillExtras": [
+        ["Приложения", "Apps", "Manage apps", "Все приложения", "应用", "应用管理", "Aplicaciones", "ऐप्स", "Aplicativos", "Kelola aplikasi"],
+        ["⋮", "Ещё", "More options", "More", "Дополнительно", "更多", "Más", "अधिक विकल्प", "Mais opções", "Lainnya"],
+        ["Прочие настройки", "Additional settings", "Advanced settings", "其他设置", "Ajustes adicionales", "अतिरिक्त सेटिंग्स", "Configurações adicionais", "Setelan tambahan"]
+      ]
+    },
+    "ads_personalization": {
+      "searchTexts": [
+        "Персонализированная реклама", "Персонализация рекламы", "Рекламные службы",
+        "Personalized ads", "Ads personalization", "Personalized ad recommendations", "Ad services", "Advertising services",
+        "个性化广告推荐", "个性化广告", "广告服务",
+        "Publicidad personalizada", "Servicios publicitarios", "Personalización de anuncios",
+        "व्यक्तिगत विज्ञापन", "विज्ञापन सेवाएं",
+        "Anúncios personalizados", "Serviços de anúncios",
+        "Iklan yang dipersonalisasi", "Layanan iklan"
+      ],
+      "confirmTexts": [],
+      "additionalToggles": [],
+      "drillExtras": [
+        ["Отпечатки, данные лица и защита устройства", "Пароли и безопасность", "Passwords & security", "Fingerprints, face data & device security"],
+        ["Конфиденциальность", "Privacy", "隐私", "Privacidad", "गोपनीयता", "Privacidade", "Privasi"],
+        ["Рекламные службы", "Ad services", "Advertising services", "广告服务", "Servicios publicitarios", "विज्ञापन सेवाएं", "Serviços de anúncios", "Layanan iklan"]
+      ]
+    },
+    "ux_program": {
+      "searchTexts": [
+        "Участвовать в Программе улучшения качества", "Программа улучшения качества",
+        "Join User Experience Program", "User Experience Program",
+        "加入用户体验改进计划", "用户体验改进计划",
+        "Participar en el Programa de experiencia del usuario", "Programa de experiencia del usuario",
+        "उपयोगकर्ता अनुभव कार्यक्रम", "Programa de Experiência do Usuário", "Program Pengalaman Pengguna"
+      ],
+      "confirmTexts": [],
+      "additionalToggles": [],
+      "drillExtras": [
+        ["Отпечатки, данные лица и защита устройства", "Пароли и безопасность", "Passwords & security", "Fingerprints, face data & device security"],
+        ["Конфиденциальность", "Privacy", "隐私", "Privacidad", "गोपनीयता", "Privacidade", "Privasi"]
+      ]
+    },
+    "carousel": {
+      "searchTexts": [
+        "Карусель обоев", "Wallpaper Carousel", "Glance", "Glance for Mi",
+        "壁纸轮播", "Carrusel de fondos de pantalla",
+        "वॉलपेपर हिंडोला", "Carrossel de planos de fundo", "Komedi Putar Gambar Animasi"
+      ],
+      "confirmTexts": [],
+      "additionalToggles": [
+        "Обновлять через мобильный Интернет", "Update via mobile network",
+        "Автоматическое обновление", "Auto update", "Actualizar mediante red móvil",
+        "Atualizar pela rede móvel", "Perbarui melalui jaringan seluler"
+      ],
+      "drillExtras": [
+        ["Блокировка экрана", "Lock screen", "锁定屏幕", "Pantalla de bloqueo", "लॉक स्क्रीन", "Tela de bloqueio", "Layar kunci"],
+        ["Карусель обоев", "Wallpaper Carousel", "Glance", "Glance for Mi", "壁纸轮播", "Carrusel de fondos de pantalla"]
+      ]
+    },
+    "security_sys": {
+      "searchTexts": [
+        "Получать рекомендации", "Receive recommendations", "Рекомендации",
+        "接收推荐", "Recibir recomendaciones",
+        "सिफारिशें प्राप्त करें", "Receber recomendações", "Terima rekomendasi"
+      ],
+      "confirmTexts": [
+        "OK", "ОК", "Согласен", "Agree", "Подтвердить", "Confirm", "Да", "Yes",
+        "Aceptar", "ठीक है", "Concordar", "Setuju"
+      ],
+      "additionalToggles": [
+        "Загружать только по Wi-Fi", "Download only over Wi-Fi", "仅在Wi-Fi下下载",
+        "Descargar solo con Wi-Fi", "Baixar apenas por Wi-Fi", "Unduh hanya melalui Wi-Fi"
+      ],
+      "drillExtras": [
+        ["⚙", "⚙️", "Настройки", "Settings", "Configuración", "Ajustes", "设置", "Paramètres", "सेटिंग्स", "Configurações", "Setelan"]
+      ]
+    },
+    "cleaner": {
+      "searchTexts": [
+        "Получать рекомендации", "Receive recommendations", "Рекомендации",
+        "接收推荐", "Recibir recomendaciones",
+        "सिफारिशें प्राप्त करें", "Receber recomendações", "Terima rekomendasi"
+      ],
+      "confirmTexts": [
+        "OK", "ОК", "Согласен", "Agree", "Подтвердить", "Confirm", "Да", "Yes"
+      ],
+      "additionalToggles": [
+        "Загружать только по Wi-Fi", "Download only over Wi-Fi"
+      ],
+      "drillExtras": [
+        ["Очистка", "Cleaner", "Очиститель", "Cleanup", "垃圾清理", "Limpiador", "सफाई", "Limpeza", "Pembersih"],
+        ["⚙", "⚙️", "Настройки", "Settings", "Configuración", "Ajustes", "设置"]
+      ]
+    },
+    "downloads": {
+      "searchTexts": [
+        "Получать рекомендации", "Receive recommendations", "Показывать рекламу", "Show ads",
+        "Показывать рекомендуемый контент", "Show recommended content", "Рекомендации",
+        "接收推荐", "显示推荐内容", "Recibir recomendaciones", "Mostrar contenido recomendado",
+        "सिफारिशें दिखाएं", "Mostrar recomendações", "Tampilkan konten yang direkomendasikan"
+      ],
+      "confirmTexts": [
+        "OK", "ОК", "Согласен", "Agree", "Подтвердить", "Confirm", "Да", "Yes"
+      ],
+      "additionalToggles": [],
+      "drillExtras": [
+        ["⋮", "Ещё", "Еще", "More options", "More", "Дополнительно", "更多", "Más"],
+        ["Настройки", "Settings", "Configuración", "Ajustes", "设置", "सेटिंग्स", "Configurações", "Setelan"]
+      ]
+    },
+    "themes": {
+      "searchTexts": [
+        "Показывать рекламу", "Show ads", "Персонализированные рекомендации", "Personalized recommendations",
+        "Рекомендации", "Recommendations", "显示广告", "个性化推荐", "Mostrar anuncios",
+        "বিজ্ঞাপন দেখান", "Mostrar anúncios", "Tampilkan iklan"
+      ],
+      "confirmTexts": [],
+      "additionalToggles": [
+        "Персональные рекомендации", "Personalized recommendations", "个性化推荐"
+      ],
+      "drillExtras": [
+        ["Профиль", "Profile", "Мой профиль", "My profile", "Account", "Мой аккаунт", "我的", "Perfil", "प्रोफ़ाइल"],
+        ["⚙", "⚙️", "Настройки", "Settings", "Configuración", "Ajustes", "设置"]
+      ]
+    },
+    "browser_sys": {
+      "searchTexts": [
+        "Показывать рекламу", "Show ads", "Персонализированные услуги", "Personalized services",
+        "Реклама", "Ads", "Рекомендации", "Recommendations", "显示广告", "Mostrar anuncios",
+        "विज्ञापन दिखाएं", "Mostrar anúncios", "Tampilkan iklan"
+      ],
+      "confirmTexts": [],
+      "additionalToggles": [],
+      "drillExtras": [
+        ["Профиль", "Profile", "Мой профиль", "Account", "我的", "Perfil"],
+        ["⚙", "⚙️", "Настройки", "Settings", "Configuración", "Ajustes"],
+        ["Дополнительно", "Дополнительные настройки", "Advanced", "Advanced settings", "Privacy", "Конфиденциальность"]
+      ]
+    },
+    "music_sys": {
+      "searchTexts": [
+        "Показывать рекламу", "Show ads", "Персональные рекомендации", "Personalized recommendations",
+        "Рекомендации", "Recommendations", "Сервисы онлайн-контента", "Онлайн-рекомендации",
+        "显示广告", "个性化推荐", "Mostrar anuncios", "Recomendaciones personalizadas"
+      ],
+      "confirmTexts": [],
+      "additionalToggles": [
+        "Показывать рекомендации в интернете", "Show recommendations online",
+        "Персональные рекомендации", "Personalized recommendations"
+      ],
+      "drillExtras": [
+        ["⚙", "⚙️", "Настройки", "Settings", "⋮", "Меню", "Menu", "Configuración"],
+        ["Расширенные настройки", "Advanced settings", "Advanced", "Дополнительно", "Configuraciones avanzadas"]
+      ]
+    },
+    "mivideo": {
+      "searchTexts": [
+        "Персональные рекомендации", "Personalized recommendations", "Показывать рекламу", "Show ads",
+        "Онлайн-рекомендации", "Рекомендации", "Recommendations", "个性化推荐", "Recomendaciones personalizadas"
+      ],
+      "confirmTexts": [],
+      "additionalToggles": [],
+      "drillExtras": [
+        ["Профиль", "Profile", "Мой профиль", "Account", "我的", "Perfil"],
+        ["⚙", "⚙️", "Настройки", "Settings", "Configuración"]
+      ]
+    },
+    "shareme": {
+      "searchTexts": [
+        "Персонализация рекламы", "Ads personalization", "Персонализированные рекомендации",
+        "Personalized recommendations", "个性化推荐", "Personalización de anuncios"
+      ],
+      "confirmTexts": [],
+      "additionalToggles": [],
+      "drillExtras": [
+        ["⋮", "Меню", "Menu", "More"],
+        ["О приложении", "About", "关于", "Acerca de"],
+        ["Справка и обратная связь", "Help & feedback", "帮助与反馈", "Ayuda y comentarios"]
+      ]
+    }
+  }
+}

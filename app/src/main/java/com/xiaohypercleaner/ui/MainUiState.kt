@@ -194,7 +194,11 @@ data class MainUiState(
     val rebootFailed: Boolean = false,
 
     /** Восстановление не удалось */
-    val restoreFailed: Boolean = false
+    val restoreFailed: Boolean = false,
+
+    /** Диалог уведомления о европейском регионе (EEA / GDPR) */
+    val showEeaNoticeDialog: Boolean = false,
+    val eeaRegionName: String = ""
 ) {
     // ═══════════════════════════════════════════════════════════════
     // Convenience методы
@@ -215,7 +219,7 @@ data class MainUiState(
                 showBatteryDialog || showOptionsDialog || showDnsWarningDialog ||
                 showLevelDialog || showLevelConfirm || showShizukuDialog ||
                 showShizukuSources || showShizukuWizard || showDevModeDialog ||
-                showFinalDialog || showRebootDialog
+                showFinalDialog || showRebootDialog || showEeaNoticeDialog
 
     /** Возвращает количество успешных шагов Simple Mode */
     val simpleCompletedCount: Int

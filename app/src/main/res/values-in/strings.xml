@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- ========== COMMON ========== -->
+    <string name="app_name">XiaoHyperCleaner</string>
+    <string name="app_description_short">Mengonfigurasi setelan privasi dan mengurangi beban latar belakang di Xiaomi / MIUI / HyperOS. Bekerja tanpa root.</string>
+    <string name="cancel">Batal</string>
+    <string name="allow">Izinkan</string>
+
+    <!-- ========== MAIN SCREEN ========== -->
+    <string name="features_title">Fungsi aplikasi</string>
+    <string name="feature_processes">Konfigurasi setelan sistem untuk meningkatkan privasi</string>
+    <string name="feature_speed">Percepat antarmuka dan optimalkan animasi</string>
+    <string name="feature_battery">Kurangi aktivitas latar belakang untuk hemat baterai</string>
+
+    <string name="btn_optimize">Optimalkan</string>
+    <string name="btn_restore">Kembalikan perubahan</string>
+    <string name="status_working">Sedang mengoptimalkan…</string>
+    <string name="status_done">Pengoptimalan selesai</string>
+    <string name="status_done_description">Setelan privasi diterapkan. Semua perubahan dapat dikembalikan kapan saja.</string>
+    <string name="reboot_now">Mulai ulang sekarang</string>
+    <string name="reboot_manual_hint">Untuk menerapkan perubahan secara penuh, mulai ulang ponsel secara manual (Tombol daya → Mulai ulang).</string>
+
+    <!-- ========== LEVEL SELECTION ========== -->
+    <string name="level_dialog_subtitle">Anda dapat mengubah mode nanti di setelan</string>
+    <string name="level_simple_title">🟢 Sederhana</string>
+    <string name="level_simple_desc">Aman untuk semua pengguna. Pengoptimalan otomatis tanpa penyiapan rumit.</string>
+    <string name="level_pro_title">🔵 Lanjutan</string>
+    <string name="level_pro_desc">Pengoptimalan mendalam. Memerlukan penyiapan Shizuku / Wireless ADB.</string>
+    <string name="level_dialog_continue">Lanjutkan</string>
+    <string name="robocat_caption">Robo-cat membantu mengonfigurasi sistem</string>
+
+    <string name="level_confirm_simple_title">Mulai pengoptimalan sederhana?</string>
+    <string name="level_confirm_simple_text">Aplikasi akan membuka setelan dan menerapkan parameter privasi. Memerlukan waktu 2–3 menit.</string>
+    <string name="level_confirm_advanced_title">Mulai pengoptimalan lanjutan?</string>
+    <string name="level_confirm_advanced_text">Memerlukan penyiapan Shizuku atau Wireless ADB.</string>
+    <string name="level_confirm_start">Mulai</string>
+
+    <!-- ========== SIMPLE MODE: STEPS ========== -->
+    <string name="simple_step_of">Langkah %1$d dari %2$d</string>
+    <string name="simple_step_start">Mulai</string>
+    <string name="simple_step_working">Sedang berjalan…</string>
+    <string name="simple_step_attempt">Percobaan %1$d dari %2$d</string>
+    <string name="simple_step_auto_next">Selesai — melanjutkan…</string>
+    <string name="simple_step_failed">Tidak dapat diselesaikan otomatis</string>
+    <string name="simple_step_next">Berikutnya</string>
+    <string name="simple_step_skip">Lewati langkah</string>
+    <string name="simple_step_retry">Coba lagi</string>
+
+    <!-- ========== SIMPLE MODE: FINAL ========== -->
+    <string name="simple_done_title">Semua selesai!</string>
+    <string name="simple_done_text">Setelan privasi diterapkan. Tidak perlu mulai ulang.</string>
+    <plurals name="simple_done_steps_done">
+        <item quantity="one">%1$d dari %2$d langkah selesai</item>
+        <item quantity="other">%1$d dari %2$d langkah selesai</item>
+    </plurals>
+    <string name="simple_done_benefits">Yang diperbarui:</string>
+    <string name="simple_done_benefit_ads">✅ Setelan privasi diterapkan untuk layanan telemetri</string>
+    <string name="simple_done_benefit_telemetry">✅ Pengumpulan statistik latar belakang dikurangi</string>
+    <string name="simple_done_benefit_spam">✅ Notifikasi dari aplikasi sistem berkurang</string>
+    <string name="simple_done_benefit_stable">✅ Beban sistem latar belakang berkurang</string>
+    <string name="simple_done_failed_title">Tidak dapat diselesaikan otomatis:</string>
+    <string name="simple_done_skipped_title">Dilewati (tidak ada di perangkat):</string>
+    <string name="simple_done_rate">Beri nilai aplikasi</string>
+    <string name="simple_done_donate">Dukung pengembang</string>
+    <string name="simple_done_close">Tutup</string>
+
+    <!-- ========== SHIZUKU DIALOGS ========== -->
+    <string name="shizuku_dialog_title">Mode lanjutan memerlukan Shizuku</string>
+    <string name="shizuku_dialog_not_installed">Shizuku adalah aplikasi terpisah. Pasang dari toko aplikasi.</string>
+    <string name="shizuku_dialog_not_running">Shizuku terpasang tetapi tidak berjalan.</string>
+    <string name="shizuku_dialog_permission">Shizuku sedang berjalan. Berikan izin untuk aplikasi ini.</string>
+    <string name="shizuku_dialog_install">Pasang</string>
+    <string name="shizuku_dialog_howto">Cara memulai</string>
+    <string name="shizuku_dialog_later">Nanti</string>
+    <string name="shizuku_card_other_sources">Sumber pemasangan lain</string>
+    <string name="shizuku_wizard_not_ready">Shizuku belum siap.</string>
+    <string name="shizuku_wizard_step6">Shizuku sedang berjalan. Sekarang minta izin di bawah.</string>
+    <string name="shizuku_wizard_permission_denied">Izin Shizuku ditolak.</string>
+
+    <!-- ========== OPTIONS (DNS, AGGRESSIVE) ========== -->
+    <string name="options_dialog_title">Opsi pengoptimalan</string>
+    <string name="options_dialog_text">Pilih opsi tambahan.</string>
+    <string name="dns_option_title">Filter DNS aman</string>
+    <string name="dns_option_description">Memfilter permintaan jaringan sistem yang tidak diinginkan melalui DNS privat yang aman.</string>
+    <string name="aggressive_option_title">Pengoptimalan lanjutan</string>
+    <string name="aggressive_option_description">Setelan lanjutan untuk pengguna berpengalaman.</string>
+    <string name="options_dialog_start">Mulai pengoptimalan</string>
+
+    <!-- ========== DNS WARNING ========== -->
+    <string name="dns_warning_title">Perhatian: DNS Aman</string>
+    <string name="dns_warning_text">DNS privat yang aman akan dikonfigurasi. Ini mengurangi lalu lintas telemetri latar belakang dan melindungi privasi.</string>
+    <string name="dns_warning_accept">Paham, lanjutkan</string>
+
+    <!-- ========== EEA REGION NOTICE ========== -->
+    <string name="eea_notice_title">Status Pengoptimalan Wilayah</string>
+    <string name="eea_notice_text">Wilayah Anda (%1$s) sudah dioptimalkan secara default sesuai dengan peraturan privasi. Tidak diperlukan konfigurasi tambahan.\n\nAnda tetap dapat melanjutkan jika ingin memeriksa layanan sistem.</string>
+    <string name="eea_notice_continue">Tetap lanjutkan</string>
+
+    <!-- ========== DEV MODE ========== -->
+    <string name="dev_mode_dialog_title">Mode pengembang diperlukan</string>
+    <string name="dev_mode_dialog_text">Untuk melanjutkan, aktifkan Opsi pengembang. Buka "Tentang telepon" dan ketuk "Versi MIUI" 7 kali.</string>
+    <string name="dev_mode_dialog_open_about">Buka Tentang telepon</string>
+    <string name="dev_mode_dialog_retry">Coba lagi</string>
+
+    <!-- ========== ACCESSIBILITY ========== -->
+    <string name="accessibility_explanation_text">Layanan aksesibilitas membantu pengguna dengan keterbatasan mobilitas untuk menavigasi layar setelan sistem secara otomatis: layanan ini mengetuk sakelar yang diperlukan atas nama pengguna. Tidak ada data yang dikumpulkan atau dikirim ke server.</string>
+    <string name="hint_accessibility">Aktifkan "XiaoHyperCleaner" di daftar layanan</string>
+    <string name="hint_overlay">Izinkan tampilan di atas aplikasi lain</string>
+
+    <!-- ========== OVERLAY ========== -->
+    <string name="overlay_permission_title">Izin "Tampilkan di atas aplikasi lain"</string>
+    <string name="overlay_permission_text">Diperlukan untuk menampilkan layar otomatisasi dan petunjuk visual.</string>
+
+    <!-- ========== RESTRICTED / FORBIDDEN ========== -->
+    <string name="restricted_dialog_title">Setelan yang dibatasi</string>
+    <string name="restricted_dialog_text">Untuk mengaktifkan layanan aksesibilitas, Anda harus terlebih dahulu mengizinkan "Setelan yang dibatasi" di info aplikasi.</string>
+    <string name="restricted_dialog_open">Buka setelan aplikasi</string>
+
+    <string name="forbidden_dialog_title">Setelan yang dilarang</string>
+    <string name="forbidden_dialog_text">Di Android 14+ Anda harus mengizinkan "Setelan yang dilarang" di info aplikasi.</string>
+    <string name="forbidden_dialog_open">Buka setelan aplikasi</string>
+
+    <!-- ========== RESTORE / REBOOT ========== -->
+    <string name="restore_dialog_title">Kembalikan perubahan?</string>
+    <string name="restore_dialog_text">Semua setelan akan dikembalikan ke keadaan semula.</string>
+    <string name="restore_confirm">Kembalikan</string>
+    <string name="restore_failed_text">Gagal mengembalikan perubahan sepenuhnya.</string>
+    <string name="reboot_dialog_title">Mulai ulang</string>
+    <string name="reboot_dialog_text">Mulai ulang perangkat agar semua setelan diterapkan.</string>
+    <string name="reboot_confirm">Mulai ulang</string>
+    <string name="reboot_failed_text">Gagal mengirim perintah mulai ulang. Silakan mulai ulang manual.</string>
+
+    <!-- ========== FINAL DIALOG ========== -->
+    <string name="final_dialog_title">Hasil pengoptimalan</string>
+    <string name="final_dialog_success_text">Pengoptimalan berhasil diselesaikan. Setelan privasi diterapkan.</string>
+    <string name="final_dialog_failed_text">Pengoptimalan selesai dengan kesalahan. Silakan kirim log ke pengembang.</string>
+    <string name="final_dialog_rate">Beri nilai aplikasi</string>
+    <string name="final_dialog_send_log">Kirim log</string>
+
+    <!-- ========== ONBOARDING ========== -->
+    <string name="onboarding_page1_title">Selamat datang</string>
+    <string name="onboarding_page1_text">XiaoHyperCleaner akan membantu Anda mengonfigurasi setelan privasi di perangkat Xiaomi Anda.</string>
+    <string name="onboarding_page2_title">Aman dan sederhana</string>
+    <string name="onboarding_page2_text">Aplikasi akan mengonfigurasi setelan sistem dengan izin Anda. Anda dapat melewati langkah apa pun.</string>
+    <string name="onboarding_page3_title">Proses transparan</string>
+    <string name="onboarding_page3_text">Anda dapat melihat setiap langkah. Perubahan dapat dikembalikan kapan saja.</string>
+    <string name="onboarding_skip">Lewati</string>
+    <string name="onboarding_next">Berikutnya</string>
+    <string name="onboarding_start">Mulai</string>
+    <string name="onboarding_privacy_prefix">Saya menyetujui </string>
+    <string name="onboarding_privacy_link">kebijakan privasi</string>
+
+    <!-- ========== MENU DIALOG ========== -->
+    <string name="menu_about">Tentang</string>
+    <string name="menu_dark_theme">Tema gelap</string>
+    <string name="menu_privacy_policy">Kebijakan Privasi</string>
+    <string name="rate_app">Beri nilai</string>
+    <string name="support_yoomoney">Dukung (YuMoney)</string>
+    <string name="support_cloudtips">Dukung (CloudTips)</string>
+    <string name="log_share">Bagikan log</string>
+    <string name="about_title">Tentang aplikasi</string>
+    <string name="about_author">Penulis</string>
+    <string name="about_text">XiaoHyperCleaner — alat konfigurasi privasi yang aman untuk MIUI/HyperOS. Berfungsi hanya secara lokal di perangkat Anda.</string>
+    <string name="shizuku_attribution">Shizuku oleh RikkaApps (Apache 2.0).</string>
+    <string name="close">Tutup</string>
+    <string name="privacy_policy_url" translatable="false" tools:ignore="MissingTranslation">https://elthebestdevelopman-cyber.github.io/privacy-policy/index.html</string>
+
+    <!-- ========== SHIZUKU WIZARD ========== -->
+    <string name="shizuku_wizard_title">Penyiapan Shizuku</string>
+    <string name="shizuku_wizard_intro">Ikuti langkah-langkah untuk menyiapkan Shizuku</string>
+    <string name="shizuku_wizard_skip_top">Lewati penyiapan</string>
+    <string name="shizuku_wizard_or">atau</string>
+    <string name="shizuku_wizard_step1_title">Langkah 1: Pasang Shizuku</string>
+    <string name="shizuku_wizard_step1_desc">Unduh dan pasang Shizuku dari toko aplikasi.</string>
+    <string name="shizuku_wizard_open_about">Buka Tentang telepon</string>
+    <string name="shizuku_wizard_step2_title">Langkah 2: Buka Shizuku</string>
+    <string name="shizuku_wizard_step2_desc">Buka aplikasi Shizuku.</string>
+    <string name="shizuku_wizard_step3_title">Langkah 3: Mode pengembang</string>
+    <string name="shizuku_wizard_step3_desc">Aktifkan Opsi pengembang.</string>
+    <string name="shizuku_wizard_open_dev">Buka Opsi pengembang</string>
+    <string name="shizuku_wizard_step4_title">Langkah 4: Debug nirkabel</string>
+    <string name="shizuku_wizard_step4_desc">Aktifkan Debugging nirkabel.</string>
+    <string name="shizuku_wizard_open_shizuku">Buka Shizuku</string>
+    <string name="shizuku_wizard_step5_title">Langkah 5: Mulai</string>
+    <string name="shizuku_wizard_step5_desc">Mulai via debugging nirkabel.</string>
+    <string name="shizuku_wizard_check">Periksa</string>
+    <string name="shizuku_wizard_request_permission">Minta izin</string>
+    <string name="shizuku_wizard_skip">Lewati</string>
+    <string name="shizuku_wizard_close">Tutup</string>
+
+    <!-- ========== SHIZUKU SOURCES ========== -->
+    <string name="shizuku_sources_title">Sumber pemasangan</string>
+    <string name="shizuku_sources_text">Pilih metode pemasangan:</string>
+    <string name="shizuku_sources_play">Google Play</string>
+    <string name="shizuku_sources_aurora">Aurora Store</string>
+    <string name="shizuku_sources_getapps">GetApps</string>
+    <string name="shizuku_sources_github">GitHub</string>
+    <string name="shizuku_sources_apkpure">APKPure</string>
+
+    <!-- ========== POINTER HINTS ========== -->
+    <string name="pointer_overlay_switch">Aktifkan sakelar ini</string>
+    <string name="pointer_accessibility_item">Temukan "XiaoHyperCleaner" di daftar dan aktifkan</string>
+    <string name="pointer_restricted_blocked">Tidak dapat mengaktifkan layanan?</string>
+    <string name="pointer_restricted_explain">Sistem membatasi akses sementara. Ketuk ⋮ dan izinkan.</string>
+    <string name="pointer_restricted_generic">Cari "Izinkan setelan yang dibatasi"</string>
+    <string name="pointer_restricted_not_found_title">Tidak menemukan opsi?</string>
+    <string name="pointer_restricted_location_question">Di mana opsi setelan yang dibatasi pada perangkat Anda?</string>
+    <string name="pointer_restricted_menu_option">Di menu ⋮ di pojok kanan atas</string>
+    <string name="pointer_restricted_bottom_option">Di bagian bawah daftar setelan</string>
+    <string name="pointer_restricted_absent_option">Tidak ada opsi tersebut</string>
+    <string name="pointer_restricted_top_hint">Ketuk ⋮ dan pilih "Izinkan setelan yang dibatasi"</string>
+    <string name="pointer_restricted_bottom_hint">Gulir ke bawah dan aktifkan</string>
+
+    <!-- ========== ACCESSIBILITY POLICY ========== -->
+    <string name="accessibility_policy_summary">Otomatisasi navigasi setelan untuk pengguna dengan keterbatasan mobilitas</string>
+    <string name="accessibility_policy_description">Layanan aksesibilitas XiaoHyperCleaner dirancang untuk pengguna dengan keterbatasan mobilitas dan membantu menavigasi layar setelan sistem Android secara otomatis atas permintaan pengguna. Layanan mengetuk sakelar atas nama pengguna. Tidak ada data pribadi yang dikumpulkan atau dikirim.</string>
+
+    <!-- ========== CONSENT DIALOG ========== -->
+    <string name="consent_dialog_title">Persetujuan penggunaan layanan</string>
+    <string name="consent_dialog_text">Layanan aksesibilitas akan mengetuk tombol di setelan atas nama Anda.\n\n• TIDAK melewati kontrol privasi\n• TIDAK mengubah setelan tanpa persetujuan Anda\n• TIDAK mengirim data keluar\n• Dapat dinonaktifkan kapan saja</string>
+    <string name="consent_checkbox_label">Saya mengerti dan menyetujui penggunaan layanan aksesibilitas untuk mengotomatiskan setelan</string>
+    <string name="consent_confirm_button">Setuju dan lanjutkan</string>
+    <string name="consent_cancel_button">Batal</string>
+
+    <!-- ========== FALLBACK DIALOG ========== -->
+    <string name="fallback_accessibility_title">Tidak dapat mengaktifkan otomatis</string>
+    <string name="fallback_accessibility_text">Harap izinkan "Setelan yang dibatasi" di info aplikasi.</string>
+    <string name="fallback_overlay_title">Tidak dapat mengaktifkan hamparan</string>
+    <string name="fallback_overlay_text">Buka setelan secara manual dan izinkan tampilan di atas aplikasi lain.</string>
+    <string name="fallback_retry">Coba lagi</string>
+    <string name="fallback_open_settings">Buka setelan</string>
+    <string name="fallback_cancel">Batal</string>
+    <string name="fallback_appinfo_title">Tidak dapat membuka setelan aplikasi</string>
+    <string name="fallback_appinfo_text">Buka manual melalui Setelan → Aplikasi → XiaoHyperCleaner.</string>
+
+    <string name="pointer_hint_accessibility">Temukan "XiaoHyperCleaner" di daftar dan aktifkan</string>
+    <string name="pointer_hint_overlay">Aktifkan sakelar ini untuk menampilkan petunjuk</string>
+    <string name="hint_restricted">Temukan sakelar izin di layar ini</string>
+
+    <!-- ========== RESTRICTED SETTINGS SCREEN ========== -->
+    <string name="restricted_screen_title">Buka kunci setelan sistem</string>
+    <string name="restricted_screen_intro">Untuk mengonfigurasi privasi, Anda perlu mengizinkan setelan yang dibatasi.</string>
+    <string name="restricted_screen_step1">Buka "Setelan" → "Aplikasi" → "XiaoHyperCleaner"</string>
+    <string name="restricted_screen_step2">Temukan "Izinkan setelan yang dibatasi" dan aktifkan</string>
+    <string name="restricted_screen_step3">Konfirmasi dengan sidik jari atau kata sandi</string>
+    <string name="restricted_screen_open">Buka setelan aplikasi</string>
+    <string name="restricted_screen_done">Sudah saya izinkan, lanjutkan</string>
+
+    <!-- ========== VISUAL GUIDE ========== -->
+    <string name="restricted_guide_title">Izin akses sekali saja</string>
+    <string name="restricted_guide_simple">Kami akan menunjukkan di mana harus mengetuk. Hanya perlu 30 detik.</string>
+    <string name="restricted_guide_look_main">Di jendela yang terbuka, temukan baris di bawah dan aktifkan:</string>
+    <string name="restricted_guide_look_menu">Tidak berhasil pertama kali? Ketuk titik tiga ⋮ di atas dan pilih:</string>
+    <string name="restricted_row_name">Izinkan setelan yang dibatasi</string>
+    <string name="restricted_guide_turn_on">Aktifkan sakelar ini</string>
+    <string name="restricted_guide_tap_here">Ketuk di sini</string>
+    <string name="restricted_guide_confirm">Ponsel akan meminta sidik jari atau kata sandi — itu normal.</string>
+    <string name="restricted_guide_not_found">Pada beberapa perangkat disebut "Setelan yang dilarang".</string>
+
+    <!-- ========== BATTERY OPTIMIZATION ========== -->
+    <string name="battery_dialog_title">Pengoptimalan baterai</string>
+    <string name="battery_dialog_text">Untuk stabilitas layanan aksesibilitas, disarankan untuk menonaktifkan pengoptimalan baterai untuk XiaoHyperCleaner.</string>
+    <string name="battery_dialog_open">Buka setelan baterai</string>
+    <string name="battery_dialog_skip">Lewati</string>
+    <string name="hint_battery_optimization">Pilih "Tanpa batasan" atau "Jangan optimalkan"</string>
+
+    <!-- ========== AUTOMATION ========== -->
+    <string name="automation_title">Robo-cat sedang merapikan sistem…</string>
+    <string name="automation_step">Langkah %1$d dari %2$d</string>
+    <string name="automation_cancel">Batal</string>
+    <string name="automation_status_search">Mencari: %s…</string>
+    <string name="automation_status_done">Selesai, memverifikasi…</string>
+    <string name="automation_status_fail">Melanjutkan…</string>
+    <string name="automation_status_skip">Aplikasi tidak terpasang — melewati</string>
+    <string name="result_title">Selesai! Sistem rapi 🧡</string>
+    <string name="result_summary">%1$d dari %2$d langkah selesai</string>
+    <string name="result_skipped">Dilewati: %d</string>
+    <string name="result_failed">Dilindungi sistem: %d</string>
+    <string name="result_soft">Jika bermanfaat — ulasan atau dukungan sangat kami hargai.</string>
+    <string name="result_rate">Beri nilai</string>
+    <string name="result_support">Dukung</string>
+    <string name="result_share_log">Bagikan log</string>
+    <string name="result_close">Buka aplikasi</string>
+</resources>

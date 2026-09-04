@@ -720,6 +720,21 @@ private fun MainDialogsHost(
             }
         )
     }
+    if (state.showEeaNoticeDialog) {
+        InfoDialog(
+            title = stringResource(R.string.eea_notice_title),
+            text = stringResource(R.string.eea_notice_text, state.eeaRegionName),
+            confirmText = stringResource(R.string.eea_notice_continue),
+            onConfirm = {
+                AppLog.i(MainActivity.TAG, "eea dialog: confirmed continue")
+                vm.onEeaNoticeAgreed()
+            },
+            onDismiss = {
+                AppLog.i(MainActivity.TAG, "eea dialog: dismissed")
+                vm.onEeaNoticeCancelled()
+            }
+        )
+    }
     if (state.showFinalDialog) {
         InfoDialog(
             title = stringResource(R.string.final_dialog_title),

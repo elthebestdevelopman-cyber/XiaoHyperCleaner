@@ -7,9 +7,11 @@ import android.os.PowerManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.R
+import com.xiaohypercleaner.data.RomProfile
 import com.xiaohypercleaner.data.SimpleSteps
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.LogMasker
+import com.xiaohypercleaner.util.StepDiagnostics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -267,15 +269,18 @@ class AdbEnablerService : AccessibilityService() {
                 return
             }
 
+            if (index == 0) {
+                acquireWakeLock()
+                StepDiagnostics.beginRun()
+            }
+
+            StepDiagnostics.stepStart(step.id, index, total, null, RomProfile.detect(this))
             AppLog.i(TAG, "runSimpleStep: starting step ${index + 1}/$total (${step.id})")
 
             OverlayController.updateAutomation(this, index + 1, total, step.titleRu)
             OverlayController.updateStatus(
                 this,
-                getString(
-                    R.string.automation_status_search,
-                    step.searchTexts.take(2).joinToString(" / ")
-                )
+                getString(R.string.automation_status_search, step.titleRu)
             )
 
             val result: SimpleRunner.Result = simpleRunner.run(step)

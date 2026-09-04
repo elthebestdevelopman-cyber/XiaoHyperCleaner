@@ -1,25 +1,50 @@
 {
-  "version": 1,
-  "comment": "OTA-friendly package aliases. Prefer entries by RomProfile (cn/global). Update after HyperOS renames without rewriting Kotlin steps.",
+  "version": 2,
+  "comment": "OTA-friendly package aliases. Prefer by RomProfile (cn/global). Update after HyperOS renames without rewriting Kotlin.",
   "groups": {
     "msa": ["com.miui.msa.global", "com.miui.msa.core", "com.miui.systemAdSolution"],
     "getapps": ["com.xiaomi.market", "com.miui.market", "com.mi.global.market"],
     "mivideo": ["com.miui.videoplayer", "com.miui.video", "com.mi.global.video"],
-    "browser": ["com.android.browser", "com.mi.globalbrowser", "com.miui.browser"],
+    "browser": ["com.mi.globalbrowser", "com.android.browser", "com.miui.browser"],
     "music": ["com.miui.player", "com.miui.music", "com.mi.music"],
     "messages": ["com.miui.mms", "com.android.mms", "com.miui.mms.global"],
     "themes": ["com.android.thememanager", "com.miui.thememanager", "com.mi.thememanager"],
     "launcher": [
-      "com.miui.home",
       "com.mi.android.globallauncher",
+      "com.miui.home",
       "com.mi.android.globalHome",
       "com.mi.global.home"
     ],
     "security": ["com.miui.securitycenter", "com.miui.securitycore"],
+    "downloads": ["com.android.providers.downloads.ui", "com.miui.android.downloads"],
+    "filemanager": [
+      "com.mi.android.globalFileexplorer",
+      "com.android.fileexplorer",
+      "com.mi.android.fileexplorer"
+    ],
+    "shareme": ["com.xiaomi.midrop", "com.mi.android.globalshareme"],
     "personalassistant": [
       "com.miui.personalassistant",
       "com.mi.android.global.personalassistant"
     ]
+  },
+  "stepGroup": {
+    "msa": "msa",
+    "notif_msa": "msa",
+    "browser_sys": "browser",
+    "music_sys": "music",
+    "messages_sys": "messages",
+    "security_sys": "security",
+    "cleaner": "security",
+    "downloads": "downloads",
+    "themes": "themes",
+    "getapps": "getapps",
+    "mivideo": "mivideo",
+    "shareme": "shareme",
+    "filemanager": "filemanager",
+    "home_suggestions": "launcher",
+    "notif_getapps": "getapps",
+    "notif_mivideo": "mivideo"
   },
   "stepOverrides": {
     "notif_msa": ["com.miui.msa.global", "com.miui.msa.core"],
@@ -27,6 +52,16 @@
     "notif_getapps": ["com.xiaomi.market", "com.miui.market", "com.mi.global.market"],
     "notif_mivideo": ["com.miui.videoplayer", "com.miui.video", "com.mi.global.video"],
     "music_sys": ["com.miui.player", "com.miui.music", "com.mi.music"],
-    "messages_sys": ["com.miui.mms", "com.android.mms", "com.miui.mms.global"]
+    "messages_sys": ["com.miui.mms", "com.android.mms", "com.miui.mms.global"],
+    "home_suggestions": [
+      "com.mi.android.globallauncher",
+      "com.miui.home",
+      "com.mi.global.home"
+    ],
+    "filemanager": [
+      "com.mi.android.globalFileexplorer",
+      "com.android.fileexplorer"
+    ],
+    "shareme": ["com.xiaomi.midrop", "com.mi.android.globalshareme"]
   }
 }

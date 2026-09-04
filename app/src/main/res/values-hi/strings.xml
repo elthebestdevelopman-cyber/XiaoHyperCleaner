@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- ========== COMMON ========== -->
+    <string name="app_name">XiaoHyperCleaner</string>
+    <string name="app_description_short">Xiaomi / MIUI / HyperOS पर गोपनीयता सेटिंग्स कॉन्फ़िगर करता है और पृष्ठभूमि लोड को कम करता है। बिना रूट के काम करता है।</string>
+    <string name="cancel">रद्द करें</string>
+    <string name="allow">अनुमति दें</string>
+
+    <!-- ========== MAIN SCREEN ========== -->
+    <string name="features_title">ऐप क्या करता है</string>
+    <string name="feature_processes">गोपनीयता में सुधार के लिए सिस्टम सेटिंग्स को कॉन्फ़िगर करें</string>
+    <string name="feature_speed">इंटरफ़ेस को गति दें और एनिमेशन अनुकूलित करें</string>
+    <string name="feature_battery">बैटरी बचाने के लिए पृष्ठभूमि गतिविधि कम करें</string>
+
+    <string name="btn_optimize">ऑप्टिमाइज़ करें</string>
+    <string name="btn_restore">परिवर्तन वापस लें</string>
+    <string name="status_working">ऑप्टिमाइज़ हो रहा है…</string>
+    <string name="status_done">ऑप्टिमाइज़ेशन पूर्ण</string>
+    <string name="status_done_description">गोपनीयता सेटिंग्स लागू की गईं। सभी परिवर्तनों को कभी भी वापस किया जा सकता है।</string>
+    <string name="reboot_now">अभी पुनरारंभ करें</string>
+    <string name="reboot_manual_hint">परिवर्तनों को पूरी तरह लागू करने के लिए, अपने फोन को मैन्युअल रूप से पुनरारंभ करें।</string>
+
+    <!-- ========== LEVEL SELECTION ========== -->
+    <string name="level_dialog_subtitle">आप बाद में सेटिंग्स में मोड बदल सकते हैं</string>
+    <string name="level_simple_title">🟢 सरल</string>
+    <string name="level_simple_desc">सभी के लिए सुरक्षित। बिना किसी जटिल सेटअप के स्वचालित ऑप्टिमाइज़ेशन।</string>
+    <string name="level_pro_title">🔵 उन्नत</string>
+    <string name="level_pro_desc">गहरी ऑप्टिमाइज़ेशन। Shizuku / Wireless ADB की आवश्यकता है।</string>
+    <string name="level_dialog_continue">जारी रखें</string>
+    <string name="robocat_caption">रोबो-कैट सिस्टम को कॉन्फ़िगर करने में मदद करता है</string>
+
+    <string name="level_confirm_simple_title">सरल ऑप्टिमाइज़ेशन शुरू करें?</string>
+    <string name="level_confirm_simple_text">ऐप सेटिंग्स खोलेगा और गोपनीयता पैरामीटर लागू करेगा। इसमें 2–3 मिनट लगेंगे।</string>
+    <string name="level_confirm_advanced_title">उन्नत ऑप्टिमाइज़ेशन शुरू करें?</string>
+    <string name="level_confirm_advanced_text">Shizuku या वायरलेस ADB की आवश्यकता होगी।</string>
+    <string name="level_confirm_start">शुरू करें</string>
+
+    <!-- ========== SIMPLE MODE: STEPS ========== -->
+    <string name="simple_step_of">कदम %1$d / %2$d</string>
+    <string name="simple_step_start">शुरू करें</string>
+    <string name="simple_step_working">प्रक्रिया जारी है…</string>
+    <string name="simple_step_attempt">प्रयास %1$d / %2$d</string>
+    <string name="simple_step_auto_next">हो गया — आगे बढ़ रहे हैं…</string>
+    <string name="simple_step_failed">स्वचालित रूप से पूर्ण नहीं हो सका</string>
+    <string name="simple_step_next">आगे</string>
+    <string name="simple_step_skip">कदम छोड़ें</string>
+    <string name="simple_step_retry">पुनः प्रयास करें</string>
+
+    <!-- ========== SIMPLE MODE: FINAL ========== -->
+    <string name="simple_done_title">सब तैयार है!</string>
+    <string name="simple_done_text">गोपनीयता सेटिंग्स लागू कर दी गई हैं। पुनरारंभ की आवश्यकता नहीं है।</string>
+    <plurals name="simple_done_steps_done">
+        <item quantity="one">%1$d / %2$d कदम पूर्ण</item>
+        <item quantity="other">%1$d / %2$d कदम पूर्ण</item>
+    </plurals>
+    <string name="simple_done_benefits">क्या बदला:</string>
+    <string name="simple_done_benefit_ads">✅ टेलीमेट्री सेवाओं के लिए गोपनीयता सेटिंग्स लागू</string>
+    <string name="simple_done_benefit_telemetry">✅ अनावश्यक पृष्ठभूमि डेटा संग्रह में कमी</string>
+    <string name="simple_done_benefit_spam">✅ सिस्टम ऐप्स से सूचनाएं कम हुईं</string>
+    <string name="simple_done_benefit_stable">✅ सिस्टम लोड कम किया गया</string>
+    <string name="simple_done_failed_title">स्वचालित रूप से नहीं हो सका:</string>
+    <string name="simple_done_skipped_title">छोड़ दिया गया (डिवाइस पर नहीं है):</string>
+    <string name="simple_done_rate">ऐप रेट करें</string>
+    <string name="simple_done_donate">समर्थन करें</string>
+    <string name="simple_done_close">बंद करें</string>
+
+    <!-- ========== SHIZUKU DIALOGS ========== -->
+    <string name="shizuku_dialog_title">उन्नत मोड के लिए Shizuku आवश्यक है</string>
+    <string name="shizuku_dialog_not_installed">Shizuku अलग ऐप है। स्टोर से इंस्टॉल करें।</string>
+    <string name="shizuku_dialog_not_running">Shizuku इंस्टॉल है लेकिन चल नहीं रहा है।</string>
+    <string name="shizuku_dialog_permission">Shizuku चल रहा है। कृपया इस ऐप को अनुमति दें।</string>
+    <string name="shizuku_dialog_install">इंस्टॉल करें</string>
+    <string name="shizuku_dialog_howto">कैसे शुरू करें</string>
+    <string name="shizuku_dialog_later">बाद में</string>
+    <string name="shizuku_card_other_sources">अन्य स्रोत</string>
+    <string name="shizuku_wizard_not_ready">Shizuku अभी तैयार नहीं है।</string>
+    <string name="shizuku_wizard_step6">Shizuku चल रहा है। अब अनुमति मांगें।</string>
+    <string name="shizuku_wizard_permission_denied">Shizuku अनुमति अस्वीकृत।</string>
+
+    <!-- ========== OPTIONS (DNS, AGGRESSIVE) ========== -->
+    <string name="options_dialog_title">ऑप्टिमाइज़ेशन विकल्प</string>
+    <string name="options_dialog_text">अतिरिक्त विकल्प चुनें।</string>
+    <string name="dns_option_title">सुरक्षित DNS फ़िल्टर</string>
+    <string name="dns_option_description">सुरक्षित निजी DNS द्वारा अवांछित सिस्टम नेटवर्क अनुरोधों को फ़िल्टर करें।</string>
+    <string name="aggressive_option_title">विस्तारित ऑप्टिमाइज़ेशन</string>
+    <string name="aggressive_option_description">अनुभवी उपयोगकर्ताओं के लिए उन्नत सेटिंग्स।</string>
+    <string name="options_dialog_start">प्रक्रिया शुरू करें</string>
+
+    <!-- ========== DNS WARNING ========== -->
+    <string name="dns_warning_title">ध्यान दें: सुरक्षित DNS</string>
+    <string name="dns_warning_text">एक सुरक्षित निजी DNS सेट किया जाएगा। यह पृष्ठभूमि डेटा और अवांछित नेटवर्क अनुरोधों को कम करेगा।</string>
+    <string name="dns_warning_accept">समझ गया, जारी रखें</string>
+
+    <!-- ========== EEA REGION NOTICE ========== -->
+    <string name="eea_notice_title">क्षेत्र ऑप्टिमाइज़ेशन स्थिति</string>
+    <string name="eea_notice_text">आपका क्षेत्र (%1$s) गोपनीयता विनियमों के तहत पहले से ही अनुकूलित है। किसी अतिरिक्त कॉन्फ़िगरेशन की आवश्यकता नहीं है।\n\nयदि आप फिर भी सिस्टम सेवाओं का निरीक्षण करना चाहते हैं तो जारी रख सकते हैं।</string>
+    <string name="eea_notice_continue">फिर भी जारी रखें</string>
+
+    <!-- ========== DEV MODE ========== -->
+    <string name="dev_mode_dialog_title">डेवलपर मोड आवश्यक</string>
+    <string name="dev_mode_dialog_text">जारी रखने के लिए डेवलपर विकल्प सक्षम करें। "फ़ोन के बारे में" खोलें और "MIUI संस्करण" पर 7 बार टैप करें।</string>
+    <string name="dev_mode_dialog_open_about">फ़ोन के बारे में खोलें</string>
+    <string name="dev_mode_dialog_retry">पुनः प्रयास करें</string>
+
+    <!-- ========== ACCESSIBILITY ========== -->
+    <string name="accessibility_explanation_text">एक्सेसिबिलिटी सेवा सीमित गतिशीलता वाले उपयोगकर्ताओं को सिस्टम सेटिंग्स स्क्रीन को स्वचालित रूप से नेविगेट करने में मदद करती है: यह उपयोगकर्ता के लिए आवश्यक स्विच को टैप करती है। कोई डेटा एकत्र या भेजा नहीं जाता है।</string>
+    <string name="hint_accessibility">सेवा सूची में "XiaoHyperCleaner" चालू करें</string>
+    <string name="hint_overlay">अन्य ऐप्स के ऊपर प्रदर्शित करने की अनुमति दें</string>
+
+    <!-- ========== OVERLAY ========== -->
+    <string name="overlay_permission_title">"अन्य ऐप्स के ऊपर दिखाएं" अनुमति</string>
+    <string name="overlay_permission_text">ऑटोमेशन स्क्रीन और मार्गदर्शन संकेत प्रदर्शित करने के लिए आवश्यक है।</string>
+
+    <!-- ========== RESTRICTED / FORBIDDEN ========== -->
+    <string name="restricted_dialog_title">प्रतिबंधित सेटिंग्स</string>
+    <string name="restricted_dialog_text">एक्सेसिबिलिटी सेवा सक्षम करने के लिए, आपको पहले ऐप जानकारी स्क्रीन में "प्रतिबंधित सेटिंग्स" की अनुमति देनी होगी।</string>
+    <string name="restricted_dialog_open">ऐप सेटिंग्स खोलें</string>
+
+    <string name="forbidden_dialog_title">निषिद्ध सेटिंग्स</string>
+    <string name="forbidden_dialog_text">Android 14+ पर आपको ऐप जानकारी स्क्रीन में "निषिद्ध सेटिंग्स" की अनुमति देनी होगी।</string>
+    <string name="forbidden_dialog_open">ऐप सेटिंग्स खोलें</string>
+
+    <!-- ========== RESTORE / REBOOT ========== -->
+    <string name="restore_dialog_title">परिवर्तन वापस लें?</string>
+    <string name="restore_dialog_text">सभी सेटिंग्स अपनी मूल स्थिति में वापस आ जाएंगी।</string>
+    <string name="restore_confirm">वापस लें</string>
+    <string name="restore_failed_text">परिवर्तन पूरी तरह से वापस नहीं किए जा सके।</string>
+    <string name="reboot_dialog_title">पुनरारंभ करें</string>
+    <string name="reboot_dialog_text">सभी सेटिंग्स प्रभावी होने के लिए डिवाइस को पुनरारंभ करें।</string>
+    <string name="reboot_confirm">पुनरारंभ करें</string>
+    <string name="reboot_failed_text">पुनरारंभ आदेश नहीं भेजा जा सका। कृपया मैन्युअल रूप से पुनरारंभ करें।</string>
+
+    <!-- ========== FINAL DIALOG ========== -->
+    <string name="final_dialog_title">ऑप्टिमाइज़ेशन परिणाम</string>
+    <string name="final_dialog_success_text">ऑप्टिमाइज़ेशन सफलतापूर्वक पूर्ण हुआ। गोपनीयता सेटिंग्स लागू की गईं।</string>
+    <string name="final_dialog_failed_text">ऑप्टिमाइज़ेशन त्रुटियों के साथ समाप्त हुआ। कृपया डेवलपर को लॉग भेजें।</string>
+    <string name="final_dialog_rate">ऐप रेट करें</string>
+    <string name="final_dialog_send_log">लॉग भेजें</string>
+
+    <!-- ========== ONBOARDING ========== -->
+    <string name="onboarding_page1_title">स्वागत है</string>
+    <string name="onboarding_page1_text">XiaoHyperCleaner आपके Xiaomi डिवाइस पर गोपनीयता सेटिंग्स कॉन्फ़िगर करने में मदद करेगा।</string>
+    <string name="onboarding_page2_title">सुरक्षित और सरल</string>
+    <string name="onboarding_page2_text">ऐप आपकी अनुमति से सिस्टम सेटिंग्स कॉन्फ़िगर करेगा। आप किसी भी कदम को छोड़ सकते हैं।</string>
+    <string name="onboarding_page3_title">पारदर्शी प्रक्रिया</string>
+    <string name="onboarding_page3_text">आप हर कदम देख सकते हैं। परिवर्तनों को कभी भी वापस किया जा सकता है।</string>
+    <string name="onboarding_skip">छोड़ें</string>
+    <string name="onboarding_next">आगे</string>
+    <string name="onboarding_start">शुरू करें</string>
+    <string name="onboarding_privacy_prefix">मैं स्वीकार करता हूं </string>
+    <string name="onboarding_privacy_link">गोपनीयता नीति</string>
+
+    <!-- ========== MENU DIALOG ========== -->
+    <string name="menu_about">के बारे में</string>
+    <string name="menu_dark_theme">डार्क थीम</string>
+    <string name="menu_privacy_policy">गोपनीयता नीति</string>
+    <string name="rate_app">रेट करें</string>
+    <string name="support_yoomoney">समर्थन (YuMoney)</string>
+    <string name="support_cloudtips">समर्थन (CloudTips)</string>
+    <string name="log_share">लॉग साझा करें</string>
+    <string name="about_title">ऐप के बारे में</string>
+    <string name="about_author">लेखक</string>
+    <string name="about_text">XiaoHyperCleaner — MIUI/HyperOS पर सुरक्षित गोपनीयता कॉन्फ़िगरेशन टूल। केवल आपके डिवाइस पर स्थानीय रूप से कार्य करता है।</string>
+    <string name="shizuku_attribution">Shizuku by RikkaApps (Apache 2.0)।</string>
+    <string name="close">बंद करें</string>
+    <string name="privacy_policy_url" translatable="false" tools:ignore="MissingTranslation">https://elthebestdevelopman-cyber.github.io/privacy-policy/index.html</string>
+
+    <!-- ========== SHIZUKU WIZARD ========== -->
+    <string name="shizuku_wizard_title">Shizuku सेटअप</string>
+    <string name="shizuku_wizard_intro">Shizuku सेट अप करने के लिए चरणों का पालन करें</string>
+    <string name="shizuku_wizard_skip_top">सेटअप छोड़ें</string>
+    <string name="shizuku_wizard_or">या</string>
+    <string name="shizuku_wizard_step1_title">चरण 1: Shizuku इंस्टॉल करें</string>
+    <string name="shizuku_wizard_step1_desc">स्टोर से Shizuku डाउनलोड और इंस्टॉल करें।</string>
+    <string name="shizuku_wizard_open_about">फ़ोन के बारे में खोलें</string>
+    <string name="shizuku_wizard_step2_title">चरण 2: Shizuku खोलें</string>
+    <string name="shizuku_wizard_step2_desc">Shizuku ऐप खोलें।</string>
+    <string name="shizuku_wizard_step3_title">चरण 3: डेवलपर मोड</string>
+    <string name="shizuku_wizard_step3_desc">डेवलपर विकल्प चालू करें।</string>
+    <string name="shizuku_wizard_open_dev">डेवलपर विकल्प खोलें</string>
+    <string name="shizuku_wizard_step4_title">चरण 4: वायरलेस डिबगिंग</string>
+    <string name="shizuku_wizard_step4_desc">वायरलेस डिबगिंग सक्षम करें।</string>
+    <string name="shizuku_wizard_open_shizuku">Shizuku खोलें</string>
+    <string name="shizuku_wizard_step5_title">चरण 5: प्रारंभ करें</string>
+    <string name="shizuku_wizard_step5_desc">वायरलेस डिबगिंग के माध्यम से प्रारंभ करें।</string>
+    <string name="shizuku_wizard_check">जांचें</string>
+    <string name="shizuku_wizard_request_permission">अनुमति मांगें</string>
+    <string name="shizuku_wizard_skip">छोड़ें</string>
+    <string name="shizuku_wizard_close">बंद करें</string>
+
+    <!-- ========== SHIZUKU SOURCES ========== -->
+    <string name="shizuku_sources_title">Shizuku स्रोत</string>
+    <string name="shizuku_sources_text">स्थापना का सुविधाजनक तरीका चुनें:</string>
+    <string name="shizuku_sources_play">Google Play</string>
+    <string name="shizuku_sources_aurora">Aurora Store</string>
+    <string name="shizuku_sources_getapps">GetApps</string>
+    <string name="shizuku_sources_github">GitHub</string>
+    <string name="shizuku_sources_apkpure">APKPure</string>
+
+    <!-- ========== POINTER HINTS ========== -->
+    <string name="pointer_overlay_switch">यह स्विच चालू करें</string>
+    <string name="pointer_accessibility_item">सूची में "XiaoHyperCleaner" ढूंढें और चालू करें</string>
+    <string name="pointer_restricted_blocked">सेवा चालू नहीं कर पा रहे?</string>
+    <string name="pointer_restricted_explain">सिस्टम ने अस्थायी रूप से पहुंच प्रतिबंधित कर दी है। ⋮ टैप करें और अनुमति दें।</string>
+    <string name="pointer_restricted_generic">"प्रतिबंधित सेटिंग्स की अनुमति दें" ढूंढें</string>
+    <string name="pointer_restricted_not_found_title">विकल्प नहीं मिला?</string>
+    <string name="pointer_restricted_location_question">आपके डिवाइस पर यह विकल्प कहां है?</string>
+    <string name="pointer_restricted_menu_option">ऊपर दाएं कोने में ⋮ मेनू में</string>
+    <string name="pointer_restricted_bottom_option">सूची के नीचे</string>
+    <string name="pointer_restricted_absent_option">ऐसा कोई विकल्प नहीं है</string>
+    <string name="pointer_restricted_top_hint">⋮ टैप करें और "प्रतिबंधित सेटिंग्स की अनुमति दें" चुनें</string>
+    <string name="pointer_restricted_bottom_hint">नीचे स्क्रॉल करें और अनुमति दें</string>
+
+    <!-- ========== ACCESSIBILITY POLICY ========== -->
+    <string name="accessibility_policy_summary">सीमित गतिशीलता वाले उपयोगकर्ताओं के लिए सेटिंग्स नेविगेशन स्वचालन</string>
+    <string name="accessibility_policy_description">XiaoHyperCleaner एक्सेसिबिलिटी सेवा सीमित गतिशीलता वाले उपयोगकर्ताओं को सिस्टम सेटिंग्स स्क्रीन को स्वचालित रूप से नेविगेट करने में मदद करती है। यह उपयोगकर्ता के लिए स्विच टैप करती है। कोई डेटा एकत्र या भेजा नहीं जाता है।</string>
+
+    <!-- ========== CONSENT DIALOG ========== -->
+    <string name="consent_dialog_title">सेवा उपयोग सहमति</string>
+    <string name="consent_dialog_text">एक्सेसिबिलिटी सेवा आपकी ओर से सेटिंग्स में बटन टैप करेगी।\n\n• गोपनीयता नियंत्रणों को बायपास नहीं करती\n• आपकी सहमति के बिना सेटिंग्स नहीं बदलती\n• डेटा बाहर नहीं भेजती\n• कभी भी बंद की जा सकती है</string>
+    <string name="consent_checkbox_label">मैं समझता हूं और एक्सेसिबिलिटी सेवा का उपयोग करने की सहमति देता हूं</string>
+    <string name="consent_confirm_button">सहमत हों और जारी रखें</string>
+    <string name="consent_cancel_button">रद्द करें</string>
+
+    <!-- ========== FALLBACK DIALOG ========== -->
+    <string name="fallback_accessibility_title">स्वचालित रूप से सक्षम नहीं किया जा सका</string>
+    <string name="fallback_accessibility_text">कृपया ऐप कार्ड में "प्रतिबंधित सेटिंग्स की अनुमति दें" चालू करें।</string>
+    <string name="fallback_overlay_title">ओवरले सक्षम नहीं किया जा सका</string>
+    <string name="fallback_overlay_text">मैन्युअल रूप से सेटिंग्स खोलें और अन्य ऐप्स के ऊपर प्रदर्शित करने की अनुमति दें।</string>
+    <string name="fallback_retry">पुनः प्रयास करें</string>
+    <string name="fallback_open_settings">सेटिंग्स खोलें</string>
+    <string name="fallback_cancel">रद्द करें</string>
+    <string name="fallback_appinfo_title">ऐप सेटिंग्स नहीं खोली जा सकीं</string>
+    <string name="fallback_appinfo_text">सेटिंग्स → ऐप्स → XiaoHyperCleaner से मैन्युअल रूप से खोलें।</string>
+
+    <string name="pointer_hint_accessibility">सेवा सूची में "XiaoHyperCleaner" ढूंढें और चालू करें</string>
+    <string name="pointer_hint_overlay">संकेत प्रदर्शित करने के लिए यह स्विच चालू करें</string>
+    <string name="hint_restricted">इस स्क्रीन पर अनुमति स्विच ढूंढें</string>
+
+    <!-- ========== RESTRICTED SETTINGS SCREEN ========== -->
+    <string name="restricted_screen_title">सिस्टम सेटिंग्स अनलॉक करें</string>
+    <string name="restricted_screen_intro">गोपनीयता सेटिंग्स कॉन्फ़िगर करने के लिए प्रतिबंधित सेटिंग्स की अनुमति दें।</string>
+    <string name="restricted_screen_step1">"सेटिंग्स" → "ऐप्स" → "XiaoHyperCleaner" खोलें</string>
+    <string name="restricted_screen_step2">"प्रतिबंधित सेटिंग्स की अनुमति दें" स्विच ढूंढें और चालू करें</string>
+    <string name="restricted_screen_step3">फ़िंगरप्रिंट या पासवर्ड से पुष्टि करें</string>
+    <string name="restricted_screen_open">ऐप सेटिंग्स खोलें</string>
+    <string name="restricted_screen_done">मैंने अनुमति दी, जारी रखें</string>
+
+    <!-- ========== VISUAL GUIDE ========== -->
+    <string name="restricted_guide_title">एकमुश्त पहुंच अनुमति</string>
+    <string name="restricted_guide_simple">हम आपको दिखाएंगे कि कहां टैप करना है। इसमें 30 सेकंड लगेंगे।</string>
+    <string name="restricted_guide_look_main">खुली विंडो में नीचे की पंक्ति ढूंढें और स्विच चालू करें:</string>
+    <string name="restricted_guide_look_menu">शीर्ष पर तीन बिंदु ⋮ टैप करें और चुनें:</string>
+    <string name="restricted_row_name">प्रतिबंधित सेटिंग्स की अनुमति दें</string>
+    <string name="restricted_guide_turn_on">यह स्विच चालू करें</string>
+    <string name="restricted_guide_tap_here">यहाँ टैप करें</string>
+    <string name="restricted_guide_confirm">फ़ोन पासवर्ड या फ़िंगरप्रिंट मांगेगा — यह सामान्य है।</string>
+    <string name="restricted_guide_not_found">कुछ फ़र्मवेयर पर इसे "निषिद्ध सेटिंग्स" कहा जाता है।</string>
+
+    <!-- ========== BATTERY OPTIMIZATION ========== -->
+    <string name="battery_dialog_title">बैटरी अनुकूलन</string>
+    <string name="battery_dialog_text">स्थिर सेवा संचालन के लिए, XiaoHyperCleaner के लिए बैटरी अनुकूलन को अक्षम करने की अनुशंसा की जाती है।</string>
+    <string name="battery_dialog_open">बैटरी सेटिंग्स खोलें</string>
+    <string name="battery_dialog_skip">छोड़ें</string>
+    <string name="hint_battery_optimization">"कोई प्रतिबंध नहीं" चुनें</string>
+
+    <!-- ========== AUTOMATION ========== -->
+    <string name="automation_title">रोबो-कैट सिस्टम व्यवस्थित कर रहा है…</string>
+    <string name="automation_step">कदम %1$d / %2$d</string>
+    <string name="automation_cancel">रद्द करें</string>
+    <string name="automation_status_search">ढूंढ रहे हैं: %s…</string>
+    <string name="automation_status_done">हो गया, पुष्टि कर रहे हैं…</string>
+    <string name="automation_status_fail">आगे बढ़ रहे हैं…</string>
+    <string name="automation_status_skip">ऐप मौजूद नहीं है — छोड़ रहे हैं</string>
+    <string name="result_title">पूर्ण! सब व्यवस्थित है 🧡</string>
+    <string name="result_summary">%1$d / %2$d कदम पूर्ण</string>
+    <string name="result_skipped">छोड़ा गया: %d</string>
+    <string name="result_failed">सिस्टम द्वारा संरक्षित: %d</string>
+    <string name="result_soft">यदि उपयोगी लगा — तो समीक्षा या समर्थन की सराहना की जाएगी।</string>
+    <string name="result_rate">रेट करें</string>
+    <string name="result_support">समर्थन</string>
+    <string name="result_share_log">लॉग साझा करें</string>
+    <string name="result_close">ऐप खोलें</string>
+</resources>

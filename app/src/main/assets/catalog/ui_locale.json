@@ -1,28 +1,43 @@
 {
-  "version": 1,
-  "comment": "UI button/label synonyms for accessibility automation. Add new HyperOS strings here after OTA.",
+  "version": 2,
+  "comment": "Multi-locale UI synonyms for automated dialogs and navigation (RU, EN, ES, ZH, HI, PT, IN). Safe from forbidden triggers.",
   "skip": [
-    "Пропустить", "Skip", "Позже", "Later", "Не сейчас", "Not now",
+    "Пропустить", "Пропуск", "Skip", "Позже", "Later", "Не сейчас", "Not now",
     "Напомнить позже", "Remind me later", "Не входить", "Skip login",
-    "跳过", "稍后", "关闭", "Omitir", "Más tarde", "Cerrar"
+    "Закрыть", "Close", "Нет, спасибо", "No thanks", "Без входа", "Гостевой режим",
+    "跳过", "稍后", "关闭", "Omitir", "Más tarde", "Cerrar",
+    "छोड़ें", "बाद में", "अभी नहीं",
+    "Pular", "Mais tarde", "Agora não", "Depois",
+    "Lewati", "Nanti", "Lain kali"
   ],
   "decline": [
     "Отмена", "Cancel", "Отклонить", "Decline", "Не согласен", "Disagree",
     "Запретить", "Deny", "Don't allow", "Не разрешать",
-    "取消", "拒绝", "Cancelar", "Rechazar"
+    "取消", "拒绝", "Cancelar", "Rechazar", "No permitir",
+    "रद्द करें", "अस्वीकार करें", "अनुमति न दें", "अस्वीकृत",
+    "Cancelar", "Recusar", "Não permitir", "Discordar",
+    "Batal", "Tolak", "Jangan izinkan", "Tidak setuju"
   ],
   "enter": [
-    "Согласиться", "Принять", "Agree", "Accept", "Начать", "Start",
-    "Понятно", "Got it", "Далее", "Next",
-    "同意", "接受", "开始", "下一步",
-    "Aceptar", "Siguiente", "Entendido"
+    "Согласиться", "Согласен", "Принять", "Agree", "Accept", "Agree and continue",
+    "Понятно", "Got it", "Далее", "Next", "Продолжить", "Continue",
+    "同意", "接受", "下一步", "继续",
+    "Aceptar", "Siguiente", "Entendido", "Continuar",
+    "सहमत हैं", "स्वीकार करें", "आगे बढ़ें", "ठीक है", "समझ गया",
+    "Concordar", "Aceitar", "Avançar", "Entendi", "Continuar",
+    "Setuju", "Lanjutkan", "Mengerti", "Paham", "Berikutnya"
   ],
   "permissionAllow": [
     "Разрешить", "Allow", "While using the app", "При использовании",
-    "Только в этот раз", "Only this time",
-    "允许", "仅在使用中允许", "Permitir"
+    "Только в этот раз", "Only this time", "Всегда разрешать",
+    "允许", "仅在使用中允许", "始终允许", "本次允许",
+    "Permitir", "Durante el uso de la app", "Solo esta vez",
+    "अनुमति दें", "ऐप का उपयोग करते समय", "केवल इस बार",
+    "Permitir", "Durante o uso do app", "Apenas desta vez",
+    "Izinkan", "Saat aplikasi digunakan", "Hanya kali ini"
   ],
   "settingsSearch": [
-    "Поиск", "Search", "搜索", "Buscar", "Search settings", "Поиск настроек"
+    "Поиск", "Search", "搜索", "Buscar", "Search settings", "Поиск настроек",
+    "खोजें", "Pesquisar", "Cari"
   ]
 }

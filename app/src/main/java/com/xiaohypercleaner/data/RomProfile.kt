@@ -4,11 +4,19 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import com.xiaohypercleaner.util.AppLog
+import java.util.Locale
 
 /**
- * Профиль прошивки: CN / Global / Unknown.
- * Нужен, чтобы выбирать правильный alias пакета, когда на устройстве
- * сосуществуют заглушки нескольких регионов.
+ * Профиль прошивки и региона устройства Xiaomi / Poco / Redmi.
+ *
+ * Определяет:
+ * 1. Системный регион (через ro.miui.region, ro.mi.os.region, Locale)
+ * 2. Уровень оптимизации:
+ *    - MAXIMUM: Индия (IN), Китай (CN) — максимальная нагрузка системными рекомендациями
+ *    - STANDARD: Россия (RU), Индонезия (ID), GLOBAL и др.
+ *    - PRE_OPTIMIZED_EEA: Европа / Великобритания (GDPR — настройки уже оптимизированы)
+ * 3. Тип устройства: Смартфон vs Планшет (Xiaomi Pad, Redmi Pad)
+ * 4. Версию оболочки: HyperOS 2, HyperOS 1, MIUI 14/13/12
  */
 enum class RomRegion {
     CN,
@@ -16,34 +24,94 @@ enum class RomRegion {
     UNKNOWN
 }
 
+enum class OptimizationScope {
+    /** Максимальный уровень: агрессивные системные рекомендации (IN, CN) */
+    MAXIMUM,
+    /** Стандартный уровень: базовые системные рекомендации (RU, ID, GLOBAL) */
+    STANDARD,
+    /** Европейский регион (EEA/GDPR): система оптимизирована по умолчанию */
+    PRE_OPTIMIZED_EEA
+}
+
 data class RomProfile(
     val region: RomRegion,
     val miuiVersion: String?,
     val hyperOsHint: Boolean,
-    val isTablet: Boolean
+    val isTablet: Boolean,
+    val regionCode: String = when (region) {
+        RomRegion.CN -> "CN"
+        RomRegion.GLOBAL -> "GLOBAL"
+        RomRegion.UNKNOWN -> "UNKNOWN"
+    },
+    val optimizationScope: OptimizationScope = when (region) {
+        RomRegion.CN -> OptimizationScope.MAXIMUM
+        else -> OptimizationScope.STANDARD
+    },
+    val androidSdk: Int = Build.VERSION.SDK_INT,
+    val locale: Locale = Locale.getDefault()
 ) {
     companion object {
         private const val TAG = "RomProfile"
 
+        /** Список регионов Европейской экономической зоны (EEA) / GDPR */
+        private val EEA_REGIONS = setOf(
+            "EEA", "EU", "UK", "GB", "DE", "FR", "IT", "ES", "PL", "NL", "SE",
+            "PT", "RO", "BE", "AT", "GR", "CZ", "DK", "FI", "IE", "BG", "HR",
+            "SK", "HU", "LT", "SI", "LV", "EE", "CY", "LU", "MT"
+        )
+
         fun detect(context: Context): RomProfile {
-            val region = detectRegion(context.packageManager)
+            val pm = context.packageManager
+            val regionCategory = detectRegionCategory(pm)
+
+            // Чтение системного региона прошивки
+            val sysRegionProp = readProp("ro.miui.region")
+                ?: readProp("ro.mi.os.region")
+                ?: readProp("ro.product.mod_device")?.substringAfterLast("_")?.take(2)
+                ?: Locale.getDefault().country.uppercase()
+
+            val regionCode = sysRegionProp.trim().uppercase()
+
+            val scope = when {
+                regionCode == "IN" || regionCode == "CN" -> OptimizationScope.MAXIMUM
+                EEA_REGIONS.contains(regionCode) -> OptimizationScope.PRE_OPTIMIZED_EEA
+                else -> OptimizationScope.STANDARD
+            }
+
             val miui = readProp("ro.miui.ui.version.name")
                 ?: readProp("ro.mi.os.version.name")
-            val hyper = !miui.isNullOrBlank() ||
-                    !readProp("ro.mi.os.version.code").isNullOrBlank() ||
-                    isPackagePresent(context.packageManager, "com.miui.securitycenter")
-            val tablet = context.resources.configuration.smallestScreenWidthDp >= 600
+            val hyper = !readProp("ro.mi.os.version.code").isNullOrBlank() ||
+                readProp("ro.mi.os.version.name")?.contains("1.") == true ||
+                readProp("ro.mi.os.version.name")?.contains("2.") == true ||
+                isPackagePresent(pm, "com.miui.securitycore")
 
-            val profile = RomProfile(region, miui, hyper, tablet)
+            val config = context.resources.configuration
+            val characteristics = readProp("ro.build.characteristics").orEmpty()
+            val isTablet = config.smallestScreenWidthDp >= 600 ||
+                config.screenWidthDp >= 600 ||
+                characteristics.contains("tablet")
+
+            val profile = RomProfile(
+                region = regionCategory,
+                regionCode = regionCode,
+                optimizationScope = scope,
+                miuiVersion = miui,
+                hyperOsHint = hyper,
+                isTablet = isTablet,
+                androidSdk = Build.VERSION.SDK_INT,
+                locale = Locale.getDefault()
+            )
+
             AppLog.i(
                 TAG,
-                "detected region=$region miui=$miui hyper=$hyper tablet=$tablet " +
-                        "sdk=${Build.VERSION.SDK_INT}"
+                "Pre-Scan: region=$regionCategory ($regionCode) scope=$scope " +
+                    "miui=$miui hyper=$hyper tablet=$isTablet sdk=${Build.VERSION.SDK_INT} " +
+                    "device=${Build.MANUFACTURER} ${Build.MODEL}"
             )
             return profile
         }
 
-        private fun detectRegion(pm: PackageManager): RomRegion {
+        private fun detectRegionCategory(pm: PackageManager): RomRegion {
             val cnMarkers = listOf(
                 "com.miui.msa.core",
                 "com.xiaomi.market",
@@ -60,18 +128,18 @@ data class RomProfile(
             return when {
                 globalHits > cnHits -> RomRegion.GLOBAL
                 cnHits > globalHits -> RomRegion.CN
-                else -> RomRegion.UNKNOWN
+                else -> RomRegion.GLOBAL
             }
         }
 
         private fun isPackagePresent(pm: PackageManager, pkg: String): Boolean = try {
             pm.getPackageInfo(pkg, 0)
             true
-        } catch (_: PackageManager.NameNotFoundException) {
+        } catch (_: Exception) {
             false
         }
 
-        private fun readProp(key: String): String? = try {
+        fun readProp(key: String): String? = try {
             val clz = Class.forName("android.os.SystemProperties")
             val get = clz.getMethod("get", String::class.java, String::class.java)
             (get.invoke(null, key, "") as? String)?.takeIf { it.isNotBlank() }
@@ -99,7 +167,7 @@ data class RomProfile(
         return when (region) {
             RomRegion.GLOBAL -> globalBoost - cnBoost / 2
             RomRegion.CN -> cnBoost - globalBoost / 2
-            RomRegion.UNKNOWN -> 0
+            RomRegion.UNKNOWN -> globalBoost
         }
     }
 }

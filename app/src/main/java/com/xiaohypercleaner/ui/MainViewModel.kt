@@ -201,6 +201,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
+        OverlayController.setOnCancel(null)
+        OverlayController.setOnResultClose(null)
         OverlayController.hide(app)
         simpleController.destroy()
         autoFlowJob?.cancel()
@@ -323,6 +325,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private var eeaNoticeAcknowledged: Boolean = false
+
     fun startFlow() {
         AppLog.i(TAG, "startFlow called, isWorking=${_state.value.isWorking}")
 
@@ -333,12 +337,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.i(TAG, "startFlow: previous run finished — resetting")
             closeSimpleMode()
         }
+        // Если пользователь отменил оверлей, но флаг залип — сбрасываем и даём начать заново
+        if (_state.value.simpleModeActive &&
+            _state.value.simpleModePhase == SimpleModePhase.STEPS &&
+            !_state.value.isWorking
+        ) {
+            val runnerBusy = AdbEnablerService.instance?.let {
+                com.xiaohypercleaner.service.SimpleRunner.isRunning
+            } == true
+            if (!runnerBusy) {
+                AppLog.w(TAG, "startFlow: stale simpleModeActive without runner — resetting")
+                closeSimpleMode()
+            }
+        }
         if (_state.value.simpleModeActive) {
             AppLog.i(TAG, "startFlow: simple mode already active, ignoring")
             return
         }
 
+        val profile = RomProfile.detect(app)
+        if (profile.optimizationScope == com.xiaohypercleaner.data.OptimizationScope.PRE_OPTIMIZED_EEA && !eeaNoticeAcknowledged) {
+            update { it.copy(showEeaNoticeDialog = true, eeaRegionName = profile.regionCode) }
+            return
+        }
+
         update { it.copy(showLevelDialog = true) }
+    }
+
+    fun onEeaNoticeAgreed() {
+        eeaNoticeAcknowledged = true
+        update { it.copy(showEeaNoticeDialog = false, showLevelDialog = true) }
+    }
+
+    fun onEeaNoticeCancelled() {
+        update { it.copy(showEeaNoticeDialog = false) }
     }
 
     fun onLevelChosen(level: OptimizationMode) {

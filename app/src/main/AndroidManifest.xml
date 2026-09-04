@@ -33,6 +33,66 @@
         <!-- Shizuku (для проверки установки) -->
         <package android:name="moe.shizuku.privileged.api" />
 
+        <!-- Системные пакеты Xiaomi / MIUI / HyperOS для точечной оптимизации -->
+        <package android:name="com.android.settings" />
+        <package android:name="com.miui.securitycenter" />
+        <package android:name="com.miui.securitycore" />
+        <package android:name="com.miui.cleanmaster" />
+        <package android:name="com.xiaomi.misettings" />
+
+        <!-- Системные службы фонового трафика / MSA -->
+        <package android:name="com.miui.msa.global" />
+        <package android:name="com.miui.msa.core" />
+        <package android:name="com.miui.systemAdSolution" />
+
+        <!-- Системный браузер -->
+        <package android:name="com.mi.globalbrowser" />
+        <package android:name="com.android.browser" />
+        <package android:name="com.miui.browser" />
+
+        <!-- Мультимедиа и плееры -->
+        <package android:name="com.miui.player" />
+        <package android:name="com.miui.music" />
+        <package android:name="com.mi.music" />
+        <package android:name="com.miui.videoplayer" />
+        <package android:name="com.miui.video" />
+        <package android:name="com.mi.global.video" />
+
+        <!-- Темы и персонализация -->
+        <package android:name="com.android.thememanager" />
+        <package android:name="com.miui.thememanager" />
+        <package android:name="com.mi.thememanager" />
+
+        <!-- Каталоги и маркетплейсы -->
+        <package android:name="com.xiaomi.market" />
+        <package android:name="com.miui.market" />
+        <package android:name="com.mi.global.market" />
+
+        <!-- Утилиты: Загрузки, Проводник, ShareMe -->
+        <package android:name="com.android.providers.downloads.ui" />
+        <package android:name="com.miui.android.downloads" />
+        <package android:name="com.mi.android.globalFileexplorer" />
+        <package android:name="com.android.fileexplorer" />
+        <package android:name="com.mi.android.fileexplorer" />
+        <package android:name="com.xiaomi.midrop" />
+        <package android:name="com.mi.android.globalshareme" />
+
+        <!-- Лаунчеры и рабочие столы (смартфоны и планшеты Pad) -->
+        <package android:name="com.mi.android.globallauncher" />
+        <package android:name="com.miui.home" />
+        <package android:name="com.mi.android.globalHome" />
+        <package android:name="com.mi.global.home" />
+        <package android:name="com.miui.personalassistant" />
+        <package android:name="com.mi.android.global.personalassistant" />
+
+        <!-- Сообщения и игровые центры -->
+        <package android:name="com.miui.mms" />
+        <package android:name="com.android.mms" />
+        <package android:name="com.miui.mms.global" />
+        <package android:name="com.xiaomi.gamecenter" />
+        <package android:name="com.miui.gamecenter" />
+        <package android:name="com.xiaomi.glgm" />
+
         <!-- Магазины приложений (для установки Shizuku) -->
         <intent>
             <action android:name="android.intent.action.VIEW" />

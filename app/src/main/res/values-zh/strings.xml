@@ -103,16 +103,21 @@
     <!-- ========== 选项（DNS、激进模式） ========== -->
     <string name="options_dialog_title">优化选项</string>
     <string name="options_dialog_text">选择附加选项。稍后可更改。</string>
-    <string name="dns_option_title">DNS 过滤器</string>
-    <string name="dns_option_description">通过 AdGuard DNS 阻止对不良域名的网络请求。</string>
+    <string name="dns_option_title">安全 DNS 过滤器</string>
+    <string name="dns_option_description">通过安全私人 DNS 过滤不必要的系统遥测网络请求。</string>
     <string name="aggressive_option_title">扩展优化</string>
     <string name="aggressive_option_description">适合经验丰富用户的高级设置。某些小米功能可能会有所不同。</string>
     <string name="options_dialog_start">开始优化</string>
 
     <!-- ========== DNS 警告 ========== -->
-    <string name="dns_warning_title">注意：DNS 过滤器</string>
-    <string name="dns_warning_text">将设置 AdGuard 私人 DNS。这将减少对不良域名的网络请求，但可能会阻止某些网站。您可以随时在 Android 设置中禁用它。</string>
+    <string name="dns_warning_title">注意：安全 DNS</string>
+    <string name="dns_warning_text">将配置安全私人 DNS。这将减少后台遥测流量并保护隐私。您可以随时在 Android 设置中禁用它。</string>
     <string name="dns_warning_accept">明白了，继续</string>
+
+    <!-- ========== EEA 区域提示 ========== -->
+    <string name="eea_notice_title">区域优化状态</string>
+    <string name="eea_notice_text">您的区域（%1$s）默认已根据隐私法规进行优化，无需额外配置。\n\n如果您仍希望检查系统服务，可以继续进行。</string>
+    <string name="eea_notice_continue">仍然继续</string>
 
     <!-- ========== 开发者模式 ========== -->
     <string name="dev_mode_dialog_title">需要开发者模式</string>

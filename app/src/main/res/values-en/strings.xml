@@ -94,16 +94,21 @@
     <!-- ========== OPTIONS (DNS, AGGRESSIVE) ========== -->
     <string name="options_dialog_title">Optimization options</string>
     <string name="options_dialog_text">Choose additional options. You can change them later.</string>
-    <string name="dns_option_title">DNS filter</string>
-    <string name="dns_option_description">Block network requests to unwanted domains via AdGuard DNS.</string>
+    <string name="dns_option_title">Secure DNS filter</string>
+    <string name="dns_option_description">Filters unwanted system telemetry requests via secure private DNS.</string>
     <string name="aggressive_option_title">Extended optimization</string>
     <string name="aggressive_option_description">Advanced settings for experienced users. Some Xiaomi features may work differently.</string>
     <string name="options_dialog_start">Start optimization</string>
 
     <!-- ========== DNS WARNING ========== -->
-    <string name="dns_warning_title">Attention: DNS filter</string>
-    <string name="dns_warning_text">AdGuard Private DNS will be set. This reduces network requests to unwanted domains, but may block some sites. You can disable it anytime in Android settings.</string>
+    <string name="dns_warning_title">Attention: Secure DNS</string>
+    <string name="dns_warning_text">A secure private DNS will be configured. This reduces background telemetry traffic and protects privacy. You can disable it anytime in Android settings.</string>
     <string name="dns_warning_accept">Understood, continue</string>
+
+    <!-- ========== EEA REGION NOTICE ========== -->
+    <string name="eea_notice_title">Region Optimization</string>
+    <string name="eea_notice_text">Your region (%1$s) is already optimized by default under privacy regulations. No additional configuration is required.\n\nYou may still proceed if you want to inspect system services.</string>
+    <string name="eea_notice_continue">Continue anyway</string>
 
     <!-- ========== DEV MODE ========== -->
     <string name="dev_mode_dialog_title">Developer mode required</string>

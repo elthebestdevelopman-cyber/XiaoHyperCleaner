@@ -262,6 +262,9 @@ class OverlayService : Service() {
         cancel.setOnClickListener {
             AppLog.i(TAG, "automation cancelled by user")
             hide()
+            // Всегда останавливаем runner локально — даже если listener в OverlayController
+            // ещё не зарегистрирован / был сброшен.
+            AdbEnablerService.instance?.cancelRunner()
             OverlayController.triggerCancel()
         }
 
@@ -453,7 +456,8 @@ class OverlayService : Service() {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             flags, PixelFormat.TRANSLUCENT
         ).apply {
-            if (touchable) dimAmount = 0.55f
+            // Лёгкое затемнение 12% — пользователь отчётливо видит все системные экраны
+            if (touchable) dimAmount = 0.12f
             if (!fullScreen) gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
         }
         wm?.addView(v, params)

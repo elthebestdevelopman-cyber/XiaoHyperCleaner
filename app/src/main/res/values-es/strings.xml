@@ -104,16 +104,21 @@
     <!-- ========== OPCIONES (DNS, AGRESIVO) ========== -->
     <string name="options_dialog_title">Opciones de optimización</string>
     <string name="options_dialog_text">Elige opciones adicionales. Puedes cambiarlas después.</string>
-    <string name="dns_option_title">Filtro DNS</string>
-    <string name="dns_option_description">Bloquea peticiones de red a dominios no deseados vía AdGuard DNS.</string>
+    <string name="dns_option_title">Filtro DNS seguro</string>
+    <string name="dns_option_description">Filtra peticiones de telemetría del sistema mediante DNS privado seguro.</string>
     <string name="aggressive_option_title">Optimización extendida</string>
     <string name="aggressive_option_description">Ajustes avanzados para usuarios experimentados. Algunas funciones de Xiaomi pueden comportarse diferente.</string>
     <string name="options_dialog_start">Iniciar optimización</string>
 
     <!-- ========== ADVERTENCIA DNS ========== -->
-    <string name="dns_warning_title">Atención: filtro DNS</string>
-    <string name="dns_warning_text">Se configurará el DNS privado AdGuard. Esto reduce las peticiones de red a dominios no deseados, pero puede bloquear algunos sitios. Puedes desactivarlo en cualquier momento en los ajustes de Android.</string>
+    <string name="dns_warning_title">Atención: DNS seguro</string>
+    <string name="dns_warning_text">Se configurará un DNS privado seguro. Esto reduce el tráfico de telemetría en segundo plano y protege la privacidad. Puedes desactivarlo en cualquier momento en los ajustes de Android.</string>
     <string name="dns_warning_accept">Entendido, continuar</string>
+
+    <!-- ========== EEA REGION NOTICE ========== -->
+    <string name="eea_notice_title">Optimización de región</string>
+    <string name="eea_notice_text">Tu región (%1$s) ya está optimizada por defecto según las normas de privacidad. No se requiere configuración adicional.\n\nPuedes continuar si deseas inspeccionar los servicios del sistema.</string>
+    <string name="eea_notice_continue">Continuar de todos modos</string>
 
     <!-- ========== MODO DESARROLLADOR ========== -->
     <string name="dev_mode_dialog_title">Se requiere modo desarrollador</string>

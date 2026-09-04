@@ -3,33 +3,39 @@ package com.xiaohypercleaner.service
 import android.content.Context
 import android.content.Intent
 import com.xiaohypercleaner.util.AppLog
-import java.lang.ref.WeakReference
 
 /**
  * Статичный API для управления оверлеем из любого места.
- * onCancel / onResultClose — через WeakReference (защита от утечек).
+ * Listeners хранятся сильно — MainViewModel снимает их в onCleared().
+ * WeakReference здесь ломал Cancel: GC собирал лямбду, simpleModeActive
+ * оставался true, кнопка «Оптимизировать» игнорировалась.
  */
 object OverlayController {
 
     private const val TAG = "OverlayController"
 
-    private var onCancel: WeakReference<() -> Unit>? = null
-    private var onResultClose: WeakReference<() -> Unit>? = null
+    private var onCancel: (() -> Unit)? = null
+    private var onResultClose: (() -> Unit)? = null
 
-    fun setOnCancel(listener: () -> Unit) {
-        onCancel = WeakReference(listener)
+    fun setOnCancel(listener: (() -> Unit)?) {
+        onCancel = listener
     }
 
     fun triggerCancel() {
-        onCancel?.get()?.invoke()
+        val listener = onCancel
+        if (listener == null) {
+            AppLog.w(TAG, "triggerCancel: no listener registered")
+            return
+        }
+        listener.invoke()
     }
 
-    fun setOnResultClose(listener: () -> Unit) {
-        onResultClose = WeakReference(listener)
+    fun setOnResultClose(listener: (() -> Unit)?) {
+        onResultClose = listener
     }
 
     fun triggerResultClose() {
-        onResultClose?.get()?.invoke()
+        onResultClose?.invoke()
     }
 
     // ═══ Подсказки / стрелки (не блокируют) ═══

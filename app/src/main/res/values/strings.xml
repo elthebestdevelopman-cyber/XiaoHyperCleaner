@@ -83,16 +83,21 @@
     <!-- ========== ОПЦИИ (DNS, AGGRESSIVE) ========== -->
     <string name="options_dialog_title">Параметры оптимизации</string>
     <string name="options_dialog_text">Выберите дополнительные опции. Их можно изменить позже.</string>
-    <string name="dns_option_title">DNS-фильтр</string>
-    <string name="dns_option_description">Блокировка сетевых запросов к нежелательным доменам через AdGuard DNS.</string>
+    <string name="dns_option_title">Защищённый DNS-фильтр</string>
+    <string name="dns_option_description">Фильтрация избыточных системных сетевых запросов через защищённый приватный DNS.</string>
     <string name="aggressive_option_title">Расширенная оптимизация</string>
     <string name="aggressive_option_description">Дополнительные настройки для опытных пользователей. Некоторые функции Xiaomi могут работать иначе.</string>
     <string name="options_dialog_start">Начать оптимизацию</string>
 
     <!-- ========== DNS ПРЕДУПРЕЖДЕНИЕ ========== -->
-    <string name="dns_warning_title">Внимание: DNS-фильтр</string>
-    <string name="dns_warning_text">Будет установлен приватный DNS AdGuard. Это снизит количество сетевых запросов к нежелательным доменам, но может заблокировать некоторые сайты. Отключить можно в любой момент в настройках Android.</string>
+    <string name="dns_warning_title">Внимание: Защищённый DNS</string>
+    <string name="dns_warning_text">Будет установлен защищённый приватный DNS. Это снизит фоновый трафик телеметрии и повысит конфиденциальность. Отключить можно в любой момент в настройках Android.</string>
     <string name="dns_warning_accept">Понятно, продолжить</string>
+
+    <!-- ========== EEA REGION NOTICE ========== -->
+    <string name="eea_notice_title">Оптимизация региона</string>
+    <string name="eea_notice_text">Ваш регион (%1$s) оптимизирован по умолчанию в соответствии с требованиями конфиденциальности. Дополнительная настройка не требуется.\n\nВы можете запустить процесс, если хотите перепроверить системные службы.</string>
+    <string name="eea_notice_continue">Всё равно продолжить</string>
 
     <!-- ========== DEV MODE ========== -->
     <string name="dev_mode_dialog_title">Нужен режим разработчика</string>

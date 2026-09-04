@@ -180,10 +180,10 @@ object SimpleSteps {
         // П.3: Конфиденциальность → Рекламные службы → «Персонализация»
         Step(
             id = "ads_personalization",
-            titleRu = "Персонализация рекламы",
-            titleEn = "Ads personalization",
-            descRu = "Отключаем персонализацию рекламы.",
-            descEn = "Turning off ads personalization.",
+            titleRu = "Персонализация контента",
+            titleEn = "Content personalization",
+            descRu = "Повышаем конфиденциальность и отключаем сбор профиля использования.",
+            descEn = "Enhancing privacy and disabling telemetry collection.",
             intents = listOf(settingsRoot()),
             searchTexts = listOf(
                 "Персонализированная реклама",
@@ -195,7 +195,7 @@ object SimpleSteps {
                 "Personalized ad recommendations"
             ),
             manualHintRu = "Настройки → Отпечатки… → Конфиденциальность → Рекламные службы → " +
-                    "выключите «Персонализация рекламы».",
+                    "выключите персонализацию.",
             manualHintEn = "Settings → Fingerprints… → Privacy → Ad services → " +
                     "turn off personalization.",
             drillPath = listOf(SEC, PRIVACY, listOf("Рекламные службы", "Ad services"))
@@ -277,8 +277,8 @@ object SimpleSteps {
             id = "browser_sys",
             titleRu = "Рекомендации Mi Браузера",
             titleEn = "Mi Browser recommendations",
-            descRu = "Выключаем показ рекламы в системном браузере.",
-            descEn = "Turning off recommendations in Mi Browser.",
+            descRu = "Отключаем избыточные рекомендации поставщика в браузере.",
+            descEn = "Turning off vendor recommendations in Mi Browser.",
             intents = listOf(
                 launchIntent("com.mi.globalbrowser"),
                 launchIntent("com.android.browser"),
@@ -290,8 +290,8 @@ object SimpleSteps {
                 "Реклама", "Ads", "显示广告"
             ),
             manualHintRu = "Mi Браузер → Профиль → ⚙ → Дополнительно → " +
-                    "выключите «Показывать рекламу».",
-            manualHintEn = "Mi Browser → Profile → ⚙ → Advanced → turn off \"Show ads\".",
+                    "выключите показ рекомендаций.",
+            manualHintEn = "Mi Browser → Profile → ⚙ → Advanced → turn off recommendations.",
             launchPackage = "com.mi.globalbrowser",
             drillPath = listOf(
                 PROFILE,
@@ -340,8 +340,8 @@ object SimpleSteps {
                 "Показывать рекомендации в интернете", "Show recommendations online",
                 "Персональные рекомендации", "Personalized recommendations"
             ),
-            manualHintRu = "Музыка → ⚙ → Расширенные настройки → выключите «Показывать рекламу».",
-            manualHintEn = "Music → ⚙ → Advanced settings → turn off \"Show ads\".",
+            manualHintRu = "Музыка → ⚙ → Расширенные настройки → выключите показ рекомендаций.",
+            manualHintEn = "Music → ⚙ → Advanced settings → turn off recommendations.",
             launchPackage = "com.miui.player",
             drillPath = listOf(
                 listOf("⚙", "⚙️", "Настройки", "Settings", "⋮", "Меню", "Menu"),
@@ -365,15 +365,15 @@ object SimpleSteps {
             id = "messages_sys",
             titleRu = "Персонализация Сообщений",
             titleEn = "Messages personalization",
-            descRu = "Выключаем персонализацию в Сообщениях.",
-            descEn = "Turning off personalization in Messages.",
+            descRu = "Повышаем конфиденциальность и отключаем сбор профиля в Сообщениях.",
+            descEn = "Enhancing privacy and disabling telemetry collection in Messages.",
             intents = listOf(settingsRoot()),
             searchTexts = listOf("Персонализация рекламы", "Ads personalization"),
             additionalToggles = listOf("Рекомендации", "Recommendations"),
             manualHintRu = "… → Системные приложения → Сообщения → Расширенные настройки → " +
-                    "Параметры рекламы → выключите всё.",
-            manualHintEn = "… → System apps → Messages → Advanced → Ad settings → " +
-                    "turn everything off.",
+                    "Параметры → выключите всё.",
+            manualHintEn = "… → System apps → Messages → Advanced → " +
+                    "turn off personalization.",
             drillPath = listOf(
                 APPS, OVERFLOW, OTHER_SETTINGS, SYS_APPS,
                 listOf("Сообщения", "Messages", "Mi Messages"),
@@ -502,7 +502,7 @@ object SimpleSteps {
                 "Personalized recommendations"
             ),
             manualHintRu = "Темы → Профиль → ⚙ → " +
-                    "выключите «Показывать рекламу» и «Персональные рекомендации».",
+                    "выключите показ рекомендаций и персональных предложений.",
             manualHintEn = "Themes → Profile → ⚙ → turn off recommendations.",
             launchPackage = "com.android.thememanager",
             drillPath = listOf(
@@ -578,14 +578,14 @@ object SimpleSteps {
         // ИСПРАВЛЕНО (beta6): добавлен глобал
         Step(
             id = "shareme",
-            titleRu = "Персонализация ShareMe",
-            titleEn = "ShareMe personalization",
-            descRu = "Выключаем персонализацию в ShareMe.",
-            descEn = "Turning off ShareMe personalization.",
+            titleRu = "Конфиденциальность ShareMe",
+            titleEn = "ShareMe privacy",
+            descRu = "Повышаем конфиденциальность и снижаем фоновую активность в ShareMe.",
+            descEn = "Enhancing privacy and reducing background telemetry in ShareMe.",
             intents = listOf(launchIntent("com.xiaomi.midrop")),
             searchTexts = listOf("Персонализация рекламы", "Ads personalization"),
             manualHintRu = "ShareMe → ⋮ → О приложении → Справка и обратная связь → " +
-                    "выключите «Персонализация рекламы».",
+                    "выключите персонализацию.",
             manualHintEn = "ShareMe → ⋮ → About → Help & feedback → " +
                     "turn off personalization.",
             launchPackage = "com.xiaomi.midrop",
@@ -605,10 +605,10 @@ object SimpleSteps {
         // ИСПРАВЛЕНО (beta6): добавлена альтернатива
         Step(
             id = "filemanager",
-            titleRu = "Персонализация Проводника",
-            titleEn = "File Manager personalization",
-            descRu = "Очищаем данные Проводника и не принимаем политику.",
-            descEn = "Clearing File Manager data and declining the policy.",
+            titleRu = "Конфиденциальность Проводника",
+            titleEn = "File Manager privacy",
+            descRu = "Оптимизируем кэш Проводника и отклоняем сбор телеметрии.",
+            descEn = "Optimizing File Manager cache and declining telemetry collection.",
             intents = listOf(appDetailsIntent("com.mi.android.globalFileexplorer")),
             searchTexts = emptyList(),
             manualHintRu = "Настройки → Приложения → Проводник → Очистить все → " +
@@ -660,8 +660,8 @@ object SimpleSteps {
             id = "search_page",
             titleRu = "Страница поиска",
             titleEn = "Search page",
-            descRu = "Выключаем рекламные источники на странице поиска.",
-            descEn = "Turning off promotional sources on the search page.",
+            descRu = "Отключаем внешние онлайн-источники на странице поиска.",
+            descEn = "Turning off external online sources on the search page.",
             intents = listOf(launchIntent("com.miui.home")),
             searchTexts = listOf("Игровой центр", "Game Center"),
             additionalToggles = listOf(
