@@ -153,47 +153,10 @@ class OverlayService : Service() {
         AppLog.i(TAG, "hint shown (non-blocking, auto-hide)")
     }
 
-    // ═══ POINTER (стрелка, живёт до разрешения) ═══
+    // ═══ POINTER (стрелка отключена по требованию пользователя) ═══
 
     private fun showPointer(mode: String, text: String) {
-        hide()
-        val arrowSymbol = when (mode) {
-            "TOP_RIGHT" -> "⬆"; "BOTTOM_LIST", "GENERIC_BOTTOM" -> "⬇"
-            "SWITCH_RIGHT" -> "➡"; else -> "⬅"
-        }
-        val arrow = TextView(this).apply {
-            this.text = arrowSymbol
-            setTextColor(Color.parseColor("#FFFFD600"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 64f)
-            setShadowLayer(dp(6).toFloat(), 0f, 0f, 0xCC000000.toInt())
-        }
-        val bubble = TextView(this).apply {
-            this.text = text
-            setTextColor(Color.WHITE)
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-            background = roundBg(0xE61976D2.toInt())
-            autoSize()
-        }
-        val arrowGravity = when (mode) {
-            "TOP_RIGHT" -> Gravity.TOP or Gravity.END
-            "BOTTOM_LIST", "GENERIC_BOTTOM" -> Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            "SWITCH_RIGHT" -> Gravity.CENTER_VERTICAL or Gravity.END
-            else -> Gravity.CENTER_VERTICAL or Gravity.START
-        }
-        val bubbleGravity = when (mode) {
-            "TOP_RIGHT" -> Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            "BOTTOM_LIST", "GENERIC_BOTTOM" -> Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            else -> Gravity.CENTER
-        }
-        addRoot(touchable = false, fullScreen = true).apply {
-            setPadding(dp(16), dp(24), dp(16), dp(140))
-            addView(arrow, flParams(arrowGravity))
-            addView(bubble, flParams(bubbleGravity))
-        }
-        pulse(arrow)
-        // ИСПРАВЛЕНО: НЕ scheduleAutoHide() — стрелка живёт до выдачи
-        // разрешения, мы сами прячем её в advance()/hide()
-        AppLog.i(TAG, "pointer shown mode=$mode (persists until granted)")
+        AppLog.d(TAG, "showPointer: ignored (pointers disabled)")
     }
 
     // ═══ AUTOMATION (блокирующий, робокот) ═══

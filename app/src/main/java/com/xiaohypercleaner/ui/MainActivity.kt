@@ -311,7 +311,7 @@ class MainActivity : ComponentActivity() {
         if (currentState.simpleModeActive &&
             currentState.permissionSubPhase == PermissionSubPhase.BATTERY_OPTIMIZATION
         ) {
-            val ignoring: Boolean = vm.permissionFlow_isIgnoringBatteryOptimizations()
+            val ignoring: Boolean = vm.isIgnoringBatteryOptimizations()
             if (wasStopped || ignoring) {
                 AppLog.i(
                     TAG,

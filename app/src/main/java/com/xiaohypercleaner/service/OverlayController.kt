@@ -45,12 +45,9 @@ object OverlayController {
             intent(ctx, OverlayService.ACTION_HINT).putExtra(OverlayService.EXTRA_HINT, text)
         )
 
-    fun showManualPointer(ctx: Context, mode: String, text: String) =
-        ctx.startService(
-            intent(ctx, OverlayService.ACTION_POINTER)
-                .putExtra(OverlayService.EXTRA_POINTER_MODE, mode)
-                .putExtra(OverlayService.EXTRA_POINTER_TEXT, text)
-        )
+    fun showManualPointer(ctx: Context, mode: String, text: String) {
+        // Стрелки-подсказки отключены по требованию пользователя (заменены предварительными диалогами)
+    }
 
     // ═══ Автоматизация (блокирующий оверлей с робокотом) ═══
 

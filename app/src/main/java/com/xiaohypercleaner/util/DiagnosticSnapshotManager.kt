@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Rect
 import android.os.Build
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.core.content.pm.PackageInfoCompat
 import com.xiaohypercleaner.data.RomProfile
 import org.json.JSONArray
 import org.json.JSONObject
@@ -54,7 +55,8 @@ object DiagnosticSnapshotManager {
             val appVersion = targetPackage?.let { pkg ->
                 try {
                     val info = context.packageManager.getPackageInfo(pkg, 0)
-                    "${info.versionName} (${info.versionCode})"
+                    val verCode = PackageInfoCompat.getLongVersionCode(info)
+                    "${info.versionName} ($verCode)"
                 } catch (_: Exception) {
                     "not_installed"
                 }
@@ -62,6 +64,7 @@ object DiagnosticSnapshotManager {
 
             val dumpTree = StringBuilder()
             var collectedCount = 0
+            @Suppress("DEPRECATION")
             fun dump(node: AccessibilityNodeInfo?, depth: Int) {
                 if (node == null || depth > MAX_TREE_DEPTH || collectedCount > MAX_NODES_COLLECTED) return
                 collectedCount++

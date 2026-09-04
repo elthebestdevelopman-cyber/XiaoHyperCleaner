@@ -109,15 +109,15 @@
 
     <!-- ========== OVERLAY ========== -->
     <string name="overlay_permission_title">Permissão "Exibir sobre outros apps"</string>
-    <string name="overlay_permission_text">Necessário para exibir a tela de automação e as dicas visuais.</string>
+    <string name="overlay_permission_text">Permissão necessária para exibir a tela de automação e o status do progresso.\n\n1. Na lista aberta, localize "XiaoHyperCleaner".\n2. Ative o interruptor "Permitir sobreposição a outros apps".\n3. Toque em Voltar para retornar ao aplicativo.</string>
 
     <!-- ========== RESTRICTED / FORBIDDEN ========== -->
     <string name="restricted_dialog_title">Configurações restritas</string>
-    <string name="restricted_dialog_text">Para ativar o serviço de acessibilidade, você precisa primeiro permitir "Configurações restritas" nas informações do app.</string>
+    <string name="restricted_dialog_text">Para habilitar o serviço de acessibilidade, é necessária permissão única nas configurações do app:\n\n1. Nas configurações do app abertas, toque no menu ⋮ no canto superior direito (ou role para baixo).\n2. Selecione "Permitir configurações restritas".\n3. Confirme com digital ou senha e retorne ao app.</string>
     <string name="restricted_dialog_open">Abrir configurações do app</string>
 
     <string name="forbidden_dialog_title">Configurações proibidas</string>
-    <string name="forbidden_dialog_text">No Android 14+ você precisa permitir "Configurações proibidas" nas informações do app.</string>
+    <string name="forbidden_dialog_text">Para habilitar o serviço de acessibilidade, é necessária permissão única nas configurações do app:\n\n1. Nas configurações do app abertas, toque no menu ⋮ no canto superior direito (ou role para baixo).\n2. Selecione "Permitir configurações proibidas".\n3. Confirme com digital ou senha e retorne ao app.</string>
     <string name="forbidden_dialog_open">Abrir configurações do app</string>
 
     <!-- ========== RESTORE / REBOOT ========== -->
@@ -216,8 +216,8 @@
     <string name="accessibility_policy_description">O serviço de acessibilidade do XiaoHyperCleaner destina-se a usuários com mobilidade reduzida e ajuda a navegar automaticamente pelas telas de configurações do Android mediante solicitação explícita. O serviço toca em interruptores pelo usuário. Nenhum dado pessoal é coletado ou transmitido.</string>
 
     <!-- ========== CONSENT DIALOG ========== -->
-    <string name="consent_dialog_title">Consentimento de uso do serviço</string>
-    <string name="consent_dialog_text">O serviço de acessibilidade tocará botões nas configurações em seu nome.\n\n• NÃO contorna controles de privacidade\n• NÃO altera configurações sem seu consentimento\n• NÃO transmite dados para fora\n• Pode ser desativado a qualquer momento</string>
+    <string name="consent_dialog_title">Serviço de acessibilidade</string>
+    <string name="consent_dialog_text">O serviço é necessário para configurar automaticamente as opções de privacidade sem navegação manual nos menus.\n\nO que fazer na próxima tela:\n1. Na lista aberta, localize "XiaoHyperCleaner" (na seção "Apps transferidos por download" ou "Serviços transferidos").\n2. Ative o interruptor do serviço de acessibilidade.\n3. Confirme a ativação e retorne ao aplicativo.\n\nO serviço não transmite dados para fora, não contorna controles de privacidade e pode ser desativado a qualquer momento.</string>
     <string name="consent_checkbox_label">Eu compreendo e autorizo o uso do serviço de acessibilidade para automatizar as configurações</string>
     <string name="consent_confirm_button">Concordar e continuar</string>
     <string name="consent_cancel_button">Cancelar</string>
@@ -259,7 +259,7 @@
 
     <!-- ========== BATTERY OPTIMIZATION ========== -->
     <string name="battery_dialog_title">Otimização de bateria</string>
-    <string name="battery_dialog_text">Para estabilidade do serviço de acessibilidade, recomendamos desativar a otimização de bateria para o XiaoHyperCleaner.</string>
+    <string name="battery_dialog_text">Para garantir a execução contínua da automação e evitar que o sistema encerre o serviço:\n\n1. Na janela aberta, localize "XiaoHyperCleaner" (ou confirme o aviso do sistema).\n2. Selecione a opção "Sem restrições" (ou "Não otimizar").\n3. Toque em Voltar para continuar a otimização.</string>
     <string name="battery_dialog_open">Abrir configurações de bateria</string>
     <string name="battery_dialog_skip">Pular</string>
     <string name="hint_battery_optimization">Selecione "Sem restrições" ou "Não otimizar"</string>

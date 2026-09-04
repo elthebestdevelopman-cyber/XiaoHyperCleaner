@@ -307,7 +307,7 @@ class AdbEnablerService : AccessibilityService() {
                             else R.string.automation_status_fail
                         )
                     )
-                    SimpleStepBridge.onResult?.invoke(result.success, result.reason ?: "")
+                    SimpleStepBridge.onResult?.invoke(result.success, result.reason)
                 }
             }
 
@@ -430,6 +430,15 @@ class AdbEnablerService : AccessibilityService() {
             }
 
             val screenText: String = collectAllText(root)
+
+            // Не трогаем диалоги отзыва MSA / согласия во время шага
+            if (screenText.contains("Отзыв разрешения", ignoreCase = true) ||
+                screenText.contains("Отозвать разрешение", ignoreCase = true) ||
+                screenText.contains("Отзыв согласия", ignoreCase = true) ||
+                screenText.contains("Revoke permission", ignoreCase = true)
+            ) {
+                return
+            }
 
             if (screenText.contains("Обновите свой Экран блокировки", ignoreCase = true) ||
                 screenText.contains("Update your Lock screen", ignoreCase = true)

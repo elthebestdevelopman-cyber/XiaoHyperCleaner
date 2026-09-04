@@ -16,11 +16,9 @@ import org.robolectric.annotation.Config
 class SimpleStepsTest {
 
     @Test
-    fun `launcher steps include global launcher alias`() {
-        val ads = SimpleSteps.ALL.first { it.id == "search_ads" }
-        val page = SimpleSteps.ALL.first { it.id == "search_page" }
-        assertTrue(ads.requiredPackages.contains("com.mi.android.globallauncher"))
-        assertTrue(page.requiredPackages.contains("com.mi.android.globallauncher"))
+    fun `launcher recommendation swipe steps removed`() {
+        assertTrue(SimpleSteps.ALL.none { it.id == "search_ads" })
+        assertTrue(SimpleSteps.ALL.none { it.id == "search_page" })
     }
 
     @Test
@@ -68,8 +66,10 @@ class SimpleStepsTest {
         assertTrue(ads.searchTexts.contains("Персонализированная реклама"))
 
         val carousel = SimpleSteps.ALL.first { it.id == "carousel" }
-        assertTrue(carousel.searchTexts.contains("Включить"))
+        assertTrue(carousel.searchTexts.any { it.contains("Карусель") || it.contains("Carousel") })
+        assertFalse(carousel.searchTexts.any { it.equals("Вкл", ignoreCase = true) })
 
         assertTrue(home.requiredPackages.contains("com.miui.home"))
+        assertTrue(home.requiredPackages.contains("com.mi.android.globallauncher"))
     }
 }

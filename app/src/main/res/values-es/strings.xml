@@ -133,15 +133,15 @@
 
     <!-- ========== SUPERPOSICIÓN ========== -->
     <string name="overlay_permission_title">Permiso "Mostrar sobre otras apps"</string>
-    <string name="overlay_permission_text">Necesario para mostrar pistas mientras configuras otras apps.</string>
+    <string name="overlay_permission_text">El permiso es necesario para mostrar la pantalla de automatización y el estado del proceso.\n\n1. Busca "XiaoHyperCleaner" en la lista que se abre.\n2. Activa el interruptor "Mostrar sobre otras aplicaciones".\n3. Pulsa Atrás para volver a la app.</string>
 
     <!-- ========== RESTRINGIDO / PROHIBIDO (Android 13+ sideload) ========== -->
     <string name="restricted_dialog_title">Configuración restringida</string>
-    <string name="restricted_dialog_text">Para activar el servicio de accesibilidad, primero debes permitir "Configuración restringida" en la pantalla de información de la app.</string>
+    <string name="restricted_dialog_text">Para habilitar el servicio de accesibilidad, se requiere permiso único en los ajustes de la app:\n\n1. En los ajustes de la app que se abren, toca el menú ⋮ en la esquina superior derecha (o desplázate abajo).\n2. Selecciona "Permitir configuración restringida".\n3. Confirma con huella o contraseña y regresa a la app.</string>
     <string name="restricted_dialog_open">Abrir ajustes de la app</string>
 
     <string name="forbidden_dialog_title">Configuración prohibida</string>
-    <string name="forbidden_dialog_text">En Android 14+ debes permitir "Configuración prohibida" en la pantalla de información de la app.</string>
+    <string name="forbidden_dialog_text">Para habilitar el servicio de accesibilidad, se requiere permiso único en los ajustes de la app:\n\n1. En los ajustes de la app que se abren, toca el menú ⋮ en la esquina superior derecha (o desplázate abajo).\n2. Selecciona "Permitir configuración prohibida".\n3. Confirma con huella o contraseña y regresa a la app.</string>
     <string name="forbidden_dialog_open">Abrir ajustes de la app</string>
 
     <!-- ========== RESTAURAR / REINICIAR ========== -->
@@ -243,8 +243,8 @@
     <string name="accessibility_policy_description">El servicio de accesibilidad de XiaoHyperCleaner se usa ÚNICAMENTE para navegar automáticamente por los ajustes del sistema Android a petición explícita del usuario. El servicio NO elude los controles de privacidad, NO cambia ajustes sin consentimiento explícito y NO recopila datos del usuario. Todas las acciones se realizan localmente en el dispositivo. El servicio se activa solo tras consentimiento explícito del usuario y puede desactivarse en cualquier momento en los ajustes de Android. El uso del servicio cumple totalmente con la Política de API de Servicios de Accesibilidad.</string>
 
     <!-- ========== DIÁLOGO DE CONSENTIMIENTO ========== -->
-    <string name="consent_dialog_title">Consentimiento de uso del servicio</string>
-    <string name="consent_dialog_text">Para configurar automáticamente la app, el servicio de accesibilidad tocará botones en los ajustes del sistema en tu nombre. El servicio:\n\n• NO elude los controles de privacidad\n• NO cambia ajustes sin tu consentimiento\n• NO envía datos externamente\n• Puede desactivarse en cualquier momento</string>
+    <string name="consent_dialog_title">Servicio de accesibilidad</string>
+    <string name="consent_dialog_text">El servicio es necesario para configurar automáticamente los ajustes de privacidad sin navegar manualmente por los menús.\n\nQué hacer en la siguiente pantalla:\n1. En la lista que se abre, busca "XiaoHyperCleaner" (en "Apps descargadas" o "Servicios descargados").\n2. Activa el interruptor del servicio.\n3. Confirma la activación y regresa a la app.\n\nEl servicio no transmite datos externamente, no elude controles de privacidad y puede desactivarse en cualquier momento.</string>
     <string name="consent_checkbox_label">Entiendo y consiento el uso del servicio de accesibilidad para automatizar la navegación por ajustes</string>
     <string name="consent_confirm_button">Aceptar y continuar</string>
     <string name="consent_cancel_button">Cancelar</string>
@@ -289,7 +289,7 @@
 
     <!-- ========== OPTIMIZACIÓN DE BATERÍA ========== -->
     <string name="battery_dialog_title">Optimización de batería</string>
-    <string name="battery_dialog_text">Para un funcionamiento estable del servicio de accesibilidad, recomendamos desactivar la optimización de batería para XiaoHyperCleaner. De lo contrario, el sistema puede detener la automatización tras unos minutos.</string>
+    <string name="battery_dialog_text">Para garantizar el funcionamiento continuo de la automatización y evitar que el sistema la detenga:\n\n1. En la ventana que se abre, busca "XiaoHyperCleaner" (o confirma el aviso del sistema).\n2. Selecciona la opción "Sin restricciones" (o "No optimizar").\n3. Pulsa Atrás para continuar con la optimización.</string>
     <string name="battery_dialog_open">Abrir ajustes de batería</string>
     <string name="battery_dialog_skip">Saltar</string>
     <string name="hint_battery_optimization">Selecciona "Sin restricciones" o "No optimizar"</string>

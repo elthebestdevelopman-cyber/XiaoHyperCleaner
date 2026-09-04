@@ -211,177 +211,64 @@ class PermissionFlowManager(private val context: Context) {
     private fun canShowOverlay(): Boolean = Settings.canDrawOverlays(context)
 
     /**
-     * Открывает App Info с умной подсказкой о местоположении restricted settings.
-     *
-     * @param location Местоположение кнопки restricted settings (TOP_MENU, BOTTOM_LIST, UNKNOWN, ABSENT)
+     * Открывает App Info для разблокировки restricted settings (описание уже показано в диалоге).
      */
     fun openAppInfoWithSmartPointer(location: RestrictedLocation) {
-        AppLog.i(TAG, "openAppInfoWithSmartPointer: location=$location")
+        AppLog.i(TAG, "openAppInfoSettings: location=$location")
         openAppInfoSettings()
-
-        if (!canShowOverlay()) {
-            AppLog.w(TAG, "openAppInfoWithSmartPointer: no overlay permission, skipping hint")
-            return
-        }
-
-        when (location) {
-            RestrictedLocation.TOP_MENU -> showPointer(
-                OverlayService.PointerMode.TOP_RIGHT,
-                context.getString(R.string.pointer_restricted_top_hint)
-            )
-
-            RestrictedLocation.BOTTOM_LIST -> showPointer(
-                OverlayService.PointerMode.BOTTOM_LIST,
-                context.getString(R.string.pointer_restricted_bottom_hint)
-            )
-
-            RestrictedLocation.UNKNOWN -> showGenericCard(
-                context.getString(R.string.pointer_restricted_generic)
-            )
-
-            RestrictedLocation.ABSENT -> {
-                AppLog.i(TAG, "restricted location marked ABSENT — skipping hint")
-            }
-        }
     }
 
     /**
-     * Открывает Accessibility settings с визуальной подсказкой (стрелка на сервис).
+     * Открывает Accessibility settings (описание уже показано в диалоге согласия).
      */
     fun openAccessibilityWithPointer() {
-        AppLog.i(TAG, "openAccessibilityWithPointer: showing visual hint")
+        AppLog.i(TAG, "openAccessibilitySettings")
         openAccessibilitySettings()
-
-        if (!canShowOverlay()) {
-            AppLog.w(TAG, "openAccessibilityWithPointer: no overlay permission, skipping pointer")
-            return
-        }
-
-        OverlayController.showManualPointer(
-            context,
-            OverlayService.PointerMode.LIST_ITEM_CENTER.name,
-            context.getString(R.string.pointer_hint_accessibility)
-        )
     }
 
     /**
-     * Открывает Overlay settings с визуальной подсказкой (стрелка внизу).
+     * Открывает Overlay settings (описание уже показано в диалоге).
      */
     fun openOverlayWithPointer() {
-        AppLog.i(TAG, "openOverlayWithPointer: showing visual hint")
+        AppLog.i(TAG, "openOverlaySettings")
         openOverlaySettings()
-
-        if (!canShowOverlay()) {
-            AppLog.w(TAG, "openOverlayWithPointer: no overlay permission, skipping pointer")
-            return
-        }
-
-        OverlayController.showManualPointer(
-            context,
-            OverlayService.PointerMode.GENERIC_BOTTOM.name,
-            context.getString(R.string.pointer_hint_overlay)
-        )
     }
 
     /**
-     * Открывает Accessibility settings с текстовой подсказкой (hint bubble).
+     * Открывает Accessibility settings.
      */
     fun openAccessibilityWithHint() {
-        AppLog.i(TAG, "openAccessibilityWithHint: showing text hint")
+        AppLog.i(TAG, "openAccessibilitySettings")
         openAccessibilitySettings()
-
-        if (!canShowOverlay()) {
-            AppLog.w(TAG, "openAccessibilityWithHint: no overlay permission, skipping hint")
-            return
-        }
-
-        showHint(context.getString(R.string.hint_accessibility))
     }
 
     /**
-     * Открывает Battery optimization settings с текстовой подсказкой.
+     * Открывает Battery optimization settings (описание уже показано в диалоге).
      */
     fun openBatteryOptimizationWithPointer() {
-        AppLog.i(TAG, "openBatteryOptimizationWithPointer: showing hint")
+        AppLog.i(TAG, "openBatteryOptimizationSettings")
         openBatteryOptimizationSettings()
-
-        if (!canShowOverlay()) {
-            AppLog.w(
-                TAG,
-                "openBatteryOptimizationWithPointer: no overlay permission, skipping hint"
-            )
-            return
-        }
-
-        showHint(context.getString(R.string.hint_battery_optimization))
     }
 
     /**
-     * Показывает текстовую подсказку (hint bubble) через OverlayService.
+     * Подсказки-пузыри поверх сторонних экранов отключены (заменены предварительными диалогами).
      */
     fun showHint(text: String) {
-        if (!canShowOverlay()) {
-            AppLog.w(TAG, "showHint: no overlay permission, skipping")
-            return
-        }
-
-        try {
-            val intent = Intent(context, OverlayService::class.java).apply {
-                action = OverlayService.ACTION_HINT
-                putExtra(OverlayService.EXTRA_HINT, text)
-            }
-            context.startService(intent)
-            AppLog.i(TAG, "showHint: success")
-        } catch (e: Exception) {
-            AppLog.w(TAG, "showHint failed: ${e.message}")
-        }
+        // No-op
     }
 
     /**
-     * Показывает универсальную карточку с текстом (GENERIC_BOTTOM mode).
+     * Карточки поверх сторонних экранов отключены (заменены предварительными диалогами).
      */
     fun showGenericCard(text: String) {
-        if (!canShowOverlay()) {
-            AppLog.w(TAG, "showGenericCard: no overlay permission, skipping")
-            return
-        }
-
-        try {
-            val intent = Intent(context, OverlayService::class.java).apply {
-                action = OverlayService.ACTION_POINTER
-                putExtra(
-                    OverlayService.EXTRA_POINTER_MODE,
-                    OverlayService.PointerMode.GENERIC_BOTTOM.name
-                )
-                putExtra(OverlayService.EXTRA_POINTER_TEXT, text)
-            }
-            context.startService(intent)
-            AppLog.i(TAG, "showGenericCard: success")
-        } catch (e: Exception) {
-            AppLog.w(TAG, "showGenericCard failed: ${e.message}")
-        }
+        // No-op
     }
 
     /**
-     * Показывает стрелку-указатель в указанном режиме.
+     * Стрелки-указатели удалены по требованию пользователя (заменены предварительными диалогами).
      */
     fun showPointer(mode: OverlayService.PointerMode, text: String) {
-        if (!canShowOverlay()) {
-            AppLog.w(TAG, "showPointer: no overlay permission, skipping")
-            return
-        }
-
-        try {
-            val intent = Intent(context, OverlayService::class.java).apply {
-                action = OverlayService.ACTION_POINTER
-                putExtra(OverlayService.EXTRA_POINTER_MODE, mode.name)
-                putExtra(OverlayService.EXTRA_POINTER_TEXT, text)
-            }
-            context.startService(intent)
-            AppLog.i(TAG, "showPointer: mode=${mode.name}, success")
-        } catch (e: Exception) {
-            AppLog.w(TAG, "showPointer failed: ${e.message}")
-        }
+        // No-op
     }
 
     /**

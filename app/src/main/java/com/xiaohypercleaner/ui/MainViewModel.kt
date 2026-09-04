@@ -5,17 +5,16 @@ import android.content.ComponentName
 import android.content.Intent
 import android.provider.Settings
 import androidx.annotation.VisibleForTesting
-import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.xiaohypercleaner.AppConstants.AUTO_ADVANCE_DELAY_MS
 import com.xiaohypercleaner.AppConstants.RETRY_DELAY_MS
-import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationMode
+import com.xiaohypercleaner.data.OptimizationScope
 import com.xiaohypercleaner.data.PermissionFlowManager
 import com.xiaohypercleaner.data.PermissionSubPhase
 import com.xiaohypercleaner.data.RestrictedLocation
+import com.xiaohypercleaner.data.RomProfile
 import com.xiaohypercleaner.data.ShizukuExecutor
 import com.xiaohypercleaner.data.SimpleModeController
 import com.xiaohypercleaner.data.SimpleModePhase
@@ -24,8 +23,6 @@ import com.xiaohypercleaner.service.ChainFlags
 import com.xiaohypercleaner.service.OverlayController
 import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.service.SimpleStepBridge
-import com.xiaohypercleaner.ui.extensions.displayName
-import com.xiaohypercleaner.ui.extensions.description
 import com.xiaohypercleaner.ui.vm.ProFlowController
 import com.xiaohypercleaner.ui.vm.ShizukuUiController
 import com.xiaohypercleaner.util.AppLog
@@ -50,12 +47,12 @@ import kotlin.time.Duration.Companion.milliseconds
  * - OptimizationNotifier — реактивное получение результатов Pro-режима
  *
  * УЛУЧШЕНИЯ:
- * 1. ИСПРАВЛЕН КРИТИЧЕСКИЙ БАГ: showHint() теперь устанавливает ACTION_HINT и EXTRA_HINT
- * 2. Убран дублирующий simpleModeActive — используется только state.simpleModeActive
- * 3. stopOverlayService() заменён на OverlayController.hide() (без stopService)
- * 4. openAccessibilitySettings/openOverlaySettings делегируют PermissionFlowManager
- * 5. Русские логи для consistency
+ * 1. Убран дублирующий simpleModeActive — используется только state.simpleModeActive
+ * 2. stopOverlayService() заменён на OverlayController.hide() (без stopService)
+ * 3. openAccessibilitySettings/openOverlaySettings делегируют PermissionFlowManager
+ * 4. Русские логи для consistency
  */
+@Suppress("SpellCheckingInspection")
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
@@ -206,7 +203,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         OverlayController.hide(app)
         simpleController.destroy()
         autoFlowJob?.cancel()
-        super.onCleared()
     }
 
     private fun mergeSimpleState(s: SimpleModeController.SimpleModeState) {
@@ -300,7 +296,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Раньше контроллер сам вызывал refresh() и advance(), что приводило к
      * «ложному» всплытию диалога при системном диалоге MIUI поверх настроек.
      */
-    fun permissionFlow_isIgnoringBatteryOptimizations(): Boolean =
+    fun isIgnoringBatteryOptimizations(): Boolean =
         permissionFlow.isIgnoringBatteryOptimizations()
 
     fun onBatteryOptimizationReturn() {
@@ -308,7 +304,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             var ignoring: Boolean = permissionFlow.isIgnoringBatteryOptimizations()
             if (!ignoring) {
-                delay(600)
+                delay(600.milliseconds)
                 ignoring = permissionFlow.isIgnoringBatteryOptimizations()
             }
             AppLog.i(TAG, "onBatteryOptimizationReturn: isIgnoring=$ignoring")
@@ -356,7 +352,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val profile = RomProfile.detect(app)
-        if (profile.optimizationScope == com.xiaohypercleaner.data.OptimizationScope.PRE_OPTIMIZED_EEA && !eeaNoticeAcknowledged) {
+        if (profile.optimizationScope == OptimizationScope.PRE_OPTIMIZED_EEA && !eeaNoticeAcknowledged) {
             update { it.copy(showEeaNoticeDialog = true, eeaRegionName = profile.regionCode) }
             return
         }
@@ -418,7 +414,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         when (status) {
             ShizukuExecutor.Status.AVAILABLE -> shizuku.showOptionsDialog()
             ShizukuExecutor.Status.PERMISSION_REQUIRED -> {
-                // Один тап меньше: сразу запрашиваем разрешение
+                // На один тап меньше: сразу запрашиваем разрешение
                 shizuku.requestPermission(SHIZUKU_PERMISSION_CODE)
             }
             ShizukuExecutor.Status.NOT_RUNNING -> {
@@ -462,7 +458,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun advanceToNextStep(autoStart: Boolean) {
+    @VisibleForTesting
+    internal fun advanceToNextStep(autoStart: Boolean) {
         simpleController.nextStep()
         if (autoStart && _state.value.simpleStep != null) {
             stepAttempt = 1
@@ -529,11 +526,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    @VisibleForTesting
     fun getFailedStepIds(): List<String> = failedSimpleStepIds.toList()
 
+    @VisibleForTesting
     fun startCurrentSimpleStep() = simpleController.startCurrentStep()
+
+    @VisibleForTesting
     fun nextSimpleStep() = onSimpleStepResult(true)
 
+    @VisibleForTesting
     fun skipSimpleStep() {
         val stepId: String = _state.value.simpleStep?.step?.id ?: "unknown"
         if (!failedSimpleStepIds.contains(stepId)) failedSimpleStepIds.add(stepId)
@@ -541,6 +543,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         simpleController.onStepSkipped(stepId)
     }
 
+    @VisibleForTesting
     fun retrySimpleStep() = simpleController.retryStep()
 
     fun appInfoDialogAgreed() = simpleController.onAppInfoDialogAgreed()
@@ -675,6 +678,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun dismissRebootDialog() = proFlow.dismissRebootDialog()
     fun dismissRebootFailed() = proFlow.dismissRebootFailed()
     fun dismissRestoreFailed() = proFlow.dismissRestoreFailed()
+    @VisibleForTesting
     fun devModeDialogOpenAbout() = AppLog.i(TAG, "devModeDialog: open about phone")
     fun devModeDialogRetry() = proFlow.devModeDialogRetry()
     fun devModeDialogCancel() = proFlow.devModeDialogCancel()
@@ -715,7 +719,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Раньше передавалась строка "hint" вместо OverlayService.EXTRA_HINT,
      * и не устанавливался action = ACTION_HINT. Хинты не показывались.
      */
-    private fun showHint(text: String) {
+    @VisibleForTesting
+    internal fun showHint(text: String) {
         try {
             val intent = Intent(app, OverlayService::class.java).apply {
                 action = OverlayService.ACTION_HINT

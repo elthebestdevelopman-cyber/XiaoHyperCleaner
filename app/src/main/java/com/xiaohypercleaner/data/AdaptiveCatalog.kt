@@ -203,7 +203,7 @@ object AdaptiveCatalog {
         val keys = keys()
         while (keys.hasNext()) {
             val k = keys.next()
-            optString(k)?.takeIf { it.isNotBlank() }?.let { out[k] = it }
+            optString(k).takeIf { it.isNotBlank() }?.let { out[k] = it }
         }
         return out
     }

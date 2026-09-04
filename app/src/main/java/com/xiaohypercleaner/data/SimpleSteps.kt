@@ -5,7 +5,7 @@ import android.provider.Settings
 import androidx.core.net.toUri
 
 /**
- * Финальная карта маршрутов по инструкции сообщества (все 26 шагов).
+ * Финальная карта маршрутов по инструкции сообщества.
  *
  * Типы действий:
  *  TOGGLE             — найти переключатель и выключить (+ additionalToggles рядом)
@@ -97,7 +97,9 @@ object SimpleSteps {
     )
 
     private val APPS: List<String> = listOf(
-        "Приложения", "Apps", "Applications", "应用", "应用管理", "Aplicaciones"
+        "Приложения", "Apps", "Applications", "应用", "应用管理", "Aplicaciones",
+        // Уже внутри списка приложений (не кликать снова по подстроке «Приложения»)
+        "Все приложения", "All apps", "All applications", "Manage apps", "Управление приложениями"
     )
     private val OVERFLOW: List<String> =
         listOf("⋮", "Ещё", "More options", "More", "Дополнительно", "更多", "Más")
@@ -158,7 +160,7 @@ object SimpleSteps {
             riskLevel = RiskLevel.CONDITIONAL
         ),
 
-        // П.2: Приложения → ⋮ → Прочие настройки → «Получать рекомендации»
+        // П.2: через поиск Settings — на MIUI 13 в «Приложения» нет ⋮ без жеста (оверлей блокирует)
         Step(
             id = "sys_recommendations",
             titleRu = "Системные рекомендации",
@@ -170,11 +172,10 @@ object SimpleSteps {
                 "Получать рекомендации", "Receive recommendations",
                 "接收推荐", "个性化推荐", "Recibir recomendaciones"
             ),
-            manualHintRu = "Настройки → Приложения → ⋮ → Прочие настройки → " +
-                    "выключите «Получать рекомендации».",
-            manualHintEn = "Settings → Apps → ⋮ → Additional settings → " +
-                    "turn off \"Receive recommendations\".",
-            drillPath = listOf(APPS, OVERFLOW, OTHER_SETTINGS)
+            manualHintRu = "Настройки → поиск «Получать рекомендации» → выключите.",
+            manualHintEn = "Settings → search \"Receive recommendations\" → turn off.",
+            // Пустой drill: навигация через Settings Search в SimpleRunner
+            drillPath = emptyList()
         ),
 
         // П.3: Конфиденциальность → Рекламные службы → «Персонализация»
@@ -229,18 +230,18 @@ object SimpleSteps {
             descRu = "Выключаем карусель обоев и обновление через мобильный интернет.",
             descEn = "Turning off Wallpaper Carousel and mobile updates.",
             intents = listOf(settingsRoot()),
+            // Не используем короткие «Вкл»/Enable — ложно матчат любые тумблеры на экране блокировки.
             searchTexts = listOf(
-                "Включить",
                 "Карусель обоев",
                 "Wallpaper Carousel",
                 "Wallpaper carousel",
-                "Turn on",
-                "Enable",
-                "Вкл"
+                "Glance"
             ),
             additionalToggles = listOf(
                 "Обновлять через мобильный Интернет",
-                "Update via mobile network"
+                "Update via mobile network",
+                "Обновлять через мобильные данные",
+                "Update over mobile data"
             ),
             manualHintRu = "Настройки → Блокировка экрана → Карусель обоев → выключите всё.",
             manualHintEn = "Settings → Lock screen → Wallpaper Carousel → turn everything off.",
@@ -261,14 +262,31 @@ object SimpleSteps {
             searchTexts = listOf(
                 "Показывать предложения", "Show suggestions",
                 "Показывать рекомендации", "Show recommendations",
-                "Рекомендации", "Suggestions", "显示建议"
+                "Рекомендации", "Suggestions", "显示建议",
+                // POCO / HyperOS варианты
+                "Рекомендуемое сегодня", "Recommend today",
+                "Предложения", "Suggestion"
             ),
-            manualHintRu = "Настройки → Рабочий стол → выключите «Показывать предложения».",
-            manualHintEn = "Settings → Home screen → turn off \"Show suggestions\".",
+            manualHintRu = "Настройки → Рабочий стол → выключите «Показывать предложения» " +
+                    "(на части POCO пункт отсутствует после отзыва msa).",
+            manualHintEn = "Settings → Home screen → turn off \"Show suggestions\" " +
+                    "(may be absent on some POCO builds after msa revoke).",
             drillPath = listOf(
-                listOf("Рабочий стол", "Home screen", "Pantalla de inicio", "桌面")
+                listOf(
+                    "Настройки рабочего стола",
+                    "Home screen settings",
+                    "Рабочий стол",
+                    "Home screen",
+                    "Pantalla de inicio",
+                    "桌面"
+                )
             ),
-            requiredPackages = listOf("com.miui.home", "com.mi.global.home"),
+            requiredPackages = listOf(
+                "com.miui.home",
+                "com.mi.global.home",
+                "com.mi.android.globallauncher",
+                "com.miui.launcher"
+            ),
             targetChecked = false
         ),
 
@@ -452,7 +470,8 @@ object SimpleSteps {
             ),
             requiredPackages = listOf(
                 "com.miui.securitycenter",
-                "com.miui.securitycore"
+                "com.miui.securitycore",
+                "com.miui.cleaner"
             ),
             forceStopBeforeLaunch = true
         ),
@@ -625,66 +644,9 @@ object SimpleSteps {
             forceStopBeforeLaunch = true
         ),
 
-        // ── БЛОК В: ЛАУНЧЕР (свайп) ───────────────────────────────────
-
-        // П.7: Поиск приложений → ⚙ → «Рекомендации по приложениям»
-        // ИСПРАВЛЕНО (beta6): добавлены AOSP launcher, альтернативы и глобал
-        Step(
-            id = "search_ads",
-            titleRu = "Рекомендации в поиске приложений",
-            titleEn = "App search recommendations",
-            descRu = "Выключаем рекомендации в поиске приложений.",
-            descEn = "Turning off app search recommendations.",
-            intents = listOf(launchIntent("com.miui.home")),
-            searchTexts = listOf("Рекомендации по приложениям", "App recommendations"),
-            manualHintRu = "Поиск приложений → ⋮ → Настройки → " +
-                    "выключите «Рекомендации по приложениям».",
-            manualHintEn = "App search → ⋮ → Settings → turn off \"App recommendations\".",
-            launchPackage = "com.miui.home",
-            swipeUpAfterLaunch = true,
-            drillPath = listOf(GEAR),
-            requiredPackages = listOf(
-                "com.miui.home",
-                "com.mi.android.globallauncher",
-                "com.android.launcher3",
-                "com.miui.launcher",
-                "com.mi.global.home"
-            ),
-            riskLevel = RiskLevel.CONDITIONAL,
-            forceStopBeforeLaunch = true
-        ),
-
-        // П.7b: … → Страница поиска → «Игровой центр» и «Mi Видео»
-        // ИСПРАВЛЕНО (beta6): добавлены AOSP launcher и глобал
-        Step(
-            id = "search_page",
-            titleRu = "Страница поиска",
-            titleEn = "Search page",
-            descRu = "Отключаем внешние онлайн-источники на странице поиска.",
-            descEn = "Turning off external online sources on the search page.",
-            intents = listOf(launchIntent("com.miui.home")),
-            searchTexts = listOf("Игровой центр", "Game Center"),
-            additionalToggles = listOf(
-                "Mi Видео", "Mi Video",
-                "Другие приложения", "Other apps"
-            ),
-            manualHintRu = "Поиск → ⋮ → Настройки → Страница поиска → " +
-                    "выключите «Игровой центр», «Mi Видео».",
-            manualHintEn = "Search → ⋮ → Settings → Search page → " +
-                    "turn off Game Center, Mi Video.",
-            launchPackage = "com.miui.home",
-            swipeUpAfterLaunch = true,
-            drillPath = listOf(GEAR, listOf("Страница поиска", "Search page")),
-            requiredPackages = listOf(
-                "com.miui.home",
-                "com.mi.android.globallauncher",
-                "com.android.launcher3",
-                "com.miui.launcher",
-                "com.mi.global.home"
-            ),
-            riskLevel = RiskLevel.CONDITIONAL,
-            forceStopBeforeLaunch = true
-        ),
+        // ── БЛОК В: ЛЕНТА ВИДЖЕТОВ ─────────────────────────────────────
+        // (шаги search_ads / search_page / папки «Рекомендуемое сегодня» убраны —
+        //  ненадёжны под блокирующим оверлеем; после отзыва msa реклама в папках пропадает)
 
         // П.8 в инструкции: Лента виджетов → ⋮ → Управление службами → «Предложения»
         // ИСПРАВЛЕНО (beta6): добавлены глобал и AOSP имена
@@ -782,7 +744,10 @@ object SimpleSteps {
             titleEn = "Game Center notifications",
             descRu = "Полностью выключаем уведомления Игрового центра.",
             descEn = "Turning off Game Center notifications.",
-            intents = listOf(notificationsIntent("com.xiaomi.gamecenter")),
+            intents = listOf(
+                notificationsIntent("com.xiaomi.glgm"),
+                notificationsIntent("com.xiaomi.gamecenter")
+            ),
             searchTexts = listOf(
                 "Разрешить уведомления", "Allow notifications",
                 "Показывать уведомления", "Show notifications"
@@ -791,9 +756,9 @@ object SimpleSteps {
                     "Уведомления → выключите.",
             manualHintEn = "Settings → Apps → Game Center → Notifications → turn off.",
             requiredPackages = listOf(
-                "com.xiaomi.gamecenter",        // Китай (основное)
-                "com.miui.gamecenter",          // Альтернатива
-                "com.xiaomi.glgm"               // GameLoop (глобал)
+                "com.xiaomi.glgm",               // GameLoop / Funmax (глобал) — первым
+                "com.xiaomi.gamecenter",
+                "com.miui.gamecenter"
             ),
             targetChecked = false
         ),

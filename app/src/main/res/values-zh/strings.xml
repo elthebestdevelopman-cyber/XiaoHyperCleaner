@@ -132,15 +132,15 @@
 
     <!-- ========== 悬浮窗 ========== -->
     <string name="overlay_permission_title">"悬浮窗"权限</string>
-    <string name="overlay_permission_text">需要在设置其他应用时显示提示。</string>
+    <string name="overlay_permission_text">需要此权限以显示自动化界面和进度状态。\n\n1. 在打开的列表中找到 "XiaoHyperCleaner"。\n2. 打开 "允许在其他应用上层显示" 开关。\n3. 点击返回键回到应用。</string>
 
     <!-- ========== 受限/禁止设置（Android 13+ 侧载） ========== -->
     <string name="restricted_dialog_title">受限设置</string>
-    <string name="restricted_dialog_text">要启用无障碍服务，您需要先在应用信息界面允许"受限设置"。</string>
+    <string name="restricted_dialog_text">要启用无障碍服务，需要在应用设置中允许受限权限：\n\n1. 在打开的应用详情页中，点击右上角菜单 ⋮（或滑到页面底部）。\n2. 选择 "允许受限设置"。\n3. 使用指纹或密码确认并返回应用。</string>
     <string name="restricted_dialog_open">打开应用设置</string>
 
     <string name="forbidden_dialog_title">禁止的设置</string>
-    <string name="forbidden_dialog_text">在 Android 14+ 上，您需要在应用信息界面允许"禁止的设置"。</string>
+    <string name="forbidden_dialog_text">要启用无障碍服务，需要在应用设置中允许受限权限：\n\n1. 在打开的应用详情页中，点击右上角菜单 ⋮（或滑到页面底部）。\n2. 选择 "允许禁止的设置"。\n3. 使用指纹或密码确认并返回应用。</string>
     <string name="forbidden_dialog_open">打开应用设置</string>
 
     <!-- ========== 还原/重启 ========== -->
@@ -242,8 +242,8 @@
     <string name="accessibility_policy_description">XiaoHyperCleaner 无障碍服务仅在用户明确请求时用于自动导航 Android 系统设置。该服务不会绕过隐私控制、不会在未经明确同意的情况下更改设置、也不会收集用户数据。所有操作均在设备本地执行。该服务仅在用户明确同意后激活，并可随时在 Android 设置中禁用。该服务的使用完全符合无障碍服务 API 政策。</string>
 
     <!-- ========== 同意对话框 ========== -->
-    <string name="consent_dialog_title">服务使用同意</string>
-    <string name="consent_dialog_text">为了自动配置应用，无障碍服务将代表您点击系统设置中的按钮。该服务：\n\n• 不会绕过隐私控制\n• 不会在未经您同意的情况下更改设置\n• 不会向外发送数据\n• 可随时禁用</string>
+    <string name="consent_dialog_title">无障碍服务权限</string>
+    <string name="consent_dialog_text">需要此服务以自动优化隐私参数，无需在繁琐的系统菜单中手动查找。\n\n在接下来的设置界面中：\n1. 在打开的列表中找到 "XiaoHyperCleaner"（在"已下载的应用"或"已安装的服务"中）。\n2. 开启无障碍服务开关。\n3. 确认启用并返回应用。\n\n该服务不收集或上传数据，不绕过隐私保护，可随时在系统设置中关闭。</string>
     <string name="consent_checkbox_label">我理解并同意使用无障碍服务自动化设置导航</string>
     <string name="consent_confirm_button">同意并继续</string>
     <string name="consent_cancel_button">取消</string>
@@ -288,7 +288,7 @@
 
     <!-- ========== 电池优化 ========== -->
     <string name="battery_dialog_title">电池优化</string>
-    <string name="battery_dialog_text">为了无障碍服务稳定运行，建议为 XiaoHyperCleaner 禁用电池优化。否则系统可能会在几分钟后停止自动化。</string>
+    <string name="battery_dialog_text">为了自动化稳定运行并防止系统在后台停止服务：\n\n1. 在打开的窗口中找到 "XiaoHyperCleaner"（或确认系统弹窗）。\n2. 选择 "无限制"（或 "不优化"）。\n3. 点击返回键继续优化流程。</string>
     <string name="battery_dialog_open">打开电池设置</string>
     <string name="battery_dialog_skip">跳过</string>
     <string name="hint_battery_optimization">选择"无限制"或"不优化"</string>

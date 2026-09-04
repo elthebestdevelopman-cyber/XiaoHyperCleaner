@@ -109,15 +109,15 @@
 
     <!-- ========== OVERLAY ========== -->
     <string name="overlay_permission_title">"अन्य ऐप्स के ऊपर दिखाएं" अनुमति</string>
-    <string name="overlay_permission_text">ऑटोमेशन स्क्रीन और मार्गदर्शन संकेत प्रदर्शित करने के लिए आवश्यक है।</string>
+    <string name="overlay_permission_text">ऑटोमेशन स्क्रीन और प्रगति स्थिति प्रदर्शित करने के लिए यह अनुमति आवश्यक है।\n\n1. खुलने वाली सूची में "XiaoHyperCleaner" ढूंढें।\n2. "अन्य ऐप्स के ऊपर दिखाएं" स्विच चालू करें।\n3. वापस लौटने के लिए बैक बटन दबाएं।</string>
 
     <!-- ========== RESTRICTED / FORBIDDEN ========== -->
     <string name="restricted_dialog_title">प्रतिबंधित सेटिंग्स</string>
-    <string name="restricted_dialog_text">एक्सेसिबिलिटी सेवा सक्षम करने के लिए, आपको पहले ऐप जानकारी स्क्रीन में "प्रतिबंधित सेटिंग्स" की अनुमति देनी होगी।</string>
+    <string name="restricted_dialog_text">एक्सेसिबिलिटी सेवा सक्षम करने के लिए, ऐप सेटिंग्स में एकमुश्त अनुमति आवश्यक है:\n\n1. ऐप सेटिंग्स स्क्रीन में, ऊपर दाएं कोने में ⋮ मेनू पर टैप करें (या नीचे स्क्रॉल करें)।\n2. "प्रतिबंधित सेटिंग्स की अनुमति दें" चुनें।\n3. पासवर्ड या फ़िंगरप्रिंट से पुष्टि करें और ऐप पर वापस लौटें।</string>
     <string name="restricted_dialog_open">ऐप सेटिंग्स खोलें</string>
 
     <string name="forbidden_dialog_title">निषिद्ध सेटिंग्स</string>
-    <string name="forbidden_dialog_text">Android 14+ पर आपको ऐप जानकारी स्क्रीन में "निषिद्ध सेटिंग्स" की अनुमति देनी होगी।</string>
+    <string name="forbidden_dialog_text">एक्सेसिबिलिटी सेवा सक्षम करने के लिए, ऐप सेटिंग्स में एकमुश्त अनुमति आवश्यक है:\n\n1. ऐप सेटिंग्स स्क्रीन में, ऊपर दाएं कोने में ⋮ मेनू पर टैप करें (या नीचे स्क्रॉल करें)।\n2. "निषिद्ध सेटिंग्स की अनुमति दें" चुनें।\n3. पासवर्ड या फ़िंगरप्रिंट से पुष्टि करें और ऐप पर वापस लौटें।</string>
     <string name="forbidden_dialog_open">ऐप सेटिंग्स खोलें</string>
 
     <!-- ========== RESTORE / REBOOT ========== -->
@@ -216,8 +216,8 @@
     <string name="accessibility_policy_description">XiaoHyperCleaner एक्सेसिबिलिटी सेवा सीमित गतिशीलता वाले उपयोगकर्ताओं को सिस्टम सेटिंग्स स्क्रीन को स्वचालित रूप से नेविगेट करने में मदद करती है। यह उपयोगकर्ता के लिए स्विच टैप करती है। कोई डेटा एकत्र या भेजा नहीं जाता है।</string>
 
     <!-- ========== CONSENT DIALOG ========== -->
-    <string name="consent_dialog_title">सेवा उपयोग सहमति</string>
-    <string name="consent_dialog_text">एक्सेसिबिलिटी सेवा आपकी ओर से सेटिंग्स में बटन टैप करेगी।\n\n• गोपनीयता नियंत्रणों को बायपास नहीं करती\n• आपकी सहमति के बिना सेटिंग्स नहीं बदलती\n• डेटा बाहर नहीं भेजती\n• कभी भी बंद की जा सकती है</string>
+    <string name="consent_dialog_title">एक्सेसिबिलिटी सेवा अनुमति</string>
+    <string name="consent_dialog_text">मेनू में मैन्युअल खोज के बिना गोपनीयता सेटिंग्स को स्वचालित रूप से कॉन्फ़िगर करने के लिए एक्सेसिबिलिटी सेवा आवश्यक है।\n\nअगली स्क्रीन पर क्या करें:\n1. खुलने वाली सूची में "XiaoHyperCleaner" ढूंढें ("डाउनलोड किए गए ऐप्स" या "डाउनलोड की गई सेवाएं" में)।\n2. सेवा स्विच चालू करें।\n3. पुष्टि करें और ऐप पर वापस लौटें।\n\nयह सेवा डेटा बाहर नहीं भेजती, गोपनीयता को बायपास नहीं करती और इसे कभी भी बंद किया जा सकता है।</string>
     <string name="consent_checkbox_label">मैं समझता हूं और एक्सेसिबिलिटी सेवा का उपयोग करने की सहमति देता हूं</string>
     <string name="consent_confirm_button">सहमत हों और जारी रखें</string>
     <string name="consent_cancel_button">रद्द करें</string>
@@ -259,7 +259,7 @@
 
     <!-- ========== BATTERY OPTIMIZATION ========== -->
     <string name="battery_dialog_title">बैटरी अनुकूलन</string>
-    <string name="battery_dialog_text">स्थिर सेवा संचालन के लिए, XiaoHyperCleaner के लिए बैटरी अनुकूलन को अक्षम करने की अनुशंसा की जाती है।</string>
+    <string name="battery_dialog_text">ऑटोमेशन के स्थिर संचालन और सिस्टम द्वारा इसे बंद होने से रोकने के लिए:\n\n1. खुलने वाली विंडो में "XiaoHyperCleaner" चुनें (या सिस्टम प्रॉम्प्ट की पुष्टि करें)।\n2. "कोई प्रतिबंध नहीं" (या "अनुकूलित न करें") विकल्प चुनें।\n3. प्रक्रिया जारी रखने के लिए बैक बटन दबाएं।</string>
     <string name="battery_dialog_open">बैटरी सेटिंग्स खोलें</string>
     <string name="battery_dialog_skip">छोड़ें</string>
     <string name="hint_battery_optimization">"कोई प्रतिबंध नहीं" चुनें</string>

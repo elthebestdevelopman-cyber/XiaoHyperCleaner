@@ -89,7 +89,7 @@ fun InfoCard() {
                 textAlign = TextAlign.Center,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 stringResource(R.string.app_description_short),
                 modifier = Modifier.fillMaxWidth(),
@@ -97,9 +97,9 @@ fun InfoCard() {
                 textAlign = TextAlign.Center,
                 softWrap = true
             )
-            Spacer(Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             HorizontalDivider()
-            Spacer(Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             Text(
                 stringResource(R.string.features_title),
                 modifier = Modifier.fillMaxWidth(),
@@ -107,11 +107,11 @@ fun InfoCard() {
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Start
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             FeatureRow(Icons.Filled.Lock, stringResource(R.string.feature_processes))
-            Spacer(Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             FeatureRow(Icons.Filled.Build, stringResource(R.string.feature_speed))
-            Spacer(Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             FeatureRow(Icons.Filled.Star, stringResource(R.string.feature_battery))
         }
     }
@@ -135,7 +135,7 @@ private fun FeatureRow(icon: ImageVector, text: String) {
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(22.dp)
         )
-        Spacer(Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(12.dp))
         Text(
             text,
             style = MaterialTheme.typography.bodyMedium,
@@ -244,14 +244,14 @@ private fun WorkingView(progress: Float) {
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         LinearProgressIndicator(
             progress = { (progress / 100f).coerceIn(0f, 1f) },
             modifier = Modifier.fillMaxWidth(),
             color = Blue500
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
             "${progress.toInt().coerceIn(0, 100)}%",
@@ -271,53 +271,59 @@ private fun DoneView(
     onReboot: () -> Unit,
     canAutoReboot: Boolean
 ) {
-    Text(
-        stringResource(R.string.status_done),
+    // AnimatedContent кладёт детей в Box — без единого Column кнопка и подсказка накладываются.
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        style = MaterialTheme.typography.titleLarge,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.primary,
-        textAlign = TextAlign.Center
-    )
-    Spacer(Modifier.height(8.dp))
-
-    Text(
-        stringResource(R.string.status_done_description),
-        modifier = Modifier.fillMaxWidth(),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center
-    )
-    Spacer(Modifier.height(24.dp))
-
-    Button(
-        onClick = onRestore,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp),
-        shape = RoundedCornerShape(16.dp)
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(stringResource(R.string.btn_restore))
-    }
-    Spacer(Modifier.height(12.dp))
-
-    if (canAutoReboot) {
-        OutlinedButton(
-            onClick = onReboot,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Text(stringResource(R.string.reboot_now))
-        }
-    } else {
         Text(
-            stringResource(R.string.reboot_manual_hint),
+            stringResource(R.string.status_done),
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            stringResource(R.string.status_done_description),
             modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = onRestore,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Text(stringResource(R.string.btn_restore))
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (canAutoReboot) {
+            OutlinedButton(
+                onClick = onReboot,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text(stringResource(R.string.reboot_now))
+            }
+        } else {
+            Text(
+                stringResource(R.string.reboot_manual_hint),
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }

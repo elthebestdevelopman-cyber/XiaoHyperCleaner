@@ -109,15 +109,15 @@
 
     <!-- ========== OVERLAY ========== -->
     <string name="overlay_permission_title">Izin "Tampilkan di atas aplikasi lain"</string>
-    <string name="overlay_permission_text">Diperlukan untuk menampilkan layar otomatisasi dan petunjuk visual.</string>
+    <string name="overlay_permission_text">Izin diperlukan untuk menampilkan layar otomatisasi dan status progres.\n\n1. Di daftar yang terbuka, temukan "XiaoHyperCleaner".\n2. Aktifkan sakelar "Tampilkan di atas aplikasi lain".\n3. Ketuk Kembali untuk kembali ke aplikasi.</string>
 
     <!-- ========== RESTRICTED / FORBIDDEN ========== -->
     <string name="restricted_dialog_title">Setelan yang dibatasi</string>
-    <string name="restricted_dialog_text">Untuk mengaktifkan layanan aksesibilitas, Anda harus terlebih dahulu mengizinkan "Setelan yang dibatasi" di info aplikasi.</string>
+    <string name="restricted_dialog_text">Untuk mengaktifkan layanan aksesibilitas, diperlukan izin sekali di setelan aplikasi:\n\n1. Di layar setelan aplikasi yang terbuka, ketuk menu ⋮ di pojok kanan atas (atau gulir ke bawah).\n2. Pilih "Izinkan setelan yang dibatasi".\n3. Konfirmasi dengan sidik jari atau kata sandi dan kembali ke aplikasi.</string>
     <string name="restricted_dialog_open">Buka setelan aplikasi</string>
 
     <string name="forbidden_dialog_title">Setelan yang dilarang</string>
-    <string name="forbidden_dialog_text">Di Android 14+ Anda harus mengizinkan "Setelan yang dilarang" di info aplikasi.</string>
+    <string name="forbidden_dialog_text">Untuk mengaktifkan layanan aksesibilitas, diperlukan izin sekali di setelan aplikasi:\n\n1. Di layar setelan aplikasi yang terbuka, ketuk menu ⋮ di pojok kanan atas (atau gulir ke bawah).\n2. Pilih "Izinkan setelan yang dilarang".\n3. Konfirmasi dengan sidik jari atau kata sandi dan kembali ke aplikasi.</string>
     <string name="forbidden_dialog_open">Buka setelan aplikasi</string>
 
     <!-- ========== RESTORE / REBOOT ========== -->
@@ -216,8 +216,8 @@
     <string name="accessibility_policy_description">Layanan aksesibilitas XiaoHyperCleaner dirancang untuk pengguna dengan keterbatasan mobilitas dan membantu menavigasi layar setelan sistem Android secara otomatis atas permintaan pengguna. Layanan mengetuk sakelar atas nama pengguna. Tidak ada data pribadi yang dikumpulkan atau dikirim.</string>
 
     <!-- ========== CONSENT DIALOG ========== -->
-    <string name="consent_dialog_title">Persetujuan penggunaan layanan</string>
-    <string name="consent_dialog_text">Layanan aksesibilitas akan mengetuk tombol di setelan atas nama Anda.\n\n• TIDAK melewati kontrol privasi\n• TIDAK mengubah setelan tanpa persetujuan Anda\n• TIDAK mengirim data keluar\n• Dapat dinonaktifkan kapan saja</string>
+    <string name="consent_dialog_title">Layanan aksesibilitas</string>
+    <string name="consent_dialog_text">Layanan ini diperlukan untuk mengonfigurasi setelan privasi secara otomatis tanpa pencarian manual di menu.\n\nLangkah di layar berikutnya:\n1. Pada daftar yang terbuka, temukan "XiaoHyperCleaner" (di bagian "Aplikasi terunduh" atau "Layanan terunduh").\n2. Aktifkan sakelar layanan aksesibilitas.\n3. Konfirmasi pengaktifan dan kembali ke aplikasi.\n\nLayanan ini tidak mengirimkan data keluar, tidak melewati kontrol privasi, dan dapat dinonaktifkan kapan saja.</string>
     <string name="consent_checkbox_label">Saya mengerti dan menyetujui penggunaan layanan aksesibilitas untuk mengotomatiskan setelan</string>
     <string name="consent_confirm_button">Setuju dan lanjutkan</string>
     <string name="consent_cancel_button">Batal</string>
@@ -259,7 +259,7 @@
 
     <!-- ========== BATTERY OPTIMIZATION ========== -->
     <string name="battery_dialog_title">Pengoptimalan baterai</string>
-    <string name="battery_dialog_text">Untuk stabilitas layanan aksesibilitas, disarankan untuk menonaktifkan pengoptimalan baterai untuk XiaoHyperCleaner.</string>
+    <string name="battery_dialog_text">Untuk memastikan otomatisasi berjalan stabil dan mencegah sistem menghentikan layanan:\n\n1. Pada jendela yang terbuka, pilih "XiaoHyperCleaner" (atau konfirmasi pesan sistem).\n2. Pilih opsi "Tanpa batasan" (atau "Jangan optimalkan").\n3. Ketuk Kembali untuk melanjutkan pengoptimalan.</string>
     <string name="battery_dialog_open">Buka setelan baterai</string>
     <string name="battery_dialog_skip">Lewati</string>
     <string name="hint_battery_optimization">Pilih "Tanpa batasan" atau "Jangan optimalkan"</string>

@@ -127,11 +127,11 @@
 
     <!-- ========== RESTRICTED / FORBIDDEN (Android 13+ sideload) ========== -->
     <string name="restricted_dialog_title">Restricted settings</string>
-    <string name="restricted_dialog_text">To enable the Accessibility service, you must first allow "Restricted settings" in the app info screen.</string>
+    <string name="restricted_dialog_text">To enable the Accessibility service, one-time permission is required in app settings:\n\n1. In the app settings screen that opens, tap the ⋮ menu in the top-right corner (or scroll down).\n2. Select "Allow restricted settings".\n3. Confirm with your PIN or fingerprint and return to the app.</string>
     <string name="restricted_dialog_open">Open app settings</string>
 
     <string name="forbidden_dialog_title">Forbidden settings</string>
-    <string name="forbidden_dialog_text">On Android 14+ you must allow "Forbidden settings" in the app info screen.</string>
+    <string name="forbidden_dialog_text">To enable the Accessibility service, one-time permission is required in app settings:\n\n1. In the app settings screen that opens, tap the ⋮ menu in the top-right corner (or scroll down).\n2. Select "Allow forbidden settings".\n3. Confirm with your PIN or fingerprint and return to the app.</string>
     <string name="forbidden_dialog_open">Open app settings</string>
 
     <!-- ========== RESTORE / REBOOT ========== -->
@@ -233,8 +233,8 @@
     <string name="accessibility_policy_description">The XiaoHyperCleaner accessibility service is designed for users with limited mobility and helps automatically navigate Android system settings screens at the user\'s explicit request. The service taps switches and buttons for the user, saving time and physical effort. The service DOES NOT bypass privacy controls, DOES NOT change settings without explicit consent, and DOES NOT collect user data. All actions are performed locally on the device. The service is activated only after explicit user consent and can be disabled at any time. Usage fully complies with the Accessibility Services API Policy.</string>
 
     <!-- ========== CONSENT DIALOG ========== -->
-    <string name="consent_dialog_title">Service usage consent</string>
-    <string name="consent_dialog_text">To automatically configure the app, the accessibility service will tap buttons in system settings on your behalf. The service:\n\n• Does NOT bypass privacy controls\n• Does NOT change settings without your consent\n• Does NOT send data externally\n• Can be disabled at any time</string>
+    <string name="consent_dialog_title">Accessibility service</string>
+    <string name="consent_dialog_text">The service is required to automatically configure privacy settings without manual menu searching.\n\nWhat to do on the next screen:\n1. In the list that opens, find "XiaoHyperCleaner" (under "Downloaded apps" or "Downloaded services").\n2. Turn on the accessibility service switch.\n3. Confirm activation and return to the app.\n\nThe service does not transmit data externally, does not bypass privacy controls, and can be disabled at any time.</string>
     <string name="consent_checkbox_label">I understand and consent to use the accessibility service to automate settings navigation</string>
     <string name="consent_confirm_button">Agree and continue</string>
     <string name="consent_cancel_button">Cancel</string>
@@ -279,7 +279,7 @@
 
     <!-- ========== BATTERY OPTIMIZATION ========== -->
     <string name="battery_dialog_title">Battery optimization</string>
-    <string name="battery_dialog_text">For stable accessibility service operation, we recommend disabling battery optimization for XiaoHyperCleaner. Otherwise, the system may stop automation after a few minutes.</string>
+    <string name="battery_dialog_text">To ensure stable automation and prevent the system from stopping the service:\n\n1. In the window that opens, select "XiaoHyperCleaner" (or confirm the system prompt).\n2. Select "No restrictions" (or "Don\'t optimize").\n3. Tap Back to continue optimization.</string>
     <string name="battery_dialog_open">Open battery settings</string>
     <string name="battery_dialog_skip">Skip</string>
     <string name="hint_battery_optimization">Select "No restrictions" or "Don\'t optimize"</string>
