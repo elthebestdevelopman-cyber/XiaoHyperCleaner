@@ -1,0 +1,91 @@
+# Конфигурация Dependabot для XiaoHyperCleaner
+# Документация: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # ─────────────────────────────────────────────────────────────
+  # Gradle: зависимости Kotlin, AndroidX, Compose, Shizuku и др.
+  # Dependabot читает gradle/libs.versions.toml (version catalog)
+  # и app/build.gradle.kts
+  # ─────────────────────────────────────────────────────────────
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "gradle"
+    # Группировка: один PR на серию связанных обновлений
+    groups:
+      # Все AndroidX-библиотеки в одном PR
+      androidx:
+        patterns:
+          - "androidx.*"
+        update-types:
+          - "minor"
+          - "patch"
+
+      # Compose BOM и связанные библиотеки в одном PR
+      compose:
+        patterns:
+          - "*compose*"
+        update-types:
+          - "minor"
+          - "patch"
+
+      # Kotlin, Coroutines, KSP — обычно обновляются вместе
+      kotlin-ecosystem:
+        patterns:
+          - "org.jetbrains.kotlin*"
+          - "kotlinx-coroutines*"
+          - "com.google.devtools.ksp"
+        update-types:
+          - "minor"
+          - "patch"
+
+      # Shizuku API и вспомогательные
+      shizuku:
+        patterns:
+          - "rikka.shizuku*"
+        update-types:
+          - "minor"
+          - "patch"
+
+    # Отдельно обрабатываем мажорные обновления (могут быть breaking changes)
+    # Для них PR создаётся без группировки, чтобы можно было ревьюить внимательно
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
+
+  # ─────────────────────────────────────────────────────────────
+  # GitHub Actions: workflow-ы в .github/workflows/
+  # Автоматически обновляет версии actions (checkout, setup-java и т.д.)
+  # ─────────────────────────────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Moscow"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    groups:
+      actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
