@@ -1,54 +1,15 @@
-```
-# Android build artifacts
-build/
-.gradle/
-*.apk
-*.aar
-*.jar
-*.class
-
-# Local configuration
-local.properties
-
-# Dependencies
-node_modules/
-.venv/
-venv/
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-
-# Environment
-.env
-.env.local
-*.env.*
-
-# Editors
-.vscode/
-.idea/
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-```
 # ==================== Gradle ====================
 .gradle/
 build/
+**/build/
+gradle-app.setting
+*.jar
 !gradle/wrapper/gradle-wrapper.jar
 !gradle/wrapper/gradle-wrapper.properties
 
-# Локальные конфиги Gradle
-gradle-app.setting
-!gradle-wrapper.jar
-**/build/
-
 # ==================== Android Studio / IntelliJ ====================
 .idea/
+.vscode/
 *.iml
 *.iws
 *.ipr
@@ -56,8 +17,9 @@ gradle-app.setting
 captures/
 output.json
 
-# ==================== JVM crash logs (именно они у тебя попадали в git) ====================
+# ==================== JVM crash logs ====================
 hs_err_pid*.log
+replay_pid*.log
 java_pid*.log
 
 # ==================== Android ====================
@@ -66,11 +28,30 @@ local.properties
 *.aab
 *.ap_
 *.dex
+*.aar
+*.class
+*.so
+app/release/
 
-# Keystore файлы (никогда в git)
+# ==================== Keystore и секреты (никогда в git) ====================
 *.jks
 *.keystore
+*.pem
+secrets.properties
+keystore.properties
 !debug.keystore
+
+# ==================== Логи и временные файлы ====================
+*.log
+*.tmp
+*.swp
+*.ctxt
+!app/src/main/assets/*.log
+
+# ==================== Environment ====================
+.env
+.env.local
+*.env.*
 
 # ==================== OS ====================
 .DS_Store
@@ -81,27 +62,24 @@ local.properties
 ehthumbs.db
 Thumbs.db
 
-# ==================== Node / npm (если есть фронтенд) ====================
+# ==================== Node / Python (если появятся скрипты) ====================
 node_modules/
 npm-debug.log
 yarn-error.log
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
 
-# ==================== Kotlin ====================
-*.class
-*.log
-*.ctxt
-.mtj.tmp/
+# ==================== Кэши и планы AI-инструментов ====================
+/.continue/
+/.kotlin/
+/.gigacode/
 
-# ==================== Logs (исключение для xhc.log приложения — он в runtime) ====================
-*.log
-!app/src/main/assets/*.log
-/.continue
-/.kotlin
-*.apk
-app/release/baselineProfiles/0/app-release.dm
-app/release/baselineProfiles/1/app-release.dm
-app/release/output-metadata.json
-app/release/mapping.txt
-/.gigacode
-.gigacode/plans/1788632400392-calm-island.plan.md
-.gigacode/plans/1788632400392-calm-island.plan.md
+# ==================== Внутренняя аналитика (не публикуем) ====================
+IMPROVEMENTS.md
+RECOMMENDATIONS.md
+WORKFLOW_ANALYSIS.md
