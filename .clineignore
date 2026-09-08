@@ -1,0 +1,74 @@
+# ─────────────────────────────────────────────────────────────
+# Cline ignore: файлы и папки, исключаемые из контекста запросов
+# Формат совпадает с .gitignore
+# Цель: не жечь квоту Token Plan на бинарниках, сборке и кэше
+# ВАЖНО: Cline не читает .gitignore — при правках синхронизируй оба файла.
+# ─────────────────────────────────────────────────────────────
+
+# Сборочные артефакты и кэш Gradle
+app/build/
+build/
+**/build/
+.gradle/
+.kotlin/
+.cxx/
+captures/
+externalNativeBuild/
+app/release/
+
+# Бинарники и упакованные файлы
+*.apk
+*.aab
+*.aar
+*.ap_
+*.jar
+*.so
+*.class
+*.dex
+*.dm
+*.png
+*.webp
+*.jpg
+*.zip
+*.tar.gz
+*.hprof
+*.bin
+
+# Логи (включая шаринг-логи приложения и crash-логи JVM)
+*.log
+hs_err_pid*.log
+replay_pid*.log
+xhc.log
+*.tmp
+*.swp
+
+# Настройки IDE, ОС и кэши AI-инструментов
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+.continue/
+.gigacode/
+
+# Чувствительные файлы: пути SDK, ключи подписи, секреты
+local.properties
+secrets.properties
+keystore.properties
+*.keystore
+*.jks
+*.pem
+
+# Git-служебное
+.git/
+
+# ProGuard/R8 артефакты маппинга (сужено до app/, чтобы не скрыть легитимные файлы)
+app/**/mapping.txt
+app/**/seeds.txt
+app/**/usage.txt
+
+# Тяжёлая внутренняя аналитика: экономия токенов на каждом обходе дерева
+IMPROVEMENTS.md
+RECOMMENDATIONS.md
+WORKFLOW_ANALYSIS.md
+README.en.md
