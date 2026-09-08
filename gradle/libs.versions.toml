@@ -14,8 +14,6 @@ junit = "4.13.2"
 robolectric = "4.16.1"
 androidxTestCore = "1.7.0"
 mockito = "5.23.0"
-mockitoInline = "5.2.0"
-lottie = "6.7.1"
 
 [libraries]
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
@@ -44,14 +42,11 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
 shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
 
-lottie = { group = "com.airbnb.android", name = "lottie", version.ref = "lottie" }
-
 # Тесты
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 androidx-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
 mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
-mockito-inline = { group = "org.mockito", name = "mockito-inline", version.ref = "mockitoInline" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

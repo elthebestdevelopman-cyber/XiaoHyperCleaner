@@ -626,13 +626,20 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
 
         for (entry in transaction.appliedSettings.entries.toList().reversed()) {
+            val cmd = entry.key
+            val original = entry.value
+            // Ключ настройки: "shell settings put global low_power 1" → "global low_power".
+            // substringAfter отбрасывает префикс команды, substringBeforeLast — установленное значение.
+            val key = cmd.substringAfter("settings put ").substringBeforeLast(" ")
+            // Имя для отчёта об ошибках — листовой ключ (как в appliedSettings/restore*).
+            // ИСПРАВЛЕНО: раньше было cmd.substringAfterLast(" "), что давало ЗНАЧЕНИЕ
+            // ("1", "adguard"), а не имя ключа — список failedSettings заполнялся мусором.
+            val keyName = key.substringAfterLast(" ")
             try {
-                val cmd = entry.key
-                val original = entry.value
-                val key = cmd.substringAfter("settings put ").substringBeforeLast(" ")
-
+                // Кавычки вокруг значения — защита от значений, содержащих пробелы
+                // (settings put трактует всё после ключа как значение, кавычки снимаются shell).
                 val restoreCmd = if (original.isNotEmpty() && original != "null") {
-                    "settings put $key $original"
+                    "settings put $key \"$original\""
                 } else {
                     "settings put $key \"\"" // Пустое значение
                 }
@@ -641,7 +648,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 if (result.isSuccess) {
                     restoredSettings++
                 } else {
-                    val keyName = cmd.substringAfterLast(" ")
                     failedSettings.add(keyName)
                     AppLog.w(
                         TAG,
@@ -649,9 +655,8 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                     )
                 }
             } catch (e: Exception) {
-                val keyName = entry.key.substringAfterLast(" ")
                 failedSettings.add(keyName)
-                AppLog.w(TAG, "Откат настройки не удался: ${LogMasker.mask(e.message ?: "")}")
+                AppLog.w(TAG, "Откат настройки не удался для $key: ${LogMasker.mask(e.message ?: "")}")
             }
         }
 

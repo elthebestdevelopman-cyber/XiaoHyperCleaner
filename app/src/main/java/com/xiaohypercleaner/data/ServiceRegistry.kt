@@ -205,22 +205,6 @@ object ServiceRegistry {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Deprecated: для обратной совместимости
-    // ═══════════════════════════════════════════════════════════════
-
-    @Deprecated("Use AD_SERVICES_PACKAGES", ReplaceWith("AD_SERVICES_PACKAGES"))
-    val PACKAGES = AD_SERVICES_PACKAGES
-
-    @Deprecated("Use SYSTEM_SETTINGS keys", ReplaceWith("SYSTEM_SETTINGS.keys"))
-    val SYSTEM_KEYS = SYSTEM_SETTINGS.keys.toList()
-
-    @Deprecated("Not used", ReplaceWith("emptyMap<String, String>()"))
-    val SYSTEM_PROPERTIES: Map<String, String> = emptyMap()
-
-    @Deprecated("Not used", ReplaceWith("emptyMap<String, String>()"))
-    val SYSTEM_PROPERTIES_RESTORE: Map<String, String> = emptyMap()
-
-    // ═══════════════════════════════════════════════════════════════
     // Convenience методы
     // ═══════════════════════════════════════════════════════════════
 

@@ -5,10 +5,10 @@
 Проект: XiaoHyperCleaner (версия 1.0-beta2) — Android-приложение для автоматического отключения рекламы и рекомендаций на смартфонах и планшетах Xiaomi. Поддержка: Android 10+ (API 29+), все версии MIUI и HyperOS, все регионы с рекламой. Локализация: 7 языков — русский (основной), английский, испанский, китайский, хинди, индонезийский, португальский. Два режима:
 - Простой: автоматическое открытие экранов настроек через AccessibilityService (SimpleRunner + SimpleStepBridge + SimpleSteps).
 - Про: выбор способа — Shizuku (ShizukuExecutor + ShizukuWizardManager), ADB (AdbClient + AdbExecutor) или Root (RootExecutor). Отключение через shell commands.
-В конце: экран результата (OptimizationReportFormatter), благодарность, кнопки: оценить/задонатить/назад/логи.
+В конце: экран результата (MainUiState + data.OptimizationReport), благодарность, кнопки: оценить/задонатить/назад/логи.
 При первом запуске: OnboardingScreen (3 экрана) + splash-анимация через SplashScreen API (робокот машет лапкой и улетает).
 
-Технический стек: Kotlin 2.4.10, JDK 21, Gradle 9.7.1, AGP 9.4.0, Compose BOM 2026.08.00, minSdk 29, targetSdk 36, compileSdk 37, AccessibilityService, Shizuku API 13.1.5, DataStore 1.2.1, Coroutines 1.11.0, StateFlow, Lottie 6.7.1, Material 1.14.0, Robolectric 4.16.1, Mockito 5.23.0 + mockito-inline 5.2.0, JUnit 4.13.2. Версии — в gradle/libs.versions.toml (единственный источник истины).
+Технический стек: Kotlin 2.4.10, JDK 21, Gradle 9.7.1, AGP 9.4.0, Compose BOM 2026.08.00, minSdk 29, targetSdk 36, compileSdk 37, AccessibilityService, Shizuku API 13.1.5, DataStore 1.2.1, Coroutines 1.11.0, StateFlow, Material 1.14.0, Robolectric 4.16.1, Mockito 5.23.0, JUnit 4.13.2. Версии — в gradle/libs.versions.toml (единственный источник истины).
 
 Реальная структура (app/src/main/java/com/xiaohypercleaner/):
 
@@ -19,8 +19,6 @@ data/ — ядро логики (21 файл):
 - Менеджеры: PermissionFlowManager, PermissionSubPhase, ShizukuWizardManager, PreferencesManager (DataStore), ServiceRegistry
 - ROM/регионы: RomProfile, AdaptiveCatalog, RestrictedLocation, OptimizationMode
 - Навигация: DirectIntentNavigator
-
-engine/ — модель оптимизации (2 файла): OptimizationStep, OptimizationReport
 
 service/ — сервисы (6 файлов):
 - AdbEnablerService (AccessibilityService), SimpleRunner, SimpleStepBridge — Простой режим
@@ -33,10 +31,10 @@ ui/ — интерфейс (6 файлов в корне + 4 подпапки):
 - theme/: Color, Theme, Type
 - extensions/: OptimizationModeExtensions
 
-util/ — утилиты (7 файлов):
+util/ — утилиты (6 файлов):
 - Логирование: AppLog, LogMasker
 - Диагностика: DiagnosticSnapshotManager, StepDiagnostics
-- Отчёты: OptimizationNotifier, OptimizationReportFormatter
+- Отчёты: OptimizationNotifier
 - ShizukuHelper
 
 Корень: AppConstants, AppDependencies (ручная DI), XiaoHyperApp.

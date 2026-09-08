@@ -2,6 +2,7 @@ package com.xiaohypercleaner.util
 
 import android.content.Context
 import android.util.Log
+import com.xiaohypercleaner.BuildConfig
 import java.io.BufferedWriter
 import java.io.File
 import java.io.FileWriter
@@ -25,7 +26,8 @@ object AppLog {
     private const val LOG_FILE_NAME = "xhc.log"
     private const val MAX_LOG_SIZE = 2_000_000L // 2MB
     private const val MAX_LOG_FILES = 3
-    private const val LOG_VERSION = "v1.0-beta4"
+    // Версия берётся из BuildConfig — всегда синхронна с versionName приложения
+    private val LOG_VERSION: String = "v${BuildConfig.VERSION_NAME}"
 
     @Volatile
     private var file: File? = null
@@ -156,10 +158,13 @@ object AppLog {
                 if (writer == null) return
 
                 val timestamp = dateFormat.format(Date())
-                writer?.println("$timestamp $level/$tag: $msg")
+                // Централизованная маскировка чувствительных данных в файловом логе.
+                // Файл экспортируется/шарится через UiActions.shareLog — основная точка утечки.
+                // Logcat намеренно не маскируется, чтобы не мешать отладке.
+                writer?.println("$timestamp $level/$tag: ${LogMasker.mask(msg)}")
 
                 throwable?.let { t ->
-                    writer?.println("$timestamp $level/$tag: ${t.javaClass.simpleName}: ${t.message}")
+                    writer?.println("$timestamp $level/$tag: ${t.javaClass.simpleName}: ${LogMasker.mask(t.message ?: "")}")
                     t.stackTrace.take(10).forEach { element ->
                         writer?.println("$timestamp $level/$tag:     at $element")
                     }

@@ -65,24 +65,6 @@
 # ───────────────────────────────────────────────────────────────
 
 # ───────────────────────────────────────────────────────────────
-# Kotlinx Serialization (если OptimizationReport @Serializable)
-# ───────────────────────────────────────────────────────────────
--dontnote kotlinx.serialization.AnnotationsKt
--keepclassmembers class kotlinx.serialization.json.** {
-    *** Companion;
-}
--keepclasseswithmembers class kotlinx.serialization.json.** {
-    kotlinx.serialization.KSerializer serializer(...);
-}
--keep,includedescriptorclasses class com.xiaohypercleaner.data.**$$serializer { *; }
--keepclassmembers class com.xiaohypercleaner.data.** {
-    *** Companion;
-}
--keepclasseswithmembers class com.xiaohypercleaner.data.** {
-    kotlinx.serialization.KSerializer serializer(...);
-}
-
-# ───────────────────────────────────────────────────────────────
 # DataStore + protobuf-lite
 # ИСПРАВЛЕНО: удалены широкие -keep androidx.datastore.** и
 # com.google.protobuf.** — библиотеки поставляют consumer-rules.
