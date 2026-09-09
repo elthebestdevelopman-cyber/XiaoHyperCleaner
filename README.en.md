@@ -280,13 +280,13 @@ app/src/test/java/com/xiaohypercleaner/
 
 | Component       | Version                 |
 |-----------------|-------------------------|
-| **Gradle**      | 9.5                     |
-| **AGP**         | 9.3.1 (built-in Kotlin) |
+| **Gradle**      | 9.7.1                   |
+| **AGP**         | 9.4.0 (built-in Kotlin) |
 | **Kotlin**      | 2.4.10                  |
-| **Compose BOM** | 2026.06.01              |
+| **Compose BOM** | 2026.08.00              |
 | **compileSdk**  | 37                      |
 | **targetSdk**   | 36                      |
-| **minSdk**      | 28                      |
+| **minSdk**      | 29                      |
 | **JDK**         | 21                      |
 
 ### Build
@@ -327,7 +327,7 @@ app/src/test/java/com/xiaohypercleaner/
 
 ## 🧪 Testing
 
-### Unit Tests (29 tests)
+### Unit Tests (45 tests)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -335,10 +335,12 @@ app/src/test/java/com/xiaohypercleaner/
 
 | File                     | Tests | What is tested                            |
 |--------------------------|-------|-------------------------------------------|
-| `OptimizationEngineTest` | 12    | Optimization, rollback, DNS, transactions |
-| `AdbPortResolverTest`    | 3     | mDNS discovery, mergePorts                |
-| `LogMaskerTest`          | 6     | IP, token, path masking                   |
+| `OptimizationEngineTest` | 10    | Optimization, rollback, DNS, transactions |
+| `AdbPortResolverTest`    | 5     | mDNS discovery, mergePorts                |
+| `RomProfileTest`         | 2     | ROM profiles                              |
+| `SimpleStepsTest`        | 5     | Simple mode steps                         |
 | `MainViewModelTest`      | 8     | UI logic (Robolectric)                    |
+| `LogMaskerTest`          | 15    | IP, token, path masking                   |
 
 ### Manual Testing
 

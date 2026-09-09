@@ -297,13 +297,13 @@ app/src/test/java/com/xiaohypercleaner/
 
 | Компонент       | Версия                  |
 |-----------------|-------------------------|
-| **Gradle**      | 9.5                     |
-| **AGP**         | 9.3.1 (built-in Kotlin) |
+| **Gradle**      | 9.7.1                   |
+| **AGP**         | 9.4.0 (built-in Kotlin) |
 | **Kotlin**      | 2.4.10                  |
-| **Compose BOM** | 2026.06.01              |
+| **Compose BOM** | 2026.08.00              |
 | **compileSdk**  | 37                      |
 | **targetSdk**   | 36                      |
-| **minSdk**      | 28                      |
+| **minSdk**      | 29                      |
 | **JDK**         | 21                      |
 
 ### Сборка
@@ -344,7 +344,7 @@ app/src/test/java/com/xiaohypercleaner/
 
 ## 🧪 Тестирование
 
-### Unit-тесты (29 тестов)
+### Unit-тесты (45 тестов)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -352,10 +352,12 @@ app/src/test/java/com/xiaohypercleaner/
 
 | Файл                     | Тестов | Что проверяется                     |
 |--------------------------|--------|-------------------------------------|
-| `OptimizationEngineTest` | 12     | Оптимизация, откат, DNS, транзакции |
-| `AdbPortResolverTest`    | 3      | mDNS discovery, mergePorts          |
-| `LogMaskerTest`          | 6      | Маскировка IP, токенов, путей       |
+| `OptimizationEngineTest` | 10     | Оптимизация, откат, DNS, транзакции |
+| `AdbPortResolverTest`    | 5      | mDNS discovery, mergePorts          |
+| `RomProfileTest`         | 2      | Профили ROM                         |
+| `SimpleStepsTest`        | 5      | Шаги простого режима                |
 | `MainViewModelTest`      | 8      | UI-логика (Robolectric)             |
+| `LogMaskerTest`          | 15     | Маскировка IP, токенов, путей       |
 
 ### Ручное тестирование
 

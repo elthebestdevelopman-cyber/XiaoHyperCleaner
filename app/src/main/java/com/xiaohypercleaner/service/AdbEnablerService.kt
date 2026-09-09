@@ -10,7 +10,6 @@ import com.xiaohypercleaner.R
 import com.xiaohypercleaner.data.RomProfile
 import com.xiaohypercleaner.data.SimpleSteps
 import com.xiaohypercleaner.util.AppLog
-import com.xiaohypercleaner.util.LogMasker
 import com.xiaohypercleaner.util.StepDiagnostics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -318,7 +317,7 @@ class AdbEnablerService : AccessibilityService() {
             AppLog.i(TAG, "runSimpleStep cancelled (step transition)")
             throw e
         } catch (e: Exception) {
-            AppLog.e(TAG, "runSimpleStep error: ${LogMasker.mask(e.message ?: "")}", e)
+            AppLog.e(TAG, "runSimpleStep error: ${e.message ?: ""}", e)
             SimpleStepBridge.onResult?.invoke(false, "error")
         }
     }
@@ -530,7 +529,7 @@ class AdbEnablerService : AccessibilityService() {
             val btn: AccessibilityNodeInfo = nodes.firstOrNull { it.isClickable } ?: continue
 
             if (btn.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                AppLog.i(TAG, "Auto-dialog: clicked '${LogMasker.mask(text)}'")
+                AppLog.i(TAG, "Auto-dialog: clicked '$text'")
             }
             recycleNode(btn)
             return
