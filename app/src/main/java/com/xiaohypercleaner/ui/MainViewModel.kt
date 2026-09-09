@@ -7,7 +7,6 @@ import android.provider.Settings
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.xiaohypercleaner.AppConstants.RETRY_DELAY_MS
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationMode
 import com.xiaohypercleaner.data.OptimizationScope
@@ -46,11 +45,10 @@ import kotlin.time.Duration.Companion.milliseconds
  * - SimpleStepBridge — мост между AdbEnablerService и ViewModel
  * - OptimizationNotifier — реактивное получение результатов Pro-режима
  *
- * УЛУЧШЕНИЯ:
- * 1. Убран дублирующий simpleModeActive — используется только state.simpleModeActive
- * 2. stopOverlayService() заменён на OverlayController.hide() (без stopService)
- * 3. openAccessibilitySettings/openOverlaySettings делегируют PermissionFlowManager
- * 4. Русские логи для consistency
+ * ИЗМЕНЕНИЕ (оптимизация скорости):
+ * Убраны ретраи в onSimpleStepResult — при неудаче шага сразу переходим
+ * к следующему, вместо повторной попытки. Это экономит ~16с на каждый
+ * неудачный шаг (ранее: 2 попытки × 16с = 32с, теперь: 1 × 16с = 16с).
  */
 @Suppress("SpellCheckingInspection")
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -194,6 +192,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+
         AppLog.i(TAG, "init completed")
     }
 
@@ -237,14 +236,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshStatuses() {
         AppLog.i(TAG, "refreshStatuses called")
-
         val component: String = ComponentName(app, AdbEnablerService::class.java).flattenToString()
         val acc: Boolean = Settings.Secure.getString(
             app.contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         )?.contains(component) == true
         val overlay: Boolean = Settings.canDrawOverlays(app)
-
         val prevState: MainUiState = _state.value
 
         AppLog.i(
@@ -281,21 +278,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i(TAG, "checkRestrictedSettingsOnResume called (no-op, handled by refreshStatuses)")
     }
 
-    /**
-     * ИСПРАВЛЕНО: возвращение из настроек Battery Optimization.
-     *
-     *  • Отключил экономию (ignoring=true):
-     *      — закрываем диалог батареи
-     *      — показываем карточку «Продолжить»
-     *      — контроллер переводит фазу в STEPS (без автозапуска)
-     *
-     *  • Вернулся без отключения (ignoring=false):
-     *      — осознанно вызываем reshowBatteryDialog()
-     *        (диалог батареи показывается снова, можно повторить или пропустить)
-     *
-     * Раньше контроллер сам вызывал refresh() и advance(), что приводило к
-     * «ложному» всплытию диалога при системном диалоге MIUI поверх настроек.
-     */
     fun isIgnoringBatteryOptimizations(): Boolean =
         permissionFlow.isIgnoringBatteryOptimizations()
 
@@ -308,13 +290,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 ignoring = permissionFlow.isIgnoringBatteryOptimizations()
             }
             AppLog.i(TAG, "onBatteryOptimizationReturn: isIgnoring=$ignoring")
-
             if (ignoring) {
-                // Отключил → закрываем диалог батареи, показываем «Продолжить»
                 update { it.copy(showBatteryDialog = false, showLevelConfirm = true) }
                 simpleController.onBatteryReturn(true)
             } else {
-                // Вернулся без отключения → осознанно показываем диалог снова
                 simpleController.reshowBatteryDialog()
             }
             refreshStatuses()
@@ -325,7 +304,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun startFlow() {
         AppLog.i(TAG, "startFlow called, isWorking=${_state.value.isWorking}")
-
         if (_state.value.isWorking) return
         if (_state.value.showLevelDialog || _state.value.showLevelConfirm) return
 
@@ -333,7 +311,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.i(TAG, "startFlow: previous run finished — resetting")
             closeSimpleMode()
         }
-        // Если пользователь отменил оверлей, но флаг залип — сбрасываем и даём начать заново
+
         if (_state.value.simpleModeActive &&
             _state.value.simpleModePhase == SimpleModePhase.STEPS &&
             !_state.value.isWorking
@@ -346,6 +324,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 closeSimpleMode()
             }
         }
+
         if (_state.value.simpleModeActive) {
             AppLog.i(TAG, "startFlow: simple mode already active, ignoring")
             return
@@ -379,7 +358,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun confirmLevelStart(level: OptimizationMode) {
         AppLog.i(TAG, "confirmLevelStart: $level")
         update { it.copy(showLevelConfirm = false) }
-
         when (level) {
             OptimizationMode.SIMPLE -> {
                 if (_state.value.simpleModeActive) {
@@ -410,52 +388,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun startAdvancedFlow() {
         val status: ShizukuExecutor.Status = ShizukuExecutor.checkStatus(app)
         AppLog.i(TAG, "startAdvancedFlow: shizuku status=$status")
-
         when (status) {
             ShizukuExecutor.Status.AVAILABLE -> shizuku.showOptionsDialog()
             ShizukuExecutor.Status.PERMISSION_REQUIRED -> {
-                // На один тап меньше: сразу запрашиваем разрешение
                 shizuku.requestPermission(SHIZUKU_PERMISSION_CODE)
             }
+
             ShizukuExecutor.Status.NOT_RUNNING -> {
                 shizuku.showDialog(status)
-                // Параллельно открываем беспроводную отладку — главный блокер новичков
                 ShizukuHelper.openWirelessDebuggingSettings(app)
             }
+
             ShizukuExecutor.Status.NOT_INSTALLED -> shizuku.showDialog(status)
         }
     }
 
+    /**
+     * Обработка результата шага Simple Mode.
+     *
+     * ИЗМЕНЕНИЕ (оптимизация скорости):
+     * Убраны ретраи. Ранее при неудаче шаг повторялся до maxAttempts раз,
+     * что удваивало время (2 × 16с = 32с на шаг). Теперь при неудаче
+     * сразу фиксируем финальный фейл и переходим к следующему шагу.
+     *
+     * Экономия: ~16с на каждый неудачный шаг.
+     * При 7 фейлах из логов: 7 × 16с = ~112с (~2 минуты).
+     */
     fun onSimpleStepResult(success: Boolean) {
         AppLog.i(TAG, "onSimpleStepResult: success=$success, attempt=$stepAttempt")
         val step = _state.value.simpleStep ?: return
+        val attempt = stepAttempt
+        stepAttempt = 1  // Сбрасываем сразу для следующего шага
 
         if (success) {
-            val attempt = stepAttempt
-            stepAttempt = 1
             simpleController.onStepResult(true, attempt = attempt)
             return
         }
 
-        if (stepAttempt < step.maxAttempts) {
-            stepAttempt++
-            AppLog.w(TAG, "onSimpleStepResult: auto-retry $stepAttempt/${step.maxAttempts}")
-            autoFlowJob?.cancel()
-            autoFlowJob = viewModelScope.launch {
-                delay(RETRY_DELAY_MS.milliseconds)
-                simpleController.startCurrentStep(force = true)
-            }
-        } else {
-            AppLog.e(TAG, "onSimpleStepResult: all attempts exhausted")
-            failedSimpleStepIds.add(step.step.id)
-            val attempt = stepAttempt
-            stepAttempt = 1
-            simpleController.onStepResult(
-                success = false,
-                attempt = attempt,
-                finalFailure = true
-            )
-        }
+        // Без ретрая: сразу финальный фейл и переход к следующему шагу
+        AppLog.e(TAG, "onSimpleStepResult: step '${step.step.id}' failed, moving to next")
+        failedSimpleStepIds.add(step.step.id)
+        simpleController.onStepResult(
+            success = false,
+            attempt = attempt,
+            finalFailure = true
+        )
     }
 
     @VisibleForTesting
@@ -475,7 +452,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         simpleController.cancelAndReset()
         ChainFlags.reset()
         viewModelScope.launch { prefs.setPendingSimpleMode(false) }
-
         update {
             it.copy(
                 simpleStep = null,
@@ -498,27 +474,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * После kill процесса при включении Accessibility — продолжить Simple Mode,
-     * если разрешения уже выданы.
-     */
     fun tryResumePendingSimpleMode() {
         viewModelScope.launch {
             if (!prefs.getPendingSimpleMode()) return@launch
             if (_state.value.simpleModeActive) return@launch
-
             val component = ComponentName(app, AdbEnablerService::class.java).flattenToString()
             val acc = Settings.Secure.getString(
                 app.contentResolver,
                 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
             )?.contains(component) == true
             val overlay = Settings.canDrawOverlays(app)
-
             if (!acc || !overlay) {
                 AppLog.i(TAG, "tryResumePendingSimpleMode: permissions incomplete, keep pending")
                 return@launch
             }
-
             AppLog.i(TAG, "tryResumePendingSimpleMode: restoring Simple Mode after process restart")
             failedSimpleStepIds.clear()
             stepAttempt = 1
@@ -566,7 +535,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun dialogAgreed() {
         AppLog.i(TAG, "dialogAgreed, simpleModeActive=${_state.value.simpleModeActive}")
-
         if (_state.value.simpleModeActive) {
             val currentState: MainUiState = _state.value
             if (currentState.showAccessibilityDialog) {
@@ -582,7 +550,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun dialogCancelled() {
         AppLog.i(TAG, "dialogCancelled, simpleModeActive=${_state.value.simpleModeActive}")
-
         if (_state.value.simpleModeActive) {
             simpleController.onDialogCancelled()
             return
@@ -614,7 +581,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             "optionsDialogConfirmed, dnsFilter=${_state.value.dnsFilterEnabled}, aggressive=${_state.value.aggressiveMode}"
         )
         update { it.copy(showOptionsDialog = false) }
-
         if (_state.value.dnsFilterEnabled) {
             viewModelScope.launch {
                 val seen: Boolean = prefs.hasSeenDnsWarning.first()
@@ -678,25 +644,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun dismissRebootDialog() = proFlow.dismissRebootDialog()
     fun dismissRebootFailed() = proFlow.dismissRebootFailed()
     fun dismissRestoreFailed() = proFlow.dismissRestoreFailed()
+
     @VisibleForTesting
     fun devModeDialogOpenAbout() = AppLog.i(TAG, "devModeDialog: open about phone")
+
     fun devModeDialogRetry() = proFlow.devModeDialogRetry()
     fun devModeDialogCancel() = proFlow.devModeDialogCancel()
     fun dismissFinalDialog() = update { it.copy(showFinalDialog = false) }
 
-    /**
-     * Открывает экран настроек Accessibility с deep link на конкретный сервис.
-     * Делегирует PermissionFlowManager для единообразия.
-     */
     fun openAccessibilitySettings() {
         AppLog.i(TAG, "openAccessibilitySettings: delegating to PermissionFlowManager")
         permissionFlow.openAccessibilityWithHint()
     }
 
-    /**
-     * Открывает экран настроек Overlay с подсказкой.
-     * Делегирует PermissionFlowManager для единообразия.
-     */
     fun openOverlaySettings() {
         AppLog.i(TAG, "openOverlaySettings: delegating to PermissionFlowManager")
         permissionFlow.openOverlayWithPointer()
@@ -712,13 +672,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         permissionFlow.openAccessibilityWithHint()
     }
 
-    /**
-     * Показывает текстовую подсказку через OverlayService.
-     *
-     * ИСПРАВЛЕН КРИТИЧЕСКИЙ БАГ:
-     * Раньше передавалась строка "hint" вместо OverlayService.EXTRA_HINT,
-     * и не устанавливался action = ACTION_HINT. Хинты не показывались.
-     */
     @VisibleForTesting
     internal fun showHint(text: String) {
         try {

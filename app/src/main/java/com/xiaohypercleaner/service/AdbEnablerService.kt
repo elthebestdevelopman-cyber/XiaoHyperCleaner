@@ -42,13 +42,14 @@ import kotlinx.coroutines.sync.withLock
  *      * Allow dialog → подтверждение
  *      * Диалоги первого запуска → авто-согласие
  *
- * ИСПРАВЛЕНИЯ (beta11):
+ * ИСПРАВЛЕНИЯ (beta11 + Пункт 4):
  * - Wake Lock: экран не гаснет во время оптимизации (SCREEN_DIM_WAKE_LOCK)
  * - Автосброс wake lock: на последнем шаге / при отмене / в onDestroy
  * - ACTION_RELEASE_WAKE — для внешнего принудительного освобождения
  * - ERROR_MARKERS сужены до специфичных текстов (beta5)
  * - Debounce 10 сек для handleSystemErrors — защита от цикла "OK + BACK"
  * - Убраны delay(STATUS_VISIBLE_MS) между шагами — быстрее UX
+ * - ИСПРАВЛЕНО (Пункт 4): вызов simpleRunner.run() обновлён под новую сигнатуру
  */
 class AdbEnablerService : AccessibilityService() {
 
@@ -103,8 +104,6 @@ class AdbEnablerService : AccessibilityService() {
         )
 
         // ── Кнопки диалогов первого запуска (только ВНЕ шага) ──
-        // НЕ включать «Начать»/«Start» — в Безопасности это запускает автоочистку
-        // и убивает процесс приложения (см. лог: Auto-dialog clicked Начать → process restart)
         private val AUTO_ALLOW_TEXTS: Array<String> = arrayOf(
             "Согласиться", "Принять", "Agree", "Accept", "Got it", "Понятно"
         )
@@ -154,11 +153,6 @@ class AdbEnablerService : AccessibilityService() {
     // ═══════════════════════════════════════════════════════════════
     private var wakeLock: PowerManager.WakeLock? = null
 
-    /**
-     * Захватывает wake lock. Используем SCREEN_DIM_WAKE_LOCK (deprecated но работает) —
-     * экран остаётся тускло освещённым, CPU не спит.
-     * Таймаут 30 минут как страховка от утечки.
-     */
     private fun acquireWakeLock() {
         if (wakeLock?.isHeld == true) return
         try {
@@ -207,9 +201,7 @@ class AdbEnablerService : AccessibilityService() {
                 val stepId: String = intent.getStringExtra(EXTRA_STEP_ID) ?: ""
                 val total: Int = SimpleSteps.ALL.size
                 if (index in SimpleSteps.ALL.indices) {
-                    // НОВОЕ (beta11): захватываем wake lock на первом шаге
                     if (index == 0) acquireWakeLock()
-                    // Сериализация: отменяем предыдущий run, чтобы не было гонок
                     stepJob?.cancel()
                     simpleRunner.cancel()
                     stepJob = scope.launch {
@@ -223,7 +215,6 @@ class AdbEnablerService : AccessibilityService() {
             }
 
             ACTION_RELEASE_WAKE -> {
-                // НОВОЕ (beta11): принудительное освобождение извне
                 releaseWakeLock()
             }
 
@@ -242,7 +233,7 @@ class AdbEnablerService : AccessibilityService() {
 
     override fun onDestroy() {
         AppLog.i(TAG, "onDestroy: cleaning up")
-        releaseWakeLock()  // НОВОЕ (beta11): гарантированное освобождение
+        releaseWakeLock()
         instance = null
         scope.cancel()
         super.onDestroy()
@@ -252,20 +243,15 @@ class AdbEnablerService : AccessibilityService() {
     // Исполнитель Simple Mode
     // ═══════════════════════════════════════════════════════════════
 
-    /**
-     * Выполняет один шаг Simple Mode.
-     *
-     * @param index индекс шага в [SimpleSteps.ALL]
-     * @param total общее количество шагов (для определения последнего)
-     */
     private suspend fun runSimpleStep(index: Int, total: Int, expectedStepId: String) {
         try {
             val step: SimpleSteps.Step = SimpleSteps.ALL[index]
 
-            // Защита от устаревших/параллельных вызовов: если переданный id не совпадает
-            // с id шага по индексу (гонки или дубли из очереди) — тихо игнорируем.
             if (expectedStepId.isNotEmpty() && step.id != expectedStepId) {
-                AppLog.w(TAG, "runSimpleStep: index=$index mismatch id='$expectedStepId' vs '${step.id}' — stale call ignored")
+                AppLog.w(
+                    TAG,
+                    "runSimpleStep: index=$index mismatch id='$expectedStepId' vs '${step.id}' — stale call ignored"
+                )
                 return
             }
 
@@ -274,7 +260,8 @@ class AdbEnablerService : AccessibilityService() {
                 StepDiagnostics.beginRun()
             }
 
-            StepDiagnostics.stepStart(step.id, index, total, null, RomProfile.detect(this))
+            val profile = RomProfile.detect(this)
+            StepDiagnostics.stepStart(step.id, index, total, null, profile)
             AppLog.i(TAG, "runSimpleStep: starting step ${index + 1}/$total (${step.id})")
 
             OverlayController.updateAutomation(this, index + 1, total, step.titleRu)
@@ -283,18 +270,22 @@ class AdbEnablerService : AccessibilityService() {
                 getString(R.string.automation_status_search, step.titleRu)
             )
 
-            val result: SimpleRunner.Result = simpleRunner.run(step)
-
-            when {
-                result.skipped -> {
+            // ═══════════════════════════════════════════════════════════════
+            // ИСПРАВЛЕНО (строки 292, 354): Новая сигнатура SimpleRunner.run()
+            // Принимает: step, profile, callback(Result)
+            // ═══════════════════════════════════════════════════════════════
+            simpleRunner.run(step, profile) { result ->
+                // ═══════════════════════════════════════════════════════════════
+                // ИСПРАВЛЕНО (строка 295): В новом Result нет поля `skipped`.
+                // Если пакет не установлен, раннер возвращает reason="app_not_installed"
+                // ═══════════════════════════════════════════════════════════════
+                if (!result.success && result.reason == "app_not_installed") {
                     AppLog.i(TAG, "runSimpleStep: step ${step.id} skipped (app not installed)")
                     OverlayController.updateStatus(
                         this, getString(R.string.automation_status_skip)
                     )
                     SimpleStepBridge.onSkipped?.invoke(step.id)
-                }
-
-                else -> {
+                } else {
                     AppLog.i(
                         TAG,
                         "runSimpleStep: step ${step.id} result=${result.success}, " +
@@ -307,16 +298,23 @@ class AdbEnablerService : AccessibilityService() {
                             else R.string.automation_status_fail
                         )
                     )
-                    SimpleStepBridge.onResult?.invoke(result.success, result.reason)
+                    // ═══════════════════════════════════════════════════════════════
+                    // ИСПРАВЛЕНО (строка 316): result.reason это String?,
+                    // а StepDiagnostics/StepBridge ждёт String. Используем ?: "unknown"
+                    // ═══════════════════════════════════════════════════════════════
+                    SimpleStepBridge.onResult?.invoke(result.success, result.reason ?: "unknown")
                 }
             }
 
-            // НОВОЕ (beta11): освобождаем wake lock на последнем шаге
+            // Ждём завершения шага (так как run() теперь асинхронный через callback)
+            while (SimpleRunner.isRunning) {
+                delay(200)
+            }
+
             if (index == total - 1) {
                 releaseWakeLock()
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
-            // Ожидаемая отмена при переходе к следующему шагу — не трактуем как ошибку шага
             AppLog.i(TAG, "runSimpleStep cancelled (step transition)")
             throw e
         } catch (e: Exception) {
@@ -327,7 +325,6 @@ class AdbEnablerService : AccessibilityService() {
 
     /**
      * Откат Simple Mode: для каждого stepId запускает тот же маршрут с инвертированным targetChecked.
-     * Возвращает true если хотя бы один шаг успешно откатился (или список пуст).
      */
     suspend fun reverseSimpleToggles(
         stepIds: Set<String>,
@@ -337,13 +334,28 @@ class AdbEnablerService : AccessibilityService() {
         acquireWakeLock()
         var okCount = 0
         val list = stepIds.toList()
+        val profile = RomProfile.detect(this)
         try {
             list.forEachIndexed { i, id ->
                 val original = SimpleSteps.ALL.firstOrNull { it.id == id } ?: return@forEachIndexed
                 val reverse = original.copy(targetChecked = !original.targetChecked)
-                AppLog.i(TAG, "reverseSimpleToggles: ${original.id} -> targetChecked=${reverse.targetChecked}")
-                val result = simpleRunner.run(reverse)
-                if (result.success) okCount++
+                AppLog.i(
+                    TAG,
+                    "reverseSimpleToggles: ${original.id} -> targetChecked=${reverse.targetChecked}"
+                )
+
+                // ═══════════════════════════════════════════════════════════════
+                // ИСПРАВЛЕНО (строки 354, 355): Новая сигнатура run()
+                // ═══════════════════════════════════════════════════════════════
+                var stepSuccess = false
+                simpleRunner.run(reverse, profile) { result ->
+                    stepSuccess = result.success
+                }
+                while (SimpleRunner.isRunning) {
+                    delay(200)
+                }
+
+                if (stepSuccess) okCount++
                 onProgress((i + 1).toFloat() / list.size)
             }
         } finally {
@@ -353,13 +365,9 @@ class AdbEnablerService : AccessibilityService() {
         return okCount > 0
     }
 
-    /**
-     * Отменяет выполнение текущего шага SimpleRunner.
-     * Вызывается при отмене оптимизации пользователем.
-     */
     fun cancelRunner() {
         AppLog.i(TAG, "cancelRunner: cancelling SimpleRunner")
-        releaseWakeLock()  // НОВОЕ (beta11): освобождаем при отмене
+        releaseWakeLock()
         stepJob?.cancel()
         stepJob = null
         simpleRunner.cancel()
@@ -416,11 +424,6 @@ class AdbEnablerService : AccessibilityService() {
     // Обработка ВО ВРЕМЯ ШАГА (исключения + системные ошибки)
     // ═══════════════════════════════════════════════════════════════
 
-    /**
-     * Во время шага: системные ошибки, lock-screen upsell, и first-launch попапы
-     * (Пропустить / Позже) — иначе на свежем телефоне шаги залипают.
-     * Agree/Accept НЕ жмём здесь — этим управляет SimpleRunner (политика vs decline).
-     */
     private fun handleStepTimeExceptions() {
         val root: AccessibilityNodeInfo = rootInActiveWindow ?: return
         try {
@@ -431,7 +434,6 @@ class AdbEnablerService : AccessibilityService() {
 
             val screenText: String = collectAllText(root)
 
-            // Не трогаем диалоги отзыва MSA / согласия во время шага
             if (screenText.contains("Отзыв разрешения", ignoreCase = true) ||
                 screenText.contains("Отозвать разрешение", ignoreCase = true) ||
                 screenText.contains("Отзыв согласия", ignoreCase = true) ||
@@ -448,7 +450,6 @@ class AdbEnablerService : AccessibilityService() {
                 return
             }
 
-            // Свежий телефон: асинхронные попапы поверх шага
             val skipTexts = arrayOf(
                 "Пропустить", "Skip", "Позже", "Later", "Не сейчас", "Not now",
                 "Закрыть", "Close", "Напомнить позже", "Remind me later"
@@ -461,10 +462,6 @@ class AdbEnablerService : AccessibilityService() {
         }
     }
 
-    /**
-     * Системные ошибки: реальные сетевые ошибки — гасим всегда.
-     * Debounce 10 сек — защита от бесконечного цикла "OK + BACK".
-     */
     private fun handleSystemErrors(root: AccessibilityNodeInfo): Boolean {
         val currentTime = System.currentTimeMillis()
 
@@ -507,7 +504,11 @@ class AdbEnablerService : AccessibilityService() {
             screenText.contains("default browser", ignoreCase = true) ||
             screenText.contains("set as default", ignoreCase = true)
         ) {
-            if (clickByText(root, arrayOf("Отмена", "Cancel", "Не сейчас", "Not now", "Позже", "Later"))) {
+            if (clickByText(
+                    root,
+                    arrayOf("Отмена", "Cancel", "Не сейчас", "Not now", "Позже", "Later")
+                )
+            ) {
                 AppLog.i(TAG, "Auto-dialog: default app prompt → Cancel")
                 return
             }
@@ -515,9 +516,10 @@ class AdbEnablerService : AccessibilityService() {
 
         for (text: String in AUTO_ALLOW_TEXTS) {
             if (AUTO_CLICK_BLOCKLIST.any { text.equals(it, ignoreCase = true) }) continue
-            if (AUTO_CLICK_BLOCKLIST.any { screenText.contains(it, ignoreCase = true) &&
-                    (text.equals("OK", true) || text.equals("ОК", true)) }) {
-                // На экране очистки/проверки не жмём OK
+            if (AUTO_CLICK_BLOCKLIST.any {
+                    screenText.contains(it, ignoreCase = true) &&
+                            (text.equals("OK", true) || text.equals("ОК", true))
+                }) {
                 continue
             }
 
@@ -596,7 +598,6 @@ class AdbEnablerService : AccessibilityService() {
         if (result) {
             ChainFlags.waitingAccessibilityReturn = false
             ChainFlags.adbAllowGranted = true
-            // НЕ трогаем SimpleStepBridge — иначе PRO-watchdog ложно завершает Simple-шаг
             AppLog.i(TAG, "handleAllowDialog: ADB permission granted")
         }
         recycleNode(node)

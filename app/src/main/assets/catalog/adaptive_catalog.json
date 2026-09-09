@@ -1,0 +1,80 @@
+{
+  "pkgSteps": {
+    "msa": ["com.miui.msa.global", "com.miui.msa.core"],
+    "browser_sys": ["com.mi.globalbrowser", "com.android.browser", "com.miui.browser"],
+    "music_sys": ["com.miui.player", "com.miui.music", "com.mi.music"],
+    "messages_sys": ["com.android.mms", "com.miui.mms", "com.miui.mms.global"],
+    "security_sys": ["com.miui.securitycenter", "com.miui.securitycore"],
+    "cleaner": ["com.miui.securitycenter", "com.miui.securitycore", "com.miui.cleaner"],
+    "downloads": ["com.android.providers.downloads.ui", "com.miui.android.downloads"],
+    "themes": ["com.android.thememanager", "com.miui.thememanager", "com.mi.thememanager"],
+    "getapps": ["com.xiaomi.market", "com.miui.market", "com.mi.global.market"],
+    "mivideo": ["com.miui.videoplayer", "com.miui.video", "com.mi.global.video"],
+    "shareme": ["com.xiaomi.midrop", "com.mi.android.globalshareme"],
+    "filemanager": ["com.mi.android.globalFileexplorer", "com.android.fileexplorer"],
+    "appvault_services": ["com.miui.personalassistant", "com.mi.android.global.personalassistant"],
+    "appvault_about": ["com.miui.personalassistant", "com.mi.android.global.personalassistant"]
+  },
+  "groups": {
+    "browser": ["com.mi.globalbrowser", "com.android.browser", "com.miui.browser"],
+    "music": ["com.miui.player", "com.miui.music", "com.mi.music"],
+    "video": ["com.miui.videoplayer", "com.miui.video", "com.mi.global.video"],
+    "themes": ["com.android.thememanager", "com.miui.thememanager"],
+    "market": ["com.xiaomi.market", "com.miui.market", "com.mi.global.market"]
+  },
+  "uiSteps": {
+    "sys_recommendations": {
+      "searchTexts": ["Получать рекомендации", "Receive recommendations", "接收推荐", "Recibir recomendaciones"],
+      "drillPath": [["Приложения", "Apps", "应用"], ["Ещё", "More", "更多", "Más"]]
+    },
+    "ads_personalization": {
+      "searchTexts": ["Персонализация рекламы", "Personalization of ads", "Ads personalization", "Рекламные службы", "Ad services"],
+      "drillPath": [["Конфиденциальность", "Privacy", "隐私"], ["Рекламные службы", "Ad services"]]
+    },
+    "carousel": {
+      "searchTexts": ["Карусель обоев", "Wallpaper Carousel", "Glance", "壁纸轮播"],
+      "additionalToggles": ["Обновлять через мобильный Интернет", "Update via mobile network"]
+    },
+    "browser_sys": {
+      "drillPath": [["Профиль", "Profile", "我的"], ["⚙", "⚙️", "Настройки", "Settings"], ["Дополнительно", "Advanced", "Дополнительные настройки"]]
+    },
+    "music_sys": {
+      "drillPath": [["⚙", "⚙️", "Настройки", "Settings"], ["Расширенные настройки", "Advanced settings", "Advanced"]]
+    },
+    "themes": {
+      "drillPath": [["Профиль", "Profile", "我的"], ["⚙", "⚙️", "Настройки", "Settings"]],
+      "additionalToggles": ["Персональные рекомендации", "Personalized recommendations"]
+    },
+    "mivideo": {
+      "drillPath": [["Профиль", "Profile", "我的"], ["⚙", "⚙️", "Настройки", "Settings"]],
+      "searchTexts": ["Персональные рекомендации", "Personalized recommendations", "Показывать рекламу", "Show ads"]
+    },
+    "shareme": {
+      "drillPath": [["⋮", "Ещё", "More"], ["О приложении", "About"], ["Справка и обратная связь", "Help & feedback"]],
+      "searchTexts": ["Персонализация рекламы", "Ads personalization"]
+    },
+    "security_sys": {
+      "drillPath": [["⚙", "⚙️", "Настройки", "Settings"]],
+      "additionalToggles": ["Загружать только по Wi-Fi", "Download only over Wi-Fi"]
+    },
+    "cleaner": {
+      "drillPath": [["Очистка", "Cleaner", "Очиститель"], ["⚙", "⚙️", "Настройки", "Settings"]],
+      "additionalToggles": ["Загружать только по Wi-Fi", "Download only over Wi-Fi"]
+    },
+    "downloads": {
+      "drillPath": [["⋮", "Ещё", "More", "Настройки", "Settings"], ["⚙", "⚙️", "Настройки", "Settings"]]
+    }
+  },
+  "enterSafe": [
+    "Пропустить", "Skip", "Пропустить настройку",
+    "Не сейчас", "Not now", "Later",
+    "Закрыть", "Close",
+    "Отозвать", "Revoke", "撤销",
+    "Отмена", "Cancel",
+    "Разрешить", "Allow",
+    "ОК", "OK", "Ок",
+    "Согласен", "Agree",
+    "Подтвердить", "Confirm",
+    "Да", "Yes"
+  ]
+}
