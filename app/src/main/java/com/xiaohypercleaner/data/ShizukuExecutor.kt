@@ -3,7 +3,6 @@ package com.xiaohypercleaner.data
 import android.content.Context
 import android.content.pm.PackageManager
 import com.xiaohypercleaner.util.AppLog
-import com.xiaohypercleaner.util.LogMasker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -163,20 +162,19 @@ class ShizukuExecutor : AdbExecutor {
      * Если один поток заполнится (например, stderr при ошибке), а другой не читается,
      * process будет висеть до тайм-аута.
      *
-     * @param command Команда для выполнения (без префикса "shell")
+     * @param command Команда для выполнения (префикс "shell " снимается автоматически)
      * @return Result с выводом команды или ошибкой
      */
     override suspend fun executeCommand(command: String): Result<String> =
         withContext(Dispatchers.IO) {
-            val maskedCmd: String = LogMasker.mask(command)
-            AppLog.i(TAG, "Выполнение команды: $maskedCmd")
+            val stripped: String = command.trim().removePrefix("shell ")
+            AppLog.i(TAG, "Выполнение команды: $stripped")
 
             val method: Method = newProcessMethod
                 ?: return@withContext Result.failure(AdbException("Метод Shizuku.newProcess недоступен"))
 
             try {
                 withTimeout(COMMAND_TIMEOUT_MS.milliseconds) {
-                    val stripped: String = command.trim().removePrefix("shell ")
                     val cmd: Array<String> = arrayOf("sh", "-c", stripped)
 
                     val process: ShizukuRemoteProcess =
@@ -211,12 +209,12 @@ class ShizukuExecutor : AdbExecutor {
                     } else {
                         val errorMsg: String =
                             if (stderr.isNotBlank()) stderr.trim() else "exit code $exitCode"
-                        AppLog.w(TAG, "Команда не удалась: $maskedCmd -> $errorMsg")
+                        AppLog.w(TAG, "Команда не удалась: $stripped -> $errorMsg")
                         Result.failure(AdbException("Команда не удалась: $errorMsg"))
                     }
                 }
             } catch (e: Throwable) {
-                AppLog.e(TAG, "executeCommand не удался: ${LogMasker.mask(e.message ?: "")}")
+                AppLog.e(TAG, "executeCommand не удался: ${e.message}")
                 Result.failure(AdbException("Команда Shizuku не удалась: ${e.message}"))
             }
         }

@@ -2,7 +2,6 @@ package com.xiaohypercleaner.data
 
 import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.util.AppLog
-import com.xiaohypercleaner.util.LogMasker
 import com.xiaohypercleaner.util.OptimizationNotifier
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
@@ -107,7 +106,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             }
             success
         } catch (e: Exception) {
-            AppLog.e(TAG, "Ошибка подключения к ADB: ${LogMasker.mask(e.message ?: "")}")
+            AppLog.e(TAG, "Ошибка подключения к ADB: ${e.message}")
             false
         }
     }
@@ -246,7 +245,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         } catch (e: Exception) {
             AppLog.e(
                 TAG,
-                "Неожиданная ошибка, выполняем откат: ${LogMasker.mask(e.message ?: "")}",
+                "Неожиданная ошибка, выполняем откат: ${e.message}",
                 e
             )
             callbacks.onError("unexpected_error")
@@ -341,7 +340,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             if (!connect()) return false
             delay(AppConstants.DELAY_BEFORE_REBOOT_MS.milliseconds)
 
-            val result = adb.executeCommand("shell reboot")
+            val result = adb.executeCommand("reboot")
             if (result.isSuccess) {
                 AppLog.i(TAG, "Команда перезагрузки отправлена")
                 true
@@ -350,7 +349,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 false
             }
         } catch (e: Exception) {
-            AppLog.e(TAG, "Ошибка перезагрузки: ${LogMasker.mask(e.message ?: "")}")
+            AppLog.e(TAG, "Ошибка перезагрузки: ${e.message}")
             false
         }
     }
@@ -366,8 +365,8 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
         for ((key, value) in ServiceRegistry.SYSTEM_SETTINGS) {
             try {
-                val getCmd = "shell settings get $key"
-                val putCmd = "shell settings put $key $value"
+                val getCmd = "settings get $key"
+                val putCmd = "settings put $key $value"
 
                 val original = adb.executeCommand(getCmd).getOrNull()?.trim() ?: ""
                 val putResult = adb.executeCommand(putCmd)
@@ -384,7 +383,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 applied.add(key.substringAfterLast(" "))
                 delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
             } catch (e: Exception) {
-                AppLog.w(TAG, "Команда не удалась: $key - ${LogMasker.mask(e.message ?: "")}")
+                AppLog.w(TAG, "Команда не удалась: $key - ${e.message}")
             }
         }
 
@@ -421,8 +420,8 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
         for ((key, value) in ServiceRegistry.HIDDEN_KEYS_DISABLE) {
             try {
-                val getCmd = "shell settings get $key"
-                val putCmd = "shell settings put $key $value"
+                val getCmd = "settings get $key"
+                val putCmd = "settings put $key $value"
 
                 val original = adb.executeCommand(getCmd).getOrNull()?.trim() ?: ""
                 val putResult = adb.executeCommand(putCmd)
@@ -439,7 +438,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 applied.add(key.substringAfterLast(" "))
                 delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
             } catch (e: Exception) {
-                AppLog.w(TAG, "Скрытый ключ не удался: $key - ${LogMasker.mask(e.message ?: "")}")
+                AppLog.w(TAG, "Скрытый ключ не удался: $key - ${e.message}")
             }
         }
 
@@ -475,16 +474,12 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         AppLog.i(TAG, "Применение DNS фильтра (AdGuard)")
         return try {
             val prevMode =
-                adb.executeCommand("shell settings get ${ServiceRegistry.Dns.MODE_KEY}").getOrNull()
+                adb.executeCommand("settings get ${ServiceRegistry.Dns.MODE_KEY}").getOrNull()
                     ?.trim()
-                    ?: adb.executeCommand("settings get ${ServiceRegistry.Dns.MODE_KEY}").getOrNull()
-                        ?.trim()
                     ?: ""
             val prevHost =
-                adb.executeCommand("shell settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}")
+                adb.executeCommand("settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}")
                     .getOrNull()?.trim()
-                    ?: adb.executeCommand("settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}")
-                        .getOrNull()?.trim()
                     ?: ""
 
             transaction.previousDnsMode = prevMode
@@ -493,13 +488,8 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
             val modeResult =
                 adb.executeCommand(
-                    "shell settings put ${ServiceRegistry.Dns.MODE_KEY} ${ServiceRegistry.Dns.MODE_VALUE}"
-                ).let { r ->
-                    if (r.isSuccess) r
-                    else adb.executeCommand(
-                        "settings put ${ServiceRegistry.Dns.MODE_KEY} ${ServiceRegistry.Dns.MODE_VALUE}"
-                    )
-                }
+                    "settings put ${ServiceRegistry.Dns.MODE_KEY} ${ServiceRegistry.Dns.MODE_VALUE}"
+                )
 
             if (modeResult.isFailure) {
                 AppLog.w(TAG, "DNS mode put не удался: ${modeResult.exceptionOrNull()?.message}")
@@ -510,13 +500,8 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
             val hostResult =
                 adb.executeCommand(
-                    "shell settings put ${ServiceRegistry.Dns.SPECIFIER_KEY} ${ServiceRegistry.Dns.SPECIFIER_VALUE}"
-                ).let { r ->
-                    if (r.isSuccess) r
-                    else adb.executeCommand(
-                        "settings put ${ServiceRegistry.Dns.SPECIFIER_KEY} ${ServiceRegistry.Dns.SPECIFIER_VALUE}"
-                    )
-                }
+                    "settings put ${ServiceRegistry.Dns.SPECIFIER_KEY} ${ServiceRegistry.Dns.SPECIFIER_VALUE}"
+                )
 
             if (hostResult.isFailure) {
                 AppLog.w(TAG, "DNS host put не удался: ${hostResult.exceptionOrNull()?.message}")
@@ -527,7 +512,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             AppLog.i(TAG, "DNS фильтр успешно применён")
             true
         } catch (e: Exception) {
-            AppLog.w(TAG, "DNS фильтр не удался: ${LogMasker.mask(e.message ?: "")}")
+            AppLog.w(TAG, "DNS фильтр не удался: ${e.message}")
             false
         }
     }
@@ -537,7 +522,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
         // Пропускаем отсутствующие regional-пакеты — иначе verify/rollback ломаются шумом
         try {
-            val path = adb.executeCommand("shell pm path $pkg").getOrNull().orEmpty()
+            val path = adb.executeCommand("pm path $pkg").getOrNull().orEmpty()
             if (path.isBlank() || path.contains("Error") || path.contains("Exception")) {
                 AppLog.i(TAG, "Пакет $pkg не установлен — skip")
                 return false
@@ -547,7 +532,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
 
         try {
-            val result = adb.executeCommand("shell pm disable-user --user 0 $pkg").getOrNull() ?: ""
+            val result = adb.executeCommand("pm disable-user --user 0 $pkg").getOrNull() ?: ""
             if (result.contains("Success")) {
                 delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
                 AppLog.i(TAG, "Пакет $pkg отключён через disable-user")
@@ -555,15 +540,15 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             }
             AppLog.w(
                 TAG,
-                "disable-user не вернул Success для $pkg: ${LogMasker.mask(result.take(200))}"
+                "disable-user не вернул Success для $pkg: ${result.take(200)}"
             )
         } catch (e: Exception) {
-            AppLog.w(TAG, "disable-user не удался для $pkg: ${LogMasker.mask(e.message ?: "")}")
+            AppLog.w(TAG, "disable-user не удался для $pkg: ${e.message}")
         }
 
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             try {
-                val result = adb.executeCommand("shell pm suspend $pkg").getOrNull() ?: ""
+                val result = adb.executeCommand("pm suspend $pkg").getOrNull() ?: ""
                 if (result.contains("Success")) {
                     delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
                     AppLog.i(TAG, "Пакет $pkg приостановлен")
@@ -571,10 +556,10 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 }
                 AppLog.w(
                     TAG,
-                    "suspend не вернул Success для $pkg: ${LogMasker.mask(result.take(200))}"
+                    "suspend не вернул Success для $pkg: ${result.take(200)}"
                 )
             } catch (e: Exception) {
-                AppLog.w(TAG, "suspend не удался для $pkg: ${LogMasker.mask(e.message ?: "")}")
+                AppLog.w(TAG, "suspend не удался для $pkg: ${e.message}")
             }
         }
 
@@ -604,14 +589,14 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 val modeResult = adb.executeCommand(modeCmd)
                 if (modeResult.isFailure) {
                     failedDns = modeResult.exceptionOrNull()?.message ?: "Unknown"
-                    AppLog.w(TAG, "Откат DNS mode не удался: ${LogMasker.mask(failedDns)}")
+                    AppLog.w(TAG, "Откат DNS mode не удался: $failedDns")
                 } else {
                     if (!transaction.previousDnsHost.isNullOrEmpty() && transaction.previousDnsHost != "null") {
                         val hostResult =
                             adb.executeCommand("settings put ${ServiceRegistry.Dns.SPECIFIER_KEY} ${transaction.previousDnsHost}")
                         if (hostResult.isFailure) {
                             failedDns = hostResult.exceptionOrNull()?.message ?: "Unknown"
-                            AppLog.w(TAG, "Откат DNS host не удался: ${LogMasker.mask(failedDns)}")
+                            AppLog.w(TAG, "Откат DNS host не удался: $failedDns")
                         } else {
                             restoredDns = true
                         }
@@ -621,14 +606,14 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 }
             } catch (e: Exception) {
                 failedDns = e.message ?: "Unknown"
-                AppLog.w(TAG, "Откат DNS не удался: ${LogMasker.mask(e.message ?: "")}")
+                AppLog.w(TAG, "Откат DNS не удался: ${e.message}")
             }
         }
 
         for (entry in transaction.appliedSettings.entries.toList().reversed()) {
             val cmd = entry.key
             val original = entry.value
-            // Ключ настройки: "shell settings put global low_power 1" → "global low_power".
+            // Ключ настройки: "settings put global low_power 1" → "global low_power".
             // substringAfter отбрасывает префикс команды, substringBeforeLast — установленное значение.
             val key = cmd.substringAfter("settings put ").substringBeforeLast(" ")
             // Имя для отчёта об ошибках — листовой ключ (как в appliedSettings/restore*).
@@ -656,13 +641,13 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 }
             } catch (e: Exception) {
                 failedSettings.add(keyName)
-                AppLog.w(TAG, "Откат настройки не удался для $key: ${LogMasker.mask(e.message ?: "")}")
+                AppLog.w(TAG, "Откат настройки не удался для $key: ${e.message}")
             }
         }
 
         for (pkg in transaction.disabledPackages) {
             try {
-                val result = adb.executeCommand("shell pm enable $pkg")
+                val result = adb.executeCommand("pm enable $pkg")
                 if (result.isSuccess) {
                     restoredPackages++
                 } else {
@@ -674,7 +659,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 }
             } catch (e: Exception) {
                 failedPackages.add(pkg to (e.message ?: "Unknown"))
-                AppLog.w(TAG, "Откат пакета не удался для $pkg: ${LogMasker.mask(e.message ?: "")}")
+                AppLog.w(TAG, "Откат пакета не удался для $pkg: ${e.message}")
             }
         }
 
@@ -730,7 +715,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
      */
     private suspend fun verifyPackagesInactive(packages: List<String>, label: String): Boolean {
         return try {
-            val installedRaw = adb.executeCommand("shell pm list packages").getOrNull() ?: ""
+            val installedRaw = adb.executeCommand("pm list packages").getOrNull() ?: ""
             val targets = packages.filter { pkg ->
                 installedRaw.contains("package:$pkg") || installedRaw.contains(pkg)
             }
@@ -739,8 +724,8 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 return true
             }
 
-            val disabled = adb.executeCommand("shell pm list packages -d").getOrNull() ?: ""
-            val suspended = adb.executeCommand("shell pm list packages --suspended").getOrNull()
+            val disabled = adb.executeCommand("pm list packages -d").getOrNull() ?: ""
+            val suspended = adb.executeCommand("pm list packages --suspended").getOrNull()
                 ?: ""
 
             val failed = targets.filterNot { pkg ->
@@ -753,7 +738,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         } catch (e: Exception) {
             AppLog.w(
                 TAG,
-                "Верификация $label не удалась: ${LogMasker.mask(e.message ?: "")}"
+                "Верификация $label не удалась: ${e.message}"
             )
             false
         }
@@ -761,21 +746,17 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
     private suspend fun verifyDnsFilter(): Boolean {
         return try {
-            // shell-префикс для совместимости с разными AdbExecutor
             val mode =
-                adb.executeCommand("shell settings get ${ServiceRegistry.Dns.MODE_KEY}").getOrNull()
-                    ?: adb.executeCommand("settings get ${ServiceRegistry.Dns.MODE_KEY}").getOrNull()
+                adb.executeCommand("settings get ${ServiceRegistry.Dns.MODE_KEY}").getOrNull()
                     ?: ""
             val host =
-                adb.executeCommand("shell settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}")
+                adb.executeCommand("settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}")
                     .getOrNull()
-                    ?: adb.executeCommand("settings get ${ServiceRegistry.Dns.SPECIFIER_KEY}")
-                        .getOrNull()
                     ?: ""
 
             mode.contains(ServiceRegistry.Dns.MODE_VALUE) && host.contains("adguard")
         } catch (e: Exception) {
-            AppLog.w(TAG, "Верификация DNS не удалась: ${LogMasker.mask(e.message ?: "")}")
+            AppLog.w(TAG, "Верификация DNS не удалась: ${e.message}")
             false
         }
     }
@@ -794,7 +775,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                     else -> DEFAULT_ENABLED
                 }
 
-                val result = adb.executeCommand("shell settings put $key $restoreValue")
+                val result = adb.executeCommand("settings put $key $restoreValue")
                 if (result.isFailure) {
                     failed.add(key.substringAfterLast(" "))
                     AppLog.w(
@@ -817,7 +798,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
         for (pkg in ServiceRegistry.ANALYTICS_PACKAGES + ServiceRegistry.AD_SERVICES_PACKAGES) {
             try {
-                val result = adb.executeCommand("shell pm enable $pkg")
+                val result = adb.executeCommand("pm enable $pkg")
                 if (result.isFailure) {
                     failed.add(pkg)
                     AppLog.w(TAG, "Не удалось включить $pkg: ${result.exceptionOrNull()?.message}")
@@ -825,7 +806,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
             } catch (e: Exception) {
                 failed.add(pkg)
-                AppLog.w(TAG, "Не удалось включить $pkg: ${LogMasker.mask(e.message ?: "")}")
+                AppLog.w(TAG, "Не удалось включить $pkg: ${e.message}")
             }
         }
 
@@ -838,7 +819,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
 
         for ((key, value) in ServiceRegistry.HIDDEN_KEYS_RESTORE) {
             try {
-                val result = adb.executeCommand("shell settings put $key $value")
+                val result = adb.executeCommand("settings put $key $value")
                 if (result.isFailure) {
                     failed.add(key.substringAfterLast(" "))
                     AppLog.w(
@@ -851,7 +832,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                 failed.add(key.substringAfterLast(" "))
                 AppLog.w(
                     TAG,
-                    "Восстановление скрытого ключа не удалось: $key - ${LogMasker.mask(e.message ?: "")}"
+                    "Восстановление скрытого ключа не удалось: $key - ${e.message}"
                 )
             }
         }
@@ -870,7 +851,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
             null
         } catch (e: Exception) {
-            AppLog.w(TAG, "Восстановление DNS не удалось: ${LogMasker.mask(e.message ?: "")}")
+            AppLog.w(TAG, "Восстановление DNS не удалось: ${e.message}")
             e.message ?: "Unknown"
         }
     }

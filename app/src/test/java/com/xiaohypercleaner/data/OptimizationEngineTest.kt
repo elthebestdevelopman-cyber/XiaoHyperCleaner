@@ -129,7 +129,7 @@ private open class FakeAdb : AdbExecutor {
             // ── PUT settings ──
             command.startsWith("settings put") -> "Success"
             command.contains("setprop") -> "Success"
-            command.contains("shell reboot") -> ""
+            command.contains("reboot") -> ""
 
             else -> ""
         }

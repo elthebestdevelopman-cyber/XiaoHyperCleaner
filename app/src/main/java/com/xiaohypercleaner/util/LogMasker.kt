@@ -24,11 +24,10 @@ object LogMasker {
     @Volatile
     private var initialized: Boolean = false
 
-    // Ленивая инициализация regex — компилируется один раз при первом использовании
-    private val userPathRegex: Regex by lazy {
-        val escapedPath = Regex.escape(appDataPath)
-        Regex("$escapedPath(/[^\\s]*)?")
-    }
+    // Regex маскировки пути к данным приложения. Пересобирается в init(),
+    // т.к. appDataPath становится известен только из Context (иначе — stale-компиляция).
+    @Volatile
+    private var userPathRegex: Regex? = null
 
     private val ipRegex: Regex by lazy {
         // Маскируем все IP кроме localhost (127.0.0.1)
@@ -74,6 +73,9 @@ object LogMasker {
      */
     fun init(context: Context) {
         appDataPath = context.applicationInfo.dataDir
+        // Собираем regex сразу при init, а не лениво — устраняет stale-компиляцию
+        // при первом вызове mask() (RECOMMENDATIONS.md #11, IMPROVEMENTS.md H4).
+        userPathRegex = Regex("${Regex.escape(appDataPath)}(/[^\\s]*)?")
         initialized = true
     }
 
@@ -90,7 +92,8 @@ object LogMasker {
 
         // 1. Маскируем путь к данным приложения (если инициализирован)
         if (initialized && appDataPath.isNotEmpty()) {
-            result = result.replace(userPathRegex, "$appDataPath/*")
+            val regex = userPathRegex ?: Regex("${Regex.escape(appDataPath)}(/[^\\s]*)?")
+            result = result.replace(regex, "$appDataPath/*")
         }
 
         // 2. Маскируем IP-адреса (кроме localhost)

@@ -171,48 +171,105 @@ data, system setting values.
 ```
 app/src/main/java/com/xiaohypercleaner/
 ├── data/
+│   ├── AdaptiveCatalog.kt        # Region ROM profile catalog
 │   ├── AdbClient.kt              # ADB over TCP (%04x header, shell until EOF)
-│   ├── AdbExecutor.kt            # Interface for DI/tests
-│   ├── AdbPortResolver.kt        # mDNS _adb-tls._tcp
+│   ├── AdbException.kt           # Typed ADB error
+│   ├── AdbExecutor.kt            # Executor interface (DI/tests)
+│   ├── AdbPortResolver.kt        # Port discovery (_adb-tls._tcp)
+│   ├── DirectIntentNavigator.kt  # Direct settings intents
 │   ├── OptimizationEngine.kt     # 4 methods + DNS + transactional rollback
-│   ├── PreferencesManager.kt     # DataStore
-│   └── ServiceRegistry.kt        # Package lists for disabling
+│   ├── OptimizationMode.kt       # Optimization modes
+│   ├── PermissionFlowManager.kt  # Permission flow
+│   ├── PermissionSubPhase.kt     # Permission sub-phases
+│   ├── PreferencesManager.kt     # DataStore (settings)
+│   ├── RestrictedLocation.kt     # Regional restrictions
+│   ├── RomProfile.kt             # ROM profile (MIUI/HyperOS)
+│   ├── RootExecutor.kt           # Root executor (su)
+│   ├── ServiceRegistry.kt        # Package/key lists
+│   ├── ShizukuExecutor.kt        # Shizuku executor
+│   ├── ShizukuWizardManager.kt   # Shizuku setup wizard
+│   ├── SimpleModeController.kt   # Simple mode controller
+│   ├── SimpleModePhase.kt        # Simple mode phases
+│   ├── SimpleSteps.kt            # Simple mode steps
+│   └── SimpleStepState.kt        # Step state
 ├── service/
-│   ├── AdbEnablerService.kt      # Accessibility chain
+│   ├── AdbEnablerService.kt      # Accessibility service (pro-mode watchdog)
+│   ├── ChainFlags.kt             # Chain flags
 │   ├── OverlayController.kt      # onCancel via WeakReference
-│   └── OverlayService.kt         # Progress overlay
+│   ├── OverlayService.kt         # Progress overlay
+│   ├── SimpleRunner.kt           # Simple mode runner
+│   └── SimpleStepBridge.kt       # UI click bridge
 ├── ui/
 │   ├── MainActivity.kt           # Main screen
+│   ├── MainUiState.kt            # Single UI state source
 │   ├── MainViewModel.kt          # UI logic
-│   ├── SplashActivity.kt         # Splash with robot and yarn ball
 │   ├── OnboardingScreen.kt       # Onboarding (3 screens)
+│   ├── UiActions.kt              # External actions (rate/donate/share)
 │   ├── WebViewActivity.kt        # WebView for donations
-│   └── components/
-│       └── Dialogs.kt            # All dialogs
+│   ├── components/               # 9 dialogs/screens
+│   │   ├── AccessibilityConsentDialog.kt
+│   │   ├── FlowDialogs.kt
+│   │   ├── InfoDialog.kt
+│   │   ├── MainCards.kt
+│   │   ├── MenuDialog.kt
+│   │   ├── OptimizationLevelDialog.kt
+│   │   ├── RestrictedSettingsScreen.kt
+│   │   ├── ShizukuSetupWizard.kt
+│   │   └── ShizukuSourcesDialog.kt
+│   ├── vm/
+│   │   ├── ProFlowController.kt
+│   │   └── ShizukuUiController.kt
+│   ├── theme/
+│   │   ├── Color.kt
+│   │   ├── Theme.kt
+│   │   └── Type.kt
+│   └── extensions/
+│       └── OptimizationModeExtensions.kt
 ├── util/
-│   ├── AppLog.kt                 # Beta logging with masking
-│   ├── LogMasker.kt              # Data masking in logs
-│   ├── OptimizationNotifier.kt   # StateFlow for passing results
-│   └── Wait.kt                   # waitFor helper
+│   ├── AppLog.kt                 # Logging with masking
+│   ├── DiagnosticSnapshotManager.kt # Diagnostic snapshots
+│   ├── LogMasker.kt              # Log data masking
+│   ├── OptimizationNotifier.kt   # Result StateFlow
+│   ├── ShizukuHelper.kt          # Shizuku helper
+│   └── StepDiagnostics.kt        # Step diagnostics
 ├── AppConstants.kt               # Constants (timeouts, progress)
 ├── AppDependencies.kt            # Manual DI
 └── XiaoHyperApp.kt               # Application
 
 app/src/main/res/
 ├── drawable/
+│   ├── ic_launcher_background.xml
+│   ├── ic_launcher_foreground.xml
+│   ├── ic_launcher_monochrome.xml
 │   ├── ic_robot_companion.xml    # Robot cat
+│   ├── ic_robot_washing_avd.xml  # Robot animation (splash)
+│   ├── ic_splash_icon.xml        # Splash icon
 │   └── ic_yarn_ball.xml          # Yarn ball
-├── values/strings.xml            # RU
-├── values-en/strings.xml         # EN
+├── mipmap-anydpi/                # Adaptive launcher icons
+├── values/                       # RU (primary)
+├── values-en/                    # EN
+├── values-es/                    # ES
+├── values-zh/                    # ZH
+├── values-hi/                    # HI
+├── values-in/                    # ID
+├── values-pt/                    # PT
+├── values-night/                 # Dark theme
 └── xml/
     ├── accessibility_service_config.xml
+    ├── backup_rules.xml
+    ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/
-├── OptimizationEngineTest.kt     # 12 tests
-├── AdbPortResolverTest.kt        # 3 tests
-├── LogMaskerTest.kt              # 6 tests
-└── MainViewModelTest.kt          # 8 tests (Robolectric)
+app/src/test/java/com/xiaohypercleaner/
+├── data/
+│   ├── OptimizationEngineTest.kt # 10 tests
+│   ├── AdbPortResolverTest.kt    # 5 tests
+│   ├── RomProfileTest.kt         # 2 tests
+│   └── SimpleStepsTest.kt        # 5 tests
+├── ui/
+│   └── MainViewModelTest.kt      # 8 tests (Robolectric)
+└── util/
+    └── LogMaskerTest.kt          # 15 tests
 ```
 
 ---

@@ -1,7 +1,6 @@
 package com.xiaohypercleaner.data
 
 import com.xiaohypercleaner.util.AppLog
-import com.xiaohypercleaner.util.LogMasker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -18,7 +17,7 @@ import java.io.InputStream
  *
  * УЛУЧШЕНИЯ:
  * 1. Параллельное чтение stdout/stderr через async — защита от deadlock
- * 2. Маскировка команд через LogMasker для consistency с AdbClient
+ * 2. Нормализация команды: снятие префикса "shell " (su -c ожидает чистую shell-команду)
  * 3. Русские логи для соответствия правилу 1
  * 4. Явные типы для всех переменных
  * 5. Константа для команды проверки root
@@ -105,18 +104,20 @@ class RootExecutor : AdbExecutor {
      * Если один поток заполнится (например, stderr при ошибке), а другой не читается,
      * process будет висеть до таймаута.
      *
-     * @param command Команда для выполнения (без префикса "shell")
+     * @param command Команда для выполнения (префикс "shell " снимается автоматически)
      * @return Result с выводом команды или ошибкой
      */
     override suspend fun executeCommand(command: String): Result<String> =
         withContext(Dispatchers.IO) {
-            val maskedCommand: String = LogMasker.mask(command)
-            AppLog.i(TAG, "Выполнение команды: $maskedCommand")
+            // su -c ожидает shell-команду без префикса "shell ".
+            // Без нормализации команды вида "shell settings …" падают с "shell: not found".
+            val stripped: String = command.trim().removePrefix("shell ")
+            AppLog.i(TAG, "Выполнение команды: $stripped")
 
             var process: Process? = null
             try {
                 withTimeout(COMMAND_TIMEOUT_MS.milliseconds) {
-                    process = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
+                    process = Runtime.getRuntime().exec(arrayOf("su", "-c", stripped))
 
                     // Читаем output и error параллельно через async, чтобы избежать deadlock
                     val output: String
@@ -146,12 +147,12 @@ class RootExecutor : AdbExecutor {
                     } else {
                         val msg: String =
                             if (error.isNotBlank()) error.trim() else "exit code $exitCode"
-                        AppLog.w(TAG, "Команда не удалась: $maskedCommand -> $msg")
+                        AppLog.w(TAG, "Команда не удалась: $stripped -> $msg")
                         Result.failure(IOException("Команда не удалась: $msg"))
                     }
                 }
             } catch (e: Exception) {
-                AppLog.e(TAG, "Выполнение команды не удалось: $maskedCommand -> ${e.message}")
+                AppLog.e(TAG, "Выполнение команды не удалось: $stripped -> ${e.message}")
                 Result.failure(e)
             } finally {
                 process?.destroyForcibly()

@@ -188,48 +188,105 @@ APK появится в `app/build/outputs/apk/debug/`
 ```
 app/src/main/java/com/xiaohypercleaner/
 ├── data/
+│   ├── AdaptiveCatalog.kt        # Каталог ROM-профилей по регионам
 │   ├── AdbClient.kt              # ADB over TCP (%04x заголовок, shell до EOF)
-│   ├── AdbExecutor.kt            # Интерфейс для DI/тестов
-│   ├── AdbPortResolver.kt        # mDNS _adb-tls._tcp
+│   ├── AdbException.kt           # Типизированная ошибка ADB
+│   ├── AdbExecutor.kt            # Интерфейс исполнителя (DI/тесты)
+│   ├── AdbPortResolver.kt        # Поиск порта (_adb-tls._tcp)
+│   ├── DirectIntentNavigator.kt  # Прямые переходы в системные настройки
 │   ├── OptimizationEngine.kt     # 4 метода + DNS + транзакционный rollback
-│   ├── PreferencesManager.kt     # DataStore
-│   └── ServiceRegistry.kt        # Списки пакетов для отключения
+│   ├── OptimizationMode.kt       # Режимы оптимизации
+│   ├── PermissionFlowManager.kt  # Флоу разрешений
+│   ├── PermissionSubPhase.kt     # Подэтапы получения разрешений
+│   ├── PreferencesManager.kt     # DataStore (настройки)
+│   ├── RestrictedLocation.kt     # Региональные ограничения
+│   ├── RomProfile.kt             # Профиль прошивки (MIUI/HyperOS)
+│   ├── RootExecutor.kt           # Исполнитель через root (su)
+│   ├── ServiceRegistry.kt        # Списки пакетов/ключей
+│   ├── ShizukuExecutor.kt        # Исполнитель через Shizuku
+│   ├── ShizukuWizardManager.kt   # Мастер настройки Shizuku
+│   ├── SimpleModeController.kt   # Контроллер простого режима
+│   ├── SimpleModePhase.kt        # Фазы простого режима
+│   ├── SimpleSteps.kt            # Шаги простого режима
+│   └── SimpleStepState.kt        # Состояние шага
 ├── service/
-│   ├── AdbEnablerService.kt      # Accessibility-цепочка
+│   ├── AdbEnablerService.kt      # Accessibility-сервис (watchdog про-режима)
+│   ├── ChainFlags.kt             # Флаги цепочек
 │   ├── OverlayController.kt      # onCancel через WeakReference
-│   └── OverlayService.kt         # Оверлей с прогрессом
+│   ├── OverlayService.kt         # Оверлей с прогрессом
+│   ├── SimpleRunner.kt           # Раннер простого режима
+│   └── SimpleStepBridge.kt       # Мост кликов по UI
 ├── ui/
 │   ├── MainActivity.kt           # Главный экран
+│   ├── MainUiState.kt            # Единый источник состояния UI
 │   ├── MainViewModel.kt          # Логика UI
-│   ├── SplashActivity.kt         # Сплеш с робокотом и клубком
 │   ├── OnboardingScreen.kt       # Онбординг (3 экрана)
+│   ├── UiActions.kt              # Внешние действия (оценка/донат/шаринг)
 │   ├── WebViewActivity.kt        # WebView для донатов
-│   └── components/
-│       └── Dialogs.kt            # Все диалоги
+│   ├── components/               # 9 диалогов/экранов
+│   │   ├── AccessibilityConsentDialog.kt
+│   │   ├── FlowDialogs.kt
+│   │   ├── InfoDialog.kt
+│   │   ├── MainCards.kt
+│   │   ├── MenuDialog.kt
+│   │   ├── OptimizationLevelDialog.kt
+│   │   ├── RestrictedSettingsScreen.kt
+│   │   ├── ShizukuSetupWizard.kt
+│   │   └── ShizukuSourcesDialog.kt
+│   ├── vm/
+│   │   ├── ProFlowController.kt
+│   │   └── ShizukuUiController.kt
+│   ├── theme/
+│   │   ├── Color.kt
+│   │   ├── Theme.kt
+│   │   └── Type.kt
+│   └── extensions/
+│       └── OptimizationModeExtensions.kt
 ├── util/
-│   ├── AppLog.kt                 # Бета-логирование с маскировкой
+│   ├── AppLog.kt                 # Логирование с маскировкой
+│   ├── DiagnosticSnapshotManager.kt # Снимки диагностики
 │   ├── LogMasker.kt              # Маскировка данных в логах
-│   ├── OptimizationNotifier.kt   # StateFlow для передачи результатов
-│   └── Wait.kt                   # waitFor helper
+│   ├── OptimizationNotifier.kt   # StateFlow результатов
+│   ├── ShizukuHelper.kt          # Помощник Shizuku
+│   └── StepDiagnostics.kt        # Диагностика шагов
 ├── AppConstants.kt               # Константы (таймауты, прогресс)
 ├── AppDependencies.kt            # Ручная DI
 └── XiaoHyperApp.kt               # Application
 
 app/src/main/res/
 ├── drawable/
+│   ├── ic_launcher_background.xml
+│   ├── ic_launcher_foreground.xml
+│   ├── ic_launcher_monochrome.xml
 │   ├── ic_robot_companion.xml    # Робокот
+│   ├── ic_robot_washing_avd.xml  # Анимация робокота (сплеш)
+│   ├── ic_splash_icon.xml        # Иконка сплеша
 │   └── ic_yarn_ball.xml          # Клубок ниток
-├── values/strings.xml            # RU
-├── values-en/strings.xml         # EN
+├── mipmap-anydpi/                # Адаптивные иконки запуска
+├── values/                       # RU (основной)
+├── values-en/                    # EN
+├── values-es/                    # ES
+├── values-zh/                    # ZH
+├── values-hi/                    # HI
+├── values-in/                    # ID
+├── values-pt/                    # PT
+├── values-night/                 # Тёмная тема
 └── xml/
     ├── accessibility_service_config.xml
+    ├── backup_rules.xml
+    ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/
-├── OptimizationEngineTest.kt     # 12 тестов
-├── AdbPortResolverTest.kt        # 3 теста
-├── LogMaskerTest.kt              # 6 тестов
-└── MainViewModelTest.kt          # 8 тестов (Robolectric)
+app/src/test/java/com/xiaohypercleaner/
+├── data/
+│   ├── OptimizationEngineTest.kt # 10 тестов
+│   ├── AdbPortResolverTest.kt    # 5 тестов
+│   ├── RomProfileTest.kt         # 2 теста
+│   └── SimpleStepsTest.kt        # 5 тестов
+├── ui/
+│   └── MainViewModelTest.kt      # 8 тестов (Robolectric)
+└── util/
+    └── LogMaskerTest.kt          # 15 тестов
 ```
 
 ---

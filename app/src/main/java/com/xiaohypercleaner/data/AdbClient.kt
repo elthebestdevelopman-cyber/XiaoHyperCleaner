@@ -2,7 +2,6 @@ package com.xiaohypercleaner.data
 
 import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.util.AppLog
-import com.xiaohypercleaner.util.LogMasker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
@@ -126,7 +125,7 @@ class AdbClient(
         } catch (e: IOException) {
             AppLog.e(
                 TAG,
-                "tryConnect: IOException на порту $port: ${LogMasker.mask(e.message ?: "")}",
+                "tryConnect: IOException на порту $port: ${e.message}",
                 e
             )
             disconnect()
@@ -134,7 +133,7 @@ class AdbClient(
         } catch (e: Exception) {
             AppLog.e(
                 TAG,
-                "tryConnect: неожиданное исключение на порту $port: ${LogMasker.mask(e.message ?: "")}",
+                "tryConnect: неожиданное исключение на порту $port: ${e.message}",
                 e
             )
             disconnect()
@@ -154,23 +153,21 @@ class AdbClient(
         withContext(Dispatchers.IO) {
             commandCount++
             val normalized = command.trim().removePrefix("shell ")
-            val maskedCmd = LogMasker.mask(normalized)
-            AppLog.i(TAG, "cmd#$commandCount: выполнение: $maskedCmd")
+            AppLog.i(TAG, "cmd#$commandCount: выполнение: $normalized")
 
             try {
                 withTimeout(COMMAND_TIMEOUT_MS) {
                     try {
                         val result = runShell(normalized)
-                        val maskedResult = LogMasker.mask(result.take(500))
                         AppLog.i(
                             TAG,
-                            "cmd#$commandCount: успех, результат(${result.length} символов): $maskedResult"
+                            "cmd#$commandCount: успех, результат(${result.length} символов): ${result.take(500)}"
                         )
                         Result.success(result)
                     } catch (e: AdbException) {
                         AppLog.w(
                             TAG,
-                            "cmd#$commandCount: AdbException: ${LogMasker.mask(e.message ?: "")}, реконнект"
+                            "cmd#$commandCount: AdbException: ${e.message}, реконнект"
                         )
                         disconnect()
 
@@ -190,7 +187,7 @@ class AdbClient(
                         } catch (e2: Exception) {
                             AppLog.e(
                                 TAG,
-                                "cmd#$commandCount: повтор тоже НЕ УДАЛСЯ: ${LogMasker.mask(e2.message ?: "")}",
+                                "cmd#$commandCount: повтор тоже НЕ УДАЛСЯ: ${e2.message}",
                                 e2
                             )
                             Result.failure(e2)
@@ -222,7 +219,7 @@ class AdbClient(
             )
             return result.data
         } catch (e: Exception) {
-            AppLog.w(TAG, "runShell: ошибка, закрываем сокет: ${LogMasker.mask(e.message ?: "")}")
+            AppLog.w(TAG, "runShell: ошибка, закрываем сокет: ${e.message}")
             disconnect()
             throw AdbException("Shell не удался: ${e.message}", e)
         }
@@ -316,7 +313,7 @@ class AdbClient(
         } catch (e: IOException) {
             AppLog.e(
                 TAG,
-                "readUntilEof: IOException после $chunks чанков: ${LogMasker.mask(e.message ?: "")}",
+                "readUntilEof: IOException после $chunks чанков: ${e.message}",
                 e
             )
         }
