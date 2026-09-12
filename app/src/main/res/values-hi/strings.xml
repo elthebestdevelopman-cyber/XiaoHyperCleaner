@@ -281,4 +281,6 @@
     <string name="result_support">समर्थन</string>
     <string name="result_share_log">लॉग साझा करें</string>
     <string name="result_close">ऐप खोलें</string>
+    <string name="progress_format">%1$d%%</string>
+    <string name="mock_notifications_label">सूचनाएं</string>
 </resources>

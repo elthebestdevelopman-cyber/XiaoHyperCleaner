@@ -262,14 +262,18 @@ app/src/main/res/
 
 app/src/test/java/com/xiaohypercleaner/
 ├── data/
+│   ├── AdaptiveCatalogTest.kt    # 9 tests
 │   ├── OptimizationEngineTest.kt # 10 tests
 │   ├── AdbPortResolverTest.kt    # 5 tests
 │   ├── RomProfileTest.kt         # 2 tests
 │   └── SimpleStepsTest.kt        # 5 tests
+├── service/
+│   └── SimpleRunnerClearDataTest.kt # 2 tests
 ├── ui/
 │   └── MainViewModelTest.kt      # 8 tests (Robolectric)
 └── util/
-    └── LogMaskerTest.kt          # 15 tests
+    ├── LogMaskerTest.kt          # 15 tests
+    └── TextMatcherTest.kt        # 9 tests
 ```
 
 ---
@@ -327,7 +331,7 @@ app/src/test/java/com/xiaohypercleaner/
 
 ## 🧪 Testing
 
-### Unit Tests (45 tests)
+### Unit Tests (65 tests)
 
 ```bash
 ./gradlew testDebugUnitTest

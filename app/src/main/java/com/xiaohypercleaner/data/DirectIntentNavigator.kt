@@ -97,13 +97,15 @@ object DirectIntentNavigator {
             // ═══════════════════════════════════════════════════════════
 
             "msa" -> {
-                // MSA — отзыв разрешения на доступ к личным данным
-                // HyperOS: Настройки → Отпечатки... → Доступ к личным данным → msa
+                // MSA — отзыв разрешения на доступ к личным данным.
+                // На MIUI Global 13 «Рекламные службы» открывает ACTION_PRIVACY_SETTINGS.
+                val msaPkg = resolvedPackage ?: "com.miui.msa.global"
                 intents.addAll(
                     listOf(
                         miuiIntent("miui.intent.action.AD_SERVICES_SETTINGS"),
-                        miuiIntent("miui.intent.action.PRIVACY_SETTINGS"),
                         settingsIntent(Settings.ACTION_PRIVACY_SETTINGS),
+                        miuiIntent("miui.intent.action.PRIVACY_SETTINGS"),
+                        appDetailsIntent(msaPkg),
                         appDetailsIntent("com.miui.msa.global"),
                         appDetailsIntent("com.miui.msa.core")
                     )
@@ -122,13 +124,14 @@ object DirectIntentNavigator {
             }
 
             "ads_personalization" -> {
-                // Персонализация рекламы
+                // Персонализация рекламы.
+                // На MIUI Global 13 «Рекламные службы» открывает ACTION_PRIVACY_SETTINGS.
                 intents.addAll(
                     listOf(
                         miuiIntent("miui.intent.action.AD_SERVICES_SETTINGS"),
+                        settingsIntent(Settings.ACTION_PRIVACY_SETTINGS),
                         miuiIntent("miui.intent.action.PRIVACY_SETTINGS"),
                         settingsIntent("android.settings.AD_SERVICES_SETTINGS"),
-                        settingsIntent(Settings.ACTION_PRIVACY_SETTINGS),
                         appDetailsIntent("com.miui.systemAdSolution")
                     )
                 )
@@ -346,81 +349,95 @@ object DirectIntentNavigator {
 
             "notif_msa" -> {
                 // Уведомления MSA
+                val pkg = resolvedPackage ?: "com.miui.msa.global"
                 intents.addAll(
                     listOf(
+                        notificationsIntent(pkg),
                         notificationsIntent("com.miui.msa.global"),
                         notificationsIntent("com.miui.msa.core"),
-                        appDetailsIntent("com.miui.msa.global")
+                        appDetailsIntent(pkg)
                     )
                 )
             }
 
             "notif_gamecenter" -> {
                 // Уведомления игрового центра
+                val pkg = resolvedPackage ?: "com.xiaomi.glgm"
                 intents.addAll(
                     listOf(
+                        notificationsIntent(pkg),
                         notificationsIntent("com.xiaomi.glgm"),
                         notificationsIntent("com.xiaomi.gamecenter"),
                         notificationsIntent("com.miui.gamecenter"),
-                        appDetailsIntent("com.xiaomi.glgm")
+                        appDetailsIntent(pkg)
                     )
                 )
             }
 
             "notif_appvault" -> {
                 // Уведомления ленты виджетов
+                val pkg = resolvedPackage ?: "com.miui.personalassistant"
                 intents.addAll(
                     listOf(
+                        notificationsIntent(pkg),
                         notificationsIntent("com.miui.personalassistant"),
                         notificationsIntent("com.mi.android.global.personalassistant"),
-                        appDetailsIntent("com.miui.personalassistant")
+                        appDetailsIntent(pkg)
                     )
                 )
             }
 
             "notif_themes" -> {
                 // Уведомления тем
+                val pkg = resolvedPackage ?: "com.android.thememanager"
                 intents.addAll(
                     listOf(
+                        notificationsIntent(pkg),
                         notificationsIntent("com.android.thememanager"),
                         notificationsIntent("com.miui.thememanager"),
-                        appDetailsIntent("com.android.thememanager")
+                        appDetailsIntent(pkg)
                     )
                 )
             }
 
             "notif_getapps" -> {
                 // Уведомления GetApps
+                val pkg = resolvedPackage ?: "com.xiaomi.market"
                 intents.addAll(
                     listOf(
+                        notificationsIntent(pkg),
                         notificationsIntent("com.xiaomi.market"),
                         notificationsIntent("com.miui.market"),
                         notificationsIntent("com.mi.global.market"),
-                        appDetailsIntent("com.xiaomi.market")
+                        appDetailsIntent(pkg)
                     )
                 )
             }
 
             "notif_browser" -> {
                 // Уведомления браузера
+                val pkg = resolvedPackage ?: "com.mi.globalbrowser"
                 intents.addAll(
                     listOf(
+                        notificationsIntent(pkg),
                         notificationsIntent("com.mi.globalbrowser"),
                         notificationsIntent("com.android.browser"),
                         notificationsIntent("com.miui.browser"),
-                        appDetailsIntent("com.mi.globalbrowser")
+                        appDetailsIntent(pkg)
                     )
                 )
             }
 
             "notif_mivideo" -> {
                 // Уведомления Mi Видео
+                val pkg = resolvedPackage ?: "com.miui.videoplayer"
                 intents.addAll(
                     listOf(
+                        notificationsIntent(pkg),
                         notificationsIntent("com.miui.videoplayer"),
                         notificationsIntent("com.miui.video"),
                         notificationsIntent("com.mi.global.video"),
-                        appDetailsIntent("com.miui.videoplayer")
+                        appDetailsIntent(pkg)
                     )
                 )
             }

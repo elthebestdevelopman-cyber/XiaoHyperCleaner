@@ -36,7 +36,7 @@ class AdaptiveCatalogTest {
         context = ApplicationProvider.getApplicationContext()
         // Кэши мерджа ключуются по stepId; сбрасываем между тестами, чтобы
         // разные значения defaults не «слипались» через общий ключ кэша.
-        AdaptiveCatalog.clearCache()
+        AdaptiveCatalog.resetForTest()
     }
 
     private fun globalProfile(): RomProfile = RomProfile(
@@ -60,14 +60,15 @@ class AdaptiveCatalogTest {
     fun `search texts do not duplicate base and catalog values`() {
         val merged = AdaptiveCatalog.mergeSearchTexts(context, "carousel", listOf("Карусель обоев"))
 
-        assertEquals(4, merged.size)
+        assertEquals(merged.size, merged.distinct().size)
         assertEquals(1, merged.count { it == "Карусель обоев" })
+        assertEquals("Карусель обоев", merged.first())
     }
 
     @Test
     fun `search texts return defaults when step absent from catalog`() {
         val defaults = listOf("Первый", "Второй")
-        val merged = AdaptiveCatalog.mergeSearchTexts(context, "ux_program", defaults)
+        val merged = AdaptiveCatalog.mergeSearchTexts(context, "notif_gamecenter", defaults)
 
         assertEquals(defaults, merged)
     }

@@ -290,4 +290,12 @@
     <string name="result_support">Поддержать</string>
     <string name="result_share_log">Отправить лог</string>
     <string name="result_close">В приложение</string>
+
+    <!-- ========== НЕПЕРЕВОДИМЫЕ СИМВОЛЫ UI ========== -->
+    <string name="back_arrow" translatable="false">←</string>
+    <string name="menu_icon" translatable="false">⋮</string>
+    <string name="pointer_hint_prefix" translatable="false">"👆 "</string>
+    <string name="overlay_hint_prefix" translatable="false">"💡 "</string>
+    <string name="progress_format">%1$d%%</string>
+    <string name="mock_notifications_label">Уведомления</string>
 </resources>

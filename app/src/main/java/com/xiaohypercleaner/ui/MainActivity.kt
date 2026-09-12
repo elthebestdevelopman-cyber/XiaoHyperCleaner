@@ -375,7 +375,7 @@ private fun MainContent(
                 IconButton(onClick = {
                     AppLog.i(MainActivity.TAG, "menu button clicked"); menuOpen = true
                 }) {
-                    Text("⋮", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Text(stringResource(R.string.menu_icon), fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurface)
                 }
             }
             Spacer(Modifier.height(24.dp))

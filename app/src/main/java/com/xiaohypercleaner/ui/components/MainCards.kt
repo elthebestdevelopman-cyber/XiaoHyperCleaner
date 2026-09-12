@@ -254,7 +254,7 @@ private fun WorkingView(progress: Float) {
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            "${progress.toInt().coerceIn(0, 100)}%",
+            stringResource(R.string.progress_format, progress.toInt().coerceIn(0, 100)),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

@@ -309,5 +309,8 @@
     <string name="result_soft">Si te ayudó — una reseña o cualquier apoyo sería apreciado. Ayuda a otros a encontrar la app.</string>
     <string name="result_rate">Calificar</string>
     <string name="result_support">Apoyar</string>
+    <string name="result_share_log">Compartir registro</string>
     <string name="result_close">Cerrar</string>
+    <string name="progress_format">%1$d%%</string>
+    <string name="mock_notifications_label">Notificaciones</string>
 </resources>

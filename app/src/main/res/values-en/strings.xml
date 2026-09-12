@@ -301,4 +301,6 @@
     <string name="result_support">Support</string>
     <string name="result_share_log">Share log</string>
     <string name="result_close">Open app</string>
+    <string name="progress_format">%1$d%%</string>
+    <string name="mock_notifications_label">Notifications</string>
 </resources>

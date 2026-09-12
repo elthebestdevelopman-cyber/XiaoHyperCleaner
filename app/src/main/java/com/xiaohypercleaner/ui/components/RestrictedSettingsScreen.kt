@@ -281,10 +281,10 @@ private fun ListMock() {
     ) {
         // Шапка «окна настроек»
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("←", color = Color.White, fontSize = 18.sp)
+            Text(stringResource(R.string.back_arrow), color = Color.White, fontSize = 18.sp)
             Spacer(Modifier.width(10.dp))
             Text(
-                "XiaoHyperCleaner",
+                stringResource(R.string.app_name),
                 color = Color.White,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium
@@ -293,7 +293,7 @@ private fun ListMock() {
         Spacer(Modifier.height(12.dp))
 
         // Обычная строка (для контекста)
-        MockRow("Уведомления", enabled = false, pulse = 0f, highlight = MockHighlight)
+        MockRow(stringResource(R.string.mock_notifications_label), enabled = false, pulse = 0f, highlight = MockHighlight)
         Spacer(Modifier.height(8.dp))
 
         // НУЖНАЯ строка — пульсирует
@@ -311,7 +311,7 @@ private fun ListMock() {
             horizontalArrangement = Arrangement.End
         ) {
             Text(
-                "👆 " + stringResource(R.string.restricted_guide_turn_on),
+                stringResource(R.string.pointer_hint_prefix) + stringResource(R.string.restricted_guide_turn_on),
                 color = MockHighlight.copy(alpha = 0.4f + 0.6f * pulse),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold
@@ -346,10 +346,10 @@ private fun MenuMock() {
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("←", color = Color.White, fontSize = 18.sp)
+            Text(stringResource(R.string.back_arrow), color = Color.White, fontSize = 18.sp)
             Spacer(Modifier.width(10.dp))
             Text(
-                "XiaoHyperCleaner",
+                stringResource(R.string.app_name),
                 color = Color.White,
                 fontSize = 16.sp,
                 modifier = Modifier.weight(1f)
@@ -365,7 +365,7 @@ private fun MenuMock() {
                         CircleShape
                     )
             ) {
-                Text("⋮", color = Color.White, fontSize = 20.sp)
+                Text(stringResource(R.string.menu_icon), color = Color.White, fontSize = 20.sp)
             }
         }
         Spacer(Modifier.height(10.dp))
@@ -397,7 +397,7 @@ private fun MenuMock() {
             horizontalArrangement = Arrangement.End
         ) {
             Text(
-                "👆 " + stringResource(R.string.restricted_guide_tap_here),
+                stringResource(R.string.pointer_hint_prefix) + stringResource(R.string.restricted_guide_tap_here),
                 color = MockHighlight.copy(alpha = 0.4f + 0.6f * pulse),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold

@@ -140,7 +140,7 @@ class OverlayService : Service() {
     private fun showHint(text: String) {
         hide()
         val card = TextView(this).apply {
-            this.text = "💡 $text"
+            this.text = getString(R.string.overlay_hint_prefix) + text
             setTextColor(Color.WHITE)
             setPadding(dp(16), dp(12), dp(16), dp(12))
             background = roundBg(0xE61976D2.toInt())

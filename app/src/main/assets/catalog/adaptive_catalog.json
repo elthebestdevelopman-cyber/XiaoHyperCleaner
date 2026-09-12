@@ -23,46 +23,68 @@
     "market": ["com.xiaomi.market", "com.miui.market", "com.mi.global.market"]
   },
   "uiSteps": {
+    "msa": {
+      "searchTexts": ["msa", "MSA", "Рекламные службы", "Ad services", "Рекламные услуги", "广告服务", "Servicios de anuncios", "विज्ञापन सेवाएँ", "Layanan iklan", "Serviços de anúncios"],
+      "drillPath": [["Конфиденциальность", "Privacy", "隐私", "Privacidad", "गोपनीयता", "Privacidade"], ["Рекламные службы", "Ad services", "广告服务", "Servicios de anuncios", "विज्ञापन सेवाएँ"]]
+    },
     "sys_recommendations": {
-      "searchTexts": ["Получать рекомендации", "Receive recommendations", "接收推荐", "Recibir recomendaciones"],
-      "drillPath": [["Приложения", "Apps", "应用"], ["Ещё", "More", "更多", "Más"]]
+      "searchTexts": ["Получать рекомендации", "Receive recommendations", "接收推荐", "个性化推荐", "Recibir recomendaciones", "सिफ़ारिशें प्राप्त करें", "Terima rekomendasi", "Receber recomendações", "प्राप्त करें"],
+      "drillPath": [["Приложения", "Apps", "应用", "Aplicaciones", "ऐप्स"], ["Ещё", "More", "更多", "Más", "अधिक"]]
     },
     "ads_personalization": {
-      "searchTexts": ["Персонализация рекламы", "Personalization of ads", "Ads personalization", "Рекламные службы", "Ad services"],
-      "drillPath": [["Конфиденциальность", "Privacy", "隐私"], ["Рекламные службы", "Ad services"]]
+      "searchTexts": ["Персонализация рекламы", "Персонализированная реклама", "Рекламные службы", "Personalization of ads", "Ads personalization", "Personalized ads", "Ad services", "Personalización de anuncios", "Anuncios personalizados", "个性化广告", "वैयक्तिकृत विज्ञापन", "Personalisasi iklan", "Personalização de anúncios"],
+      "drillPath": [["Конфиденциальность", "Privacy", "隐私", "Privacidad", "गोपनीयता", "Privacidade"], ["Рекламные службы", "Ad services", "广告服务", "Servicios de anuncios", "Layanan iklan"]]
+    },
+    "ux_program": {
+      "searchTexts": ["Программа улучшения качества", "Присоединиться к программе", "Программа улучшения", "User experience program", "Join the program", "UX program", "用户体验计划", "Programa de mejora", "उपयोगकर्ता अनुभव कार्यक्रम", "Program peningkatan", "Programa de melhoria"]
     },
     "carousel": {
-      "searchTexts": ["Карусель обоев", "Wallpaper Carousel", "Glance", "壁纸轮播"],
-      "additionalToggles": ["Обновлять через мобильный Интернет", "Update via mobile network"]
+      "searchTexts": ["Карусель обоев", "Wallpaper Carousel", "Glance", "壁纸轮播", "锁屏壁纸轮播", "Carrusel de fondos de pantalla", "वॉलपेपर कैरोसेल", "Korsel wallpaper", "Carrossel de papéis de parede"],
+      "additionalToggles": ["Обновлять через мобильный Интернет", "Update via mobile network", "通过移动网络更新"]
+    },
+    "home_suggestions": {
+      "searchTexts": ["Показывать предложения", "Рекомендации на рабочем столе", "Show suggestions", "Home screen suggestions", "显示建议", "Mostrar sugerencias", "सुझाव दिखाएँ", "Tampilkan saran", "Mostrar sugestões"]
+    },
+    "messages_sys": {
+      "searchTexts": ["Персонализированные услуги", "Персонализация", "Personalized services", "Personalization", "个性化服务", "Servicios personalizados", "वैयक्तिकृत सेवाएँ", "Layanan personal", "Serviços personalizados"]
     },
     "browser_sys": {
-      "drillPath": [["Профиль", "Profile", "我的"], ["⚙", "⚙️", "Настройки", "Settings"], ["Дополнительно", "Advanced", "Дополнительные настройки"]]
+      "searchTexts": ["Персональные рекомендации", "Personalized recommendations", "Рекомендации", "Recommendations", "个性化推荐", "Recomendaciones personalizadas", "वैयक्तिकृत अनुशंसाएँ", "Rekomendasi personal", "Recomendações personalizadas"],
+      "drillPath": [["Профиль", "Profile", "我的", "Perfil", "प्रोफ़ाइल"], ["⚙", "⚙️", "Настройки", "Settings", "设置"], ["Дополнительно", "Advanced", "Дополнительные настройки"]]
     },
     "music_sys": {
-      "drillPath": [["⚙", "⚙️", "Настройки", "Settings"], ["Расширенные настройки", "Advanced settings", "Advanced"]]
+      "searchTexts": ["Персональные рекомендации", "Personalized recommendations", "Рекомендации", "Recommendations", "个性化推荐", "Recomendaciones personalizadas", "Rekomendasi personal"],
+      "drillPath": [["⚙", "⚙️", "Настройки", "Settings", "设置"], ["Расширенные настройки", "Advanced settings", "Advanced"]]
     },
     "themes": {
-      "drillPath": [["Профиль", "Profile", "我的"], ["⚙", "⚙️", "Настройки", "Settings"]],
+      "searchTexts": ["Персональные рекомендации", "Personalized recommendations", "Рекомендации", "Recommendations", "个性化推荐", "Recomendaciones personalizadas"],
+      "drillPath": [["Профиль", "Profile", "我的", "Perfil"], ["⚙", "⚙️", "Настройки", "Settings", "设置"]],
       "additionalToggles": ["Персональные рекомендации", "Personalized recommendations"]
     },
     "mivideo": {
-      "drillPath": [["Профиль", "Profile", "我的"], ["⚙", "⚙️", "Настройки", "Settings"]],
-      "searchTexts": ["Персональные рекомендации", "Personalized recommendations", "Показывать рекламу", "Show ads"]
+      "drillPath": [["Профиль", "Profile", "我的", "Perfil"], ["⚙", "⚙️", "Настройки", "Settings", "设置"]],
+      "searchTexts": ["Персональные рекомендации", "Personalized recommendations", "Показывать рекламу", "Show ads", "个性化推荐", "Mostrar anuncios", "Rekomendasi personal"]
     },
     "shareme": {
-      "drillPath": [["⋮", "Ещё", "More"], ["О приложении", "About"], ["Справка и обратная связь", "Help & feedback"]],
-      "searchTexts": ["Персонализация рекламы", "Ads personalization"]
+      "drillPath": [["⋮", "Ещё", "More", "Más"], ["О приложении", "About"], ["Справка и обратная связь", "Help & feedback"]],
+      "searchTexts": ["Персонализация рекламы", "Ads personalization", "Персонализированные услуги", "Personalized services"]
     },
     "security_sys": {
-      "drillPath": [["⚙", "⚙️", "Настройки", "Settings"]],
+      "searchTexts": ["Получать рекомендации", "Receive recommendations", "接收推荐", "Recibir recomendaciones", "सिफ़ारिशें प्राप्त करें", "Terima rekomendasi", "Receber recomendações"],
+      "drillPath": [["⚙", "⚙️", "Настройки", "Settings", "设置"]],
       "additionalToggles": ["Загружать только по Wi-Fi", "Download only over Wi-Fi"]
     },
     "cleaner": {
-      "drillPath": [["Очистка", "Cleaner", "Очиститель"], ["⚙", "⚙️", "Настройки", "Settings"]],
+      "searchTexts": ["Получать рекомендации", "Receive recommendations", "接收推荐", "Recibir recomendaciones"],
+      "drillPath": [["Очистка", "Cleaner", "Очиститель", "Cleanup"], ["⚙", "⚙️", "Настройки", "Settings", "设置"]],
       "additionalToggles": ["Загружать только по Wi-Fi", "Download only over Wi-Fi"]
     },
     "downloads": {
-      "drillPath": [["⋮", "Ещё", "More", "Настройки", "Settings"], ["⚙", "⚙️", "Настройки", "Settings"]]
+      "searchTexts": ["Показывать рекламу", "Show ads", "Рекомендации", "Recommendations", "शो विज्ञापन", "Tampilkan iklan", "Mostrar anúncios"],
+      "drillPath": [["⋮", "Ещё", "More", "Настройки", "Settings"], ["⚙", "⚙️", "Настройки", "Settings", "设置"]]
+    },
+    "appvault_services": {
+      "searchTexts": ["Предложения", "Suggestions", "Рекомендации", "Recommendations", "建议", "Sugerencias", "Sugestões"]
     }
   },
   "enterSafe": [
@@ -75,6 +97,10 @@
     "ОК", "OK", "Ок",
     "Согласен", "Agree",
     "Подтвердить", "Confirm",
-    "Да", "Yes"
+    "Да", "Yes",
+    "छोड़ें", "अभी नहीं", "बंद करें", "रद्द करें", "ठीक", "हाँ", "सहमत",
+    "Lewati", "Nanti", "Tutup", "Batalkan", "Setuju", "Ya", "Kembali",
+    "Pular", "Agora não", "Fechar", "Cancelar", "Concordar", "Sim", "Confirmar",
+    "Saltar", "Ahora no", "Cerrar", "Aceptar", "Sí"
   ]
 }

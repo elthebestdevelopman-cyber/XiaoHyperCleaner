@@ -13,6 +13,7 @@ import com.xiaohypercleaner.data.DirectIntentNavigator
 import com.xiaohypercleaner.data.RomProfile
 import com.xiaohypercleaner.data.SimpleSteps
 import com.xiaohypercleaner.util.AppLog
+import com.xiaohypercleaner.util.TextMatcher
 import com.xiaohypercleaner.util.DiagnosticSnapshotManager
 import com.xiaohypercleaner.util.StepDiagnostics
 import kotlinx.coroutines.CoroutineScope
@@ -116,7 +117,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     @Volatile
     private var cancelled: Boolean = false
-    private var romProfile: RomProfile = RomProfile.detect(service)
+    // lateinit: профиль устанавливается в run(). Прежний eager-detect был мёртвым:
+    // результат перезаписывался в run() и никогда не читался, а на mock-сервисе
+    // ронял конструктор (NPE на resources.configuration).
+    private lateinit var romProfile: RomProfile
 
     // П.6: Флаг переиспользования окна настроек
     private var canResumeSettings: Boolean = false
@@ -286,13 +290,20 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         // П.3: Открытие экрана через DirectIntentNavigator
         val intents = DirectIntentNavigator.buildIntentsForStep(service, step, resolvedPkg, profile)
+        // Stage 3: после каждого интента проверяем экран по merged-маркерам и,
+        // если открылся не тот экран, пробуем следующий интент.
+        val verifyTexts = AdaptiveCatalog.mergeSearchTexts(service, step.id, step.searchTexts)
+        // Для шагов-приложений целевой экран достигается бурением, поэтому
+        // проверка на этапе интента не нужна (иначе Settings-фолбэк уводит из приложения).
+        val isAppStep = step.launchPackage != null
         var screenOpened = false
         for (intent in intents) {
             if (cancelled) return Result(false, "cancelled")
             try {
                 service.startActivity(intent)
                 screenOpened = true
-                break
+                if (isAppStep || awaitScreen(verifyTexts, timeoutMs = CONTENT_WAIT_MS)) break
+                AppLog.w(TAG, "Экран не подтверждён после интента, пробуем следующий")
             } catch (e: Exception) {
                 AppLog.w(TAG, "DirectIntentNavigator failed: ${e.message}")
             }
@@ -331,6 +342,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
             }
         }
 
+        // CLEAR_DATA_DECLINE — отдельный сценарий: очистка данных приложения
+        // и отклонение приветственного экрана (Проводник и подобные).
+        if (step.actionType == SimpleSteps.ActionType.CLEAR_DATA_DECLINE) {
+            return executeClearDataDecline(step)
+        }
+
         val result = findAndToggleSwitch(step)
 
         // П.6: Помечаем, что следующий шаг может переиспользовать окно
@@ -339,6 +356,118 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     // ─── Drill navigation ─────────────────────────────────────────────────
+    /**
+     * Сценарий CLEAR_DATA_DECLINE: очистить данные приложения и отклонить
+     * приветственный экран при следующем запуске (Проводник и подобные).
+     *
+     * Основной результат определяется успехом очистки данных; отклонение
+     * приветствия — best-effort и не влияет на статус шага.
+     */
+    // internal — для тестируемости (SimpleRunnerClearDataTest).
+    internal suspend fun executeClearDataDecline(step: SimpleSteps.Step): Result {
+        // Явно ждём экран сведений о приложении: на медленных устройствах кнопка
+        // очистки может не успеть отрисоваться к моменту APP_LAUNCH_DELAY_MS.
+        awaitScreen(
+            listOf(
+                "Очистить данные", "Clear data",
+                "Очистить хранилище", "Clear storage",
+                "Очистить", "Clear"
+            ),
+            timeoutMs = CONTENT_WAIT_MS
+        )
+        val root = service.rootInActiveWindow
+        if (root == null) {
+            AppLog.w(TAG, "CLEAR_DATA: нет активного окна (${step.id})")
+            return Result(false, "no_active_window")
+        }
+        // 1. Кнопка очистки данных: сначала специфичная, затем общая.
+        val specificClear = listOf(
+            "Очистить данные", "Clear data",
+            "Очистить хранилище", "Clear storage"
+        )
+        val genericClear = listOf("Очистить", "Clear")
+        val clearNode = findClickableByText(root, specificClear)
+            ?: findClickableByText(root, genericClear)
+        if (clearNode == null) {
+            recycleNode(root)
+            AppLog.w(TAG, "CLEAR_DATA: кнопка очистки не найдена (${step.id})")
+            return Result(false, "clear_button_not_found")
+        }
+        val tappedClear = tapNode(clearNode)
+        recycleNode(clearNode)
+        recycleNode(root)
+        if (!tappedClear) return Result(false, "clear_button_tap_failed")
+        delay(UI_SETTLE_DELAY_MS)
+
+        // 2. Подтверждение очистки (возможен промежуточный экран + диалог).
+        val confirmMarkers = (
+            AdaptiveCatalog.mergeConfirmTexts(service, step.id, step.confirmTexts) +
+                listOf("Очистить все данные", "Clear all data", "Очистить", "Clear", "OK")
+            ).distinct()
+        var confirmed = false
+        repeat(2) {
+            if (tapButtonByMarkers(confirmMarkers, CONFIRM_RETRY_MS)) {
+                confirmed = true
+                delay(UI_SETTLE_DELAY_MS)
+            }
+        }
+        if (!confirmed) AppLog.w(TAG, "CLEAR_DATA: подтверждение не найдено (${step.id})")
+
+        // 3. Best-effort: отклонить приветственный экран после сброса данных.
+        declineWelcomeScreen(step)
+
+        return Result(true, if (confirmed) "clear_data_done" else "clear_data_tapped")
+    }
+
+    /**
+     * Best-effort: перезапускает приложение и отклоняет приветственный/промо-экран
+     * кнопками «Отмена»/«Пропустить»/«Не сейчас». Не влияет на результат шага.
+     */
+    private suspend fun declineWelcomeScreen(step: SimpleSteps.Step) {
+        val pkg = step.launchPackage ?: return
+        if (!isInstalled(pkg)) return
+        forceStopPackage(pkg)
+        delay(400)
+        try {
+            service.startActivity(
+                Intent(Intent.ACTION_MAIN).apply {
+                    addCategory(Intent.CATEGORY_LAUNCHER)
+                    setPackage(pkg)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+        } catch (e: Exception) {
+            AppLog.w(TAG, "CLEAR_DATA: запуск $pkg не удался: ${e.message}")
+            return
+        }
+        val declineMarkers = listOf(
+            "Отмена", "Cancel", "Пропустить", "Skip", "Не сейчас", "Not now"
+        )
+        if (!tapButtonByMarkers(declineMarkers, CONTENT_WAIT_MS * 2)) {
+            AppLog.w(TAG, "CLEAR_DATA: приветственный экран не отклонён (${step.id})")
+        }
+    }
+
+    /**
+     * Ждёт появления кликабельного узла с одним из маркеров и нажимает его.
+     * В отличие от tapSystemDialogButton, не блокирует «OK»/«Отмена» —
+     * в сценарии CLEAR_DATA_DECLINE эти кнопки являются целевыми.
+     */
+    private suspend fun tapButtonByMarkers(markers: List<String>, timeoutMs: Long): Boolean {
+        val start = System.currentTimeMillis()
+        while (System.currentTimeMillis() - start < timeoutMs) {
+            if (cancelled) return false
+            val node = findClickableByText(texts = markers)
+            if (node != null) {
+                val tapped = tapNode(node)
+                recycleNode(node)
+                return tapped
+            }
+            delay(250)
+        }
+        return false
+    }
+
     private suspend fun drillIntoLevel(
         step: SimpleSteps.Step,
         levelIndex: Int,
@@ -373,7 +502,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
     // ─── Switch finding and toggling ──────────────────────────────────────
     private suspend fun findAndToggleSwitch(step: SimpleSteps.Step): Result {
         val mergedSearchTexts = AdaptiveCatalog.mergeSearchTexts(service, step.id, step.searchTexts)
-        if (mergedSearchTexts.isEmpty()) return Result(true, "no_switch")
+        if (mergedSearchTexts.isEmpty()) return Result(false, "no_switch")
 
         if (!awaitScreen(mergedSearchTexts)) return Result(false, "switch_not_found")
 
@@ -407,7 +536,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         if (switchNode == null) {
             recycleNode(currentRoot)
-            return Result(true, "feature_absent")
+            return Result(false, "switch_not_found")
         }
 
         val isChecked = switchNode.isChecked
@@ -499,7 +628,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         fun walk(node: AccessibilityNodeInfo?, depth: Int) {
             if (node == null || depth > 20) return
             val desc = node.contentDescription?.toString() ?: ""
-            if (desc.isNotBlank() && OVERFLOW_TEXTS.any { desc.contains(it, ignoreCase = true) }) {
+            if (desc.isNotBlank() && OVERFLOW_TEXTS.any { TextMatcher.normalizedContains(desc, it) }) {
                 result.add(node); return
             }
             for (i in 0 until node.childCount) walk(node.getChild(i), depth + 1)
@@ -599,15 +728,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     private suspend fun tapSystemDialogButton(texts: List<String>): Boolean {
         val root = service.rootInActiveWindow ?: return false
-        for (text in texts) {
-            val nodes = root.findAccessibilityNodeInfosByText(text)
-            for (node in nodes.orEmpty()) {
-                if (node.isClickable) {
-                    val tapped = tapNode(node)
-                    recycleNode(node); recycleNode(root)
-                    return tapped
-                }
-            }
+        val node = findClickableByText(root, texts)
+        if (node != null) {
+            val tapped = tapNode(node)
+            recycleNode(node); recycleNode(root)
+            return tapped
         }
         recycleNode(root)
         return false
@@ -651,10 +776,23 @@ class SimpleRunner(private val service: AdbEnablerService) {
         texts: List<String>
     ): AccessibilityNodeInfo? {
         root ?: return null
-        for (text in texts) {
-            for (node in root.findAccessibilityNodeInfosByText(text).orEmpty()) {
-                if (isSwitchLike(node)) return node
-                if (node.parent != null && isSwitchLike(node.parent)) return node.parent
+        // Проход 1: сам переключатель с подходящим текстом/описанием.
+        findInTree(root) { isSwitchLike(it) && matchesAny(it, texts) }?.let { return it }
+        // Проход 2: подпись (TextView), рядом с которой лежит переключатель.
+        // Типичная разметка MIUI: LinearLayout { TextView, Switch } — текст и
+        // переключатель соседствуют, а не вложены друг в друга.
+        val labelNode = findInTree(root) { !isSwitchLike(it) && matchesAny(it, texts) }
+        labelNode?.let { findSwitchNear(it)?.let { sw -> return sw } }
+        // Проход 3 (последний рубеж): нечёткое совпадение текста.
+        findInTree(root) { isSwitchLike(it) && matchesAny(it, texts, fuzzy = true) }?.let {
+            AppLog.w(TAG, "findSwitchByText: нечётное совпадение переключателя")
+            return it
+        }
+        val fuzzyLabel = findInTree(root) { !isSwitchLike(it) && matchesAny(it, texts, fuzzy = true) }
+        fuzzyLabel?.let { fl ->
+            findSwitchNear(fl)?.let { sw ->
+                AppLog.w(TAG, "findSwitchByText: нечётное совпадение рядом с переключателем")
+                return sw
             }
         }
         return null
@@ -662,7 +800,81 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     private fun isSwitchLike(node: AccessibilityNodeInfo): Boolean {
         val cls = node.className?.toString() ?: ""
-        return cls.contains("Switch") || cls.contains("CheckBox") || cls.contains("ToggleButton") || node.isCheckable
+        return cls.contains("Switch") || cls.contains("CheckBox") ||
+            cls.contains("ToggleButton") || node.isCheckable
+    }
+
+    /** Обходит дерево в глубину и возвращает первый узел, подходящий под предикат. */
+    private fun findInTree(
+        root: AccessibilityNodeInfo,
+        predicate: (AccessibilityNodeInfo) -> Boolean
+    ): AccessibilityNodeInfo? {
+        if (predicate(root)) return root
+        for (i in 0 until root.childCount) {
+            val child = root.getChild(i) ?: continue
+            val found = findInTree(child, predicate)
+            if (found != null) return found
+        }
+        return null
+    }
+
+    /** Ищет переключатель рядом с текстовой подписью: среди соседей и выше по дереву. */
+    private fun findSwitchNear(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (isSwitchLike(node)) return node
+        var current: AccessibilityNodeInfo? = node
+        var depth = 0
+        while (current != null && depth < 4) {
+            val parent = current.parent
+            if (parent != null) {
+                for (i in 0 until parent.childCount) {
+                    val sibling = parent.getChild(i) ?: continue
+                    if (sibling !== node && isSwitchLike(sibling)) return sibling
+                }
+            }
+            current = parent
+            depth++
+        }
+        return null
+    }
+
+    /** Нормализованное сравнение текста/описания узла со списком искомых строк. */
+    private fun matchesAny(
+        node: AccessibilityNodeInfo,
+        texts: List<String>,
+        fuzzy: Boolean = false
+    ): Boolean {
+        val text = node.text?.toString()
+        val desc = node.contentDescription?.toString()
+        for (q in texts) {
+            val qn = TextMatcher.normalize(q)
+            if (qn.isEmpty()) continue
+            if (TextMatcher.normalizedEquals(text, qn) || TextMatcher.normalizedEquals(desc, qn)) return true
+            if (qn.length >= 4 &&
+                (TextMatcher.normalizedContains(text, qn) || TextMatcher.normalizedContains(desc, qn))
+            ) return true
+        }
+        // Последний рубеж: нечёткое совпадение (опечатки/варианты прошивок).
+        if (fuzzy) {
+            for (q in texts) {
+                if (TextMatcher.isFuzzyMatch(text, q, threshold = 0.88) ||
+                    TextMatcher.isFuzzyMatch(desc, q, threshold = 0.88)
+                ) return true
+            }
+        }
+        return false
+    }
+
+    /** Ближайший кликабельный узел (сам узел или предок до 5 уровней). */
+    private fun clickableAncestorOrSelf(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (node.isClickable) return node
+        var parent = node.parent
+        var depth = 0
+        while (parent != null && depth < 5) {
+            if (parent.isClickable) return parent
+            parent = parent.parent
+            depth++
+        }
+        return null
     }
 
     private fun findClickableByText(
@@ -670,18 +882,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
         texts: List<String>
     ): AccessibilityNodeInfo? {
         root ?: return null
-        for (text in texts) {
-            for (node in root.findAccessibilityNodeInfosByText(text).orEmpty()) {
-                if (node.isClickable) return node
-                var parent = node.parent;
-                var depth = 0
-                while (parent != null && depth < 5) {
-                    if (parent.isClickable) return parent
-                    parent = parent.parent; depth++
-                }
-            }
-        }
-        return null
+        return findInTree(root) { matchesAny(it, texts) && clickableAncestorOrSelf(it) != null }
+            ?.let { clickableAncestorOrSelf(it) }
     }
 
     private suspend fun findClickableByTextWithScroll(texts: List<String>): AccessibilityNodeInfo? {
@@ -714,12 +916,24 @@ class SimpleRunner(private val service: AdbEnablerService) {
             val root = service.rootInActiveWindow
             if (root != null) {
                 val text = collectAllText(root)
-                if (markers.any { text.contains(it, ignoreCase = true) }) {
+                if (markers.any { TextMatcher.normalizedContains(text, it) }) {
                     recycleNode(root); return true
                 }
                 recycleNode(root)
             }
             delay(200)
+        }
+        // Последний рубеж: нечётное совпадение по узлам дерева (Stage 4).
+        if (!cancelled) {
+            val fRoot = service.rootInActiveWindow
+            if (fRoot != null) {
+                val hit = findInTree(fRoot) { matchesAny(it, markers, fuzzy = true) } != null
+                recycleNode(fRoot)
+                if (hit) {
+                    AppLog.w(TAG, "awaitScreen: нечётное совпадение маркера")
+                    return true
+                }
+            }
         }
         return false
     }

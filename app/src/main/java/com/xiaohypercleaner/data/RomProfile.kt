@@ -80,10 +80,12 @@ data class RomProfile(
 
             val miui = readProp("ro.miui.ui.version.name")
                 ?: readProp("ro.mi.os.version.name")
+            // HyperOS определяется ТОЛЬКО по системным свойствам ro.mi.os.*.
+            // com.miui.securitycore присутствует и на MIUI 12/13 — по нему нельзя судить
+            // о HyperOS (ложное срабатывание ломало таймауты и маршруты).
+            val osVersionName = readProp("ro.mi.os.version.name")
             val hyper = !readProp("ro.mi.os.version.code").isNullOrBlank() ||
-                readProp("ro.mi.os.version.name")?.contains("1.") == true ||
-                readProp("ro.mi.os.version.name")?.contains("2.") == true ||
-                isPackagePresent(pm, "com.miui.securitycore")
+                osVersionName != null && (osVersionName.contains("1.") || osVersionName.contains("2."))
 
             val config = context.resources.configuration
             val characteristics = readProp("ro.build.characteristics").orEmpty()

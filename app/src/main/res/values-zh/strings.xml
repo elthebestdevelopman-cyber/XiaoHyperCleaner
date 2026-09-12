@@ -308,5 +308,8 @@
     <string name="result_soft">如果有帮助 — 欢迎评价或支持。这能帮助其他人找到这款应用。</string>
     <string name="result_rate">评价</string>
     <string name="result_support">支持</string>
+    <string name="result_share_log">分享日志</string>
     <string name="result_close">关闭</string>
+    <string name="progress_format">%1$d%%</string>
+    <string name="mock_notifications_label">通知</string>
 </resources>
