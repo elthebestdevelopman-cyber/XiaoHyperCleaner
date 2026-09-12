@@ -110,7 +110,7 @@ class ShizukuUiController(
     }
 
     /**
-     * Показывает диалог опций (DNS filter, aggressive mode).
+     * Показывает диалог опций (DNS filter).
      * Вызывается когда Shizuku готов или после пропуска wizard.
      */
     fun showOptionsDialog() {

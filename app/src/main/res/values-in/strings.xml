@@ -77,13 +77,11 @@
     <string name="shizuku_wizard_step6">Shizuku sedang berjalan. Sekarang minta izin di bawah.</string>
     <string name="shizuku_wizard_permission_denied">Izin Shizuku ditolak.</string>
 
-    <!-- ========== OPTIONS (DNS, AGGRESSIVE) ========== -->
+    <!-- ========== OPTIONS (DNS) ========== -->
     <string name="options_dialog_title">Opsi pengoptimalan</string>
     <string name="options_dialog_text">Pilih opsi tambahan.</string>
     <string name="dns_option_title">Filter DNS aman</string>
     <string name="dns_option_description">Memfilter permintaan jaringan sistem yang tidak diinginkan melalui DNS privat yang aman.</string>
-    <string name="aggressive_option_title">Pengoptimalan lanjutan</string>
-    <string name="aggressive_option_description">Setelan lanjutan untuk pengguna berpengalaman.</string>
     <string name="options_dialog_start">Mulai pengoptimalan</string>
 
     <!-- ========== DNS WARNING ========== -->

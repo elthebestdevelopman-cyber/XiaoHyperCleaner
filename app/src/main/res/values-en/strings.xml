@@ -91,13 +91,11 @@
     <string name="shizuku_wizard_step6">Shizuku is running. Now press "Request permission" below.</string>
     <string name="shizuku_wizard_permission_denied">Shizuku permission denied. Open Shizuku and grant it manually.</string>
 
-    <!-- ========== OPTIONS (DNS, AGGRESSIVE) ========== -->
+    <!-- ========== OPTIONS (DNS) ========== -->
     <string name="options_dialog_title">Optimization options</string>
     <string name="options_dialog_text">Choose additional options. You can change them later.</string>
     <string name="dns_option_title">Secure DNS filter</string>
     <string name="dns_option_description">Filters unwanted system telemetry requests via secure private DNS.</string>
-    <string name="aggressive_option_title">Extended optimization</string>
-    <string name="aggressive_option_description">Advanced settings for experienced users. Some Xiaomi features may work differently.</string>
     <string name="options_dialog_start">Start optimization</string>
 
     <!-- ========== DNS WARNING ========== -->

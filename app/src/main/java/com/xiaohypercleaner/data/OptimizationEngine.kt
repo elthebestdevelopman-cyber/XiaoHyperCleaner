@@ -7,8 +7,7 @@ import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
 
 data class OptimizationOptions(
-    val dnsFilter: Boolean = false,
-    val aggressiveMode: Boolean = false
+    val dnsFilter: Boolean = false
 )
 
 data class OptimizationReport(
@@ -92,7 +91,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         var enabledDns: Boolean = false
         var previousDnsMode: String? = null
         var previousDnsHost: String? = null
-        var originalRegion: String? = null
     }
 
     private suspend fun connect(): Boolean {
@@ -117,7 +115,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
     ): OptimizationReport {
         AppLog.i(
             TAG,
-            "Запуск оптимизации: dnsFilter=${options.dnsFilter}, aggressive=${options.aggressiveMode}"
+            "Запуск оптимизации: dnsFilter=${options.dnsFilter}"
         )
 
         OptimizationNotifier.setRunning()
@@ -169,11 +167,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             callbacks.onProgress(AppConstants.PROGRESS_METHOD3)
             val settings3 = applyHiddenKeys(transaction)
             appliedSettings.addAll(settings3)
-
-            if (options.aggressiveMode) {
-                val regional = applyRegionalKeys(transaction)
-                appliedSettings.addAll(regional)
-            }
 
             delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
 
@@ -443,12 +436,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
 
         return applied
-    }
-
-    private fun applyRegionalKeys(transaction: Transaction): List<String> {
-        // УДАЛЕНО: Изменение региона удалено из-за риска нарушения работы системных сервисов
-        AppLog.i(TAG, "Региональные ключи пропущены (удалено из-за рисков)")
-        return emptyList()
     }
 
     private suspend fun disableAdServices(transaction: Transaction): List<String> {

@@ -618,9 +618,7 @@ private fun MainDialogsHost(
     if (state.showOptionsDialog) {
         OptionsDialog(
             dnsFilterEnabled = state.dnsFilterEnabled,
-            aggressiveMode = state.aggressiveMode,
             onDnsToggle = { vm.toggleDnsFilter(it) },
-            onAggressiveToggle = { vm.toggleAggressiveMode(it) },
             onConfirm = {
                 AppLog.i(MainActivity.TAG, "options dialog: confirmed")
                 vm.optionsDialogConfirmed()

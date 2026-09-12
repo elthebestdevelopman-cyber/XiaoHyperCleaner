@@ -4,7 +4,7 @@
 
 [![Version](https://img.shields.io/badge/version-1.0--beta2-blue)](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/releases)
 [![Android](https://img.shields.io/badge/Android-10%2B-brightgreen)](https://www.android.com/)
-[![License](https://img.shields.io/badge/license-CC%20BY--NC--SA%204.0-orange)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+[![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](https://www.gnu.org/licenses/gpl-3.0)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-success)](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/actions)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.4.10-purple)](https://kotlinlang.org/)
 
@@ -424,7 +424,6 @@ UI-действий (нажатие кнопок, включение перек�
 
 ### v1.1 (следующая версия)
 
-- [ ] Профили оптимизации: «Мягкая» / «Средняя» / «Максимальная»
 - [ ] История оптимизаций в DataStore
 - [ ] Экспорт/импорт настроек
 - [ ] Больше методов оптимизации (appops, suspend)
@@ -441,16 +440,15 @@ UI-действий (нажатие кнопок, включение перек�
 
 ## 📄 Лицензия
 
-**CC BY-NC-SA 4.0** (Creative Commons Attribution-NonCommercial-ShareAlike 4.0)
+**GPL-3.0-or-later** (GNU General Public License v3.0 или позже) + коммерческая лицензия (dual-licensing).
 
-- ✅ Использование разрешено
-- ✅ Модификация разрешена
-- ✅ Распространение разрешено
-- ❌ Коммерческое использование запрещено
-- 🔄 Любые модификации обязаны распространяться под той же лицензией (ShareAlike)
+- ✅ Использование, модификация и распространение разрешены
+- ✅ Коммерческое использование разрешено
+- 🔄 Производные работы должны распространяться под GPL-3.0-or-later (copyleft)
+- 💼 Для закрытого встраивания и white-label — отдельная [коммерческая лицензия](COMMERCIAL-LICENSE.md)
 
 Полный
-текст: [creativecommons.org/licenses/by-nc-sa/4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+текст: [gnu.org/licenses/gpl-3.0](https://www.gnu.org/licenses/gpl-3.0/)
 
 ## 👨‍💻 Автор
 

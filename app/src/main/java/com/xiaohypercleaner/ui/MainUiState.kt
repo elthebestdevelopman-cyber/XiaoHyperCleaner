@@ -108,14 +108,11 @@ data class MainUiState(
     // Опции оптимизации
     // ═══════════════════════════════════════════════════════════════
 
-    /** Диалог опций (DNS filter, aggressive mode) */
+    /** Диалог опций (DNS filter) */
     val showOptionsDialog: Boolean = false,
 
     /** DNS filter включён */
     val dnsFilterEnabled: Boolean = false,
-
-    /** Aggressive mode включён */
-    val aggressiveMode: Boolean = false,
 
     /** Предупреждение о DNS filter */
     val showDnsWarningDialog: Boolean = false,

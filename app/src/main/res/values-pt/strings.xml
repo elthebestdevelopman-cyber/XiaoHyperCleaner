@@ -77,13 +77,11 @@
     <string name="shizuku_wizard_step6">O Shizuku está em execução. Agora solicite permissão abaixo.</string>
     <string name="shizuku_wizard_permission_denied">Permissão do Shizuku negada.</string>
 
-    <!-- ========== OPTIONS (DNS, AGGRESSIVE) ========== -->
+    <!-- ========== OPTIONS (DNS) ========== -->
     <string name="options_dialog_title">Opções de otimização</string>
     <string name="options_dialog_text">Escolha opções adicionais.</string>
     <string name="dns_option_title">Filtro DNS seguro</string>
     <string name="dns_option_description">Filtra requisições de telemetria do sistema via DNS privado seguro.</string>
-    <string name="aggressive_option_title">Otimização estendida</string>
-    <string name="aggressive_option_description">Configurações avançadas para usuários experientes.</string>
     <string name="options_dialog_start">Iniciar otimização</string>
 
     <!-- ========== DNS WARNING ========== -->

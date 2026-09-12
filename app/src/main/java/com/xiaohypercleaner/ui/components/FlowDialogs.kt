@@ -400,27 +400,23 @@ fun LocationChoiceDialog(
 }
 
 /**
- * Диалог опций перед оптимизацией: DNS-фильтр + расширенный режим.
+ * Диалог опций перед оптимизацией: DNS-фильтр.
  *
  * Показывается перед запуском Pro-режима для выбора дополнительных опций.
  *
  * @param dnsFilterEnabled Состояние переключателя DNS-фильтра
- * @param aggressiveMode Состояние переключателя расширенного режима
  * @param onDnsToggle Callback при изменении DNS-фильтра
- * @param onAggressiveToggle Callback при изменении расширенного режима
  * @param onConfirm Callback при подтверждении и запуске оптимизации
  * @param onCancel Callback при отмене
  */
 @Composable
 fun OptionsDialog(
     dnsFilterEnabled: Boolean,
-    aggressiveMode: Boolean,
     onDnsToggle: (Boolean) -> Unit,
-    onAggressiveToggle: (Boolean) -> Unit,
     onConfirm: () -> Unit,
     onCancel: () -> Unit
 ) {
-    AppLog.d(TAG, "OptionsDialog shown, dns=$dnsFilterEnabled, aggressive=$aggressiveMode")
+    AppLog.d(TAG, "OptionsDialog shown, dns=$dnsFilterEnabled")
 
     FlowDialog(onCancel) {
         DialogTitle(stringResource(R.string.options_dialog_title))
@@ -445,19 +441,7 @@ fun OptionsDialog(
             }
         )
 
-        HorizontalDivider()
         Spacer(Modifier.height(12.dp))
-
-        ToggleRow(
-            title = stringResource(R.string.aggressive_option_title),
-            subtitle = stringResource(R.string.aggressive_option_description),
-            subtitleColor = MaterialTheme.colorScheme.error,
-            checked = aggressiveMode,
-            onCheckedChange = { checked: Boolean ->
-                AppLog.i(TAG, "OptionsDialog: aggressive mode toggled to $checked")
-                onAggressiveToggle(checked)
-            }
-        )
 
         FullWidthButton(
             text = stringResource(R.string.options_dialog_start),

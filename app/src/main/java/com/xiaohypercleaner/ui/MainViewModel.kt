@@ -578,7 +578,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun optionsDialogConfirmed() {
         AppLog.i(
             TAG,
-            "optionsDialogConfirmed, dnsFilter=${_state.value.dnsFilterEnabled}, aggressive=${_state.value.aggressiveMode}"
+            "optionsDialogConfirmed, dnsFilter=${_state.value.dnsFilterEnabled}"
         )
         update { it.copy(showOptionsDialog = false) }
         if (_state.value.dnsFilterEnabled) {
@@ -619,11 +619,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i(TAG, "toggleDnsFilter: $enabled")
         update { it.copy(dnsFilterEnabled = enabled) }
         viewModelScope.launch { prefs.setDnsFilterEnabled(enabled) }
-    }
-
-    fun toggleAggressiveMode(enabled: Boolean) {
-        AppLog.i(TAG, "toggleAggressiveMode: $enabled")
-        update { it.copy(aggressiveMode = enabled) }
     }
 
     fun shizukuDialogInstall() = shizuku.dialogInstall()

@@ -80,13 +80,11 @@
     <string name="shizuku_wizard_step6">Shizuku запущен. Теперь нажмите «Запросить разрешение» ниже.</string>
     <string name="shizuku_wizard_permission_denied">Разрешение Shizuku отклонено. Откройте Shizuku и разрешите вручную.</string>
 
-    <!-- ========== ОПЦИИ (DNS, AGGRESSIVE) ========== -->
+    <!-- ========== ОПЦИИ (DNS) ========== -->
     <string name="options_dialog_title">Параметры оптимизации</string>
     <string name="options_dialog_text">Выберите дополнительные опции. Их можно изменить позже.</string>
     <string name="dns_option_title">Защищённый DNS-фильтр</string>
     <string name="dns_option_description">Фильтрация избыточных системных сетевых запросов через защищённый приватный DNS.</string>
-    <string name="aggressive_option_title">Расширенная оптимизация</string>
-    <string name="aggressive_option_description">Дополнительные настройки для опытных пользователей. Некоторые функции Xiaomi могут работать иначе.</string>
     <string name="options_dialog_start">Начать оптимизацию</string>
 
     <!-- ========== DNS ПРЕДУПРЕЖДЕНИЕ ========== -->

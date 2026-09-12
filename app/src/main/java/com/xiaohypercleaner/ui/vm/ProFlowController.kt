@@ -84,7 +84,7 @@ class ProFlowController(
 
     /**
      * Точка входа в PRO-цепочку.
-     * Вызывается после подтверждения опций (DNS filter, aggressive mode).
+     * Вызывается после подтверждения опций (DNS filter).
      */
     fun proceedToChain() {
         AppLog.i(TAG, "proceedToChain")
@@ -347,14 +347,12 @@ class ProFlowController(
         val currentState: MainUiState = getState()
         AppLog.i(
             TAG,
-            "startChain: setting pending flag, dnsFilter=${currentState.dnsFilterEnabled}, " +
-                    "aggressive=${currentState.aggressiveMode}"
+            "startChain: setting pending flag, dnsFilter=${currentState.dnsFilterEnabled}"
         )
 
         scope.launch {
             prefs.setPendingOptimization(true)
             prefs.setDnsFilterEnabled(currentState.dnsFilterEnabled)
-            prefs.setAggressiveMode(currentState.aggressiveMode)
             AppLog.i(TAG, "startChain: pending flag set")
 
             // Повторная проверка состояния (защита от race condition)

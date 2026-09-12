@@ -13,7 +13,7 @@ import org.junit.Test
  * - Хранит список выполненных команд
  * - Отслеживает отключённые пакеты
  * - Поддерживает симуляцию обрыва соединения (failAtCommandNumber)
- * - Обрабатывает DNS-настройки и region
+ * - Обрабатывает DNS-настройки
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 private open class FakeAdb : AdbExecutor {
@@ -27,7 +27,6 @@ private open class FakeAdb : AdbExecutor {
 
     var dnsMode: String = "opportunistic"
     var dnsSpecifier: String = ""
-    var originalRegion: String = "RU"
 
     override suspend fun connect(): Boolean {
         connectionsCount++
@@ -64,7 +63,6 @@ private open class FakeAdb : AdbExecutor {
             command.contains("settings get secure upload_log_pref") -> "1"
             command.contains("settings get secure show_recommendations") -> "1"
             command.contains("settings get system miui_recents_show_recommend") -> "1"
-            command.contains("settings get secure miui_region") -> originalRegion
             command.contains("settings get global window_animation_scale") -> "0.5"
             command.contains("settings get global transition_animation_scale") -> "0.5"
             command.contains("settings get global animator_duration_scale") -> "0.5"

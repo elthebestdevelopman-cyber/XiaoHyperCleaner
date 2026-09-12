@@ -58,10 +58,6 @@ sealed interface PreferenceKey {
         override val name = "has_seen_dns_warning"
     }
 
-    data object AggressiveMode : PreferenceKey {
-        override val name = "aggressive_mode"
-    }
-
     data object LastReportJson : PreferenceKey {
         override val name = "last_report_json"
     }
@@ -131,9 +127,6 @@ class PreferencesManager(private val context: Context) {
     val hasSeenDnsWarning: Flow<Boolean> =
         readBool(PreferenceKey.HasSeenDnsWarning, false)
 
-    val aggressiveMode: Flow<Boolean> =
-        readBool(PreferenceKey.AggressiveMode, false)
-
     suspend fun setDarkTheme(enabled: Boolean) =
         writeBool(PreferenceKey.DarkTheme, enabled)
 
@@ -157,9 +150,6 @@ class PreferencesManager(private val context: Context) {
 
     suspend fun setHasSeenDnsWarning(seen: Boolean) =
         writeBool(PreferenceKey.HasSeenDnsWarning, seen)
-
-    suspend fun setAggressiveMode(enabled: Boolean) =
-        writeBool(PreferenceKey.AggressiveMode, enabled)
 
     suspend fun clearPendingOptimization() =
         writeBool(PreferenceKey.PendingOptimization, false)

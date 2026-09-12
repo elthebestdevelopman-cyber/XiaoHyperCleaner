@@ -100,13 +100,11 @@
     <string name="shizuku_wizard_step6">Shizuku 正在运行。现在请点击下方的"请求权限"。</string>
     <string name="shizuku_wizard_permission_denied">Shizuku 权限被拒绝。请打开 Shizuku 并手动授予。</string>
 
-    <!-- ========== 选项（DNS、激进模式） ========== -->
+    <!-- ========== 选项（DNS） ========== -->
     <string name="options_dialog_title">优化选项</string>
     <string name="options_dialog_text">选择附加选项。稍后可更改。</string>
     <string name="dns_option_title">安全 DNS 过滤器</string>
     <string name="dns_option_description">通过安全私人 DNS 过滤不必要的系统遥测网络请求。</string>
-    <string name="aggressive_option_title">扩展优化</string>
-    <string name="aggressive_option_description">适合经验丰富用户的高级设置。某些小米功能可能会有所不同。</string>
     <string name="options_dialog_start">开始优化</string>
 
     <!-- ========== DNS 警告 ========== -->
