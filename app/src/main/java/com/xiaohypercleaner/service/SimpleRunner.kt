@@ -6,8 +6,10 @@ import android.content.Intent
 import android.graphics.Path
 import android.graphics.Rect
 import android.media.AudioManager
+import android.os.Build
 import android.provider.Settings
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.xiaohypercleaner.data.AdaptiveCatalog
 import com.xiaohypercleaner.data.DirectIntentNavigator
 import com.xiaohypercleaner.data.RomProfile
@@ -539,7 +541,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             return Result(false, "switch_not_found")
         }
 
-        val isChecked = switchNode.isChecked
+        val isChecked = switchNode.isCheckedCompat()
         val text = switchNode.text?.toString() ?: mergedSearchTexts.first()
 
         if (isChecked == step.targetChecked) {
@@ -588,7 +590,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             if (cancelled) break
             val addRoot = service.rootInActiveWindow ?: continue
             val addNode = findSwitchByText(addRoot, listOf(toggleText))
-            if (addNode != null && addNode.isChecked != step.targetChecked) tapNode(addNode)
+            if (addNode != null && addNode.isCheckedCompat() != step.targetChecked) tapNode(addNode)
             recycleNode(addNode); recycleNode(addRoot)
             delay(400)
         }
@@ -599,7 +601,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
     private suspend fun verifySwitchState(step: SimpleSteps.Step, texts: List<String>): Boolean {
         val root = service.rootInActiveWindow ?: return true
         val switchNode = findSwitchByText(root, texts)
-        val result = switchNode?.let { it.isChecked == step.targetChecked } ?: true
+        val result = switchNode?.let { it.isCheckedCompat() == step.targetChecked } ?: true
         recycleNode(switchNode); recycleNode(root)
         return result
     }
@@ -1007,10 +1009,20 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
     }
 
+    // Легаси: recycle() deprecated с API 33 (система перерабатывает узлы автоматически),
+    // но на Android 10–12 возвращает узел в пул — поэтому версионный guard.
     private fun recycleNode(node: AccessibilityNodeInfo?) {
-        try {
-            node?.recycle()
-        } catch (_: Exception) {
+        node ?: return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            try {
+                @Suppress("DEPRECATION")
+                node.recycle()
+            } catch (_: Exception) {
+            }
         }
     }
+
+    // Фреймворковый isChecked deprecated с API 33 — Compat скрывает версионные различия.
+    private fun AccessibilityNodeInfo.isCheckedCompat(): Boolean =
+        AccessibilityNodeInfoCompat.wrap(this).isChecked
 }
