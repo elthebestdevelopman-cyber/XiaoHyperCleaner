@@ -48,29 +48,6 @@ fun openUrl(context: Context, url: String) {
 }
 
 /**
- * Открывает WebView для донатов; при ошибке — fallback в браузер.
- *
- * @param context Контекст приложения
- * @param url URL для открытия
- * @param title Заголовок для WebViewActivity
- */
-fun openWebView(context: Context, url: String, title: String) {
-    AppLog.i(TAG, "openWebView: открытие $url")
-    try {
-        context.startActivity(
-            Intent(context, WebViewActivity::class.java)
-                .putExtra(WebViewActivity.EXTRA_URL, url)
-                .putExtra(WebViewActivity.EXTRA_TITLE, title)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
-        AppLog.i(TAG, "openWebView: успех")
-    } catch (e: Exception) {
-        AppLog.w(TAG, "openWebView: не удалось, fallback в браузер: ${e.message}")
-        openUrl(context, url)
-    }
-}
-
-/**
  * Делится файлом лога приложения через системный chooser.
  *
  * ИСПРАВЛЕНИЯ (файл не прикреплялся — отправлялся только текст):

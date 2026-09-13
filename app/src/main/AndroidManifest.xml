@@ -142,11 +142,6 @@
             </intent-filter>
         </activity>
 
-        <!-- WebView для внешних ссылок (ЮMoney, GitHub) -->
-        <activity
-            android:name=".ui.WebViewActivity"
-            android:exported="false" />
-
         <!-- ═══════════════════════════════════════════════════════════ -->
         <!-- Services -->
         <!-- ═══════════════════════════════════════════════════════════ -->
