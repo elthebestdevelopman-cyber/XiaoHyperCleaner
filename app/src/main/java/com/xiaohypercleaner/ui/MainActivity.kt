@@ -52,6 +52,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationMode
@@ -768,13 +769,9 @@ private fun MainDialogsHost(
             onDarkChange = onDarkChange,
             onClose = { AppLog.i(MainActivity.TAG, "menu: closed"); onMenuOpenChange(false) },
             onRate = { AppLog.i(MainActivity.TAG, "menu: rate clicked"); openRateApp(context) },
-            onYooMoney = {
-                AppLog.i(MainActivity.TAG, "menu: yoomoney clicked")
-                openWebView(context, "https://yoomoney.ru/to/410011379195150", "ЮMoney")
-            },
-            onCloudTips = {
-                AppLog.i(MainActivity.TAG, "menu: cloudtips clicked")
-                openWebView(context, "https://pay.cloudtips.ru/p/90614cff", "CloudTips")
+            onSupportPage = {
+                AppLog.i(MainActivity.TAG, "menu: support page clicked")
+                openUrl(context, AppConstants.SUPPORT_PAGE_URL)
             },
             onShareLog = {
                 AppLog.i(

@@ -178,8 +178,7 @@
     <string name="menu_dark_theme">Tema oscuro</string>
     <string name="menu_privacy_policy">Política de privacidad</string>
     <string name="rate_app">Calificar la app</string>
-    <string name="support_yoomoney">Apoyar (YuMoney)</string>
-    <string name="support_cloudtips">Apoyar (CloudTips)</string>
+    <string name="support_page">Apoyar el proyecto</string>
     <string name="log_share">Compartir registro</string>
     <string name="about_title">Acerca de la app</string>
     <string name="about_author">Autor</string>

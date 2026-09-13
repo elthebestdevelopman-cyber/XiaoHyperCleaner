@@ -50,4 +50,9 @@ object AppConstants {
     // DataStore
     // ═══════════════════════════════════════════════════════════════
     const val DATASTORE_NAME = "xhc_settings"
+
+    // ═══════════════════════════════════════════════════════════════
+    // Ссылки
+    // ═══════════════════════════════════════════════════════════════
+    const val SUPPORT_PAGE_URL: String = "https://elthebestdevelopman-cyber.github.io/support/"
 }

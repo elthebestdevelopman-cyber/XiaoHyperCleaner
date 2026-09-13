@@ -153,8 +153,7 @@
     <string name="menu_dark_theme">Tema gelap</string>
     <string name="menu_privacy_policy">Kebijakan Privasi</string>
     <string name="rate_app">Beri nilai</string>
-    <string name="support_yoomoney">Dukung (YuMoney)</string>
-    <string name="support_cloudtips">Dukung (CloudTips)</string>
+    <string name="support_page">Dukung proyek</string>
     <string name="log_share">Bagikan log</string>
     <string name="about_title">Tentang aplikasi</string>
     <string name="about_author">Penulis</string>

@@ -177,8 +177,7 @@
     <string name="menu_dark_theme">深色主题</string>
     <string name="menu_privacy_policy">隐私政策</string>
     <string name="rate_app">评价应用</string>
-    <string name="support_yoomoney">支持（ЮMoney）</string>
-    <string name="support_cloudtips">支持（CloudTips）</string>
+    <string name="support_page">支持项目</string>
     <string name="log_share">分享日志</string>
     <string name="about_title">关于应用</string>
     <string name="about_author">作者</string>

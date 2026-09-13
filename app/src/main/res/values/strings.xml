@@ -157,8 +157,7 @@
     <string name="menu_dark_theme">Тёмная тема</string>
     <string name="menu_privacy_policy">Политика приватности</string>
     <string name="rate_app">Оценить приложение</string>
-    <string name="support_yoomoney">Поддержать (ЮMoney)</string>
-    <string name="support_cloudtips">Поддержать (CloudTips)</string>
+    <string name="support_page">Поддержать проект</string>
     <string name="log_share">Поделиться логом</string>
     <string name="about_title">О приложении</string>
     <string name="about_author">Автор</string>

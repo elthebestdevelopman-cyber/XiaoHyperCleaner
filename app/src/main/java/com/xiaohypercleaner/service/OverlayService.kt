@@ -23,7 +23,9 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.R
+import com.xiaohypercleaner.ui.openUrl
 import com.xiaohypercleaner.util.AppLog
 
 /**
@@ -391,15 +393,7 @@ class OverlayService : Service() {
 
     private fun openSupport() {
         try {
-            startActivity(
-                Intent(this, com.xiaohypercleaner.ui.WebViewActivity::class.java)
-                    .putExtra(
-                        com.xiaohypercleaner.ui.WebViewActivity.EXTRA_URL,
-                        "https://yoomoney.ru/to/410011379195150"
-                    )
-                    .putExtra(com.xiaohypercleaner.ui.WebViewActivity.EXTRA_TITLE, "ЮMoney")
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
+            openUrl(this, AppConstants.SUPPORT_PAGE_URL)
         } catch (e: Exception) {
             AppLog.w(TAG, "openSupport failed: ${e.message}")
         }

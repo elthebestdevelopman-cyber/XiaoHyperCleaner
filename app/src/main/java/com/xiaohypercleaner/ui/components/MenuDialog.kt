@@ -48,8 +48,7 @@ private const val TAG = "MenuDialog"
  * @param onDarkChange Callback при переключении тёмной темы
  * @param onClose Callback при закрытии меню
  * @param onRate Callback при нажатии "Оценить приложение"
- * @param onYooMoney Callback при нажатии "Поддержать через ЮMoney"
- * @param onCloudTips Callback при нажатии "Поддержать через CloudTips"
+ * @param onSupportPage Callback при нажатии "Поддержать проект"
  * @param onShareLog Callback при нажатии "Поделиться логом"
  * @param onPrivacyPolicyClick Callback при нажатии "Политика конфиденциальности"
  */
@@ -59,8 +58,7 @@ fun MenuDialog(
     onDarkChange: (Boolean) -> Unit,
     onClose: () -> Unit,
     onRate: () -> Unit,
-    onYooMoney: () -> Unit,
-    onCloudTips: () -> Unit,
+    onSupportPage: () -> Unit,
     onShareLog: () -> Unit,
     onPrivacyPolicyClick: () -> Unit
 ) {
@@ -133,22 +131,12 @@ fun MenuDialog(
 
                 TextButton(
                     onClick = {
-                        AppLog.i(TAG, "YooMoney support clicked")
-                        onYooMoney()
+                        AppLog.i(TAG, "Support page clicked")
+                        onSupportPage()
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(stringResource(R.string.support_yoomoney))
-                }
-
-                TextButton(
-                    onClick = {
-                        AppLog.i(TAG, "CloudTips support clicked")
-                        onCloudTips()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(R.string.support_cloudtips))
+                    Text(stringResource(R.string.support_page))
                 }
 
                 TextButton(
