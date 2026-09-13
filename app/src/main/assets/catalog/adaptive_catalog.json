@@ -1,4 +1,6 @@
 {
+  "variants": {
+    "cn_hyperos": {
   "pkgSteps": {
     "msa": ["com.miui.msa.global", "com.miui.msa.core"],
     "browser_sys": ["com.mi.globalbrowser", "com.android.browser", "com.miui.browser"],
@@ -103,4 +105,6 @@
     "Pular", "Agora não", "Fechar", "Cancelar", "Concordar", "Sim", "Confirmar",
     "Saltar", "Ahora no", "Cerrar", "Aceptar", "Sí"
   ]
+}
+  }
 }

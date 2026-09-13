@@ -44,9 +44,16 @@ object AdaptiveCatalog {
     private const val TAG: String = "AdaptiveCatalog"
     private const val CATALOG_ASSET_PATH: String = "catalog/adaptive_catalog.json"
 
+    /** Вариант каталога по умолчанию (= текущее поведение CN/HyperOS). */
+    private const val DEFAULT_VARIANT: String = "cn_hyperos"
+
     /** Загруженный каталог (ленивая инициализация) */
     @Volatile
     private var catalogJson: JSONObject? = null
+
+    /** Активный вариант каталога; по умолчанию cn_hyperos (поведение без изменений). */
+    @Volatile
+    private var activeVariantName: String = DEFAULT_VARIANT
 
     /** Флаг успешной загрузки */
     @Volatile
@@ -61,6 +68,22 @@ object AdaptiveCatalog {
     private val confirmTextsCache: MutableMap<String, List<String>> = ConcurrentHashMap()
     private val additionalTogglesCache: MutableMap<String, List<String>> = ConcurrentHashMap()
     private val packagesCache: MutableMap<String, List<String>> = ConcurrentHashMap()
+
+    /**
+     * Раздел активного варианта с фолбэком на cn_hyperos, если раздела нет
+     * в активном варианте (например, global_ru переопределяет только uiSteps).
+     */
+    private fun variantSection(section: String): JSONObject? {
+        val variants: JSONObject = catalogJson?.optJSONObject("variants") ?: return null
+        return variants.optJSONObject(activeVariantName)?.optJSONObject(section)
+            ?: variants.optJSONObject(DEFAULT_VARIANT)?.optJSONObject(section)
+    }
+
+    private fun variantArray(section: String): org.json.JSONArray? {
+        val variants: JSONObject = catalogJson?.optJSONObject("variants") ?: return null
+        return variants.optJSONObject(activeVariantName)?.optJSONArray(section)
+            ?: variants.optJSONObject(DEFAULT_VARIANT)?.optJSONArray(section)
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // Загрузка каталога
@@ -82,10 +105,10 @@ object AdaptiveCatalog {
                 catalogJson = JSONObject(jsonStr)
                 isLoaded = true
 
-                val pkgSteps: Int = catalogJson?.optJSONObject("pkgSteps")?.length() ?: 0
-                val groups: Int = catalogJson?.optJSONObject("groups")?.length() ?: 0
-                val uiSteps: Int = catalogJson?.optJSONObject("uiSteps")?.length() ?: 0
-                val enterSafe: Int = catalogJson?.optJSONArray("enterSafe")?.length() ?: 0
+                val pkgSteps: Int = variantSection("pkgSteps")?.length() ?: 0
+                val groups: Int = variantSection("groups")?.length() ?: 0
+                val uiSteps: Int = variantSection("uiSteps")?.length() ?: 0
+                val enterSafe: Int = variantArray("enterSafe")?.length() ?: 0
 
                 AppLog.i(
                     TAG,
@@ -287,7 +310,7 @@ object AdaptiveCatalog {
      */
     private fun getCatalogList(section: String, stepId: String, key: String): List<String> {
         return try {
-            val sectionObj: JSONObject = catalogJson?.optJSONObject(section) ?: return emptyList()
+            val sectionObj: JSONObject = variantSection(section) ?: return emptyList()
             val stepObj: JSONObject = sectionObj.optJSONObject(stepId) ?: return emptyList()
             val arr: org.json.JSONArray = stepObj.optJSONArray(key) ?: return emptyList()
             (0 until arr.length()).mapNotNull { arr.optString(it) }
@@ -306,7 +329,7 @@ object AdaptiveCatalog {
      */
     private fun getCatalogDrillPath(stepId: String): List<List<String>> {
         return try {
-            val uiSteps: JSONObject = catalogJson?.optJSONObject("uiSteps") ?: return emptyList()
+            val uiSteps: JSONObject = variantSection("uiSteps") ?: return emptyList()
             val stepObj: JSONObject = uiSteps.optJSONObject(stepId) ?: return emptyList()
             val drillArr: org.json.JSONArray =
                 stepObj.optJSONArray("drillPath") ?: return emptyList()
@@ -332,14 +355,14 @@ object AdaptiveCatalog {
     private fun getCatalogPackages(stepId: String, profile: RomProfile): List<String> {
         return try {
             // Сначала пробуем pkgSteps (прямая маппинг stepId → пакеты)
-            val pkgSteps: JSONObject? = catalogJson?.optJSONObject("pkgSteps")
+            val pkgSteps: JSONObject? = variantSection("pkgSteps")
             val stepPkgs: List<String> = pkgSteps?.optJSONArray(stepId)?.let { arr ->
                 (0 until arr.length()).mapNotNull { arr.optString(it) }
             } ?: emptyList()
 
             // Если нет прямой маппинга, пробуем groups
             val groupPkgs: List<String> = if (stepPkgs.isEmpty()) {
-                val groups: JSONObject? = catalogJson?.optJSONObject("groups")
+                val groups: JSONObject? = variantSection("groups")
                 // Ищем группу по stepId (без суффикса _sys, _notif и т.д.)
                 val groupName: String = stepId.substringBefore("_")
                 groups?.optJSONArray(groupName)?.let { arr ->
@@ -378,7 +401,7 @@ object AdaptiveCatalog {
      */
     private fun getPackagesForGroup(groupName: String, profile: RomProfile): List<String> {
         return try {
-            val groups: JSONObject? = catalogJson?.optJSONObject("groups")
+            val groups: JSONObject? = variantSection("groups")
             val pkgs: List<String> = groups?.optJSONArray(groupName)?.let { arr ->
                 (0 until arr.length()).mapNotNull { arr.optString(it) }
             } ?: emptyList()
