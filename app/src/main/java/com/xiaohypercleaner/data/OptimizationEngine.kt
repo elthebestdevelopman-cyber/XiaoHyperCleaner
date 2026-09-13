@@ -4,7 +4,57 @@ import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
 import kotlinx.coroutines.delay
+import org.json.JSONObject
 import kotlin.time.Duration.Companion.milliseconds
+
+/**
+ * Снимок оригинальных значений настроек для точного отката.
+ * Сохраняется после успешной оптимизации и используется в [OptimizationEngine.restore],
+ * чтобы вернуть устройство в состояние «до», а не к заводским дефолтам.
+ */
+data class RestoreSnapshot(
+    val settings: Map<String, String>,
+    val dnsApplied: Boolean,
+    val dnsMode: String?,
+    val dnsHost: String?
+) {
+    fun toJson(): String {
+        val root = JSONObject()
+        val s = JSONObject()
+        settings.forEach { (k, v) -> s.put(k, v) }
+        root.put("settings", s)
+        root.put("dnsApplied", dnsApplied)
+        root.put("dnsMode", dnsMode ?: JSONObject.NULL)
+        root.put("dnsHost", dnsHost ?: JSONObject.NULL)
+        return root.toString()
+    }
+
+    companion object {
+        fun fromJson(json: String): RestoreSnapshot? = try {
+            val root = JSONObject(json)
+            val s = root.optJSONObject("settings")
+            val map = mutableMapOf<String, String>()
+            if (s != null) {
+                for (k in s.keys()) map[k] = s.optString(k)
+            }
+            RestoreSnapshot(
+                settings = map,
+                dnsApplied = root.optBoolean("dnsApplied", false),
+                dnsMode = root.optString("dnsMode").takeIf { it.isNotEmpty() && it != "null" },
+                dnsHost = root.optString("dnsHost").takeIf { it.isNotEmpty() && it != "null" }
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+}
+
+/** Хранилище снимка отката; реализует [PreferencesManager]. */
+interface RestoreSnapshotStore {
+    suspend fun save(snapshot: RestoreSnapshot)
+    suspend fun load(): RestoreSnapshot?
+    suspend fun clear()
+}
 
 data class OptimizationOptions(
     val dnsFilter: Boolean = false
@@ -36,15 +86,13 @@ data class OptimizationReport(
  *  - Защита от пустых списков ServiceRegistry
  *  - Улучшенная обработка ошибок
  */
-class OptimizationEngine(private val adb: AdbExecutor) {
+class OptimizationEngine(
+    private val adb: AdbExecutor,
+    private val snapshotStore: RestoreSnapshotStore? = null
+) {
 
     companion object {
         private const val TAG = "OptimizationEngine"
-
-        // Безопасные значения по умолчанию для restore()
-        private const val DEFAULT_ANIMATION_SCALE = "1.0"
-        private const val DEFAULT_DISABLED = "0"
-        private const val DEFAULT_ENABLED = "1"
     }
 
     data class Callbacks(
@@ -151,12 +199,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         delay(AppConstants.DELAY_AFTER_CONNECT_MS.milliseconds)
 
         try {
-            callbacks.onStage("method1")
-            callbacks.onProgress(AppConstants.PROGRESS_METHOD1)
-            val settings1 = applySystemSettings(transaction)
-            appliedSettings.addAll(settings1)
-            delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
-
             callbacks.onStage("method2")
             callbacks.onProgress(AppConstants.PROGRESS_METHOD2)
             val packages2 = disableAnalyticsServices(transaction)
@@ -227,6 +269,18 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             AppLog.i(TAG, "Оптимизация успешно завершена: $successMessage")
             OptimizationNotifier.setSuccess(successMessage)
 
+            // 2В: сохраняем оригиналы настроек/DNS для точного отката «как было».
+            runCatching {
+                snapshotStore?.save(
+                    RestoreSnapshot(
+                        settings = transaction.appliedSettings.toMap(),
+                        dnsApplied = transaction.enabledDns,
+                        dnsMode = transaction.previousDnsMode,
+                        dnsHost = transaction.previousDnsHost
+                    )
+                )
+            }.onFailure { AppLog.w(TAG, "Не удалось сохранить снапшот отката: ${it.message}") }
+
             return OptimizationReport(
                 success = true,
                 disabledPackages = disabledPackages,
@@ -288,12 +342,17 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
 
         val failedActions = mutableListOf<String>()
+        // 2В: предпочитаем сохранённые оригиналы; при их отсутствии — дефолтный fallback.
+        val snapshot = runCatching { snapshotStore?.load() }.getOrNull()
 
-        val settingsFailed = restoreSystemSettingsWithReport()
+        val settingsFailed = if (snapshot != null) {
+            restoreSettingsFromSnapshot(snapshot.settings)
+        } else {
+            restoreHiddenKeysWithReport()
+        }
         if (settingsFailed.isNotEmpty()) {
             failedActions.add("settings_restore: ${settingsFailed.joinToString()}")
         }
-        delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
 
         callbacks.onProgress(AppConstants.PROGRESS_RESTORE_PACKAGES)
         val servicesFailed = restoreServicesWithReport()
@@ -301,12 +360,11 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             failedActions.add("services_restore: ${servicesFailed.joinToString()}")
         }
 
-        val hiddenFailed = restoreHiddenKeysWithReport()
-        if (hiddenFailed.isNotEmpty()) {
-            failedActions.add("hidden_keys_restore: ${hiddenFailed.joinToString()}")
+        val dnsFailed = when {
+            snapshot != null && snapshot.dnsApplied -> restoreDnsFromSnapshot(snapshot)
+            snapshot != null -> null
+            else -> restoreDnsWithReport()
         }
-
-        val dnsFailed = restoreDnsWithReport()
         if (dnsFailed != null) {
             failedActions.add("dns_restore: $dnsFailed")
         }
@@ -319,6 +377,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             return false
         }
 
+        runCatching { snapshotStore?.clear() }
         callbacks.onStage("done")
         callbacks.onProgress(AppConstants.PROGRESS_DONE)
         AppLog.i(TAG, "Восстановление успешно завершено")
@@ -345,42 +404,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
             AppLog.e(TAG, "Ошибка перезагрузки: ${e.message}")
             false
         }
-    }
-
-    private suspend fun applySystemSettings(transaction: Transaction): List<String> {
-        AppLog.i(TAG, "Применение системных настроек")
-        val applied = mutableListOf<String>()
-
-        if (ServiceRegistry.SYSTEM_SETTINGS.isEmpty()) {
-            AppLog.w(TAG, "ServiceRegistry.SYSTEM_SETTINGS пуст, пропускаем")
-            return applied
-        }
-
-        for ((key, value) in ServiceRegistry.SYSTEM_SETTINGS) {
-            try {
-                val getCmd = "settings get $key"
-                val putCmd = "settings put $key $value"
-
-                val original = adb.executeCommand(getCmd).getOrNull()?.trim() ?: ""
-                val putResult = adb.executeCommand(putCmd)
-
-                if (putResult.isFailure) {
-                    AppLog.w(
-                        TAG,
-                        "Команда put не удалась: $key - ${putResult.exceptionOrNull()?.message}"
-                    )
-                    continue
-                }
-
-                transaction.appliedSettings[putCmd] = original
-                applied.add(key.substringAfterLast(" "))
-                delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
-            } catch (e: Exception) {
-                AppLog.w(TAG, "Команда не удалась: $key - ${e.message}")
-            }
-        }
-
-        return applied
     }
 
     private suspend fun disableAnalyticsServices(transaction: Transaction): List<String> {
@@ -427,7 +450,7 @@ class OptimizationEngine(private val adb: AdbExecutor) {
                     continue
                 }
 
-                transaction.appliedSettings[putCmd] = original
+                transaction.appliedSettings[key] = original
                 applied.add(key.substringAfterLast(" "))
                 delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
             } catch (e: Exception) {
@@ -598,14 +621,8 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
 
         for (entry in transaction.appliedSettings.entries.toList().reversed()) {
-            val cmd = entry.key
+            val key = entry.key
             val original = entry.value
-            // Ключ настройки: "settings put global low_power 1" → "global low_power".
-            // substringAfter отбрасывает префикс команды, substringBeforeLast — установленное значение.
-            val key = cmd.substringAfter("settings put ").substringBeforeLast(" ")
-            // Имя для отчёта об ошибках — листовой ключ (как в appliedSettings/restore*).
-            // ИСПРАВЛЕНО: раньше было cmd.substringAfterLast(" "), что давало ЗНАЧЕНИЕ
-            // ("1", "adguard"), а не имя ключа — список failedSettings заполнялся мусором.
             val keyName = key.substringAfterLast(" ")
             try {
                 // Кавычки вокруг значения — защита от значений, содержащих пробелы
@@ -748,38 +765,6 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
     }
 
-    private suspend fun restoreSystemSettingsWithReport(): List<String> {
-        AppLog.i(TAG, "Восстановление системных настроек")
-        val failed = mutableListOf<String>()
-
-        for (key in ServiceRegistry.SYSTEM_SETTINGS.keys) {
-            try {
-                // Безопасные дефолты для восстановления
-                val restoreValue: String = when {
-                    key.contains("low_power") -> DEFAULT_DISABLED
-                    key.contains("always_finish") -> DEFAULT_DISABLED
-                    key.contains("animation_scale") -> DEFAULT_ANIMATION_SCALE
-                    else -> DEFAULT_ENABLED
-                }
-
-                val result = adb.executeCommand("settings put $key $restoreValue")
-                if (result.isFailure) {
-                    failed.add(key.substringAfterLast(" "))
-                    AppLog.w(
-                        TAG,
-                        "Команда восстановления не удалась: $key - ${result.exceptionOrNull()?.message}"
-                    )
-                }
-                delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
-            } catch (e: Exception) {
-                failed.add(key.substringAfterLast(" "))
-                AppLog.w(TAG, "Команда восстановления не удалась: $key")
-            }
-        }
-
-        return failed
-    }
-
     private suspend fun restoreServicesWithReport(): List<String> {
         val failed = mutableListOf<String>()
 
@@ -825,6 +810,59 @@ class OptimizationEngine(private val adb: AdbExecutor) {
         }
 
         return failed
+    }
+
+    private suspend fun restoreSettingsFromSnapshot(settings: Map<String, String>): List<String> {
+        AppLog.i(TAG, "Восстановление настроек из снапшота (${settings.size} ключей)")
+        val failed = mutableListOf<String>()
+        for ((key, original) in settings) {
+            try {
+                val cmd = if (original.isNotEmpty() && original != "null") {
+                    "settings put $key \"$original\""
+                } else {
+                    "settings put $key \"\""
+                }
+                val result = adb.executeCommand(cmd)
+                if (result.isFailure) {
+                    failed.add(key.substringAfterLast(" "))
+                    AppLog.w(
+                        TAG,
+                        "Откат настройки $key не удался: ${result.exceptionOrNull()?.message}"
+                    )
+                }
+                delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
+            } catch (e: Exception) {
+                failed.add(key.substringAfterLast(" "))
+                AppLog.w(TAG, "Откат настройки $key не удался: ${e.message}")
+            }
+        }
+        return failed
+    }
+
+    private suspend fun restoreDnsFromSnapshot(snapshot: RestoreSnapshot): String? {
+        return try {
+            val mode = snapshot.dnsMode?.takeIf { it.isNotEmpty() && it != "null" }
+                ?: ServiceRegistry.Dns.RESTORE_MODE
+            val modeResult =
+                adb.executeCommand("settings put ${ServiceRegistry.Dns.MODE_KEY} $mode")
+            if (modeResult.isFailure) {
+                return modeResult.exceptionOrNull()?.message ?: "Unknown"
+            }
+            delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
+            val host = snapshot.dnsHost
+            if (!host.isNullOrEmpty() && host != "null") {
+                val hostResult =
+                    adb.executeCommand("settings put ${ServiceRegistry.Dns.SPECIFIER_KEY} $host")
+                if (hostResult.isFailure) {
+                    return hostResult.exceptionOrNull()?.message ?: "Unknown"
+                }
+                delay(AppConstants.COMMAND_DELAY_MS.milliseconds)
+            }
+            null
+        } catch (e: Exception) {
+            AppLog.w(TAG, "Восстановление DNS из снапшота не удалось: ${e.message}")
+            e.message ?: "Unknown"
+        }
     }
 
     private suspend fun restoreDnsWithReport(): String? {

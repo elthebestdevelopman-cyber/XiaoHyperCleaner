@@ -69,6 +69,10 @@ sealed interface PreferenceKey {
     data object OptimizationModeKey : PreferenceKey {
         override val name = "optimization_mode"
     }
+
+    data object RestoreSnapshotJson : PreferenceKey {
+        override val name = "restore_snapshot_json"
+    }
 }
 
 /**
@@ -81,7 +85,7 @@ sealed interface PreferenceKey {
  * 4. Обработка ошибок DataStore через `runCatching` и `catch`
  * 5. Защита от corrupt DataStore
  */
-class PreferencesManager(private val context: Context) {
+class PreferencesManager(private val context: Context) : RestoreSnapshotStore {
 
     companion object {
         private const val TAG = "PreferencesManager"
@@ -92,6 +96,8 @@ class PreferencesManager(private val context: Context) {
             stringPreferencesKey(PreferenceKey.OptimizationModeKey.name)
         private val SIMPLE_TOGGLED_KEY =
             stringPreferencesKey(PreferenceKey.SimpleToggledSteps.name)
+        private val RESTORE_SNAPSHOT_KEY =
+            stringPreferencesKey(PreferenceKey.RestoreSnapshotJson.name)
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -219,6 +225,34 @@ class PreferencesManager(private val context: Context) {
     }.getOrElse { e ->
         AppLog.w(TAG, "getLastReportJson failed: ${e.message}")
         ""
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // RestoreSnapshotStore — оригиналы настроек для точного отката
+    // ═══════════════════════════════════════════════════════════════
+
+    override suspend fun save(snapshot: RestoreSnapshot) {
+        runCatching {
+            context.dataStore.edit { prefs ->
+                prefs[RESTORE_SNAPSHOT_KEY] = snapshot.toJson()
+            }
+        }.onFailure { e ->
+            AppLog.e(TAG, "save restore snapshot failed: ${e.message}")
+        }
+    }
+
+    override suspend fun load(): RestoreSnapshot? = runCatching {
+        context.dataStore.data.first()[RESTORE_SNAPSHOT_KEY]
+    }.getOrNull()?.let { RestoreSnapshot.fromJson(it) }
+
+    override suspend fun clear() {
+        runCatching {
+            context.dataStore.edit { prefs ->
+                prefs.remove(RESTORE_SNAPSHOT_KEY)
+            }
+        }.onFailure { e ->
+            AppLog.e(TAG, "clear restore snapshot failed: ${e.message}")
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════

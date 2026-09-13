@@ -39,7 +39,7 @@ analytics and ads built into MIUI / HyperOS.
 The app connects to the device via **local ADB** (`127.0.0.1`) and applies settings that previously
 required manual console commands:
 
-- ✅ **No root required** — works via standard ADB
+- ✅ **Root not required** — works via Accessibility / ADB / Shizuku; root is used only if already available
 - ✅ **No system modification** — doesn't touch system partitions
 - ✅ **No data collection** — everything runs locally on the device
 - ✅ **Fully reversible** — one click to undo
@@ -56,7 +56,6 @@ required manual console commands:
 | 🚫 **Disable analytics**       | `com.miui.analytics`, `com.xiaomi.ab`, `com.miui.bugreport`, etc.            |
 | 🛑 **Disable ads**             | `com.xiaomi.ad`, `com.miui.ad`, `com.miui.systemAdSolution`                  |
 | 🤖 **Disable recommendations** | `com.miui.msa.core`, `com.miui.personalassistant`, `com.miui.smartassistant` |
-| ⚙️ **Optimize parameters**     | Animations, background process limits, battery saving                        |
 | 🌐 **DNS filter (optional)**   | Block ad domains via AdGuard DNS                                             |
 | 🔄 **Full rollback**           | All changes can be undone with one button                                    |
 
@@ -73,9 +72,9 @@ required manual console commands:
 ⚠️ Failed: 2 (protected by system)
 ```
 
-- 🤖 **Cute robot cat** on the splash screen rolling a yarn ball
+- 🤖 **Robot cat** on the splash screen
 - 📝 **Log sharing** — "Share log" button in the menu
-- 🌍 **Localization** — RU and EN, always in sync
+- 🌍 **Localization** — 7 languages: RU, EN, ES, ZH, HI, ID, PT
 - 🌙 **Dark theme** — follows system settings
 
 ---
@@ -119,9 +118,9 @@ forbidden settings" in some firmware). This is a **system Android limitation**, 
 
 **How to bypass:**
 
-1. Open **Settings → Apps → XiaoHyperCleaner**
-2. Tap **⋮** in the top-right corner
-3. Select **"Allow restricted settings"** (or "Forbidden settings" in HyperOS)
+1. Open **Settings → Apps → XiaoHyperCleaner** (App Info)
+2. Find **"Allow restricted settings"** (or "Forbidden settings" in HyperOS) — usually right in the main view
+3. If it's not in the main view — tap **⋮** in the top-right corner and select it there
 4. Confirm with fingerprint/password
 5. Return to the app
 

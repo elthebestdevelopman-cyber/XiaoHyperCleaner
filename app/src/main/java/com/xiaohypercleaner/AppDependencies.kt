@@ -77,7 +77,7 @@ class AppDependencies(private val context: Context) {
             val rootExecutor = RootExecutor()
             if (rootExecutor.isAvailable()) {
                 AppLog.i(TAG, "newEngine: using ROOT (best path, zero user actions)")
-                return@withContext OptimizationEngine(rootExecutor)
+                return@withContext OptimizationEngine(rootExecutor, preferencesManager)
             }
             AppLog.i(TAG, "newEngine: root not available")
 
@@ -87,7 +87,7 @@ class AppDependencies(private val context: Context) {
 
             if (shizukuStatus == ShizukuExecutor.Status.AVAILABLE) {
                 AppLog.i(TAG, "newEngine: using Shizuku (no Wi-Fi needed)")
-                return@withContext OptimizationEngine(ShizukuExecutor())
+                return@withContext OptimizationEngine(ShizukuExecutor(), preferencesManager)
             }
 
             // Приоритет 3: wireless ADB — fallback, требует Wi-Fi и цепочку разрешений
@@ -100,7 +100,7 @@ class AppDependencies(private val context: Context) {
                 AppLog.i(TAG, "newEngine: resolved ${ports.size} ports: $ports")
             }
 
-            OptimizationEngine(AdbClient(ports = ports))
+            OptimizationEngine(AdbClient(ports = ports), preferencesManager)
 
         } catch (e: Exception) {
             AppLog.w(TAG, "newEngine: exception during engine creation: ${e.message}")
@@ -110,11 +110,11 @@ class AppDependencies(private val context: Context) {
             try {
                 val ports = portResolver.resolve()
                 AppLog.i(TAG, "newEngine: fallback resolved ${ports.size} ports")
-                OptimizationEngine(AdbClient(ports = ports))
+                OptimizationEngine(AdbClient(ports = ports), preferencesManager)
             } catch (fallbackError: Exception) {
                 AppLog.e(TAG, "newEngine: fallback also failed: ${fallbackError.message}")
                 // Последний fallback: пустой список портов, AdbClient должен обработать gracefully
-                OptimizationEngine(AdbClient(ports = emptyList()))
+                OptimizationEngine(AdbClient(ports = emptyList()), preferencesManager)
             }
         }
     }

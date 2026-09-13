@@ -36,7 +36,6 @@ object AppConstants {
     // ═══════════════════════════════════════════════════════════════
     const val PROGRESS_START = 5f
     const val PROGRESS_CONNECTED = 15f
-    const val PROGRESS_METHOD1 = 25f
     const val PROGRESS_METHOD2 = 45f
     const val PROGRESS_METHOD3 = 60f
     const val PROGRESS_METHOD4 = 75f

@@ -2,7 +2,10 @@ package com.xiaohypercleaner.data
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -63,11 +66,6 @@ private open class FakeAdb : AdbExecutor {
             command.contains("settings get secure upload_log_pref") -> "1"
             command.contains("settings get secure show_recommendations") -> "1"
             command.contains("settings get system miui_recents_show_recommend") -> "1"
-            command.contains("settings get global window_animation_scale") -> "0.5"
-            command.contains("settings get global transition_animation_scale") -> "0.5"
-            command.contains("settings get global animator_duration_scale") -> "0.5"
-            command.contains("settings get global low_power") -> "1"
-            command.contains("settings get global always_finish_activities") -> "0"
 
             // ── DNS settings ──
             command.contains("settings get global private_dns_mode") -> dnsMode
@@ -134,6 +132,21 @@ private open class FakeAdb : AdbExecutor {
     }
 }
 
+/** In-memory [RestoreSnapshotStore] для проверки точного отката (2В). */
+private class FakeSnapshotStore : RestoreSnapshotStore {
+    var saved: RestoreSnapshot? = null
+
+    override suspend fun save(snapshot: RestoreSnapshot) {
+        saved = snapshot
+    }
+
+    override suspend fun load(): RestoreSnapshot? = saved
+
+    override suspend fun clear() {
+        saved = null
+    }
+}
+
 /**
  * Тесты для [OptimizationEngine].
  *
@@ -147,27 +160,6 @@ private open class FakeAdb : AdbExecutor {
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class OptimizationEngineTest {
-
-    @Test
-    fun optimizeSucceedsWhenSystemSettingsApplied() = runTest {
-        val fake = FakeAdb()
-        val engine = OptimizationEngine(fake)
-        val report = engine.optimize()
-
-        assertTrue("optimize should succeed", report.success)
-        assertTrue(
-            "should contain low_power setting",
-            fake.commands.any { it.contains("settings put global low_power 1") }
-        )
-        assertTrue(
-            "should contain animation scale setting",
-            fake.commands.any { it.contains("settings put global window_animation_scale 0.5") }
-        )
-        assertTrue(
-            "appliedSettings list should not be empty",
-            report.appliedSettings.isNotEmpty()
-        )
-    }
 
     @Test
     fun optimizeDisablesAnalyticsServices() = runTest {
@@ -307,13 +299,40 @@ class OptimizationEngineTest {
             fake.commands.any { it.contains("pm enable com.miui.systemAdSolution") }
         )
         assertTrue(
-            "should restore animation scale",
-            fake.commands.any { it.contains("settings put global window_animation_scale 1.0") }
-        )
-        assertTrue(
             "should restore limit_ad_tracking",
             fake.commands.any { it.contains("settings put secure limit_ad_tracking 0") }
         )
+    }
+
+    /**
+     * 2В: restore() использует сохранённые оригиналы (снапшот), а не дефолты,
+     * и очищает снапшот после успешного восстановления.
+     */
+    @Test
+    fun restoreUsesPersistedOriginals() = runTest {
+        val store = FakeSnapshotStore()
+        // FakeAdb возвращает "1" для user_experience_program — это оригинал до оптимизации.
+        val optimizeFake = FakeAdb()
+        OptimizationEngine(optimizeFake, store).optimize()
+
+        assertNotNull("snapshot should be saved after optimize", store.saved)
+        assertEquals(
+            "snapshot should keep the original value",
+            "1",
+            store.saved?.settings?.get("secure user_experience_program")
+        )
+
+        val restoreFake = FakeAdb()
+        val ok = OptimizationEngine(restoreFake, store).restore()
+
+        assertTrue("restore should succeed", ok)
+        assertTrue(
+            "should restore user_experience_program to the original value",
+            restoreFake.commands.any {
+                it.contains("settings put secure user_experience_program \"1\"")
+            }
+        )
+        assertNull("snapshot should be cleared after restore", store.saved)
     }
 
     /**
