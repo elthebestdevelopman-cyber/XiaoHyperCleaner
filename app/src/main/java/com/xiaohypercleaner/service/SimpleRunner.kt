@@ -213,7 +213,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     DiagnosticSnapshotManager.captureAndSaveSnapshot(
                         service,
                         step.id,
-                        r.reason ?: "unknown",
+                        r.reason,
                         root,
                         profile,
                         root?.packageName?.toString()
@@ -1022,7 +1022,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
     }
 
-    // Фреймворковый isChecked deprecated с API 33 — Compat скрывает версионные различия.
+    // isChecked deprecated и во фреймворке (API 33+), и в Compat (core 1.19.0);
+    // неустаревающей замены для чтения состояния тумблера нет — подавляем осознанно.
+    @Suppress("DEPRECATION")
     private fun AccessibilityNodeInfo.isCheckedCompat(): Boolean =
         AccessibilityNodeInfoCompat.wrap(this).isChecked
 }
