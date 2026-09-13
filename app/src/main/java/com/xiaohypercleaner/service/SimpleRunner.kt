@@ -286,10 +286,6 @@ class SimpleRunner(private val service: AdbEnablerService) {
         } else {
             resetToHome()
             delay(300)
-            if (step.forceStopBeforeLaunch && resolvedPkg != null) {
-                forceStopPackage(resolvedPkg)
-                delay(200)
-            }
         }
 
         // П.3: Открытие экрана через DirectIntentNavigator
@@ -430,7 +426,6 @@ class SimpleRunner(private val service: AdbEnablerService) {
     private suspend fun declineWelcomeScreen(step: SimpleSteps.Step) {
         val pkg = step.launchPackage ?: return
         if (!isInstalled(pkg)) return
-        forceStopPackage(pkg)
         delay(400)
         try {
             service.startActivity(
@@ -744,24 +739,44 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     // ─── Navigation & Utilities ───────────────────────────────────────────
     private suspend fun resetSettingsToRoot(): Boolean {
-        return try {
-            service.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
-            delay(CONTENT_WAIT_MS); true
+        try {
+            service.startActivity(
+                Intent(Settings.ACTION_SETTINGS)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            )
         } catch (e: Exception) {
-            false
+            AppLog.w(TAG, "resetSettingsToRoot: startActivity failed: ${e.message}")
+            return false
         }
+        delay(CONTENT_WAIT_MS)
+        // Корень подтверждается совпадением >= 2 маркеров одновременно;
+        // если ACTION_SETTINGS открыл не корень — возвращаемся назад (до 5 раз).
+        repeat(5) {
+            if (isSettingsRoot()) return true
+            service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+            delay(UI_SETTLE_DELAY_MS)
+        }
+        return isSettingsRoot()
+    }
+
+    /** Корень Настроек: совпадение >= 2 маркеров одновременно (не одного). */
+    private fun isSettingsRoot(): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val text = collectAllText(root)
+        recycleNode(root)
+        val markers = listOf(
+            "Поиск настроек", "О телефоне", "Настройки",
+            "SIM-карты и мобильные сети", "Wi-Fi", "Bluetooth"
+        )
+        return markers.count { TextMatcher.normalizedContains(text, it) } >= 2
     }
 
     private suspend fun resetToHome(): Boolean {
-        return try {
-            service.startActivity(
-                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-            delay(500); true
-        } catch (e: Exception) {
-            false
-        }
+        // GLOBAL_ACTION_HOME — нативный переход домой; в отличие от
+        // ACTION_MAIN+CATEGORY_HOME не вызывает resolver «Главный экран по умолчанию».
+        val ok = service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
+        delay(500)
+        return ok
     }
 
     private suspend fun swipeUp() {
@@ -822,9 +837,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return null
     }
 
-    /** Ищет переключатель рядом с текстовой подписью: среди соседей и выше по дереву. */
+    /**
+     * Ищет переключатель рядом с текстовой подписью.
+     * Сначала — в поддереве ближайшего кликабельного предка (строка настройки):
+     * на экранах уведомлений/Карусели CheckBox вложен в sibling-контейнер
+     * (widget_frame), а не является прямым соседом подписи. Затем — соседи/вверх.
+     */
     private fun findSwitchNear(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         if (isSwitchLike(node)) return node
+        clickableAncestorOrSelf(node)?.let { row ->
+            findInTree(row) { isSwitchLike(it) }?.let { return it }
+        }
         var current: AccessibilityNodeInfo? = node
         var depth = 0
         while (current != null && depth < 4) {
@@ -832,7 +855,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
             if (parent != null) {
                 for (i in 0 until parent.childCount) {
                     val sibling = parent.getChild(i) ?: continue
-                    if (sibling !== node && isSwitchLike(sibling)) return sibling
+                    if (sibling === node) continue
+                    findInTree(sibling) { isSwitchLike(it) }?.let { return it }
                 }
             }
             current = parent
@@ -1002,14 +1026,6 @@ class SimpleRunner(private val service: AdbEnablerService) {
         false
     }
 
-    private fun forceStopPackage(pkg: String) {
-        try {
-            val am = service.getSystemService(android.app.ActivityManager::class.java)
-            am.javaClass.getMethod("forceStopPackage", String::class.java).invoke(am, pkg)
-        } catch (e: Exception) {
-            AppLog.w(TAG, "forceStop failed: ${e.message}")
-        }
-    }
 
     // Легаси: recycle() deprecated с API 33 (система перерабатывает узлы автоматически),
     // но на Android 10–12 возвращает узел в пул — поэтому версионный guard.

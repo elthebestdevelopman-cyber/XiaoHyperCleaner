@@ -113,11 +113,13 @@ object DirectIntentNavigator {
             }
 
             "sys_recommendations" -> {
-                // Системные рекомендации — через поиск настроек или напрямую
+                // Системные рекомендации — через поиск настроек или напрямую.
+                // На Global RU рекомендации/реклама живут в Конфиденциальность -> Реклама.
                 intents.addAll(
                     listOf(
                         miuiIntent("miui.intent.action.SYSTEM_RECOMMENDATIONS"),
                         settingsIntent("android.settings.SYSTEM_RECOMMENDATIONS_SETTINGS"),
+                        settingsIntent(Settings.ACTION_PRIVACY_SETTINGS),
                         settingsIntent(Settings.ACTION_SETTINGS)
                     )
                 )
