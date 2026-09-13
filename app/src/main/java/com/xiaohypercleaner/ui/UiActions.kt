@@ -169,22 +169,43 @@ fun shareLog(context: Context) {
         java.util.Locale.US
     ).format(java.util.Date())
 
-    val innerIntent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/x-log"  // ← КЛЮЧЕВОЕ: не "text/plain"!
-        putExtra(Intent.EXTRA_STREAM, uri)
-        putExtra(Intent.EXTRA_SUBJECT, "XiaoHyperCleaner log $timestamp")
-        // НЕ добавляем EXTRA_TEXT — он конфликтует с EXTRA_STREAM
+    // Диагностические снапшоты и скриншоты пакуем в zip и добавляем вторым вложением.
+    val diagUri: android.net.Uri? = packageDiagnosticsZip(context)?.let { zip ->
+        try {
+            FileProvider.getUriForFile(context, authority, zip)
+        } catch (e: Exception) {
+            AppLog.w(TAG, "shareLog: FileProvider не отдал URI для diag zip: ${e.message}")
+            null
+        }
+    }
 
-        // ClipData + flag — правильный способ грантить URI на Android 7+
-        clipData = ClipData.newRawUri("XHC Log", uri)
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    val uris: List<android.net.Uri> = listOfNotNull(uri, diagUri)
+    val innerIntent: Intent = if (uris.size > 1) {
+        Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            type = "*/*"  // лог + zip — разные MIME
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+            putExtra(Intent.EXTRA_SUBJECT, "XiaoHyperCleaner log + diagnostics $timestamp")
+            clipData = buildClipData("XHC log+diag", uris)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+    } else {
+        Intent(Intent.ACTION_SEND).apply {
+            type = "text/x-log"  // ← КЛЮЧЕВОЕ: не "text/plain"!
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, "XiaoHyperCleaner log $timestamp")
+            // НЕ добавляем EXTRA_TEXT — он конфликтует с EXTRA_STREAM
+
+            // ClipData + flag — правильный способ грантить URI на Android 7+
+            clipData = ClipData.newRawUri("XHC Log", uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
     }
 
     val chooserIntent = Intent.createChooser(innerIntent, "Поделиться логом").apply {
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         // Дублируем ClipData на chooser для Android 11+
-        clipData = ClipData.newRawUri("XHC Log", uri)
+        clipData = innerIntent.clipData
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -244,6 +265,50 @@ private fun shareLogAsText(context: Context, file: File) {
         AppLog.e(TAG, "shareLogAsText: fallback тоже не сработал", e)
         toast(context, "Не удалось поделиться логом ни как файл, ни как текст")
     }
+}
+
+/**
+ * Пакует диагностические файлы (getExternalFilesDir(diag)) в zip.
+ * Возвращает архив либо null, если файлов нет или упаковка не удалась.
+ */
+private fun packageDiagnosticsZip(context: Context): File? {
+    val srcDir: File = context.getExternalFilesDir("diag") ?: return null
+    val files: List<File>? = srcDir.listFiles()?.filter { it.isFile }?.sortedBy { it.name }
+    if (files.isNullOrEmpty()) return null
+
+    val zipDir: File = File(context.cacheDir, "diag").apply { if (!exists()) mkdirs() }
+    val zipFile: File = File(zipDir, "xhc_diagnostics_${System.currentTimeMillis()}.zip")
+
+    return try {
+        java.io.FileOutputStream(zipFile).use { fos ->
+            java.util.zip.ZipOutputStream(java.io.BufferedOutputStream(fos)).use { zos ->
+                for (f in files) {
+                    zos.putNextEntry(java.util.zip.ZipEntry(f.name))
+                    f.inputStream().use { it.copyTo(zos) }
+                    zos.closeEntry()
+                }
+            }
+        }
+        zipDir.listFiles()
+            ?.filter { it.name.startsWith("xhc_diagnostics_") && it != zipFile }
+            ?.sortedBy { it.lastModified() }
+            ?.dropLast(3)
+            ?.forEach { it.delete() }
+        AppLog.i(TAG, "shareLog: diag zip собран: ${zipFile.name}, файлов=${files.size}")
+        zipFile
+    } catch (e: Exception) {
+        AppLog.w(TAG, "packageDiagnosticsZip failed: ${e.message}")
+        null
+    }
+}
+
+/** Собирает ClipData из нескольких URI для ACTION_SEND_MULTIPLE. */
+private fun buildClipData(label: String, uris: List<android.net.Uri>): ClipData {
+    val clip: ClipData = ClipData.newRawUri(label, uris.first())
+    for (i in 1 until uris.size) {
+        clip.addItem(ClipData.Item(uris[i]))
+    }
+    return clip
 }
 
 /**

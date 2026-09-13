@@ -209,15 +209,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     service
                 )
 
-                if (!r.success && r.reason == "timeout") {
+                if (!r.success) {
+                    val failureReason = r.reason ?: "unknown"
                     DiagnosticSnapshotManager.captureAndSaveSnapshot(
                         service,
                         step.id,
-                        r.reason,
+                        failureReason,
                         root,
                         profile,
                         root?.packageName?.toString()
                     )
+                    DiagnosticSnapshotManager.captureScreenshot(service, step.id)
                 }
                 recycleNode(root)
                 r

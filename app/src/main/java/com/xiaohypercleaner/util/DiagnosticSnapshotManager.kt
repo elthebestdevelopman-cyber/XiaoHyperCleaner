@@ -1,14 +1,21 @@
 package com.xiaohypercleaner.util
 
+import android.accessibilityservice.AccessibilityService
+import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.Build
+import android.view.Display
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.content.pm.PackageInfoCompat
 import com.xiaohypercleaner.data.RomProfile
+import kotlinx.coroutines.suspendCancellableCoroutine
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
+import kotlin.coroutines.resume
 
 /**
  * Локальный менеджер диагностических снимков для краудсорсинга и самообучения.
@@ -23,7 +30,7 @@ import java.io.File
 object DiagnosticSnapshotManager {
 
     private const val TAG = "DiagnosticSnapshot"
-    private const val SNAPSHOT_FILE_NAME = "diagnostic_snapshot.json"
+    private const val DIAG_DIR = "diag"
     private const val MAX_TREE_DEPTH = 15
     private const val MAX_NODES_COLLECTED = 80
 
@@ -103,14 +110,32 @@ object DiagnosticSnapshotManager {
                 put("isTablet", profile.isTablet)
                 put("targetPackage", targetPackage ?: "unknown")
                 put("targetAppVersion", appVersion ?: "unknown")
+                put(
+                    "fingerprint",
+                    JSONObject().apply {
+                        put("ro.product.model", Build.MODEL)
+                        put("ro.build.version.sdk", Build.VERSION.SDK_INT)
+                        put(
+                            "ro.miui.ui.version.name",
+                            RomProfile.readProp("ro.miui.ui.version.name")
+                                ?: RomProfile.readProp("ro.mi.os.version.name")
+                                ?: "unknown"
+                        )
+                        put("ro.build.version.incremental", Build.VERSION.INCREMENTAL)
+                        put("region", profile.regionCode)
+                    }
+                )
                 put("screenDump", dumpTree.toString().trim())
             }
 
-            val file = File(context.filesDir, SNAPSHOT_FILE_NAME)
+            val file = File(
+                diagDir(context),
+                "diagnostic_snapshot_${stepId}_${System.currentTimeMillis()}.json"
+            )
             file.writeText(json.toString(2))
             AppLog.i(
                 TAG,
-                "Saved local diagnostic snapshot for step '$stepId' (reason=$failureReason) to ${file.name}"
+                "Saved local diagnostic snapshot for step '$stepId' (reason=$failureReason) to ${file.absolutePath}"
             )
             file
         } catch (e: Exception) {
@@ -120,7 +145,71 @@ object DiagnosticSnapshotManager {
     }
 
     fun getLatestSnapshotJson(context: Context): String? {
-        val file = File(context.filesDir, SNAPSHOT_FILE_NAME)
-        return if (file.exists()) file.readText() else null
+        return diagDir(context).listFiles()
+            ?.filter { it.name.startsWith("diagnostic_snapshot_") && it.name.endsWith(".json") }
+            ?.maxByOrNull { it.lastModified() }
+            ?.takeIf { it.exists() }
+            ?.readText()
+    }
+
+    /** Директория для диагностических файлов (снапшоты + скриншоты). */
+    private fun diagDir(context: Context): File =
+        (context.getExternalFilesDir(DIAG_DIR) ?: File(context.filesDir, DIAG_DIR))
+            .apply { if (!exists()) mkdirs() }
+
+    /**
+     * Снимает скриншот экрана через AccessibilityService.takeScreenshot (API 30+).
+     * Кладёт PNG рядом со снапшотом в diag-директорию; null — если недоступно или ошибка.
+     */
+    suspend fun captureScreenshot(service: AccessibilityService, stepId: String): File? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        return suspendCancellableCoroutine { cont ->
+            try {
+                service.takeScreenshot(
+                    Display.DEFAULT_DISPLAY,
+                    service.mainExecutor,
+                    object : AccessibilityService.TakeScreenshotCallback {
+                        override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
+                            val file = try {
+                                saveScreenshotToFile(service, stepId, screenshot)
+                            } catch (e: Exception) {
+                                AppLog.w(TAG, "captureScreenshot: save failed: ${e.message}")
+                                null
+                            }
+                            if (cont.isActive) cont.resume(file)
+                        }
+
+                        override fun onFailure(errorCode: Int) {
+                            AppLog.w(TAG, "captureScreenshot: onFailure code=$errorCode")
+                            if (cont.isActive) cont.resume(null)
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                AppLog.w(TAG, "captureScreenshot: takeScreenshot failed: ${e.message}")
+                if (cont.isActive) cont.resume(null)
+            }
+        }
+    }
+
+    @SuppressLint("NewApi")
+    private fun saveScreenshotToFile(
+        context: Context,
+        stepId: String,
+        result: AccessibilityService.ScreenshotResult
+    ): File? {
+        val hardwareBuffer = result.hardwareBuffer
+        val bitmap = Bitmap.wrapHardwareBuffer(hardwareBuffer, result.colorSpace)
+            ?: run { hardwareBuffer.close(); return null }
+        return try {
+            val file = File(
+                diagDir(context),
+                "screenshot_${stepId}_${System.currentTimeMillis()}.png"
+            )
+            FileOutputStream(file).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
+            file
+        } finally {
+            hardwareBuffer.close()
+        }
     }
 }
