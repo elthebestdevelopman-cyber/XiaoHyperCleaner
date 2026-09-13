@@ -78,6 +78,7 @@ venv/
 /.continue/
 /.kotlin/
 /.gigacode/
+diag-dumps/
 
 # ==================== Внутренняя аналитика (не публикуем) ====================
 IMPROVEMENTS.md
