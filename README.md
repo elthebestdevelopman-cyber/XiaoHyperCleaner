@@ -221,7 +221,6 @@ app/src/main/java/com/xiaohypercleaner/
 │   ├── MainViewModel.kt          # Логика UI
 │   ├── OnboardingScreen.kt       # Онбординг (3 экрана)
 │   ├── UiActions.kt              # Внешние действия (оценка/донат/шаринг)
-│   ├── WebViewActivity.kt        # WebView для донатов
 │   ├── components/               # 9 диалогов/экранов
 │   │   ├── AccessibilityConsentDialog.kt
 │   │   ├── FlowDialogs.kt
@@ -462,10 +461,7 @@ UI-действий (нажатие кнопок, включение перек�
 
 Если приложение оказалось полезным и хочется сказать спасибо:
 
-| Сервис        | Ссылка                                                                   |
-|---------------|--------------------------------------------------------------------------|
-| **ЮMoney**    | [yoomoney.ru/to/410011379195150](https://yoomoney.ru/to/410011379195150) |
-| **CloudTips** | [pay.cloudtips.ru/p/90614cff](https://pay.cloudtips.ru/p/90614cff)       |
+**[💝 Страница донатов](https://elthebestdevelopman-cyber.github.io/support/)** — криптовалюта (TON, TRC-20), Boosty, ЮMoney, CloudTips и Telegram Stars.
 
 Или просто **поставьте ⭐ звезду** на GitHub — это помогает другим найти проект.
 

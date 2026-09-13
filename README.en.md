@@ -204,7 +204,6 @@ app/src/main/java/com/xiaohypercleaner/
 │   ├── MainViewModel.kt          # UI logic
 │   ├── OnboardingScreen.kt       # Onboarding (3 screens)
 │   ├── UiActions.kt              # External actions (rate/donate/share)
-│   ├── WebViewActivity.kt        # WebView for donations
 │   ├── components/               # 9 dialogs/screens
 │   │   ├── AccessibilityConsentDialog.kt
 │   │   ├── FlowDialogs.kt
@@ -448,10 +447,7 @@ text: [gnu.org/licenses/gpl-3.0](https://www.gnu.org/licenses/gpl-3.0/)
 
 If the app turned out to be useful, and you'd like to say thanks:
 
-| Service       | Link                                                                     |
-|---------------|--------------------------------------------------------------------------|
-| **YooMoney**  | [yoomoney.ru/to/410011379195150](https://yoomoney.ru/to/410011379195150) |
-| **CloudTips** | [pay.cloudtips.ru/p/90614cff](https://pay.cloudtips.ru/p/90614cff)       |
+**[💝 Donate page](https://elthebestdevelopman-cyber.github.io/support/)** — crypto (TON, TRC-20), Boosty, YooMoney, CloudTips and Telegram Stars.
 
 Or just **give a ⭐ star** on GitHub — it helps others find the project.
 
