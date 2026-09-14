@@ -24,6 +24,7 @@
     android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows|flagReportViewIds|flagIncludeNotImportantViews"
     android:canPerformGestures="true"
     android:canRetrieveWindowContent="true"
+    android:canTakeScreenshot="true"
     android:description="@string/accessibility_policy_description"
     android:notificationTimeout="500"
     android:settingsActivity="com.xiaohypercleaner.ui.MainActivity"

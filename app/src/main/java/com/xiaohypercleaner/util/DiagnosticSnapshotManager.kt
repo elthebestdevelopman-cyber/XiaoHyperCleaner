@@ -11,7 +11,10 @@ import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.content.pm.PackageInfoCompat
 import com.xiaohypercleaner.data.AdaptiveCatalog
 import com.xiaohypercleaner.data.RomProfile
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -34,6 +37,8 @@ object DiagnosticSnapshotManager {
     private const val DIAG_DIR = "diag"
     private const val MAX_TREE_DEPTH = 15
     private const val MAX_NODES_COLLECTED = 80
+    private const val SCREENSHOT_MAX_ATTEMPTS = 3
+    private const val SCREENSHOT_RETRY_DELAY_MS = 500L
 
     data class DiagnosticReport(
         val timestamp: Long,
@@ -165,34 +170,77 @@ object DiagnosticSnapshotManager {
      */
     suspend fun captureScreenshot(service: AccessibilityService, stepId: String): File? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
-        return suspendCancellableCoroutine { cont ->
-            try {
-                service.takeScreenshot(
-                    Display.DEFAULT_DISPLAY,
-                    service.mainExecutor,
-                    object : AccessibilityService.TakeScreenshotCallback {
-                        override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
-                            val file = try {
-                                saveScreenshotToFile(service, stepId, screenshot)
-                            } catch (e: Exception) {
-                                AppLog.w(TAG, "captureScreenshot: save failed: ${e.message}")
-                                null
-                            }
-                            if (cont.isActive) cont.resume(file)
-                        }
-
-                        override fun onFailure(errorCode: Int) {
-                            AppLog.w(TAG, "captureScreenshot: onFailure code=$errorCode")
-                            if (cont.isActive) cont.resume(null)
-                        }
-                    }
-                )
-            } catch (e: Exception) {
-                AppLog.w(TAG, "captureScreenshot: takeScreenshot failed: ${e.message}")
-                if (cont.isActive) cont.resume(null)
-            }
+        val result: AccessibilityService.ScreenshotResult =
+            takeScreenshotWithRetry(service) ?: return null
+        return try {
+            // Сжатие PNG — тяжёлая операция: не блокируем main thread.
+            withContext(Dispatchers.IO) { saveScreenshotToFile(service, stepId, result) }
+        } catch (e: Exception) {
+            AppLog.w(TAG, "captureScreenshot: save failed: ${e.message}")
+            null
         }
     }
+
+    /**
+     * Запрашивает скриншот через AccessibilityService.takeScreenshot (API 30+) с повторами
+     * на транзиентных ошибках. Требуется android:canTakeScreenshot="true" в
+     * accessibility_service_config.xml, иначе система отвечает NO_ACCESSIBILITY_ACCESS.
+     */
+    @SuppressLint("NewApi")
+    private suspend fun takeScreenshotWithRetry(
+        service: AccessibilityService
+    ): AccessibilityService.ScreenshotResult? {
+        repeat(SCREENSHOT_MAX_ATTEMPTS) { attempt ->
+            val (result, errorCode) =
+                suspendCancellableCoroutine<Pair<AccessibilityService.ScreenshotResult?, Int>> { cont ->
+                    try {
+                        service.takeScreenshot(
+                            Display.DEFAULT_DISPLAY,
+                            service.mainExecutor,
+                            object : AccessibilityService.TakeScreenshotCallback {
+                                override fun onSuccess(
+                                    screenshot: AccessibilityService.ScreenshotResult
+                                ) {
+                                    if (cont.isActive) cont.resume(screenshot to 0)
+                                }
+
+                                override fun onFailure(errorCode: Int) {
+                                    if (cont.isActive) cont.resume(null to errorCode)
+                                }
+                            }
+                        )
+                    } catch (e: Exception) {
+                        AppLog.w(TAG, "captureScreenshot: takeScreenshot threw: ${e.message}")
+                        if (cont.isActive) cont.resume(null to -1)
+                    }
+                }
+            if (result != null) return result
+            AppLog.w(
+                TAG,
+                "captureScreenshot: attempt ${attempt + 1}/$SCREENSHOT_MAX_ATTEMPTS failed: " +
+                    "${screenshotErrorName(errorCode)} ($errorCode)"
+            )
+            if (!isTransientScreenshotError(errorCode)) return null
+            delay(SCREENSHOT_RETRY_DELAY_MS)
+        }
+        return null
+    }
+
+    /** Человекочитаемое имя кода ошибки takeScreenshot. */
+    @SuppressLint("NewApi")
+    private fun screenshotErrorName(errorCode: Int): String = when (errorCode) {
+        AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERNAL_ERROR -> "INTERNAL_ERROR"
+        AccessibilityService.ERROR_TAKE_SCREENSHOT_NO_ACCESSIBILITY_ACCESS -> "NO_ACCESSIBILITY_ACCESS"
+        AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT -> "INTERVAL_TIME_SHORT"
+        AccessibilityService.ERROR_TAKE_SCREENSHOT_INVALID_DISPLAY -> "INVALID_DISPLAY"
+        else -> "UNKNOWN"
+    }
+
+    /** Транзиентные ошибки: их имеет смысл повторить. */
+    @SuppressLint("NewApi")
+    private fun isTransientScreenshotError(errorCode: Int): Boolean =
+        errorCode == AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT ||
+            errorCode == AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERNAL_ERROR
 
     @SuppressLint("NewApi")
     private fun saveScreenshotToFile(
