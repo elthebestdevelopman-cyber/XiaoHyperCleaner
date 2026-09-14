@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.PackageInfo
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -12,6 +13,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows
 import org.robolectric.annotation.Config
+import java.util.Locale
 
 /**
  * Тесты адаптивного каталога [AdaptiveCatalog].
@@ -131,6 +133,91 @@ class AdaptiveCatalogTest {
         assertEquals(listOf("com.mi.globalbrowser"), installed)
     }
 
+    // ── Диспетчер вариантов каталога ────────────────────────────────────
+
+    @Test
+    fun `variant dispatcher selects global_ru for global russian non-hyperos device`() {
+        withLocale("ru") {
+            val variant = AdaptiveCatalog.selectVariant(context, globalProfile())
+
+            assertEquals("global_ru", variant)
+            assertEquals("global_ru", AdaptiveCatalog.currentVariant())
+        }
+    }
+
+    @Test
+    fun `variant dispatcher keeps cn_hyperos for non-russian global locale`() {
+        withLocale("en") {
+            assertEquals("cn_hyperos", AdaptiveCatalog.selectVariant(context, globalProfile()))
+        }
+    }
+
+    @Test
+    fun `variant dispatcher keeps cn_hyperos for china region`() {
+        val cnProfile = RomProfile(
+            region = RomRegion.CN,
+            miuiVersion = "V14.0.0",
+            hyperOsHint = false,
+            isTablet = false
+        )
+        withLocale("ru") {
+            assertEquals("cn_hyperos", AdaptiveCatalog.selectVariant(context, cnProfile))
+        }
+    }
+
+    @Test
+    fun `variant dispatcher keeps cn_hyperos for hyperos device`() {
+        val hyperProfile = RomProfile(
+            region = RomRegion.GLOBAL,
+            miuiVersion = "OS1.0.0",
+            hyperOsHint = true,
+            isTablet = false
+        )
+        withLocale("ru") {
+            assertEquals("cn_hyperos", AdaptiveCatalog.selectVariant(context, hyperProfile))
+        }
+    }
+
+    @Test
+    fun `global_ru replaces drill path for overridden steps`() {
+        withLocale("ru") {
+            AdaptiveCatalog.selectVariant(context, globalProfile())
+
+            val merged = AdaptiveCatalog.mergeDrillPath(
+                context, "msa", listOf(listOf("DEFAULT_CN_LEVEL"))
+            )
+
+            // replaceDrillPath=true: базовый CN-путь отбрасывается целиком.
+            assertFalse(merged.any { it == listOf("DEFAULT_CN_LEVEL") })
+            assertTrue(merged.any { level -> level.any { it == "Реклама" } })
+        }
+    }
+
+    @Test
+    fun `global_ru inherits cn_hyperos for non-overridden steps`() {
+        withLocale("ru") {
+            AdaptiveCatalog.selectVariant(context, globalProfile())
+
+            val merged = AdaptiveCatalog.mergeDrillPath(
+                context, "browser_sys", listOf(listOf("BASE"))
+            )
+
+            // browser_sys не переопределён в global_ru -> берётся из cn_hyperos.
+            assertEquals(4, merged.size)
+            assertTrue(merged[1].contains("Профиль"))
+        }
+    }
+
+    /** Выполняет блок с временно установленной локалью (для диспетчера вариантов). */
+    private fun withLocale(lang: String, block: () -> Unit) {
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale(lang))
+            block()
+        } finally {
+            Locale.setDefault(original)
+        }
+    }
     private fun installPackage(packageName: String) {
         Shadows.shadowOf(context.packageManager).installPackage(
             PackageInfo().apply { this.packageName = packageName }

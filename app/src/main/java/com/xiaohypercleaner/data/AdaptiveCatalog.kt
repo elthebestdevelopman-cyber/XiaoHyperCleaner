@@ -196,6 +196,8 @@ object AdaptiveCatalog {
         synchronized(lock) {
             catalogJson = null
             isLoaded = false
+            activeVariantName = DEFAULT_VARIANT
+            variantSelected = false
         }
         clearCache()
     }
