@@ -80,3 +80,69 @@
 4. feat: диспетчер вариантов (+ лог + catalogVariant в снапшоте)
 5. test: AdaptiveCatalogTest
 6. fix: скриншоты (takeScreenshot onFailure)
+
+## Результаты второго diagnostic run (после screenshot-fix, до тюнинга)
+
+- Скриншоты пишутся корректно (`onFailure` отсутствует).
+- `diag-diff.ps1` не применим: прежняя папка `before` отсутствует, сравнение с baseline ведётся вручную по 26 шагам.
+- Из 26 baseline-шагов оставлено **19 failure-dumps**; 7 шагов дамп не породили — интерпретируем как `pass`.
+
+| # | stepId | baseline | now | reason (new run) | note |
+|---|--------|----------|-----|------------------|------|
+| 1 | msa | fail | fail | switch_not_found | Google GMS: экран ad-ID, переключателя нет |
+| 2 | sys_recommendations | fail | pass | — | дамп отсутствует |
+| 3 | ads_personalization | fail | fail | switch_not_found | Google GMS: есть кнопка «Удалить рекламный идентификатор» |
+| 4 | ux_program | fail | fail | drill_failed | достигнута Конфиденциальность, нужен 3-й уровень |
+| 5 | carousel | fail | fail | switch_not_found | переключатель называется «Включить» |
+| 6 | home_suggestions | fail | fail | drill_failed | resetToHome требует доработки |
+| 7 | browser_sys | fail | fail | drill_failed | fallback в App Info |
+| 8 | music_sys | fail | fail | drill_failed | fallback в App Info |
+| 9 | security_sys | fail | fail | switch_not_found | fallback в App Info |
+| 10 | cleaner | fail | fail | drill_failed | fallback в App Info |
+| 11 | downloads | fail | fail | switch_not_found | fallback в App Info |
+| 12 | mivideo | fail | fail | drill_failed | fallback в App Info |
+| 13 | shareme | fail | fail | drill_failed | fallback в App Info |
+| 14 | filemanager | fail | pass | — | дамп отсутствует |
+| 15 | themes | fail | fail | drill_failed | MSA-промо / App Info |
+| 16 | getapps | fail | skipped | app_not_installed | логируется skipped |
+| 17 | messages_sys | fail | skipped | app_not_installed | логируется skipped |
+| 18 | appvault_services | fail | skipped | app_not_installed | логируется skipped |
+| 19 | appvault_about | fail | skipped | app_not_installed | логируется skipped |
+| 20 | notif_msa | fail | pass | — | дамп отсутствует |
+| 21 | notif_gamecenter | fail | pass | — | дамп отсутствует |
+| 22 | notif_appvault | fail | skipped | app_not_installed | логируется skipped |
+| 23 | notif_themes | fail | pass | — | дамп отсутствует |
+| 24 | notif_getapps | fail | skipped | app_not_installed | логируется skipped |
+| 25 | notif_browser | fail | pass | — | дамп отсутствует |
+| 26 | notif_mivideo | fail | pass | — | дамп отсутствует |
+
+**Итог второго run:** pass 7 | skipped 6 | fail 13.
+
+## Что было изменено в рамках global_ru
+
+1. **adaptive_catalog.json / global_ru:**
+   - Убраны неверные override для `msa` и `sys_recommendations` (шли на Google-экран «Реклама» без нужного переключателя).
+   - `ads_personalization`: сохранён путь через «Реклама», добавлены `tapFallbackTexts` («Удалить рекламный идентификатор») и `confirmTexts` («Удалить», «ОК»).
+   - `carousel`: в `searchTexts` добавлено «Включить» (имя реального переключателя на экране).
+   - `ux_program`: `replaceDrillPath` с тремя уровнями, последний — «Дополнительные настройки».
+2. **SimpleSteps + AdaptiveCatalog + SimpleRunner:**
+   - `Step.tapFallbackTexts` — список текстов кнопки-действия.
+   - `AdaptiveCatalog.mergeTapFallbackTexts()` — variant-aware merge, пустой для `cn_hyperos`.
+   - `SimpleRunner.findAndToggleSwitch`: если переключатель не найден и `tapFallbackTexts` не пуст, тапаем кнопку-действие и подтверждаем диалог.
+3. **AdaptiveCatalogTest:**
+   - Тест замены drillPath: `msa` → `ads_personalization`.
+   - Добавлен тест `tap fallback present for global_ru ads and empty for cn_hyperos`.
+
+## План следующего device-run
+
+- **Устройство / fingerprint:** M2102J20SG, MIUI V13.0.5.0.SJURUXM, ru, Global, HyperOS=false.
+- **Сценарий:** чистый прогон Simple Mode с текущим `global_ru` каталогом и tap-fallback.
+- **Ожидаемые изменения:**
+  - `ads_personalization` — переходит из `switch_not_found` в `tapped_fallback` / success.
+  - `carousel` — должен найти переключатель «Включить» и успешно отключить.
+  - `ux_program` — должен дойти до «Дополнительные настройки» и найти «Программу улучшения качества».
+  - `msa` / `sys_recommendations` — вернутся на путь `cn_hyperos` (Authorization & revocation / Приложения → Ещё); проверить, что false-positive toggle исчез.
+- **Метрики сравнения:**
+  - Снимки `diag-dumps/` до и после — сравнить через `tools/diag-diff.ps1`.
+  - Цель: сократить fail с 13 до ≤5 (app-launch шаги с fallback в App Info могут потребовать отдельной настройки intent).
+  - В логах не должно быть `onFailure` у screenshot; `app_not_installed` — skipped.
