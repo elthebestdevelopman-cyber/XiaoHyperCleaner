@@ -2,9 +2,11 @@ package com.xiaohypercleaner.data
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import com.xiaohypercleaner.util.AppLog
 import org.json.JSONObject
 import java.io.InputStreamReader
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -55,6 +57,10 @@ object AdaptiveCatalog {
     @Volatile
     private var activeVariantName: String = DEFAULT_VARIANT
 
+    /** Флаг первой инициализации варианта (для одноразового лога fingerprint). */
+    @Volatile
+    private var variantSelected: Boolean = false
+
     /** Флаг успешной загрузки */
     @Volatile
     private var isLoaded: Boolean = false
@@ -84,6 +90,53 @@ object AdaptiveCatalog {
         return variants.optJSONObject(activeVariantName)?.optJSONArray(section)
             ?: variants.optJSONObject(DEFAULT_VARIANT)?.optJSONArray(section)
     }
+
+    /** Объект шага в активном варианте с пошаговым фолбэком на cn_hyperos. */
+    private fun variantStepObj(section: String, stepId: String): JSONObject? {
+        val variants: JSONObject = catalogJson?.optJSONObject("variants") ?: return null
+        return variants.optJSONObject(activeVariantName)
+            ?.optJSONObject(section)?.optJSONObject(stepId)
+            ?: variants.optJSONObject(DEFAULT_VARIANT)
+                ?.optJSONObject(section)?.optJSONObject(stepId)
+    }
+
+    /**
+     * Выбирает вариант каталога по fingerprint устройства.
+     *
+     * global_ru = НЕ HyperOS && регион != CN && язык устройства == "ru".
+     * Версии MIUI/SDK на выбор НЕ влияют (Global V14 тоже попадает) — только в лог.
+     * Ключ диспетчеризации включает язык устройства: нерусские локали Global
+     * явно падают в дефолт cn_hyperos (поведение рабочих устройств не меняется).
+     */
+    fun selectVariant(context: Context, profile: RomProfile): String {
+        ensureLoaded(context)
+        val lang: String = Locale.getDefault().language
+        val isGlobalRu: Boolean = !profile.hyperOsHint &&
+            profile.region != RomRegion.CN &&
+            lang.equals("ru", ignoreCase = true)
+        val name: String = if (isGlobalRu) "global_ru" else DEFAULT_VARIANT
+        val changed: Boolean = name != activeVariantName
+        activeVariantName = name
+        if (changed) clearCache()
+        if (changed || !variantSelected) {
+            variantSelected = true
+            AppLog.i(
+                TAG,
+                "catalog variant=$name fingerprint: model=${Build.MODEL} " +
+                    "sdk=${Build.VERSION.SDK_INT} miui=${profile.miuiVersion} " +
+                    "incremental=${Build.VERSION.INCREMENTAL} region=${profile.regionCode} " +
+                    "lang=$lang hyperOs=${profile.hyperOsHint}"
+            )
+        }
+        return name
+    }
+
+    /** Текущий активный вариант каталога (для диагностики/снапшотов). */
+    fun currentVariant(): String = activeVariantName
+
+    /** Флаг replaceDrillPath: каталог заменяет drillPath шага вместо мерджа. */
+    private fun isReplaceDrillPath(stepId: String): Boolean =
+        variantStepObj("uiSteps", stepId)?.optBoolean("replaceDrillPath", false) ?: false
 
     // ═══════════════════════════════════════════════════════════════
     // Загрузка каталога
@@ -192,10 +245,10 @@ object AdaptiveCatalog {
         drillPathCache[cacheKey]?.let { return it }
 
         val catalogDrill: List<List<String>> = getCatalogDrillPath(stepId)
-        val merged: List<List<String>> = if (catalogDrill.isNotEmpty()) {
-            defaults + catalogDrill
-        } else {
-            defaults
+        val merged: List<List<String>> = when {
+            catalogDrill.isEmpty() -> defaults
+            isReplaceDrillPath(stepId) -> catalogDrill
+            else -> defaults + catalogDrill
         }
         drillPathCache[cacheKey] = merged
         return merged
@@ -310,8 +363,7 @@ object AdaptiveCatalog {
      */
     private fun getCatalogList(section: String, stepId: String, key: String): List<String> {
         return try {
-            val sectionObj: JSONObject = variantSection(section) ?: return emptyList()
-            val stepObj: JSONObject = sectionObj.optJSONObject(stepId) ?: return emptyList()
+            val stepObj: JSONObject = variantStepObj(section, stepId) ?: return emptyList()
             val arr: org.json.JSONArray = stepObj.optJSONArray(key) ?: return emptyList()
             (0 until arr.length()).mapNotNull { arr.optString(it) }
         } catch (e: Exception) {
@@ -329,8 +381,7 @@ object AdaptiveCatalog {
      */
     private fun getCatalogDrillPath(stepId: String): List<List<String>> {
         return try {
-            val uiSteps: JSONObject = variantSection("uiSteps") ?: return emptyList()
-            val stepObj: JSONObject = uiSteps.optJSONObject(stepId) ?: return emptyList()
+            val stepObj: JSONObject = variantStepObj("uiSteps", stepId) ?: return emptyList()
             val drillArr: org.json.JSONArray =
                 stepObj.optJSONArray("drillPath") ?: return emptyList()
             (0 until drillArr.length()).mapNotNull { i ->

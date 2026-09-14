@@ -105,6 +105,25 @@
     "Pular", "Agora não", "Fechar", "Cancelar", "Concordar", "Sim", "Confirmar",
     "Saltar", "Ahora no", "Cerrar", "Aceptar", "Sí"
   ]
-}
+},
+    "global_ru": {
+      "uiSteps": {
+        "msa": {
+          "replaceDrillPath": true,
+          "drillPath": [["Реклама", "Ads", "Ad services", "Рекламные службы"]],
+          "searchTexts": ["Реклама", "Персонализация рекламы", "Рекламные службы", "msa", "MSA", "Ad services", "Ads personalization"]
+        },
+        "sys_recommendations": {
+          "replaceDrillPath": true,
+          "drillPath": [["Реклама", "Ads", "Ad services", "Рекламные службы"]],
+          "searchTexts": ["Реклама", "Получать рекомендации", "Персонализация рекламы", "Receive recommendations"]
+        },
+        "ads_personalization": {
+          "replaceDrillPath": true,
+          "drillPath": [["Реклама", "Ads", "Ad services", "Рекламные службы"]],
+          "searchTexts": ["Реклама", "Персонализация рекламы", "Рекламные службы", "Ads personalization", "Ad services"]
+        }
+      }
+    }
   }
 }

@@ -9,6 +9,7 @@ import android.os.Build
 import android.view.Display
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.content.pm.PackageInfoCompat
+import com.xiaohypercleaner.data.AdaptiveCatalog
 import com.xiaohypercleaner.data.RomProfile
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.json.JSONArray
@@ -123,6 +124,7 @@ object DiagnosticSnapshotManager {
                         )
                         put("ro.build.version.incremental", Build.VERSION.INCREMENTAL)
                         put("region", profile.regionCode)
+                        put("catalogVariant", AdaptiveCatalog.currentVariant())
                     }
                 )
                 put("screenDump", dumpTree.toString().trim())

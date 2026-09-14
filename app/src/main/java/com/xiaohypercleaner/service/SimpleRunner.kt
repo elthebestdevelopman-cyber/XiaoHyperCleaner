@@ -185,6 +185,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
         currentStepId = step.id
         lastFailureReason = null
         romProfile = profile
+        // Выбираем вариант каталога по fingerprint (global_ru / cn_hyperos).
+        AdaptiveCatalog.selectVariant(service, profile)
 
         val timeout = computeTimeout(step, profile)
         AppLog.i(TAG, "Executing step: ${step.id} (timeout ${timeout}ms)")
