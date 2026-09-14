@@ -184,7 +184,7 @@ class AdaptiveCatalogTest {
             AdaptiveCatalog.selectVariant(context, globalProfile())
 
             val merged = AdaptiveCatalog.mergeDrillPath(
-                context, "msa", listOf(listOf("DEFAULT_CN_LEVEL"))
+                context, "ads_personalization", listOf(listOf("DEFAULT_CN_LEVEL"))
             )
 
             // replaceDrillPath=true: базовый CN-путь отбрасывается целиком.
@@ -205,6 +205,26 @@ class AdaptiveCatalogTest {
             // browser_sys не переопределён в global_ru -> берётся из cn_hyperos.
             assertEquals(4, merged.size)
             assertTrue(merged[1].contains("Профиль"))
+        }
+    }
+
+    @Test
+    fun `tap fallback present for global_ru ads and empty for cn_hyperos`() {
+        withLocale("ru") {
+            AdaptiveCatalog.selectVariant(context, globalProfile())
+            val globalTap = AdaptiveCatalog.mergeTapFallbackTexts(
+                context, "ads_personalization", emptyList()
+            )
+            assertTrue(globalTap.contains("Удалить рекламный идентификатор"))
+        }
+
+        // cn_hyperos: override tapFallbackTexts нет -> фолбэк-тап отключён (поведение прежнее).
+        withLocale("en") {
+            AdaptiveCatalog.selectVariant(context, globalProfile())
+            val cnTap = AdaptiveCatalog.mergeTapFallbackTexts(
+                context, "ads_personalization", emptyList()
+            )
+            assertTrue(cnTap.isEmpty())
         }
     }
 

@@ -73,6 +73,7 @@ object AdaptiveCatalog {
     private val drillPathCache: MutableMap<String, List<List<String>>> = ConcurrentHashMap()
     private val confirmTextsCache: MutableMap<String, List<String>> = ConcurrentHashMap()
     private val additionalTogglesCache: MutableMap<String, List<String>> = ConcurrentHashMap()
+    private val tapFallbackTextsCache: MutableMap<String, List<String>> = ConcurrentHashMap()
     private val packagesCache: MutableMap<String, List<String>> = ConcurrentHashMap()
 
     /**
@@ -181,6 +182,7 @@ object AdaptiveCatalog {
         drillPathCache.clear()
         confirmTextsCache.clear()
         additionalTogglesCache.clear()
+        tapFallbackTextsCache.clear()
         packagesCache.clear()
         AppLog.i(TAG, "кэш очищен")
     }
@@ -299,6 +301,25 @@ object AdaptiveCatalog {
         val catalogTexts: List<String> = getCatalogList("uiSteps", stepId, "additionalToggles")
         val merged: List<String> = (defaults + catalogTexts).distinct()
         additionalTogglesCache[cacheKey] = merged
+        return merged
+    }
+
+    /**
+     * Мерджит базовые tapFallbackTexts с каталожными (variant-aware).
+     * Пустой результат = фолбэк-тап отключён (поведение cn_hyperos не меняется).
+     */
+    fun mergeTapFallbackTexts(
+        context: Context,
+        stepId: String,
+        defaults: List<String>
+    ): List<String> {
+        ensureLoaded(context)
+        val cacheKey: String = "tf_$stepId"
+        tapFallbackTextsCache[cacheKey]?.let { return it }
+
+        val catalogTexts: List<String> = getCatalogList("uiSteps", stepId, "tapFallbackTexts")
+        val merged: List<String> = (defaults + catalogTexts).distinct()
+        tapFallbackTextsCache[cacheKey] = merged
         return merged
     }
 

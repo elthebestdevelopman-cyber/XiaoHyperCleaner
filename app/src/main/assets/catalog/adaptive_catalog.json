@@ -108,20 +108,19 @@
 },
     "global_ru": {
       "uiSteps": {
-        "msa": {
-          "replaceDrillPath": true,
-          "drillPath": [["Реклама", "Ads", "Ad services", "Рекламные службы"]],
-          "searchTexts": ["Реклама", "Персонализация рекламы", "Рекламные службы", "msa", "MSA", "Ad services", "Ads personalization"]
-        },
-        "sys_recommendations": {
-          "replaceDrillPath": true,
-          "drillPath": [["Реклама", "Ads", "Ad services", "Рекламные службы"]],
-          "searchTexts": ["Реклама", "Получать рекомендации", "Персонализация рекламы", "Receive recommendations"]
-        },
         "ads_personalization": {
           "replaceDrillPath": true,
           "drillPath": [["Реклама", "Ads", "Ad services", "Рекламные службы"]],
-          "searchTexts": ["Реклама", "Персонализация рекламы", "Рекламные службы", "Ads personalization", "Ad services"]
+          "searchTexts": ["Реклама", "Персонализация рекламы", "Рекламные службы", "Ads personalization", "Ad services"],
+          "tapFallbackTexts": ["Удалить рекламный идентификатор", "Delete advertising ID", "Отключить персонализацию рекламы", "Opt out of Ads Personalization"],
+          "confirmTexts": ["Удалить", "Delete", "ОК", "OK"]
+        },
+        "carousel": {
+          "searchTexts": ["Включить", "Карусель обоев", "Wallpaper Carousel", "Glance"]
+        },
+        "ux_program": {
+          "replaceDrillPath": true,
+          "drillPath": [["Пароли и безопасность", "Passwords & security", "Отпечатки, данные лица и защита устройства"], ["Конфиденциальность", "Privacy"], ["Дополнительные настройки", "Additional settings"]]
         }
       }
     }

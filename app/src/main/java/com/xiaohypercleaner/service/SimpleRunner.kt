@@ -537,6 +537,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         if (switchNode == null) {
             recycleNode(currentRoot)
+            // Variant-aware фолбэк: на экранах без тумблера (Global: Google «Реклама»
+            // с кнопкой «Удалить рекламный идентификатор») тапаем кнопку-действие.
+            val tapTexts =
+                AdaptiveCatalog.mergeTapFallbackTexts(service, step.id, step.tapFallbackTexts)
+            if (tapTexts.isNotEmpty()) return tapActionButton(step, tapTexts)
             return Result(false, "switch_not_found")
         }
 
@@ -565,22 +570,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
 
         // П.3: Подтверждение
-        if (step.confirmTexts.isNotEmpty()) {
-            val mergedConfirmTexts =
-                AdaptiveCatalog.mergeConfirmTexts(service, step.id, step.confirmTexts)
-            if (step.confirmWaitMs > 0) delay(step.confirmWaitMs)
-            for (attempt in 1..3) {
-                val confirmRoot = service.rootInActiveWindow ?: break
-                val confirmNode = findClickableByText(confirmRoot, mergedConfirmTexts)
-                if (confirmNode != null) {
-                    tapNode(confirmNode)
-                    recycleNode(confirmNode); recycleNode(confirmRoot)
-                    break
-                }
-                recycleNode(confirmRoot)
-                delay(CONFIRM_RETRY_MS)
-            }
-        }
+        tapConfirmIfNeeded(step)
 
         // П.3: Дополнительные переключатели
         val mergedAdditionalToggles =
@@ -595,6 +585,44 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
 
         return Result(true, "toggled")
+    }
+
+    /**
+     * Фолбэк для экранов без переключателя: тапает кликабельную кнопку-действие
+     * (например, «Удалить рекламный идентификатор» на Google-экране «Реклама»)
+     * и обрабатывает подтверждение. Вызывается только когда тумблер не найден
+     * и настроены tapFallbackTexts.
+     */
+    private suspend fun tapActionButton(step: SimpleSteps.Step, tapTexts: List<String>): Result {
+        val node = findClickableByTextWithScroll(tapTexts)
+            ?: return Result(false, "switch_not_found")
+        if (!tapNode(node)) {
+            recycleNode(node)
+            return Result(false, "tap_failed")
+        }
+        recycleNode(node)
+        delay(600)
+        tapConfirmIfNeeded(step)
+        return Result(true, "tapped_fallback")
+    }
+
+    /** Тапает кнопку подтверждения диалога, если он появился (confirmTexts шага). */
+    private suspend fun tapConfirmIfNeeded(step: SimpleSteps.Step) {
+        if (step.confirmTexts.isEmpty()) return
+        val mergedConfirmTexts =
+            AdaptiveCatalog.mergeConfirmTexts(service, step.id, step.confirmTexts)
+        if (step.confirmWaitMs > 0) delay(step.confirmWaitMs)
+        for (attempt in 1..3) {
+            val confirmRoot = service.rootInActiveWindow ?: break
+            val confirmNode = findClickableByText(confirmRoot, mergedConfirmTexts)
+            if (confirmNode != null) {
+                tapNode(confirmNode)
+                recycleNode(confirmNode); recycleNode(confirmRoot)
+                break
+            }
+            recycleNode(confirmRoot)
+            delay(CONFIRM_RETRY_MS)
+        }
     }
 
     private suspend fun verifySwitchState(step: SimpleSteps.Step, texts: List<String>): Boolean {

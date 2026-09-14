@@ -51,6 +51,8 @@ object SimpleSteps {
         val confirmWaitMs: Long = 0L,
         val preDrillWaitMs: Long = 0L,
         val swipeUpAfterLaunch: Boolean = false,
+    /** Тексты кнопки-действия, по которой тапаем, если переключатель не найден (variant-aware через каталог). */
+    val tapFallbackTexts: List<String> = emptyList(),
         /**
          * Принудительная остановка пакета перед запуском.
          * Нужно для шагов-приложений (Темы, Музыка, Mi Video и т.д.) — MIUI
