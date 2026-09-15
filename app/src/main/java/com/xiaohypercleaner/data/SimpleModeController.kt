@@ -700,6 +700,7 @@ class SimpleModeController(
     private fun reset() {
         AppLog.i(TAG, "Resetting simple mode controller")
         autoFlowJob?.cancel()
+        OverlayController.endPhase()
         OverlayController.hide(context)
         releaseWakeLock()  // НОВОЕ (beta11): освобождаем wake lock
         failedIds.clear()

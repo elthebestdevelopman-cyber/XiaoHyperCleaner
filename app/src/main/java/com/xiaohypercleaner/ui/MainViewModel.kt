@@ -112,6 +112,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         OverlayController.setOnCancel {
             AppLog.i(TAG, "automation cancelled by user via overlay")
             AdbEnablerService.instance?.cancelRunner()
+            OverlayController.endPhase()
             OverlayController.hide(app)
             closeSimpleMode()
         }

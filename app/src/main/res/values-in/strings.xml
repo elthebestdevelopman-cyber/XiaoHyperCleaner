@@ -280,7 +280,6 @@
     <string name="result_close">Buka aplikasi</string>
     <string name="progress_format">%1$d%%</string>
     <string name="mock_notifications_label">Notifikasi</string>
-    <string name="overlay_do_not_touch">Jangan sentuh layar — otomatisasi sedang berjalan</string>
     <string name="overlay_recovering">Memulihkan overlay…</string>
     <string name="overlay_paused">Otomatisasi dijeda: overlay tidak tersedia</string>
 </resources>

@@ -271,31 +271,31 @@ class AdbEnablerService : AccessibilityService() {
 
             // Гейт прикреплённости оверлея: 2 с на восстановление, затем пауза
             // до 10 с; при отказе — шаг фейлится с явной причиной.
-            if (!OverlayController.isAttached) {
-                AppLog.w(TAG, "runSimpleStep: overlay not attached, waiting up to 2s")
+            if (!OverlayController.isOverlaySolid()) {
+                AppLog.w(TAG, "runSimpleStep: overlay not solid, waiting up to 2s")
                 OverlayController.updateStatus(this, getString(R.string.overlay_recovering))
                 var waited = 0
-                while (!OverlayController.isAttached && waited < 2000) {
+                while (!OverlayController.isOverlaySolid() && waited < 2000) {
                     delay(100)
                     waited += 100
                 }
-                if (!OverlayController.isAttached) {
-                    AppLog.w(TAG, "runSimpleStep: overlay still not attached after 2s, pausing")
+                if (!OverlayController.isOverlaySolid()) {
+                    AppLog.w(TAG, "runSimpleStep: overlay still not solid after 2s, pausing")
                     OverlayController.updateStatus(this, getString(R.string.overlay_paused))
                     var paused = 0
-                    while (!OverlayController.isAttached && paused < 8000) {
+                    while (!OverlayController.isOverlaySolid() && paused < 8000) {
                         delay(250)
                         paused += 250
                     }
                 }
-                if (!OverlayController.isAttached) {
-                    AppLog.e(TAG, "runSimpleStep: overlay never attached, failing step ${step.id}")
+                if (!OverlayController.isOverlaySolid()) {
+                    AppLog.e(TAG, "runSimpleStep: overlay never solid, failing step ${step.id}")
                     StepDiagnostics.note(step.id, "FAIL", "reason=overlay_not_attached")
                     SimpleStepBridge.onResult?.invoke(false, "overlay_not_attached")
                     if (index == total - 1) releaseWakeLock()
                     return
                 }
-                AppLog.i(TAG, "runSimpleStep: overlay attached again, resuming")
+                AppLog.i(TAG, "runSimpleStep: overlay solid again, resuming")
             }
 
             // ═══════════════════════════════════════════════════════════════

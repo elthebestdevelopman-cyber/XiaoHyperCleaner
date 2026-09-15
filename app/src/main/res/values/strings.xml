@@ -295,7 +295,6 @@
     <string name="overlay_hint_prefix" translatable="false">"💡 "</string>
     <string name="progress_format">%1$d%%</string>
     <string name="mock_notifications_label">Уведомления</string>
-    <string name="overlay_do_not_touch">Не касайтесь экрана — идёт автоматизация</string>
     <string name="overlay_recovering">Восстановление оверлея…</string>
     <string name="overlay_paused">Автоматизация приостановлена: оверлей недоступен</string>
 </resources>

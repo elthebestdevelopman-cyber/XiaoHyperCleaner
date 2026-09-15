@@ -280,7 +280,6 @@
     <string name="result_close">ऐप खोलें</string>
     <string name="progress_format">%1$d%%</string>
     <string name="mock_notifications_label">सूचनाएं</string>
-    <string name="overlay_do_not_touch">स्क्रीन को स्पर्श न करें — स्वचालन चल रहा है</string>
     <string name="overlay_recovering">ओवरले पुनर्स्थापित हो रहा है…</string>
     <string name="overlay_paused">स्वचालन रुका: ओवरले उपलब्ध नहीं</string>
 </resources>

@@ -280,7 +280,6 @@
     <string name="result_close">Abrir app</string>
     <string name="progress_format">%1$d%%</string>
     <string name="mock_notifications_label">Notificações</string>
-    <string name="overlay_do_not_touch">Não toque na tela — automação em andamento</string>
     <string name="overlay_recovering">Restaurando a sobreposição…</string>
     <string name="overlay_paused">Automação pausada: sobreposição indisponível</string>
 </resources>

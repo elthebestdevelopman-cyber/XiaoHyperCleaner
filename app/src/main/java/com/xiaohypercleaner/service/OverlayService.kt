@@ -1,10 +1,11 @@
-package com.xiaohypercleaner.service
+﻿package com.xiaohypercleaner.service
 
 import android.animation.ObjectAnimator
 import android.app.Service
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.graphics.drawable.Animatable
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
@@ -29,15 +30,10 @@ import com.xiaohypercleaner.ui.openUrl
 import com.xiaohypercleaner.util.AppLog
 
 /**
- * Оверлей с 4 режимами.
+ * Оверлей с heartbeat-защитой от пропадания.
  *
- * ИСПРАВЛЕНО:
- *  - showPointer: НЕ авто-скрывается — стрелка живёт до выдачи разрешения
- *    (мы сами прячем её в advance()/hide()), поэтому не «приходит с опозданием»
- *  - showHint: авто-скрытие оставлено (пузырь не должен висеть вечно)
- *  - setBlocking() — временный просвет оверлея для жестов робота
- *  - hide() без stopSelf — оверлей не «мигает» между фазами
- *  - showResult: 3 кнопки равной ширины (weight=1f)
+ * Правило «один show/hide на фазу» обеспечивается OverlayController.
+ * Heartbeat каждые 500мс проверяет attached+visible+rect; при потере — re-add.
  */
 class OverlayService : Service() {
 
@@ -58,17 +54,21 @@ class OverlayService : Service() {
         const val EXTRA_COMPLETED = "completed"
         const val EXTRA_FAILED = "failed"
         const val EXTRA_SKIPPED = "skipped"
+        private const val HEARTBEAT_INTERVAL_MS = 500L
     }
 
     enum class PointerMode { TOP_RIGHT, BOTTOM_LIST, SWITCH_RIGHT, LIST_ITEM_CENTER, GENERIC_BOTTOM }
 
     private var wm: WindowManager? = null
     private var root: View? = null
+    private var layoutParams: WindowManager.LayoutParams? = null
     private var isBlocking = true
-    // Легитимный hide()/onDestroy не должен выглядеть как «detached unexpectedly»
     private var expectingDetach = false
     private val animators = mutableListOf<ObjectAnimator>()
     private val handler = Handler(Looper.getMainLooper())
+
+    private val heartbeatHandler = Handler(Looper.getMainLooper())
+    private var heartbeatRunnable: Runnable? = null
 
     private var tvStep: TextView? = null
     private var tvTitle: TextView? = null
@@ -87,14 +87,12 @@ class OverlayService : Service() {
         when (intent?.action) {
             ACTION_HIDE -> hide()
             ACTION_SET_BLOCKING -> setBlocking(intent.getBooleanExtra(EXTRA_BLOCKING, true))
-
             ACTION_AUTO_START -> showAutomation(intent.getIntExtra(EXTRA_TOTAL, 0))
             ACTION_AUTO_UPDATE -> updateAutomation(
                 intent.getIntExtra(EXTRA_STEP, 0),
                 intent.getIntExtra(EXTRA_TOTAL, 0),
                 intent.getStringExtra(EXTRA_TITLE) ?: ""
             )
-
             ACTION_AUTO_STATUS -> tvStatus?.text = intent.getStringExtra(EXTRA_STATUS) ?: ""
             ACTION_RESULT -> showResult(
                 intent.getIntExtra(EXTRA_COMPLETED, 0),
@@ -106,7 +104,6 @@ class OverlayService : Service() {
         return START_NOT_STICKY
     }
 
-    /** Вкл/выкл перехват касаний оверлеем (для жестов робота) */
     private fun setBlocking(blocking: Boolean) {
         if (isBlocking == blocking) return
         isBlocking = blocking
@@ -125,9 +122,7 @@ class OverlayService : Service() {
         }
     }
 
-    // ═══ HINT (пузырь, авто-скрытие) ═══
-
-    // ─── AUTOMATION (блокирующий, робокот) ───
+    // ─── AUTOMATION ───
 
     private fun showAutomation(total: Int) {
         hide()
@@ -138,7 +133,6 @@ class OverlayService : Service() {
             setPadding(dp(24), dp(20), dp(24), dp(20))
             background = roundBg(0x99000000.toInt(), radiusDp = 24)
         }
-
         val cat = ImageView(this).apply {
             val d = ContextCompat.getDrawable(this@OverlayService, R.drawable.ic_robot_washing_avd)
                 ?: ContextCompat.getDrawable(this@OverlayService, R.drawable.ic_robot_companion)
@@ -146,9 +140,7 @@ class OverlayService : Service() {
             (d as? Animatable)?.start()
         }
         layout.addView(cat, LinearLayout.LayoutParams(dp(120), dp(120)))
-        if (cat.drawable !is Animatable) {
-            washWobble(cat)
-        }
+        if (cat.drawable !is Animatable) washWobble(cat)
 
         tvTitle = TextView(this).apply {
             setText(R.string.automation_title)
@@ -168,10 +160,9 @@ class OverlayService : Service() {
         progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = total.coerceAtLeast(1); progress = 0
         }
-        layout.addView(
-            progressBar, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(8)
-            ).apply { topMargin = dp(12) })
+        layout.addView(progressBar, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(8)
+        ).apply { topMargin = dp(12) })
 
         tvStatus = TextView(this).apply {
             setTextColor(0xB3FFFFFF.toInt())
@@ -181,28 +172,18 @@ class OverlayService : Service() {
         }
         layout.addView(tvStatus, llWrap().apply { topMargin = dp(8) })
 
-        val doNotTouch = TextView(this).apply {
-            setText(R.string.overlay_do_not_touch)
-            setTextColor(0xB3FFFFFF.toInt())
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-            gravity = Gravity.CENTER
-        }
-        layout.addView(doNotTouch, llWrap().apply { topMargin = dp(12) })
-
         val cancel = Button(this).apply {
             setText(R.string.automation_cancel)
             setTextColor(0xFF64B5F6.toInt())
             setBackgroundColor(Color.TRANSPARENT)
         }
-        layout.addView(
-            cancel, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(44)
-            ).apply { topMargin = dp(12) })
+        layout.addView(cancel, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(44)
+        ).apply { topMargin = dp(12) })
         cancel.setOnClickListener {
             AppLog.i(TAG, "automation cancelled by user")
+            OverlayController.endPhase()
             hide()
-            // Всегда останавливаем runner локально — даже если listener в OverlayController
-            // ещё не зарегистрирован / был сброшен.
             AdbEnablerService.instance?.cancelRunner()
             OverlayController.triggerCancel()
         }
@@ -211,6 +192,7 @@ class OverlayService : Service() {
             addView(layout, flParams(Gravity.CENTER))
         }
         updateAutomation(0, total, "")
+        startHeartbeat()
         AppLog.i(TAG, "automation overlay shown (blocking), total=$total")
     }
 
@@ -221,9 +203,10 @@ class OverlayService : Service() {
         if (title.isNotEmpty()) tvTitle?.text = title
     }
 
-    // ═══ RESULT (3 кнопки равной ширины) ═══
+    // ═══ RESULT ═══
 
     private fun showResult(completed: Int, total: Int, failed: Int, skipped: Int) {
+        stopHeartbeat()
         hide()
         isBlocking = true
         val layout = LinearLayout(this).apply {
@@ -234,65 +217,65 @@ class OverlayService : Service() {
         }
         val cat = ImageView(this).apply { setImageResource(R.drawable.ic_robot_companion) }
         layout.addView(cat, LinearLayout.LayoutParams(dp(120), dp(120)))
-
-        layout.addView(
-            titleText(getString(R.string.result_title), 20f, bold = true),
-            llWrap().apply { topMargin = dp(12) })
-        layout.addView(
-            bodyText(getString(R.string.result_summary, completed, total)),
-            llWrap().apply { topMargin = dp(6) })
-        if (skipped > 0) layout.addView(
-            bodyText(getString(R.string.result_skipped, skipped), small = true),
-            llWrap().apply { topMargin = dp(4) })
-        if (failed > 0) layout.addView(
-            bodyText(getString(R.string.result_failed, failed), small = true),
-            llWrap().apply { topMargin = dp(4) })
-        layout.addView(bodyText(getString(R.string.result_soft), small = true).apply {
-            setPadding(0, dp(10), 0, 0)
-        }, llWrap())
-
-        val row1 = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
+        layout.addView(titleText(getString(R.string.result_title), 20f, bold = true), llWrap().apply { topMargin = dp(12) })
+        layout.addView(bodyText(getString(R.string.result_summary, completed, total)), llWrap().apply { topMargin = dp(6) })
+        if (skipped > 0) layout.addView(bodyText(getString(R.string.result_skipped, skipped), small = true), llWrap().apply { topMargin = dp(4) })
+        if (failed > 0) layout.addView(bodyText(getString(R.string.result_failed, failed), small = true), llWrap().apply { topMargin = dp(4) })
+        layout.addView(bodyText(getString(R.string.result_soft), small = true).apply { setPadding(0, dp(10), 0, 0) }, llWrap())
+        val row1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
         val btnParams = { LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
-
-        row1.addView(textBtn(getString(R.string.result_rate)) {
-            hide()
-            returnToApp()
-            openRate()
-        }, btnParams())
-        row1.addView(textBtn(getString(R.string.result_support)) {
-            hide()
-            returnToApp()
-            openSupport()
-        }, btnParams())
-
-        val row2 = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-        row2.addView(textBtn(getString(R.string.result_share_log)) {
-            hide()
-            shareLogFromOverlay()
-            OverlayController.triggerResultClose()
-        }, btnParams())
-        row2.addView(textBtn(getString(R.string.result_close)) {
-            hide()
-            returnToApp()
-            OverlayController.triggerResultClose()
-        }, btnParams())
-
+        row1.addView(textBtn(getString(R.string.result_rate)) { hide(); returnToApp(); openRate() }, btnParams())
+        row1.addView(textBtn(getString(R.string.result_support)) { hide(); returnToApp(); openSupport() }, btnParams())
+        val row2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+        row2.addView(textBtn(getString(R.string.result_share_log)) { hide(); shareLogFromOverlay(); OverlayController.triggerResultClose() }, btnParams())
+        row2.addView(textBtn(getString(R.string.result_close)) { hide(); returnToApp(); OverlayController.triggerResultClose() }, btnParams())
         layout.addView(row1, llWrap().apply { topMargin = dp(10) })
         layout.addView(row2, llWrap().apply { topMargin = dp(4) })
-
         returnToApp()
-
-        addRoot(touchable = true, fullScreen = true).apply {
-            addView(layout, flParams(Gravity.CENTER))
-        }
+        addRoot(touchable = true, fullScreen = true).apply { addView(layout, flParams(Gravity.CENTER)) }
         AppLog.i(TAG, "result shown: $completed/$total, failed=$failed, skipped=$skipped")
     }
+
+    // ═══ HEARTBEAT ═══
+
+    private fun startHeartbeat() {
+        stopHeartbeat()
+        heartbeatRunnable = object : Runnable {
+            override fun run() {
+                if (!OverlayController.phaseRunning) return
+                val v = root
+                if (v == null) { AppLog.w(TAG, "overlay: heartbeat recovered reason=root-null"); return }
+                val attached = v.isAttachedToWindow
+                val visible = attached && v.windowVisibility == View.VISIBLE && v.getGlobalVisibleRect(Rect())
+                if (!attached || !visible) {
+                    val reason = when {
+                        !attached -> "detached"
+                        v.windowVisibility != View.VISIBLE -> "invisible"
+                        else -> "zero-rect"
+                    }
+                    AppLog.w(TAG, "overlay: heartbeat recovered reason=$reason")
+                    val params = layoutParams
+                    if (params != null && !attached) {
+                        try { wm?.addView(v, params); AppLog.i(TAG, "overlay: heartbeat re-added after $reason") }
+                        catch (e: Exception) { AppLog.w(TAG, "overlay: heartbeat re-add failed: ${e.message}") }
+                    } else if (params != null) {
+                        try { wm?.updateViewLayout(v, params); AppLog.i(TAG, "overlay: heartbeat updateViewLayout after $reason") }
+                        catch (e: Exception) { AppLog.w(TAG, "overlay: heartbeat update failed: ${e.message}") }
+                    }
+                }
+                heartbeatHandler.postDelayed(this, HEARTBEAT_INTERVAL_MS)
+            }
+        }
+        heartbeatHandler.postDelayed(heartbeatRunnable!!, HEARTBEAT_INTERVAL_MS)
+        AppLog.i(TAG, "heartbeat started")
+    }
+
+    private fun stopHeartbeat() {
+        heartbeatRunnable?.let { heartbeatHandler.removeCallbacks(it) }
+        heartbeatRunnable = null
+    }
+
+    // ═══ Вспомогательные ═══
 
     private fun returnToApp() {
         try {
@@ -307,18 +290,11 @@ class OverlayService : Service() {
 
     private fun shareLogFromOverlay() {
         returnToApp()
-        try {
-            com.xiaohypercleaner.ui.shareLog(this)
-        } catch (e: Exception) {
-            AppLog.w(TAG, "shareLogFromOverlay failed: ${e.message}")
-        }
+        try { com.xiaohypercleaner.ui.shareLog(this) }
+        catch (e: Exception) { AppLog.w(TAG, "shareLogFromOverlay failed: ${e.message}") }
     }
 
-    // ═══ Вспомогательные ═══
-
-    private fun llWrap() = LinearLayout.LayoutParams(
-        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-    )
+    private fun llWrap() = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
 
     private fun titleText(s: String, sp: Float, bold: Boolean = false) = TextView(this).apply {
         text = s; setTextColor(Color.WHITE); setTextSize(TypedValue.COMPLEX_UNIT_SP, sp)
@@ -340,32 +316,16 @@ class OverlayService : Service() {
         try {
             val pkg = packageName
             for (s in listOf("market://details?id=$pkg", "rustore://application/$pkg")) {
-                try {
-                    startActivity(
-                        Intent(Intent.ACTION_VIEW, android.net.Uri.parse(s))
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    ); return
-                } catch (_: Exception) {
-                }
+                try { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(s)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return }
+                catch (_: Exception) {}
             }
-            startActivity(
-                Intent(
-                    Intent.ACTION_VIEW,
-                    android.net.Uri.parse("https://play.google.com/store/apps/details?id=$pkg")
-                )
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-        } catch (e: Exception) {
-            AppLog.w(TAG, "openRate failed: ${e.message}")
-        }
+            startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://play.google.com/store/apps/details?id=$pkg")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (e: Exception) { AppLog.w(TAG, "openRate failed: ${e.message}") }
     }
 
     private fun openSupport() {
-        try {
-            openUrl(this, AppConstants.SUPPORT_PAGE_URL)
-        } catch (e: Exception) {
-            AppLog.w(TAG, "openSupport failed: ${e.message}")
-        }
+        try { openUrl(this, AppConstants.SUPPORT_PAGE_URL) }
+        catch (e: Exception) { AppLog.w(TAG, "openSupport failed: ${e.message}") }
     }
 
     private fun addRoot(touchable: Boolean, fullScreen: Boolean): FrameLayout {
@@ -377,70 +337,49 @@ class OverlayService : Service() {
         if (touchable) flags = flags or WindowManager.LayoutParams.FLAG_DIM_BEHIND
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
-            if (fullScreen) WindowManager.LayoutParams.MATCH_PARENT
-            else WindowManager.LayoutParams.WRAP_CONTENT,
+            if (fullScreen) WindowManager.LayoutParams.MATCH_PARENT else WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             flags, PixelFormat.TRANSLUCENT
         ).apply {
-            // Лёгкое затемнение 12% — пользователь отчётливо видит все системные экраны
             if (touchable) dimAmount = 0.12f
             if (!fullScreen) gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
         }
         wm?.addView(v, params)
         root = v
+        layoutParams = params
         isBlocking = touchable
         expectingDetach = false
 
-        // Watchdog: отслеживаем прикрепление/открепление окна
+        // Логируем все смены attach/detach
         v.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(view: View) {
                 OverlayController.markAttached()
+                AppLog.i(TAG, "overlay: viewAttachedToWindow ts=${System.currentTimeMillis()}")
             }
-
             override fun onViewDetachedFromWindow(view: View) {
                 OverlayController.markDetached()
-                if (expectingDetach) return  // плановый hide() — не тревожимся
+                AppLog.i(TAG, "overlay: viewDetachedFromWindow ts=${System.currentTimeMillis()}")
+                if (expectingDetach) return
                 AppLog.w(TAG, "overlay detached unexpectedly, re-adding via watchdog")
-                // Re-add через handler, если окно открепилось неожиданно
                 handler.postDelayed({
                     if (root == v && !OverlayController.isAttached && !expectingDetach) {
-                        try {
-                            wm?.addView(v, params)
-                            AppLog.i(TAG, "watchdog: overlay re-added")
-                        } catch (e: Exception) {
-                            AppLog.w(TAG, "watchdog re-add failed: ${e.message}")
-                        }
+                        try { wm?.addView(v, params); AppLog.i(TAG, "watchdog: overlay re-added") }
+                        catch (e: Exception) { AppLog.w(TAG, "watchdog re-add failed: ${e.message}") }
                     }
                 }, 100)
             }
         })
 
-        // Touch-лог для диагностики
+        // Touch-лог
         if (touchable) {
             v.setOnTouchListener { _, event ->
                 AppLog.d(TAG, "touch intercepted: x=${event.x}, y=${event.y}")
                 false
             }
         }
-
         return v
     }
 
-    private fun pulse(view: View) {
-        ObjectAnimator.ofFloat(view, View.ALPHA, 1f, 0.25f, 1f).apply {
-            duration = 800; repeatCount = ObjectAnimator.INFINITE
-            interpolator = LinearInterpolator(); start()
-        }.also { animators.add(it) }
-    }
-
-    private fun wobble(view: View) {
-        ObjectAnimator.ofFloat(view, View.ROTATION, -5f, 5f, -5f).apply {
-            duration = 1400; repeatCount = ObjectAnimator.INFINITE
-            interpolator = LinearInterpolator(); start()
-        }.also { animators.add(it) }
-    }
-
-    /** Fallback, если AVD не стартовал: лёгкое «умывание» поворотом */
     private fun washWobble(view: View) {
         ObjectAnimator.ofFloat(view, View.ROTATION, -12f, 8f, -12f).apply {
             duration = 700; repeatCount = ObjectAnimator.INFINITE
@@ -451,30 +390,19 @@ class OverlayService : Service() {
     private fun roundBg(color: Int, radiusDp: Int = 16) =
         GradientDrawable().apply { setColor(color); cornerRadius = dp(radiusDp).toFloat() }
 
-    private fun TextView.autoSize() =
-        androidx.core.widget.TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
-            this, 12, 16, 1, TypedValue.COMPLEX_UNIT_SP
-        )
-
     private fun flParams(gravity: Int) = FrameLayout.LayoutParams(
-        FrameLayout.LayoutParams.MATCH_PARENT,
-        FrameLayout.LayoutParams.WRAP_CONTENT, gravity
-    )
+        FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, gravity)
 
     private fun dp(v: Int): Int = TypedValue.applyDimension(
-        TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), resources.displayMetrics
-    ).toInt()
+        TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), resources.displayMetrics).toInt()
 
     private fun hide() {
+        stopHeartbeat()
         expectingDetach = true
         animators.forEach { it.cancel() }; animators.clear()
-        root?.let {
-            try {
-                wm?.removeView(it)
-            } catch (_: Exception) {
-            }
-        }
+        root?.let { try { wm?.removeView(it) } catch (_: Exception) {} }
         root = null
+        layoutParams = null
         isBlocking = true
         tvStep = null; tvTitle = null; tvStatus = null; progressBar = null
         OverlayController.markDetached()
@@ -482,15 +410,12 @@ class OverlayService : Service() {
     }
 
     override fun onDestroy() {
+        stopHeartbeat()
         expectingDetach = true
         animators.forEach { it.cancel() }; animators.clear()
-        root?.let {
-            try {
-                wm?.removeView(it)
-            } catch (_: Exception) {
-            }
-        }
+        root?.let { try { wm?.removeView(it) } catch (_: Exception) {} }
         root = null
+        layoutParams = null
         isBlocking = true
         OverlayController.markDetached()
         super.onDestroy()
