@@ -282,6 +282,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
             return Result(false, "app_not_installed")
         }
 
+        // П.2: home_suggestions — пропуск, если лаунчер не MIUI
+        if (step.id == "home_suggestions") {
+            val miuiLaunchers = step.requiredPackages
+            val hasMiuiHome = miuiLaunchers.any { isInstalled(it) }
+            if (!hasMiuiHome) {
+                AppLog.i(TAG, "home_suggestions: skipped (home_not_miui)")
+                return Result(false, "home_not_miui")
+            }
+        }
+
         // П.6: Умный сброс настроек
         if (step.launchPackage == null) {
             if (!canResumeSettings) resetSettingsToRoot()
@@ -304,8 +314,24 @@ class SimpleRunner(private val service: AdbEnablerService) {
             try {
                 service.startActivity(intent)
                 screenOpened = true
-                if (isAppStep || awaitScreen(verifyTexts, timeoutMs = CONTENT_WAIT_MS)) break
-                AppLog.w(TAG, "Экран не подтверждён после интента, пробуем следующий")
+                if (isAppStep) {
+                    // Для app-шагов: проверяем что целевой пакет в foreground и дерево непустое
+                    delay(APP_LAUNCH_DELAY_MS)
+                    val root = service.rootInActiveWindow
+                    val fgPkg = root?.packageName?.toString()
+                    val hasTree = root != null && root.childCount > 0
+                    recycleNode(root)
+                    if (fgPkg == resolvedPkg && hasTree) {
+                        AppLog.i(TAG, "App launched: $fgPkg, tree=$hasTree")
+                        break
+                    }
+                    AppLog.w(TAG, "App not ready: fg=$fgPkg target=$resolvedPkg tree=$hasTree, retrying")
+                    screenOpened = false
+                } else if (awaitScreen(verifyTexts, timeoutMs = CONTENT_WAIT_MS)) {
+                    break
+                } else {
+                    AppLog.w(TAG, "Экран не подтверждён после интента, пробуем следующий")
+                }
             } catch (e: Exception) {
                 AppLog.w(TAG, "DirectIntentNavigator failed: ${e.message}")
             }
@@ -329,6 +355,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         delay(if (step.launchPackage != null) APP_LAUNCH_DELAY_MS else UI_SETTLE_DELAY_MS)
         interceptSystemDialogs(step, mediaGrant)
+
+        // П.3: consent-цикл для themes — тапаем кнопки согласия перед drill
+        if (step.id == "themes") {
+            dismissConsentScreens()
+        }
 
         // П.3: Навигация по маршруту
         if (step.drillPath.isNotEmpty()) {
@@ -547,6 +578,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         val isChecked = switchNode.isCheckedCompat()
         val text = switchNode.text?.toString() ?: mergedSearchTexts.first()
+        val desc = switchNode.contentDescription?.toString() ?: ""
+        val bounds = Rect().also { switchNode.getBoundsInScreen(it) }
 
         if (isChecked == step.targetChecked) {
             recycleNode(switchNode); recycleNode(currentRoot)
@@ -584,6 +617,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
             delay(400)
         }
 
+        AppLog.i(
+            TAG,
+            "toggled: text='$text' desc='$desc' bounds=[${bounds.left},${bounds.top},${bounds.right},${bounds.bottom}] step=${step.id}"
+        )
+        
         return Result(true, "toggled")
     }
 
@@ -765,6 +803,34 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
         recycleNode(root)
         return false
+    }
+
+    /**
+     * Consent-цикл для app-шагов (themes): тапает кнопки согласия/принятия
+     * на приветственных экранах приложения перед началом drill-навигации.
+     * До 3 итераций, каждая с задержкой для отрисовки следующего экрана.
+     */
+    private suspend fun dismissConsentScreens() {
+        val consentTexts = listOf(
+            "Согласен", "Agree", "Accept", "Принять", "I agree",
+            "同意", "Aceptar", "Concordar", "Setuju", "Sim",
+            "Да", "Yes", "हाँ", "OK", "ОК"
+        )
+        repeat(3) { iteration ->
+            if (cancelled) return
+            delay(800)
+            val root = service.rootInActiveWindow ?: return
+            val node = findClickableByText(root, consentTexts)
+            if (node != null) {
+                val text = node.text?.toString() ?: ""
+                AppLog.i(TAG, "consent: tapped '$text' (iteration ${iteration + 1})")
+                tapNode(node)
+                recycleNode(node); recycleNode(root)
+            } else {
+                recycleNode(root)
+                return
+            }
+        }
     }
 
     // ─── Navigation & Utilities ───────────────────────────────────────────

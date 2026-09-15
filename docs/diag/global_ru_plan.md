@@ -146,3 +146,54 @@
   - Снимки `diag-dumps/` до и после — сравнить через `tools/diag-diff.ps1`.
   - Цель: сократить fail с 13 до ≤5 (app-launch шаги с fallback в App Info могут потребовать отдельной настройки intent).
   - В логах не должно быть `onFailure` у screenshot; `app_not_installed` — skipped.
+
+## Процедура прогона (чистка diag)
+
+1. **Подготовка устройства:**
+   - Подключить USB, убедиться что `adb devices` видит устройство.
+   - Включить AccessibilityService для XiaoHyperCleaner.
+   - Закрыть все приложения, вернуться на домашний экран.
+
+2. **Очистка старых diag-дампов:**
+   ```powershell
+   # Удалить старые дампы из diag-dumps/before/ и diag-dumps/after/
+   Remove-Item -Path "diag-dumps/before/*.json" -Force
+   Remove-Item -Path "diag-dumps/after/*.json" -Force
+   # Очистить логи
+   Remove-Item -Path "diag-dumps/before/xhc.log.txt" -Force
+   Remove-Item -Path "diag-dumps/after/xhc.log.txt" -Force
+   ```
+
+3. **Сбор before-дампов (если нужно сравнение):**
+   - Запустить приложение, выполнить Simple Mode.
+   - Экспортировать логи: `adb logcat -d -s SimpleRunner:I AdbEnablerService:I StepDiag:I > diag-dumps/before/xhc.log.txt`
+   - Скопировать JSON-дампы: `adb pull /storage/emulated/0/Android/data/com.xiaohypercleaner/files/diag-dumps/ diag-dumps/before/`
+
+4. **Запуск прогона:**
+   - Запустить Simple Mode через UI приложения.
+   - Дождаться завершения всех шагов.
+   - Проверить логи: `adb logcat -s SimpleRunner:I AdbEnablerService:I StepDiag:I DiagnosticSnapshot:I`
+
+5. **Экспорт after-дампов:**
+   ```powershell
+   adb logcat -d -s SimpleRunner:I AdbEnablerService:I StepDiag:I > diag-dumps/after/xhc.log.txt
+   adb pull /storage/emulated/0/Android/data/com.xiaohypercleaner/files/diag-dumps/ diag-dumps/after/
+   ```
+
+6. **Сравнение и анализ:**
+   - Запустить `tools/diag-diff.ps1` для сравнения before/after.
+   - Проверить:
+     - Количество pass/skipped/fail до и после.
+     - Отсутствие `home_not_miui` для устройств с MIUI-лаунчером.
+     - Отсутствие `drill_failed` для themes (должен быть consent-цикл).
+     - Успешные скриншоты: в логах `captureScreenshot: saved ... (XXKB)`.
+     - Toggled-логи: `toggled: text='...' desc='...' bounds=[...] step=...`.
+
+7. **Критерии успешного прогона:**
+   - `ads_personalization` — pass (tapped_fallback или toggled).
+   - `carousel` — pass (toggled с «Включить»).
+   - `ux_program` — pass (drill 3 уровня до «Дополнительные настройки»).
+   - `themes` — pass (consent-цикл + toggled).
+   - `home_suggestions` — pass или skipped с `home_not_miui` (если лаунчер не MIUI).
+   - App-шаги (browser_sys, music_sys и др.) — не падают в App Info fallback.
+   - Скриншоты сохраняются без ошибок `onFailure`.

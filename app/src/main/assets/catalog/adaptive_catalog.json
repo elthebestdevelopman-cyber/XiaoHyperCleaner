@@ -108,6 +108,11 @@
 },
     "global_ru": {
       "uiSteps": {
+        "msa": {
+          "replaceDrillPath": true,
+          "drillPath": [["Конфиденциальность", "Privacy"], ["Реклама", "Ads"]],
+          "searchTexts": ["Персонализация рекламы", "Ads personalization", "MSA", "msa", "Рекламные службы"]
+        },
         "ads_personalization": {
           "replaceDrillPath": true,
           "drillPath": [["Реклама", "Ads", "Ad services", "Рекламные службы"]],

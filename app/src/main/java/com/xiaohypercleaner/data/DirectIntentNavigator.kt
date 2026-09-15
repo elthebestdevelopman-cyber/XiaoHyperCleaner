@@ -186,8 +186,7 @@ object DirectIntentNavigator {
                         launchIntent(pkg),
                         launchIntent("com.mi.globalbrowser"),
                         launchIntent("com.android.browser"),
-                        launchIntent("com.miui.browser"),
-                        appDetailsIntent(pkg)
+                        launchIntent("com.miui.browser")
                     )
                 )
             }
@@ -200,8 +199,7 @@ object DirectIntentNavigator {
                         launchIntent(pkg),
                         launchIntent("com.miui.player"),
                         launchIntent("com.miui.music"),
-                        launchIntent("com.mi.music"),
-                        appDetailsIntent(pkg)
+                        launchIntent("com.mi.music")
                     )
                 )
             }
@@ -214,8 +212,7 @@ object DirectIntentNavigator {
                         launchIntent(pkg),
                         launchIntent("com.android.mms"),
                         launchIntent("com.miui.mms"),
-                        launchIntent("com.miui.mms.global"),
-                        appDetailsIntent(pkg)
+                        launchIntent("com.miui.mms.global")
                     )
                 )
             }
@@ -227,8 +224,7 @@ object DirectIntentNavigator {
                     listOf(
                         launchIntent(pkg),
                         launchIntent("com.miui.securitycenter"),
-                        launchIntent("com.miui.securitycore"),
-                        appDetailsIntent(pkg)
+                        launchIntent("com.miui.securitycore")
                     )
                 )
             }
@@ -240,8 +236,7 @@ object DirectIntentNavigator {
                     listOf(
                         launchIntent(pkg),
                         launchIntent("com.miui.securitycenter"),
-                        launchIntent("com.miui.cleaner"),
-                        appDetailsIntent(pkg)
+                        launchIntent("com.miui.cleaner")
                     )
                 )
             }
@@ -253,8 +248,7 @@ object DirectIntentNavigator {
                     listOf(
                         launchIntent(pkg),
                         launchIntent("com.android.providers.downloads.ui"),
-                        launchIntent("com.miui.android.downloads"),
-                        appDetailsIntent(pkg)
+                        launchIntent("com.miui.android.downloads")
                     )
                 )
             }
@@ -267,8 +261,7 @@ object DirectIntentNavigator {
                         launchIntent(pkg),
                         launchIntent("com.android.thememanager"),
                         launchIntent("com.miui.thememanager"),
-                        launchIntent("com.mi.thememanager"),
-                        appDetailsIntent(pkg)
+                        launchIntent("com.mi.thememanager")
                     )
                 )
             }
@@ -281,8 +274,7 @@ object DirectIntentNavigator {
                         launchIntent(pkg),
                         launchIntent("com.xiaomi.market"),
                         launchIntent("com.miui.market"),
-                        launchIntent("com.mi.global.market"),
-                        appDetailsIntent(pkg)
+                        launchIntent("com.mi.global.market")
                     )
                 )
             }
@@ -295,8 +287,7 @@ object DirectIntentNavigator {
                         launchIntent(pkg),
                         launchIntent("com.miui.videoplayer"),
                         launchIntent("com.miui.video"),
-                        launchIntent("com.mi.global.video"),
-                        appDetailsIntent(pkg)
+                        launchIntent("com.mi.global.video")
                     )
                 )
             }
@@ -308,8 +299,7 @@ object DirectIntentNavigator {
                     listOf(
                         launchIntent(pkg),
                         launchIntent("com.xiaomi.midrop"),
-                        launchIntent("com.mi.android.globalshareme"),
-                        appDetailsIntent(pkg)
+                        launchIntent("com.mi.android.globalshareme")
                     )
                 )
             }
@@ -339,8 +329,7 @@ object DirectIntentNavigator {
                         launchIntent(pkg),
                         launchIntent("com.miui.personalassistant"),
                         launchIntent("com.mi.android.global.personalassistant"),
-                        launchIntent("com.android.personalassistant"),
-                        appDetailsIntent(pkg)
+                        launchIntent("com.android.personalassistant")
                     )
                 )
             }

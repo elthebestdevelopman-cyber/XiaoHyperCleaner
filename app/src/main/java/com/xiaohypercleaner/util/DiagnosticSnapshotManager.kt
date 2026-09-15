@@ -174,9 +174,14 @@ object DiagnosticSnapshotManager {
             takeScreenshotWithRetry(service) ?: return null
         return try {
             // Сжатие PNG — тяжёлая операция: не блокируем main thread.
-            withContext(Dispatchers.IO) { saveScreenshotToFile(service, stepId, result) }
+            val file = withContext(Dispatchers.IO) { saveScreenshotToFile(service, stepId, result) }
+            if (file != null) {
+                val sizeKb = file.length() / 1024
+                AppLog.i(TAG, "captureScreenshot: saved ${file.absolutePath} (${sizeKb}KB)")
+            }
+            file
         } catch (e: Exception) {
-            AppLog.w(TAG, "captureScreenshot: save failed: ${e.message}")
+            AppLog.e(TAG, "captureScreenshot: save failed: ${e.message}", e)
             null
         }
     }
@@ -215,7 +220,7 @@ object DiagnosticSnapshotManager {
                     }
                 }
             if (result != null) return result
-            AppLog.w(
+            AppLog.e(
                 TAG,
                 "captureScreenshot: attempt ${attempt + 1}/$SCREENSHOT_MAX_ATTEMPTS failed: " +
                     "${screenshotErrorName(errorCode)} ($errorCode)"
