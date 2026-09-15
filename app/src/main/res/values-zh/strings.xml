@@ -309,4 +309,7 @@
     <string name="result_close">关闭</string>
     <string name="progress_format">%1$d%%</string>
     <string name="mock_notifications_label">通知</string>
+    <string name="overlay_do_not_touch">请勿触摸屏幕，自动化进行中</string>
+    <string name="overlay_recovering">正在恢复悬浮窗…</string>
+    <string name="overlay_paused">自动化已暂停：悬浮窗不可用</string>
 </resources>

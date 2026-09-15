@@ -2,7 +2,6 @@ package com.xiaohypercleaner.ui
 
 import android.app.Application
 import android.content.ComponentName
-import android.content.Intent
 import android.provider.Settings
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.AndroidViewModel
@@ -20,7 +19,6 @@ import com.xiaohypercleaner.data.SimpleModePhase
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.ChainFlags
 import com.xiaohypercleaner.service.OverlayController
-import com.xiaohypercleaner.service.OverlayService
 import com.xiaohypercleaner.service.SimpleStepBridge
 import com.xiaohypercleaner.ui.vm.ProFlowController
 import com.xiaohypercleaner.ui.vm.ShizukuUiController
@@ -448,7 +446,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i(TAG, "closeSimpleMode")
         autoFlowJob?.cancel()
         AdbEnablerService.instance?.cancelRunner()
-        OverlayController.hide(app)
         simpleController.cancelAndReset()
         ChainFlags.reset()
         viewModelScope.launch { prefs.setPendingSimpleMode(false) }
@@ -665,19 +662,5 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun openAccessibilityWithHint() {
         AppLog.i(TAG, "auto-redirect: opening accessibility services with hint card")
         permissionFlow.openAccessibilityWithHint()
-    }
-
-    @VisibleForTesting
-    internal fun showHint(text: String) {
-        try {
-            val intent = Intent(app, OverlayService::class.java).apply {
-                action = OverlayService.ACTION_HINT
-                putExtra(OverlayService.EXTRA_HINT, text)
-            }
-            app.startService(intent)
-            AppLog.i(TAG, "showHint: success")
-        } catch (e: Exception) {
-            AppLog.w(TAG, "showHint failed: ${e.message}")
-        }
     }
 }

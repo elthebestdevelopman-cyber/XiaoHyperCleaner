@@ -300,4 +300,7 @@
     <string name="result_close">Open app</string>
     <string name="progress_format">%1$d%%</string>
     <string name="mock_notifications_label">Notifications</string>
+    <string name="overlay_do_not_touch">Do not touch the screen — automation in progress</string>
+    <string name="overlay_recovering">Restoring overlay…</string>
+    <string name="overlay_paused">Automation paused: overlay unavailable</string>
 </resources>

@@ -57,7 +57,6 @@ import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationMode
 import com.xiaohypercleaner.data.PermissionSubPhase
-import com.xiaohypercleaner.service.OverlayController
 import com.xiaohypercleaner.ui.components.AccessibilityConsentDialog
 import com.xiaohypercleaner.ui.components.DevModeDialog
 import com.xiaohypercleaner.ui.components.InfoCard
@@ -298,12 +297,6 @@ class MainActivity : ComponentActivity() {
 
         vm.checkRestrictedSettingsOnResume()
         val currentState: MainUiState = vm.state.value
-
-        // ИСПРАВЛЕНО: используем OverlayController.hide() вместо stopService()
-        // для consistency с OverlayService (hide без stopSelf)
-        if (!currentState.isWorking && !currentState.simpleModeActive) {
-            OverlayController.hide(this)
-        }
 
         // Обрабатываем возврат из настроек батареи в ДВУХ случаях:
         //   1. wasStopped=true  — реальный уход в чужое Activity

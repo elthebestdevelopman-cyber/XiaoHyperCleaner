@@ -45,17 +45,12 @@ class OverlayService : Service() {
         private const val TAG = "OverlaySvc"
         const val ACTION_SET_BLOCKING = "set_blocking"
         const val EXTRA_BLOCKING = "blocking"
-        const val ACTION_HINT = "hint"
-        const val ACTION_POINTER = "pointer"
         const val ACTION_AUTO_START = "auto_start"
         const val ACTION_AUTO_UPDATE = "auto_update"
         const val ACTION_AUTO_STATUS = "auto_status"
         const val ACTION_RESULT = "result"
         const val ACTION_HIDE = "hide"
 
-        const val EXTRA_HINT = "hint"
-        const val EXTRA_POINTER_MODE = "pointer_mode"
-        const val EXTRA_POINTER_TEXT = "pointer_text"
         const val EXTRA_STEP = "step"
         const val EXTRA_TOTAL = "total"
         const val EXTRA_TITLE = "title"
@@ -63,9 +58,6 @@ class OverlayService : Service() {
         const val EXTRA_COMPLETED = "completed"
         const val EXTRA_FAILED = "failed"
         const val EXTRA_SKIPPED = "skipped"
-        const val EXTRA_POINTER_HINT = EXTRA_POINTER_TEXT
-
-        private const val HINT_AUTO_HIDE_MS = 15000L
     }
 
     enum class PointerMode { TOP_RIGHT, BOTTOM_LIST, SWITCH_RIGHT, LIST_ITEM_CENTER, GENERIC_BOTTOM }
@@ -73,9 +65,10 @@ class OverlayService : Service() {
     private var wm: WindowManager? = null
     private var root: View? = null
     private var isBlocking = true
+    // Легитимный hide()/onDestroy не должен выглядеть как «detached unexpectedly»
+    private var expectingDetach = false
     private val animators = mutableListOf<ObjectAnimator>()
     private val handler = Handler(Looper.getMainLooper())
-    private val autoHideRunnable = Runnable { hide() }
 
     private var tvStep: TextView? = null
     private var tvTitle: TextView? = null
@@ -94,11 +87,6 @@ class OverlayService : Service() {
         when (intent?.action) {
             ACTION_HIDE -> hide()
             ACTION_SET_BLOCKING -> setBlocking(intent.getBooleanExtra(EXTRA_BLOCKING, true))
-            ACTION_HINT -> showHint(intent.getStringExtra(EXTRA_HINT) ?: "")
-            ACTION_POINTER -> showPointer(
-                intent.getStringExtra(EXTRA_POINTER_MODE) ?: "LIST_ITEM_CENTER",
-                intent.getStringExtra(EXTRA_POINTER_TEXT) ?: ""
-            )
 
             ACTION_AUTO_START -> showAutomation(intent.getIntExtra(EXTRA_TOTAL, 0))
             ACTION_AUTO_UPDATE -> updateAutomation(
@@ -139,29 +127,7 @@ class OverlayService : Service() {
 
     // ═══ HINT (пузырь, авто-скрытие) ═══
 
-    private fun showHint(text: String) {
-        hide()
-        val card = TextView(this).apply {
-            this.text = getString(R.string.overlay_hint_prefix) + text
-            setTextColor(Color.WHITE)
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-            background = roundBg(0xE61976D2.toInt())
-            autoSize()
-        }
-        addRoot(touchable = false, fullScreen = false).apply {
-            addView(card, flParams(Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM))
-        }
-        scheduleAutoHide(HINT_AUTO_HIDE_MS)
-        AppLog.i(TAG, "hint shown (non-blocking, auto-hide)")
-    }
-
-    // ═══ POINTER (стрелка отключена по требованию пользователя) ═══
-
-    private fun showPointer(mode: String, text: String) {
-        AppLog.d(TAG, "showPointer: ignored (pointers disabled)")
-    }
-
-    // ═══ AUTOMATION (блокирующий, робокот) ═══
+    // ─── AUTOMATION (блокирующий, робокот) ───
 
     private fun showAutomation(total: Int) {
         hide()
@@ -170,7 +136,7 @@ class OverlayService : Service() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             setPadding(dp(24), dp(20), dp(24), dp(20))
-            background = roundBg(0xF0202020.toInt(), radiusDp = 24)
+            background = roundBg(0x99000000.toInt(), radiusDp = 24)
         }
 
         val cat = ImageView(this).apply {
@@ -214,6 +180,14 @@ class OverlayService : Service() {
             maxLines = 2
         }
         layout.addView(tvStatus, llWrap().apply { topMargin = dp(8) })
+
+        val doNotTouch = TextView(this).apply {
+            setText(R.string.overlay_do_not_touch)
+            setTextColor(0xB3FFFFFF.toInt())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            gravity = Gravity.CENTER
+        }
+        layout.addView(doNotTouch, llWrap().apply { topMargin = dp(12) })
 
         val cancel = Button(this).apply {
             setText(R.string.automation_cancel)
@@ -342,11 +316,6 @@ class OverlayService : Service() {
 
     // ═══ Вспомогательные ═══
 
-    private fun scheduleAutoHide(ms: Long) {
-        handler.removeCallbacks(autoHideRunnable)
-        handler.postDelayed(autoHideRunnable, ms)
-    }
-
     private fun llWrap() = LinearLayout.LayoutParams(
         LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
     )
@@ -420,6 +389,40 @@ class OverlayService : Service() {
         wm?.addView(v, params)
         root = v
         isBlocking = touchable
+        expectingDetach = false
+
+        // Watchdog: отслеживаем прикрепление/открепление окна
+        v.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(view: View) {
+                OverlayController.markAttached()
+            }
+
+            override fun onViewDetachedFromWindow(view: View) {
+                OverlayController.markDetached()
+                if (expectingDetach) return  // плановый hide() — не тревожимся
+                AppLog.w(TAG, "overlay detached unexpectedly, re-adding via watchdog")
+                // Re-add через handler, если окно открепилось неожиданно
+                handler.postDelayed({
+                    if (root == v && !OverlayController.isAttached && !expectingDetach) {
+                        try {
+                            wm?.addView(v, params)
+                            AppLog.i(TAG, "watchdog: overlay re-added")
+                        } catch (e: Exception) {
+                            AppLog.w(TAG, "watchdog re-add failed: ${e.message}")
+                        }
+                    }
+                }, 100)
+            }
+        })
+
+        // Touch-лог для диагностики
+        if (touchable) {
+            v.setOnTouchListener { _, event ->
+                AppLog.d(TAG, "touch intercepted: x=${event.x}, y=${event.y}")
+                false
+            }
+        }
+
         return v
     }
 
@@ -463,7 +466,7 @@ class OverlayService : Service() {
     ).toInt()
 
     private fun hide() {
-        handler.removeCallbacks(autoHideRunnable)
+        expectingDetach = true
         animators.forEach { it.cancel() }; animators.clear()
         root?.let {
             try {
@@ -474,11 +477,12 @@ class OverlayService : Service() {
         root = null
         isBlocking = true
         tvStep = null; tvTitle = null; tvStatus = null; progressBar = null
+        OverlayController.markDetached()
         AppLog.i(TAG, "overlay hidden")
     }
 
     override fun onDestroy() {
-        handler.removeCallbacks(autoHideRunnable)
+        expectingDetach = true
         animators.forEach { it.cancel() }; animators.clear()
         root?.let {
             try {
@@ -488,6 +492,7 @@ class OverlayService : Service() {
         }
         root = null
         isBlocking = true
+        OverlayController.markDetached()
         super.onDestroy()
         AppLog.i(TAG, "onDestroy")
     }

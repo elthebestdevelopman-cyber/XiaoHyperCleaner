@@ -117,7 +117,7 @@ class SimpleModeController(
             return
         }
         autoFlowJob?.cancel()
-        OverlayController.hide(context)
+        // hide() — обязанность вызывающего (MainViewModel.onCleared), не дублируем
         releaseWakeLock()  // НОВОЕ (beta11): гарантированное освобождение
         scope.cancel()
     }
@@ -136,7 +136,6 @@ class SimpleModeController(
                 TAG,
                 "Permission changed (acc=$accJustEnabled, overlay=$overlayJustEnabled) — advancing"
             )
-            permissionFlow.hideOverlay()
             advance()
         }
     }
@@ -144,7 +143,6 @@ class SimpleModeController(
     fun onResumeAfterPermissionReturn() {
         if (!state.active || state.phase != SimpleModePhase.PERMISSIONS) return
         AppLog.i(TAG, "onResumeAfterPermissionReturn: subPhase=${state.permissionSubPhase}")
-        permissionFlow.hideOverlay()
         scope.launch {
             delay(300.milliseconds)
             advance()
@@ -168,7 +166,6 @@ class SimpleModeController(
         stepsStarted = false
         restrictedLocation = RestrictedLocation.UNKNOWN
         batteryDialogAlreadyShown = false  // НОВОЕ (beta11): сброс флага
-        OverlayController.hide(context)
 
         state = SimpleModeState(
             active = true,
@@ -705,7 +702,6 @@ class SimpleModeController(
         autoFlowJob?.cancel()
         OverlayController.hide(context)
         releaseWakeLock()  // НОВОЕ (beta11): освобождаем wake lock
-        permissionFlow.hideOverlay()
         failedIds.clear()
         skippedIds.clear()
         stepAttempt = 1
