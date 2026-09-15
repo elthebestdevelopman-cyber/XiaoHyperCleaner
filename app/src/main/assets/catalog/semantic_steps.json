@@ -1,0 +1,1862 @@
+{
+  "version": 1,
+  "consentPolicy": {
+    "welcomeMarkers": {
+      "ru": ["Добро пожаловать", "Условия использования", "Политика конфиденциальности"],
+      "en": ["Welcome", "Terms of Service", "Privacy Policy"],
+      "es": ["Bienvenido", "Términos de servicio", "Política de privacidad"],
+      "zh": ["欢迎", "服务条款", "隐私政策"],
+      "hi": ["स्वागत है", "सेवा की शर्तें", "गोपनीयता नीति"],
+      "pt": ["Bem-vindo", "Termos de Serviço", "Política de Privacidade"],
+      "id": ["Selamat datang", "Ketentuan Layanan", "Kebijakan Privasi"]
+    },
+    "welcomeActions": {
+      "ru": ["Согласиться", "Принять", "Продолжить"],
+      "en": ["Agree", "Accept", "Continue"],
+      "es": ["Aceptar", "Continuar"],
+      "zh": ["同意", "接受", "继续"],
+      "hi": ["सहमत हूँ", "स्वीकार करें", "जारी रखें"],
+      "pt": ["Concordo", "Aceitar", "Continuar"],
+      "id": ["Setuju", "Terima", "Lanjutkan"]
+    },
+    "permissionMarkers": {
+      "ru": ["Разрешить приложению", "Запрос разрешения"],
+      "en": ["Allow", "permission request"],
+      "es": ["Permitir"],
+      "zh": ["允许"],
+      "hi": ["अनुमति दें"],
+      "pt": ["Permitir"],
+      "id": ["Izinkan"]
+    },
+    "defaultDecision": "deny",
+    "denyTexts": {
+      "ru": ["Запретить"], "en": ["Deny", "Don’t allow"], "es": ["Denegar"],
+      "zh": ["拒绝"], "hi": ["अस्वीकार करें"], "pt": ["Negar"], "id": ["Tolak"]
+    },
+    "allowTexts": {
+      "ru": ["Разрешить"], "en": ["Allow"], "es": ["Permitir"],
+      "zh": ["允许"], "hi": ["अनुमति दें"], "pt": ["Permitir"], "id": ["Izinkan"]
+    },
+    "allowOverrides": [],
+    "maxIterationsPerStep": 3
+  },
+  "steps": [
+    {
+      "id": "msa",
+      "title": {
+        "ru": "Отзыв MSA",
+        "en": "Revoke MSA",
+        "es": "Revocar MSA",
+        "zh": "撤销 MSA",
+        "hi": "MSA प्रत्याहरित करें",
+        "pt": "Revogar MSA",
+        "id": "Cabut MSA"
+      },
+      "keywords": {
+        "ru": [
+          "msa",
+          "Отозвать"
+        ],
+        "en": [
+          "msa",
+          "Revoke"
+        ],
+        "es": [
+          "msa",
+          "Revocar"
+        ],
+        "zh": [
+          "msa",
+          "撤销"
+        ],
+        "hi": [
+          "msa",
+          "प्रत्याहरित करें"
+        ],
+        "pt": [
+          "msa",
+          "Revogar"
+        ],
+        "id": [
+          "msa",
+          "Cabut"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Авторизация и отзыв",
+          "Доступ к личным данным"
+        ],
+        "en": [
+          "Authorization & revocation",
+          "Access to personal data"
+        ],
+        "es": [
+          "Autorización y revocación"
+        ],
+        "zh": [
+          "授权管理"
+        ],
+        "hi": [
+          "प्राधिकरण और प्रत्याहरण"
+        ],
+        "pt": [
+          "Autorização e revogação"
+        ],
+        "id": [
+          "Otorisasi & pencabutan"
+        ]
+      },
+      "actionType": "sequence",
+      "sequenceKind": "DELAYED_CONFIRM",
+      "confirmWaitMs": 10000,
+      "confirmTexts": {
+        "ru": [
+          "Отозвать",
+          "ОК"
+        ],
+        "en": [
+          "Revoke",
+          "OK"
+        ],
+        "es": [
+          "Revocar",
+          "Aceptar"
+        ],
+        "zh": [
+          "撤销",
+          "确定"
+        ],
+        "hi": [
+          "प्रत्याहरित करें",
+          "ठीक है"
+        ],
+        "pt": [
+          "Revogar",
+          "OK"
+        ],
+        "id": [
+          "Cabut",
+          "OK"
+        ]
+      },
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ],
+      "fallbackDrillPath": [
+        [
+          "Пароли и безопасность",
+          "Passwords & security"
+        ],
+        [
+          "Авторизация и отзыв",
+          "Authorization & revocation"
+        ]
+      ]
+    },
+    {
+      "id": "sys_recommendations",
+      "title": {
+        "ru": "Системные рекомендации",
+        "en": "System recommendations",
+        "es": "Recomendaciones del sistema",
+        "zh": "系统推荐",
+        "hi": "सिस्टम सुझाव",
+        "pt": "Recomendações do sistema",
+        "id": "Rekomendasi sistem"
+      },
+      "keywords": {
+        "ru": [
+          "Получать рекомендации",
+          "Рекомендации"
+        ],
+        "en": [
+          "Receive recommendations",
+          "Recommendations"
+        ],
+        "es": [
+          "Recibir recomendaciones"
+        ],
+        "zh": [
+          "接收推荐"
+        ],
+        "hi": [
+          "सुझाव प्राप्त करें"
+        ],
+        "pt": [
+          "Receber recomendações"
+        ],
+        "id": [
+          "Terima rekomendasi"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Настройки",
+          "Приложения"
+        ],
+        "en": [
+          "Settings",
+          "Apps"
+        ],
+        "es": [
+          "Configuración",
+          "Aplicaciones"
+        ],
+        "zh": [
+          "设置",
+          "应用"
+        ],
+        "hi": [
+          "सेटिंग्स",
+          "ऐप्स"
+        ],
+        "pt": [
+          "Configurações",
+          "Apps"
+        ],
+        "id": [
+          "Pengaturan",
+          "Aplikasi"
+        ]
+      },
+      "actionType": "sequence",
+      "sequenceKind": "OVERFLOW_MENU",
+      "overflowMenuLabels": {
+        "ru": [
+          "Ещё"
+        ],
+        "en": [
+          "More"
+        ],
+        "es": [
+          "Más"
+        ],
+        "zh": [
+          "更多"
+        ],
+        "hi": [
+          "अधिक"
+        ],
+        "pt": [
+          "Mais"
+        ],
+        "id": [
+          "Lainnya"
+        ]
+      },
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ],
+      "fallbackDrillPath": [
+        [
+          "Приложения",
+          "Apps"
+        ],
+        [
+          "Все приложения",
+          "All apps"
+        ]
+      ]
+    },
+    {
+      "id": "ads_personalization",
+      "title": {
+        "ru": "Персонализация рекламы",
+        "en": "Personalized ads",
+        "es": "Anuncios personalizados",
+        "zh": "个性化广告",
+        "hi": "वैयक्तिकृत विज्ञापन",
+        "pt": "Anúncios personalizados",
+        "id": "Iklan yang dipersonalisasi"
+      },
+      "keywords": {
+        "ru": [
+          "Удалить рекламный идентификатор",
+          "Персонализация рекламы"
+        ],
+        "en": [
+          "Delete advertising ID",
+          "Personalized ads"
+        ],
+        "es": [
+          "Eliminar ID de publicidad",
+          "Anuncios personalizados"
+        ],
+        "zh": [
+          "删除广告标识符",
+          "个性化广告"
+        ],
+        "hi": [
+          "विज्ञापन आईडी हटाएँ",
+          "वैयक्तिकृत विज्ञापन"
+        ],
+        "pt": [
+          "Excluir ID de publicidade",
+          "Anúncios personalizados"
+        ],
+        "id": [
+          "Hapus ID iklan",
+          "Iklan yang dipersonalisasi"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Реклама",
+          "Конфиденциальность"
+        ],
+        "en": [
+          "Ads",
+          "Privacy"
+        ],
+        "es": [
+          "Anuncios",
+          "Privacidad"
+        ],
+        "zh": [
+          "广告",
+          "隐私"
+        ],
+        "hi": [
+          "विज्ञापन",
+          "गोपनीयता"
+        ],
+        "pt": [
+          "Anúncios",
+          "Privacidade"
+        ],
+        "id": [
+          "Iklan",
+          "Privasi"
+        ]
+      },
+      "actionType": "tap_confirm",
+      "tapFallbackTexts": {
+        "ru": [
+          "Удалить рекламный идентификатор"
+        ],
+        "en": [
+          "Delete advertising ID"
+        ],
+        "es": [
+          "Eliminar ID de publicidad"
+        ],
+        "zh": [
+          "删除广告标识符"
+        ],
+        "hi": [
+          "विज्ञापन आईडी हटाएँ"
+        ],
+        "pt": [
+          "Excluir ID de publicidade"
+        ],
+        "id": [
+          "Hapus ID iklan"
+        ]
+      },
+      "confirmTexts": {
+        "ru": [
+          "Удалить",
+          "ОК"
+        ],
+        "en": [
+          "Delete",
+          "OK"
+        ],
+        "es": [
+          "Eliminar",
+          "Aceptar"
+        ],
+        "zh": [
+          "删除",
+          "确定"
+        ],
+        "hi": [
+          "हटाएँ",
+          "ठीक है"
+        ],
+        "pt": [
+          "Excluir",
+          "OK"
+        ],
+        "id": [
+          "Hapus",
+          "OK"
+        ]
+      },
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ],
+      "fallbackDrillPath": [
+        [
+          "Конфиденциальность",
+          "Privacy"
+        ],
+        [
+          "Реклама",
+          "Ads"
+        ]
+      ]
+    },
+    {
+      "id": "ux_program",
+      "title": {
+        "ru": "Программа улучшения качества",
+        "en": "User Experience Program",
+        "es": "Programa de experiencia de usuario",
+        "zh": "用户体验计划",
+        "hi": "उपयोगकर्ता अनुभव कार्यक्रम",
+        "pt": "Programa de experiência do usuário",
+        "id": "Program Pengalaman Pengguna"
+      },
+      "keywords": {
+        "ru": [
+          "Программа улучшения качества",
+          "Участие в программе"
+        ],
+        "en": [
+          "User Experience Program",
+          "Enroll"
+        ],
+        "es": [
+          "Programa de experiencia",
+          "Participar"
+        ],
+        "zh": [
+          "用户体验计划",
+          "加入"
+        ],
+        "hi": [
+          "उपयोगकर्ता अनुभव कार्यक्रम"
+        ],
+        "pt": [
+          "Programa de experiência",
+          "Participar"
+        ],
+        "id": [
+          "Program Pengalaman Pengguna"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Конфиденциальность"
+        ],
+        "en": [
+          "Privacy"
+        ],
+        "es": [
+          "Privacidad"
+        ],
+        "zh": [
+          "隐私"
+        ],
+        "hi": [
+          "गोपनीयता"
+        ],
+        "pt": [
+          "Privacidade"
+        ],
+        "id": [
+          "Privasi"
+        ]
+      },
+      "actionType": "toggle",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ],
+      "fallbackDrillPath": [
+        [
+          "Конфиденциальность",
+          "Privacy"
+        ]
+      ]
+    },
+    {
+      "id": "carousel",
+      "title": {
+        "ru": "Карусель обоев",
+        "en": "Wallpaper Carousel",
+        "es": "Carrusel de fondos",
+        "zh": "壁纸轮播",
+        "hi": "वॉलपेपर कैरोसेल",
+        "pt": "Carrossel de papéis de parede",
+        "id": "Karosel wallpaper"
+      },
+      "keywords": {
+        "ru": [
+          "Включить",
+          "Карусель обоев"
+        ],
+        "en": [
+          "Enable",
+          "Wallpaper Carousel"
+        ],
+        "es": [
+          "Activar",
+          "Carrusel de fondos"
+        ],
+        "zh": [
+          "启用",
+          "壁纸轮播"
+        ],
+        "hi": [
+          "सक्षम करें",
+          "वॉलपेपर कैरोसेल"
+        ],
+        "pt": [
+          "Ativar",
+          "Carrossel de papéis de parede"
+        ],
+        "id": [
+          "Aktifkan",
+          "Karosel wallpaper"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Карусель обоев"
+        ],
+        "en": [
+          "Wallpaper Carousel"
+        ],
+        "es": [
+          "Carrusel de fondos"
+        ],
+        "zh": [
+          "壁纸轮播"
+        ],
+        "hi": [
+          "वॉलपेपर कैरोसेल"
+        ],
+        "pt": [
+          "Carrossel de papéis de parede"
+        ],
+        "id": [
+          "Karosel wallpaper"
+        ]
+      },
+      "actionType": "toggle",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ]
+    },
+    {
+      "id": "home_suggestions",
+      "title": {
+        "ru": "Предложения на рабочем столе",
+        "en": "Home screen suggestions",
+        "es": "Sugerencias en pantalla de inicio",
+        "zh": "主屏幕建议",
+        "hi": "होम स्क्रीन सुझाव",
+        "pt": "Sugestões da tela inicial",
+        "id": "Saran layar utama"
+      },
+      "keywords": {
+        "ru": [
+          "Показывать предложения"
+        ],
+        "en": [
+          "Show suggestions"
+        ],
+        "es": [
+          "Mostrar sugerencias"
+        ],
+        "zh": [
+          "显示建议"
+        ],
+        "hi": [
+          "सुझाव दिखाएँ"
+        ],
+        "pt": [
+          "Mostrar sugestões"
+        ],
+        "id": [
+          "Tampilkan saran"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Рабочий стол"
+        ],
+        "en": [
+          "Home screen"
+        ],
+        "es": [
+          "Pantalla de inicio"
+        ],
+        "zh": [
+          "主屏幕"
+        ],
+        "hi": [
+          "होम स्क्रीन"
+        ],
+        "pt": [
+          "Tela inicial"
+        ],
+        "id": [
+          "Layar utama"
+        ]
+      },
+      "actionType": "skip",
+      "skipReason": "home_not_miui",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ]
+    },
+    {
+      "id": "browser_sys",
+      "title": {
+        "ru": "Mi Браузер — реклама",
+        "en": "Mi Browser ads",
+        "es": "Anuncios Mi Browser",
+        "zh": "Mi 浏览器广告",
+        "hi": "Mi ब्राउज़र विज्ञापन",
+        "pt": "Anúncios Mi Browser",
+        "id": "Iklan Mi Browser"
+      },
+      "keywords": {
+        "ru": [
+          "Показывать рекламу"
+        ],
+        "en": [
+          "Show ads"
+        ],
+        "es": [
+          "Mostrar anuncios"
+        ],
+        "zh": [
+          "显示广告"
+        ],
+        "hi": [
+          "विज्ञापन दिखाएँ"
+        ],
+        "pt": [
+          "Mostrar anúncios"
+        ],
+        "id": [
+          "Tampilkan iklan"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Дополнительные настройки",
+          "Профиль"
+        ],
+        "en": [
+          "Additional settings",
+          "Profile"
+        ],
+        "es": [
+          "Configuración adicional",
+          "Perfil"
+        ],
+        "zh": [
+          "更多设置",
+          "我的"
+        ],
+        "hi": [
+          "अतिरिक्त सेटिंग्स",
+          "प्रोफ़ाइल"
+        ],
+        "pt": [
+          "Configurações adicionais",
+          "Perfil"
+        ],
+        "id": [
+          "Pengaturan tambahan",
+          "Profil"
+        ]
+      },
+      "actionType": "toggle",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ],
+      "launchPackage": "com.mi.globalbrowser"
+    },
+    {
+      "id": "music_sys",
+      "title": {
+        "ru": "Музыка — реклама",
+        "en": "Music ads",
+        "es": "Anuncios Música",
+        "zh": "音乐广告",
+        "hi": "संगीत विज्ञापन",
+        "pt": "Anúncios Música",
+        "id": "Iklan Musik"
+      },
+      "keywords": {
+        "ru": [
+          "Показывать рекламу",
+          "Расширенные настройки"
+        ],
+        "en": [
+          "Show ads",
+          "Advanced settings"
+        ],
+        "es": [
+          "Mostrar anuncios",
+          "Configuración avanzada"
+        ],
+        "zh": [
+          "显示广告",
+          "高级设置"
+        ],
+        "hi": [
+          "विज्ञापन दिखाएँ",
+          "उन्नत सेटिंग्स"
+        ],
+        "pt": [
+          "Mostrar anúncios",
+          "Configurações avançadas"
+        ],
+        "id": [
+          "Tampilkan iklan",
+          "Pengaturan lanjutan"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Расширенные настройки"
+        ],
+        "en": [
+          "Advanced settings"
+        ],
+        "es": [
+          "Configuración avanzada"
+        ],
+        "zh": [
+          "高级设置"
+        ],
+        "hi": [
+          "उन्नत सेटिंग्स"
+        ],
+        "pt": [
+          "Configurações avançadas"
+        ],
+        "id": [
+          "Pengaturan lanjutan"
+        ]
+      },
+      "actionType": "toggle",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ],
+      "launchPackage": "com.miui.player"
+    },
+    {
+      "id": "messages_sys",
+      "title": {
+        "ru": "Сообщения",
+        "en": "Messages",
+        "es": "Mensajes",
+        "zh": "短信",
+        "hi": "संदेश",
+        "pt": "Mensagens",
+        "id": "Pesan"
+      },
+      "actionType": "skip",
+      "skipReason": "app_not_installed",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ]
+    },
+    {
+      "id": "security_sys",
+      "title": {
+        "ru": "Безопасность — рекомендации",
+        "en": "Security recommendations",
+        "es": "Recomendaciones Seguridad",
+        "zh": "安全中心推荐",
+        "hi": "सुरक्षा सुझाव",
+        "pt": "Recomendações Segurança",
+        "id": "Rekomendasi Keamanan"
+      },
+      "keywords": {
+        "ru": [
+          "Получать рекомендации"
+        ],
+        "en": [
+          "Receive recommendations"
+        ],
+        "es": [
+          "Recibir recomendaciones"
+        ],
+        "zh": [
+          "接收推荐"
+        ],
+        "hi": [
+          "सुझाव प्राप्त करें"
+        ],
+        "pt": [
+          "Receber recomendações"
+        ],
+        "id": [
+          "Terima rekomendasi"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Настройки"
+        ],
+        "en": [
+          "Settings"
+        ],
+        "es": [
+          "Configuración"
+        ],
+        "zh": [
+          "设置"
+        ],
+        "hi": [
+          "सेटिंग्स"
+        ],
+        "pt": [
+          "Configurações"
+        ],
+        "id": [
+          "Pengaturan"
+        ]
+      },
+      "actionType": "toggle",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ],
+      "launchPackage": "com.miui.securitycenter"
+    },
+    {
+      "id": "cleaner",
+      "title": {
+        "ru": "Очистка — рекомендации",
+        "en": "Cleaner recommendations",
+        "es": "Recomendaciones Limpiador",
+        "zh": "清理推荐",
+        "hi": "क्लीनर सुझाव",
+        "pt": "Recomendações Limpador",
+        "id": "Rekomendasi Pembersih"
+      },
+      "keywords": {
+        "ru": [
+          "Получать рекомендации",
+          "Очистка"
+        ],
+        "en": [
+          "Receive recommendations",
+          "Cleaner"
+        ],
+        "es": [
+          "Recibir recomendaciones",
+          "Limpiador"
+        ],
+        "zh": [
+          "接收推荐",
+          "清理"
+        ],
+        "hi": [
+          "सुझाव प्राप्त करें",
+          "क्लीनर"
+        ],
+        "pt": [
+          "Receber recomendações",
+          "Limpador"
+        ],
+        "id": [
+          "Terima rekomendasi",
+          "Pembersih"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Очистка"
+        ],
+        "en": [
+          "Cleaner"
+        ],
+        "es": [
+          "Limpiador"
+        ],
+        "zh": [
+          "清理"
+        ],
+        "hi": [
+          "क्लीनर"
+        ],
+        "pt": [
+          "Limpador"
+        ],
+        "id": [
+          "Pembersih"
+        ]
+      },
+      "actionType": "toggle",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ],
+      "launchPackage": "com.miui.securitycenter"
+    },
+    {
+      "id": "downloads",
+      "title": {
+        "ru": "Загрузки — рекомендации",
+        "en": "Downloads recommendations",
+        "es": "Recomendaciones Descargas",
+        "zh": "下载推荐",
+        "hi": "डाउनलोड सुझाव",
+        "pt": "Recomendações Downloads",
+        "id": "Rekomendasi Unduhan"
+      },
+      "keywords": {
+        "ru": [
+          "Получать рекомендации"
+        ],
+        "en": [
+          "Receive recommendations"
+        ],
+        "es": [
+          "Recibir recomendaciones"
+        ],
+        "zh": [
+          "接收推荐"
+        ],
+        "hi": [
+          "सुझाव प्राप्त करें"
+        ],
+        "pt": [
+          "Receber recomendações"
+        ],
+        "id": [
+          "Terima rekomendasi"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Настройки"
+        ],
+        "en": [
+          "Settings"
+        ],
+        "es": [
+          "Configuración"
+        ],
+        "zh": [
+          "设置"
+        ],
+        "hi": [
+          "सेटिंग्स"
+        ],
+        "pt": [
+          "Configurações"
+        ],
+        "id": [
+          "Pengaturan"
+        ]
+      },
+      "actionType": "toggle",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ],
+      "launchPackage": "com.android.providers.downloads.ui"
+    },
+    {
+      "id": "themes",
+      "title": {
+        "ru": "Темы — реклама",
+        "en": "Themes ads",
+        "es": "Anuncios Temas",
+        "zh": "主题广告",
+        "hi": "थीम विज्ञापन",
+        "pt": "Anúncios Temas",
+        "id": "Iklan Tema"
+      },
+      "keywords": {
+        "ru": [
+          "Показывать рекламу",
+          "Согласиться"
+        ],
+        "en": [
+          "Show ads",
+          "Agree"
+        ],
+        "es": [
+          "Mostrar anuncios",
+          "Aceptar"
+        ],
+        "zh": [
+          "显示广告",
+          "同意"
+        ],
+        "hi": [
+          "विज्ञापन दिखाएँ",
+          "सहमत हूँ"
+        ],
+        "pt": [
+          "Mostrar anúncios",
+          "Concordo"
+        ],
+        "id": [
+          "Tampilkan iklan",
+          "Setuju"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Настройки"
+        ],
+        "en": [
+          "Settings"
+        ],
+        "es": [
+          "Configuración"
+        ],
+        "zh": [
+          "设置"
+        ],
+        "hi": [
+          "सेटिंग्स"
+        ],
+        "pt": [
+          "Configurações"
+        ],
+        "id": [
+          "Pengaturan"
+        ]
+      },
+      "actionType": "sequence",
+      "sequenceKind": "CONSENT_WALL",
+      "consentTexts": {
+        "ru": [
+          "Согласиться",
+          "Принять"
+        ],
+        "en": [
+          "Agree",
+          "Accept"
+        ],
+        "es": [
+          "Aceptar"
+        ],
+        "zh": [
+          "同意",
+          "接受"
+        ],
+        "hi": [
+          "सहमत हूँ",
+          "स्वीकार करें"
+        ],
+        "pt": [
+          "Concordo",
+          "Aceitar"
+        ],
+        "id": [
+          "Setuju",
+          "Terima"
+        ]
+      },
+      "maxConsentIterations": 3,
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ],
+      "launchPackage": "com.android.thememanager"
+    },
+    {
+      "id": "getapps",
+      "title": {
+        "ru": "GetApps",
+        "en": "GetApps",
+        "es": "GetApps",
+        "zh": "应用商店",
+        "hi": "GetApps",
+        "pt": "GetApps",
+        "id": "GetApps"
+      },
+      "actionType": "skip",
+      "skipReason": "app_not_installed",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ]
+    },
+    {
+      "id": "mivideo",
+      "title": {
+        "ru": "Mi Видео — рекомендации",
+        "en": "Mi Video recommendations",
+        "es": "Recomendaciones Mi Video",
+        "zh": "Mi 视频推荐",
+        "hi": "Mi वीडियो सुझाव",
+        "pt": "Recomendações Mi Video",
+        "id": "Rekomendasi Mi Video"
+      },
+      "keywords": {
+        "ru": [
+          "Онлайн-рекомендации",
+          "Персональные рекомендации"
+        ],
+        "en": [
+          "Online recommendations",
+          "Personal recommendations"
+        ],
+        "es": [
+          "Recomendaciones en línea",
+          "Recomendaciones personales"
+        ],
+        "zh": [
+          "在线推荐",
+          "个性化推荐"
+        ],
+        "hi": [
+          "ऑनलाइन सुझाव",
+          "व्यक्तिगत सुझाव"
+        ],
+        "pt": [
+          "Recomendações online",
+          "Recomendações pessoais"
+        ],
+        "id": [
+          "Rekomendasi online",
+          "Rekomendasi pribadi"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Настройки",
+          "Профиль"
+        ],
+        "en": [
+          "Settings",
+          "Profile"
+        ],
+        "es": [
+          "Configuración",
+          "Perfil"
+        ],
+        "zh": [
+          "设置",
+          "我的"
+        ],
+        "hi": [
+          "सेटिंग्स",
+          "प्रोफ़ाइल"
+        ],
+        "pt": [
+          "Configurações",
+          "Perfil"
+        ],
+        "id": [
+          "Pengaturan",
+          "Profil"
+        ]
+      },
+      "actionType": "toggle",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ],
+      "launchPackage": "com.miui.videoplayer"
+    },
+    {
+      "id": "shareme",
+      "title": {
+        "ru": "ShareMe — рекомендации",
+        "en": "ShareMe recommendations",
+        "es": "Recomendaciones ShareMe",
+        "zh": "ShareMe 推荐",
+        "hi": "ShareMe सुझाव",
+        "pt": "Recomendações ShareMe",
+        "id": "Rekomendasi ShareMe"
+      },
+      "keywords": {
+        "ru": [
+          "Получать рекомендации"
+        ],
+        "en": [
+          "Receive recommendations"
+        ],
+        "es": [
+          "Recibir recomendaciones"
+        ],
+        "zh": [
+          "接收推荐"
+        ],
+        "hi": [
+          "सुझाव प्राप्त करें"
+        ],
+        "pt": [
+          "Receber recomendações"
+        ],
+        "id": [
+          "Terima rekomendasi"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "О приложении",
+          "Настройки"
+        ],
+        "en": [
+          "About",
+          "Settings"
+        ],
+        "es": [
+          "Acerca de",
+          "Configuración"
+        ],
+        "zh": [
+          "关于",
+          "设置"
+        ],
+        "hi": [
+          "जानकारी",
+          "सेटिंग्स"
+        ],
+        "pt": [
+          "Sobre",
+          "Configurações"
+        ],
+        "id": [
+          "Tentang",
+          "Pengaturan"
+        ]
+      },
+      "actionType": "toggle",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ],
+      "launchPackage": "com.xiaomi.midrop"
+    },
+    {
+      "id": "filemanager",
+      "title": {
+        "ru": "Проводник — рекомендации",
+        "en": "File Manager recommendations",
+        "es": "Recomendaciones Archivos",
+        "zh": "文件管理器推荐",
+        "hi": "फ़ाइल प्रबंधक सुझाव",
+        "pt": "Recomendações Arquivos",
+        "id": "Rekomendasi File Manager"
+      },
+      "keywords": {
+        "ru": [
+          "Получать рекомендации",
+          "Информация"
+        ],
+        "en": [
+          "Receive recommendations",
+          "Info"
+        ],
+        "es": [
+          "Recibir recomendaciones",
+          "Información"
+        ],
+        "zh": [
+          "接收推荐",
+          "信息"
+        ],
+        "hi": [
+          "सुझाव प्राप्त करें",
+          "जानकारी"
+        ],
+        "pt": [
+          "Receber recomendações",
+          "Informações"
+        ],
+        "id": [
+          "Terima rekomendasi",
+          "Info"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Настройки",
+          "Информация"
+        ],
+        "en": [
+          "Settings",
+          "Info"
+        ],
+        "es": [
+          "Configuración",
+          "Información"
+        ],
+        "zh": [
+          "设置",
+          "信息"
+        ],
+        "hi": [
+          "सेटिंग्स",
+          "जानकारी"
+        ],
+        "pt": [
+          "Configurações",
+          "Informações"
+        ],
+        "id": [
+          "Pengaturan",
+          "Info"
+        ]
+      },
+      "actionType": "toggle",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ],
+      "launchPackage": "com.mi.android.fileexplorer"
+    },
+    {
+      "id": "appvault_services",
+      "title": {
+        "ru": "App Vault",
+        "en": "App Vault",
+        "es": "App Vault",
+        "zh": "智能助理",
+        "hi": "App Vault",
+        "pt": "App Vault",
+        "id": "App Vault"
+      },
+      "actionType": "skip",
+      "skipReason": "app_not_installed",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ]
+    },
+    {
+      "id": "appvault_about",
+      "title": {
+        "ru": "App Vault (о приложении)",
+        "en": "App Vault (about)",
+        "es": "App Vault (acerca de)",
+        "zh": "智能助理（关于）",
+        "hi": "App Vault (जानकारी)",
+        "pt": "App Vault (sobre)",
+        "id": "App Vault (tentang)"
+      },
+      "actionType": "skip",
+      "skipReason": "app_not_installed",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ]
+    },
+    {
+      "id": "notif_msa",
+      "title": {
+        "ru": "MSA уведомления",
+        "en": "MSA notifications",
+        "es": "Notificaciones MSA",
+        "zh": "MSA 通知",
+        "hi": "MSA सूचनाएँ",
+        "pt": "Notificações MSA",
+        "id": "Notifikasi MSA"
+      },
+      "keywords": {
+        "ru": [
+          "Показывать уведомления"
+        ],
+        "en": [
+          "Show notifications"
+        ],
+        "es": [
+          "Mostrar notificaciones"
+        ],
+        "zh": [
+          "显示通知"
+        ],
+        "hi": [
+          "सूचनाएँ दिखाएँ"
+        ],
+        "pt": [
+          "Mostrar notificações"
+        ],
+        "id": [
+          "Tampilkan notifikasi"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Уведомления"
+        ],
+        "en": [
+          "Notifications"
+        ],
+        "es": [
+          "Notificaciones"
+        ],
+        "zh": [
+          "通知"
+        ],
+        "hi": [
+          "सूचनाएँ"
+        ],
+        "pt": [
+          "Notificações"
+        ],
+        "id": [
+          "Notifikasi"
+        ]
+      },
+      "actionType": "toggle",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ]
+    },
+    {
+      "id": "notif_gamecenter",
+      "title": {
+        "ru": "Game Center уведомления",
+        "en": "Game Center notifications",
+        "es": "Notificaciones Game Center",
+        "zh": "游戏中心通知",
+        "hi": "गेम सेंटर सूचनाएँ",
+        "pt": "Notificações Game Center",
+        "id": "Notifikasi Game Center"
+      },
+      "keywords": {
+        "ru": [
+          "Показывать уведомления"
+        ],
+        "en": [
+          "Show notifications"
+        ],
+        "es": [
+          "Mostrar notificaciones"
+        ],
+        "zh": [
+          "显示通知"
+        ],
+        "hi": [
+          "सूचनाएँ दिखाएँ"
+        ],
+        "pt": [
+          "Mostrar notificações"
+        ],
+        "id": [
+          "Tampilkan notifikasi"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Уведомления"
+        ],
+        "en": [
+          "Notifications"
+        ],
+        "es": [
+          "Notificaciones"
+        ],
+        "zh": [
+          "通知"
+        ],
+        "hi": [
+          "सूचनाएँ"
+        ],
+        "pt": [
+          "Notificações"
+        ],
+        "id": [
+          "Notifikasi"
+        ]
+      },
+      "actionType": "toggle",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ]
+    },
+    {
+      "id": "notif_appvault",
+      "title": {
+        "ru": "App Vault уведомления",
+        "en": "App Vault notifications",
+        "es": "Notificaciones App Vault",
+        "zh": "智能助理通知",
+        "hi": "App Vault सूचनाएँ",
+        "pt": "Notificações App Vault",
+        "id": "Notifikasi App Vault"
+      },
+      "actionType": "skip",
+      "skipReason": "app_not_installed",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ]
+    },
+    {
+      "id": "notif_themes",
+      "title": {
+        "ru": "Темы уведомления",
+        "en": "Themes notifications",
+        "es": "Notificaciones Temas",
+        "zh": "主题通知",
+        "hi": "थीम सूचनाएँ",
+        "pt": "Notificações Temas",
+        "id": "Notifikasi Tema"
+      },
+      "keywords": {
+        "ru": [
+          "Показывать уведомления"
+        ],
+        "en": [
+          "Show notifications"
+        ],
+        "es": [
+          "Mostrar notificaciones"
+        ],
+        "zh": [
+          "显示通知"
+        ],
+        "hi": [
+          "सूचनाएँ दिखाएँ"
+        ],
+        "pt": [
+          "Mostrar notificações"
+        ],
+        "id": [
+          "Tampilkan notifikasi"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Уведомления"
+        ],
+        "en": [
+          "Notifications"
+        ],
+        "es": [
+          "Notificaciones"
+        ],
+        "zh": [
+          "通知"
+        ],
+        "hi": [
+          "सूचनाएँ"
+        ],
+        "pt": [
+          "Notificações"
+        ],
+        "id": [
+          "Notifikasi"
+        ]
+      },
+      "actionType": "toggle",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ]
+    },
+    {
+      "id": "notif_getapps",
+      "title": {
+        "ru": "GetApps уведомления",
+        "en": "GetApps notifications",
+        "es": "Notificaciones GetApps",
+        "zh": "应用商店通知",
+        "hi": "GetApps सूचनाएँ",
+        "pt": "Notificações GetApps",
+        "id": "Notifikasi GetApps"
+      },
+      "actionType": "skip",
+      "skipReason": "app_not_installed",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ]
+    },
+    {
+      "id": "notif_browser",
+      "title": {
+        "ru": "Mi Браузер уведомления",
+        "en": "Mi Browser notifications",
+        "es": "Notificaciones Mi Browser",
+        "zh": "Mi 浏览器通知",
+        "hi": "Mi ब्राउज़र सूचनाएँ",
+        "pt": "Notificações Mi Browser",
+        "id": "Notifikasi Mi Browser"
+      },
+      "keywords": {
+        "ru": [
+          "Показывать уведомления"
+        ],
+        "en": [
+          "Show notifications"
+        ],
+        "es": [
+          "Mostrar notificaciones"
+        ],
+        "zh": [
+          "显示通知"
+        ],
+        "hi": [
+          "सूचनाएँ दिखाएँ"
+        ],
+        "pt": [
+          "Mostrar notificações"
+        ],
+        "id": [
+          "Tampilkan notifikasi"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Уведомления"
+        ],
+        "en": [
+          "Notifications"
+        ],
+        "es": [
+          "Notificaciones"
+        ],
+        "zh": [
+          "通知"
+        ],
+        "hi": [
+          "सूचनाएँ"
+        ],
+        "pt": [
+          "Notificações"
+        ],
+        "id": [
+          "Notifikasi"
+        ]
+      },
+      "actionType": "toggle",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ]
+    },
+    {
+      "id": "notif_mivideo",
+      "title": {
+        "ru": "Mi Видео уведомления",
+        "en": "Mi Video notifications",
+        "es": "Notificaciones Mi Video",
+        "zh": "Mi 视频通知",
+        "hi": "Mi वीडियो सूचनाएँ",
+        "pt": "Notificações Mi Video",
+        "id": "Notifikasi Mi Video"
+      },
+      "keywords": {
+        "ru": [
+          "Показывать уведомления"
+        ],
+        "en": [
+          "Show notifications"
+        ],
+        "es": [
+          "Mostrar notificaciones"
+        ],
+        "zh": [
+          "显示通知"
+        ],
+        "hi": [
+          "सूचनाएँ दिखाएँ"
+        ],
+        "pt": [
+          "Mostrar notificações"
+        ],
+        "id": [
+          "Tampilkan notifikasi"
+        ]
+      },
+      "screenMarkers": {
+        "ru": [
+          "Уведомления"
+        ],
+        "en": [
+          "Notifications"
+        ],
+        "es": [
+          "Notificaciones"
+        ],
+        "zh": [
+          "通知"
+        ],
+        "hi": [
+          "सूचनाएँ"
+        ],
+        "pt": [
+          "Notificações"
+        ],
+        "id": [
+          "Notifikasi"
+        ]
+      },
+      "actionType": "toggle",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ]
+    }
+  ]
+}
