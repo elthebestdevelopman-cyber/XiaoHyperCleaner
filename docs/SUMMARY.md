@@ -149,3 +149,39 @@
 - `CLA.md` перед приёмом внешних PR (сохранить право dual-licensing).
 - Тема с робокотом (Supporter Pack) через стоковый биллинг.
 - Расширение на другие бренды (Samsung, OPPO) — v2.0.
+
+---
+
+## 11. Handoff v2 (коммиты 0–2 + каталог)
+
+**Дата:** 2026-09-16. **Статус:** фиксация текущего состояния для передачи новому треку.
+
+### Коммиты зафиксированы:
+
+| Хеш | Сообщение | Состав |
+|---|---|---|
+| `a5eee0f` | docs: master-plan artifacts | аудит, промт v2, черновик переводов |
+| `d934fb1` | chore: pre-master WIP | каталог, раннер, навигатор, диагностика, план |
+| `cf144e7` | fix: overlay continuity (P0) | один show/hide на фазу, гейт attachment, watchdog |
+| `bcc3c4f` | chore: pre-handoff WIP | overlay v2: heartbeat, phase protection, isOverlaySolid |
+| `12625ef` | feat: semantic steps catalog | `semantic_steps.json` (26 шагов, 7 локалей, ручной draft) |
+| `26b674d` | docs: handoff artifacts | `handoff_flash.md`, `master_plan_audit.md` |
+
+### Оверлей v2 — частичная реализация:
+
+- **OverlayController.kt:** `beginPhase()` / `endPhase()`, `isOverlaySolid`, защита от illegal hide.
+- **OverlayService.kt:** heartbeat 500мс (проверка attached+visible+rect), логирование attach/detach/visibility, пересоздание при потере.
+- **AdbEnablerService.kt:** гейт использует `isOverlaySolid()` вместо `isAttached`.
+- **SimpleModeController.kt:** `reset()` вызывает `endPhase()` перед `hide()`.
+- **MainViewModel.kt:** cancel listener вызывает `endPhase()` перед `hide()`.
+- **Ресурсы:** строка `overlay_do_not_touch` удалена из всех 7 локалей.
+
+### Чекпоинт оверлея НЕ пройден (прогон rmu2z9m3h):
+
+Оверлей визуально исчезал на шаге msa и ещё несколько раз при тихом логе attach/detach.
+Текущая инструментация не ловит «перекрывается/невидим». Результаты: 6/20 pass, failed=14, skipped=6.
+
+### Следующие шаги (коммиты 3–6):
+
+См. `docs/diag/handoff_flash.md` — очередь коммитов discovery engine, семантические шаги,
+диагностические уровни, нейтральная лексика.

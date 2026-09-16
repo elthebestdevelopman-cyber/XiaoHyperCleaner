@@ -197,3 +197,26 @@
    - `home_suggestions` — pass или skipped с `home_not_miui` (если лаунчер не MIUI).
    - App-шаги (browser_sys, music_sys и др.) — не падают в App Info fallback.
    - Скриншоты сохраняются без ошибок `onFailure`.
+---
+
+## Прогон rmu2z9m3h (2026-09-16) — результаты и чекпоинт
+
+- **Метрики:** 6/20 pass, **failed=14**, **skipped=6**.
+- `sys_recommendations`: OK→FAIL `verify_failed` — устранён ложный успех
+  (ранее фиксировался как success без реального переключения).
+- **Чекпоинт оверлея НЕ пройден:** оверлей визуально исчезал на шаге `msa`
+  и ещё несколько раз при тихом логе фазы STEPS (нет `overlay hidden`).
+  Окно не удалялось `hide()`, а становилось невидимым/перекрывалось;
+  attach/detach-логи в прогоне отсутствуют (инструментация не ловит).
+- Пользователь тапов не совершал — отсутствие touch-логов ожидаемо.
+- Базовая линия сохранена в `diag-dumps/before/` (26 JSON + PNG + `xhc.log.txt`).
+
+### План следующего прогона
+
+- Устройство: M2102J20SG, MIUI V13.0.5.0.SJURUXM, ru, Global, HyperOS=false.
+- Сценарий: чистый прогон Simple Mode после коммита 4, **запись экрана
+  встроенным рекордером** для диагностики оверлея.
+- В логе должны появиться строки heartbeat/attach после коммита 3:
+  `overlay: heartbeat recovered reason=...`, `overlay: viewAttachedToWindow`,
+  `overlay: viewDetachedFromWindow`.
+- Сравнение before/after через `tools/diag-diff.ps1`.
