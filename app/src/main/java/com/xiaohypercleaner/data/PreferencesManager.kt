@@ -73,6 +73,9 @@ sealed interface PreferenceKey {
     data object RestoreSnapshotJson : PreferenceKey {
         override val name = "restore_snapshot_json"
     }
+
+    /** Динамический ключ кэша активностей: `act_cache_<pkg>_<versionCode>_<incremental>`. */
+    data class ActivityCache(override val name: String) : PreferenceKey
 }
 
 /**
@@ -85,7 +88,7 @@ sealed interface PreferenceKey {
  * 4. Обработка ошибок DataStore через `runCatching` и `catch`
  * 5. Защита от corrupt DataStore
  */
-class PreferencesManager(private val context: Context) : RestoreSnapshotStore {
+class PreferencesManager(private val context: Context) : RestoreSnapshotStore, ActivityCacheStore {
 
     companion object {
         private const val TAG = "PreferencesManager"
@@ -98,6 +101,9 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore {
             stringPreferencesKey(PreferenceKey.SimpleToggledSteps.name)
         private val RESTORE_SNAPSHOT_KEY =
             stringPreferencesKey(PreferenceKey.RestoreSnapshotJson.name)
+
+        /** Префикс динамических ключей кэша активностей (ActivityCacheStore). */
+        private const val ACTIVITY_CACHE_PREFIX = "act_cache_"
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -256,6 +262,82 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // checked_before простых тумблеров (блок 6: честный откат)
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Записывает фактическое состояние тумблера в момент переключения
+     * (`checked_before`) в снапшот отката. Если снапшота ещё не было —
+     * создаёт пустой контейнер: состояние тумблеров должно переживать
+     * перезапуск приложения.
+     */
+    suspend fun recordSimpleToggleState(stepId: String, checkedBefore: Boolean) = runCatching {
+        context.dataStore.edit { prefs ->
+            val current = prefs[RESTORE_SNAPSHOT_KEY]?.let { RestoreSnapshot.fromJson(it) }
+                ?: RestoreSnapshot(
+                    settings = emptyMap(),
+                    dnsApplied = false,
+                    dnsMode = null,
+                    dnsHost = null
+                )
+            val updated = current.copy(
+                simpleToggleStates = current.simpleToggleStates + (stepId to checkedBefore)
+            )
+            prefs[RESTORE_SNAPSHOT_KEY] = updated.toJson()
+            AppLog.i(TAG, "recordSimpleToggleState: $stepId checked_before=$checkedBefore")
+        }
+    }.onFailure { e ->
+        AppLog.e(TAG, "recordSimpleToggleState($stepId) failed: ${e.message}")
+    }
+
+    /**
+     * Сохранённые `checked_before` простых тумблеров.
+     * Пустая map у снапшотов старого формата (миграция: откат по инверсии target).
+     */
+    suspend fun getSimpleToggleStates(): Map<String, Boolean> = runCatching {
+        context.dataStore.data.first()[RESTORE_SNAPSHOT_KEY]
+    }.getOrNull()?.let { RestoreSnapshot.fromJson(it)?.simpleToggleStates } ?: emptyMap()
+
+    // ═══════════════════════════════════════════════════════════════
+    // Кэш найденных активностей (ActivityCacheStore)
+    // ══════════════════════════════════════════════════════════════
+
+    override suspend fun loadActivityCache(cacheKey: String): String? = runCatching {
+        context.dataStore.data.first()[stringPreferencesKey(cacheKey)]
+    }.getOrNull()
+
+    /**
+     * Сохраняет кэш скана. Ключ включает версию пакета и incremental прошивки,
+     * поэтому старые записи того же пакета удаляются — кэш не растёт бесконечно.
+     */
+    override suspend fun saveActivityCache(cacheKey: String, json: String) {
+        runCatching {
+            context.dataStore.edit { prefs ->
+                val pkg = cacheKey.substringAfter("act_cache_").substringBeforeLast('_')
+                prefs.asMap().keys
+                    .filter { it.name.startsWith(ACTIVITY_CACHE_PREFIX) && it.name != cacheKey }
+                    .filter { it.name.startsWith("$ACTIVITY_CACHE_PREFIX${pkg}_") }
+                    .forEach { prefs.remove(it) }
+                prefs[stringPreferencesKey(cacheKey)] = json
+            }
+        }.onFailure { e ->
+            AppLog.e(TAG, "saveActivityCache failed: ${e.message}")
+        }
+    }
+
+    override suspend fun clearActivityCache(pkg: String) {
+        runCatching {
+            context.dataStore.edit { prefs ->
+                prefs.asMap().keys
+                    .filter { it.name.startsWith("$ACTIVITY_CACHE_PREFIX${pkg}_") }
+                    .forEach { prefs.remove(it) }
+            }
+        }.onFailure { e ->
+            AppLog.e(TAG, "clearActivityCache($pkg) failed: ${e.message}")
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // OptimizationMode
     // ═══════════════════════════════════════════════════════════════
 
@@ -301,6 +383,11 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore {
     suspend fun clearSimpleToggledSteps() = runCatching {
         context.dataStore.edit { prefs ->
             prefs.remove(SIMPLE_TOGGLED_KEY)
+            // checked_before больше не нужен: откат завершён (или отменён).
+            val current = prefs[RESTORE_SNAPSHOT_KEY]?.let { RestoreSnapshot.fromJson(it) }
+            if (current != null && current.simpleToggleStates.isNotEmpty()) {
+                prefs[RESTORE_SNAPSHOT_KEY] = current.copy(simpleToggleStates = emptyMap()).toJson()
+            }
         }
     }
 

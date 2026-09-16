@@ -11,12 +11,17 @@ import kotlin.time.Duration.Companion.milliseconds
  * Снимок оригинальных значений настроек для точного отката.
  * Сохраняется после успешной оптимизации и используется в [OptimizationEngine.restore],
  * чтобы вернуть устройство в состояние «до», а не к заводским дефолтам.
+ *
+ * `simpleToggleStates` — фактическое состояние простых тумблеров ТОЛЬКО в момент
+ * включения/выключения шага (`checked_before`). Откат возвращает это состояние,
+ * а не инверсию целевого значения; отсутствие поля (старый снапшот) → прежняя логика.
  */
 data class RestoreSnapshot(
     val settings: Map<String, String>,
     val dnsApplied: Boolean,
     val dnsMode: String?,
-    val dnsHost: String?
+    val dnsHost: String?,
+    val simpleToggleStates: Map<String, Boolean> = emptyMap()
 ) {
     fun toJson(): String {
         val root = JSONObject()
@@ -26,6 +31,9 @@ data class RestoreSnapshot(
         root.put("dnsApplied", dnsApplied)
         root.put("dnsMode", dnsMode ?: JSONObject.NULL)
         root.put("dnsHost", dnsHost ?: JSONObject.NULL)
+        val toggles = JSONObject()
+        simpleToggleStates.forEach { (k, v) -> toggles.put(k, v) }
+        root.put("simpleToggleStates", toggles)
         return root.toString()
     }
 
@@ -37,11 +45,16 @@ data class RestoreSnapshot(
             if (s != null) {
                 for (k in s.keys()) map[k] = s.optString(k)
             }
+            val toggles = mutableMapOf<String, Boolean>()
+            root.optJSONObject("simpleToggleStates")?.let { obj ->
+                for (k in obj.keys()) toggles[k] = obj.optBoolean(k)
+            }
             RestoreSnapshot(
                 settings = map,
                 dnsApplied = root.optBoolean("dnsApplied", false),
                 dnsMode = root.optString("dnsMode").takeIf { it.isNotEmpty() && it != "null" },
-                dnsHost = root.optString("dnsHost").takeIf { it.isNotEmpty() && it != "null" }
+                dnsHost = root.optString("dnsHost").takeIf { it.isNotEmpty() && it != "null" },
+                simpleToggleStates = toggles
             )
         } catch (e: Exception) {
             null
@@ -271,12 +284,16 @@ class OptimizationEngine(
 
             // 2В: сохраняем оригиналы настроек/DNS для точного отката «как было».
             runCatching {
+                // checked_before простых тумблеров не теряем при повторном Pro-прогоне.
+                val previousToggles = runCatching { snapshotStore?.load()?.simpleToggleStates }
+                    .getOrNull().orEmpty()
                 snapshotStore?.save(
                     RestoreSnapshot(
                         settings = transaction.appliedSettings.toMap(),
                         dnsApplied = transaction.enabledDns,
                         dnsMode = transaction.previousDnsMode,
-                        dnsHost = transaction.previousDnsHost
+                        dnsHost = transaction.previousDnsHost,
+                        simpleToggleStates = previousToggles
                     )
                 )
             }.onFailure { AppLog.w(TAG, "Не удалось сохранить снапшот отката: ${it.message}") }

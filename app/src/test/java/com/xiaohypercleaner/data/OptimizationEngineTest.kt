@@ -360,6 +360,34 @@ class OptimizationEngineTest {
         )
     }
 
+    /**
+     * Повторная Pro-оптимизация не должна стирать `checked_before` простых
+     * тумблеров: снапшот перезаписывается с сохранением карты состояний.
+     */
+    @Test
+    fun optimizeKeepsSimpleToggleStates() = runTest {
+        val store = FakeSnapshotStore()
+        store.saved = RestoreSnapshot(
+            settings = emptyMap(),
+            dnsApplied = false,
+            dnsMode = null,
+            dnsHost = null,
+            simpleToggleStates = mapOf("carousel" to true)
+        )
+
+        OptimizationEngine(FakeAdb(), store).optimize()
+
+        assertEquals(
+            "checked_before простых тумблеров должен пережить Pro-прогон",
+            mapOf("carousel" to true),
+            store.saved?.simpleToggleStates
+        )
+        assertNotNull(
+            "настройки Pro-прогона должны сохраниться в снапшот",
+            store.saved?.settings?.get("secure user_experience_program")
+        )
+    }
+
     @Test
     fun verificationResultIsAttached() = runTest {
         val fake = FakeAdb()

@@ -55,6 +55,9 @@ class OverlayService : Service() {
         const val EXTRA_FAILED = "failed"
         const val EXTRA_SKIPPED = "skipped"
         private const val HEARTBEAT_INTERVAL_MS = 500L
+
+        /** Каждый N-й удар heartbeat пишет alive-строку в лог (2 с при 500 мс). */
+        private const val HEARTBEAT_ALIVE_LOG_EVERY = 4
     }
 
     enum class PointerMode { TOP_RIGHT, BOTTOM_LIST, SWITCH_RIGHT, LIST_ITEM_CENTER, GENERIC_BOTTOM }
@@ -69,6 +72,33 @@ class OverlayService : Service() {
 
     private val heartbeatHandler = Handler(Looper.getMainLooper())
     private var heartbeatRunnable: Runnable? = null
+
+    /** Счётчик ударов heartbeat (для периодического alive-лога). */
+    private var heartbeatTicks = 0
+
+    /** Корневое окно оверлея: логирует все смены attach/detach/visibility. */
+    private inner class OverlayRootView(context: android.content.Context) : FrameLayout(context) {
+        override fun onAttachedToWindow() {
+            super.onAttachedToWindow()
+            AppLog.i(TAG, "overlay: root attached ts=${System.currentTimeMillis()}")
+        }
+
+        override fun onDetachedFromWindow() {
+            super.onDetachedFromWindow()
+            AppLog.i(TAG, "overlay: root detached ts=${System.currentTimeMillis()}")
+        }
+
+        override fun onVisibilityChanged(changedView: View, visibility: Int) {
+            super.onVisibilityChanged(changedView, visibility)
+            AppLog.i(TAG, "overlay: visibility changed to $visibility ts=${System.currentTimeMillis()}")
+        }
+
+        override fun onWindowVisibilityChanged(visibility: Int) {
+            super.onWindowVisibilityChanged(visibility)
+            AppLog.i(TAG, "overlay: windowVisibility=$visibility ts=${System.currentTimeMillis()}")
+            OverlayController.markVisible(visibility == View.VISIBLE && isAttachedToWindow)
+        }
+    }
 
     private var tvStep: TextView? = null
     private var tvTitle: TextView? = null
@@ -240,13 +270,28 @@ class OverlayService : Service() {
 
     private fun startHeartbeat() {
         stopHeartbeat()
+        heartbeatTicks = 0
         heartbeatRunnable = object : Runnable {
             override fun run() {
-                if (!OverlayController.phaseRunning) return
+                if (!OverlayController.phaseRunning) {
+                    AppLog.i(TAG, "heartbeat idle: phase not running")
+                    stopHeartbeat()
+                    return
+                }
+                heartbeatTicks++
                 val v = root
                 if (v == null) { AppLog.w(TAG, "overlay: heartbeat recovered reason=root-null"); return }
                 val attached = v.isAttachedToWindow
                 val visible = attached && v.windowVisibility == View.VISIBLE && v.getGlobalVisibleRect(Rect())
+                OverlayController.markVisible(visible)
+                if (visible && heartbeatTicks % HEARTBEAT_ALIVE_LOG_EVERY == 0) {
+                    val rect = Rect().also { v.getGlobalVisibleRect(it) }
+                    AppLog.d(
+                        TAG,
+                        "heartbeat alive attached=$attached visible=$visible " +
+                            "rect=${rect.width()}x${rect.height()} tick=$heartbeatTicks"
+                    )
+                }
                 if (!attached || !visible) {
                     val reason = when {
                         !attached -> "detached"
@@ -329,7 +374,7 @@ class OverlayService : Service() {
     }
 
     private fun addRoot(touchable: Boolean, fullScreen: Boolean): FrameLayout {
-        val v = FrameLayout(this)
+        val v = OverlayRootView(this)
         var flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
@@ -354,6 +399,7 @@ class OverlayService : Service() {
         v.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(view: View) {
                 OverlayController.markAttached()
+                OverlayController.markVisible(view.windowVisibility == View.VISIBLE)
                 AppLog.i(TAG, "overlay: viewAttachedToWindow ts=${System.currentTimeMillis()}")
             }
             override fun onViewDetachedFromWindow(view: View) {

@@ -399,6 +399,9 @@ class ProFlowController(
                 update { it.copy(isWorking = true, progress = 0f) }
                 val deps: AppDependencies = XiaoHyperApp.testDeps ?: (app as XiaoHyperApp).deps
 
+                // checked_before читаем ДО Pro-restore: restore() очищает снапшот.
+                val checkedBeforeStates = prefs.getSimpleToggleStates()
+
                 // 1) ADB/Shizuku restore (Pro) — best effort
                 val adbOk = runCatching {
                     deps.newEngine().restore(
@@ -408,16 +411,18 @@ class ProFlowController(
                     )
                 }.getOrDefault(false)
 
-                // 2) Simple Mode: реальный откат тумблеров (targetChecked инвертирован)
+                // 2) Simple Mode: откат тумблеров по сохранённому checked_before
                 val toggled = prefs.getSimpleToggledSteps()
                 var simpleOk = toggled.isEmpty()
                 if (toggled.isNotEmpty()) {
                     val svc = AdbEnablerService.instance
                     if (svc != null) {
                         AppLog.i(TAG, "restoreOptimization: reversing ${toggled.size} simple toggles")
-                        simpleOk = svc.reverseSimpleToggles(toggled) { p ->
-                            update { it.copy(progress = 0.4f + p * 0.6f) }
-                        }
+                        simpleOk = svc.reverseSimpleToggles(
+                            stepIds = toggled,
+                            checkedBeforeStates = checkedBeforeStates,
+                            onProgress = { p -> update { it.copy(progress = 0.4f + p * 0.6f) } }
+                        )
                     } else {
                         AppLog.w(TAG, "restoreOptimization: accessibility offline, skip simple reverse")
                         simpleOk = false

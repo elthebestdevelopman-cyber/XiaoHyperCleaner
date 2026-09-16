@@ -25,6 +25,11 @@ object OverlayController {
     var isAttached: Boolean = false
         private set
 
+    /** Флаг видимости окна (attached != visible: окно может быть скрыто/перекрыто). */
+    @Volatile
+    var isVisible: Boolean = false
+        private set
+
     /** Флаг защищённой фазы: hide() между startAutomation и showResult → illegal. */
     @Volatile
     var phaseRunning: Boolean = false
@@ -43,7 +48,7 @@ object OverlayController {
     }
 
     /** Оверлей на месте: прикреплён + видим. */
-    fun isOverlaySolid(): Boolean = isAttached
+    fun isOverlaySolid(): Boolean = isAttached && isVisible
 
     /** Вызывается OverlayService при добавлении окна. */
     fun markAttached() {
@@ -54,7 +59,15 @@ object OverlayController {
     /** Вызывается OverlayService при удалении окна. */
     fun markDetached() {
         isAttached = false
+        isVisible = false
         AppLog.i(TAG, "overlay: detached ts=${System.currentTimeMillis()}")
+    }
+
+    /** Вызывается OverlayService при каждой смене видимости (лог только на переходе). */
+    fun markVisible(visible: Boolean) {
+        if (isVisible == visible) return
+        isVisible = visible
+        AppLog.i(TAG, "overlay: visibility=$visible ts=${System.currentTimeMillis()}")
     }
 
     fun setOnCancel(listener: (() -> Unit)?) {
@@ -137,9 +150,14 @@ object OverlayController {
         )
 
     private fun callerName(): String {
+        // Первый кадр вне OverlayController: index 0 — callerName, 1 — публичный метод.
         val trace = Throwable().stackTrace
-        val frame = trace.getOrNull(3) ?: return "unknown"
-        return "${frame.className.substringAfterLast('.')}.${frame.methodName}:${frame.lineNumber}"
+        for (frame in trace) {
+            if (frame.className != OverlayController::class.java.name) {
+                return "${frame.className.substringAfterLast('.')}.${frame.methodName}:${frame.lineNumber}"
+            }
+        }
+        return "unknown"
     }
 
     private fun intent(ctx: Context, action: String) =

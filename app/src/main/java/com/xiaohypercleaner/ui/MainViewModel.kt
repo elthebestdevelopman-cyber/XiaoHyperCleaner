@@ -91,7 +91,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         SimpleStepBridge.onResult = { success, reason ->
             AppLog.i(TAG, "SimpleStepBridge result: $success reason=$reason")
-            if (success && (reason == "toggled" || reason == "confirmed" || reason == "already_done")) {
+            // already_off/already_done — тумблер не трогали, откат эти шаги не касается.
+            if (success && (reason == "toggled" || reason == "confirmed" || reason == "tapped_fallback")) {
                 val stepId = _state.value.simpleStep?.step?.id
                 if (stepId != null) {
                     viewModelScope.launch {

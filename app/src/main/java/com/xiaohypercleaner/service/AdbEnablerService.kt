@@ -352,10 +352,13 @@ class AdbEnablerService : AccessibilityService() {
     }
 
     /**
-     * Откат Simple Mode: для каждого stepId запускает тот же маршрут с инвертированным targetChecked.
+     * Откат Simple Mode: для каждого stepId запускает тот же маршрут с целевым
+     * состоянием из снапшота (`checked_before`). Если состояние не сохранено
+     * (старый снапшот) — прежняя логика: инверсия targetChecked.
      */
     suspend fun reverseSimpleToggles(
         stepIds: Set<String>,
+        checkedBeforeStates: Map<String, Boolean> = emptyMap(),
         onProgress: (Float) -> Unit = {}
     ): Boolean {
         if (stepIds.isEmpty()) return true
@@ -366,10 +369,14 @@ class AdbEnablerService : AccessibilityService() {
         try {
             list.forEachIndexed { i, id ->
                 val original = SimpleSteps.ALL.firstOrNull { it.id == id } ?: return@forEachIndexed
-                val reverse = original.copy(targetChecked = !original.targetChecked)
+                val checkedBefore = checkedBeforeStates[id]
+                val reverse = original.copy(
+                    targetChecked = checkedBefore ?: !original.targetChecked
+                )
                 AppLog.i(
                     TAG,
-                    "reverseSimpleToggles: ${original.id} -> targetChecked=${reverse.targetChecked}"
+                    "reverseSimpleToggles: ${original.id} -> targetChecked=${reverse.targetChecked} " +
+                        "source=${if (checkedBefore != null) "checked_before" else "inverted"}"
                 )
 
                 // ═══════════════════════════════════════════════════════════════
