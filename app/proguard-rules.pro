@@ -12,7 +12,6 @@
 # Общие атрибуты (для читаемых stack traces в Crashlytics)
 # ───────────────────────────────────────────────────────────────
 -keepattributes SourceFile,LineNumberTable
--renamesourcefileattribute SourceFile
 -keepattributes Signature
 -keepattributes *Annotation*
 -keepattributes Exceptions
@@ -45,6 +44,14 @@
 }
 
 # ───────────────────────────────────────────────────────────────
+# Reflection-классы (IPC, ADB, Root, DI)
+# ДОБАВЛЕНО: эти классы используют reflection, R8 не видит вызовы
+# ───────────────────────────────────────────────────────────────
+-keep class com.xiaohypercleaner.data.AdbClient { *; }
+-keep class com.xiaohypercleaner.data.RootExecutor { *; }
+-keep class com.xiaohypercleaner.data.ShizukuExecutor { *; }
+
+# ───────────────────────────────────────────────────────────────
 # Data-слой
 # ИСПРАВЛЕНО: вместо com.xiaohypercleaner.data.** { *; } — только
 # классы, участвующие в сериализации/передаче. Остальные достижимы
@@ -54,6 +61,8 @@
 -keep class com.xiaohypercleaner.data.OptimizationReport$* { *; }
 -keep class com.xiaohypercleaner.data.SimpleSteps$Step { *; }
 -keep class com.xiaohypercleaner.data.SimpleStepState { *; }
+-keep class com.xiaohypercleaner.data.RestoreSnapshot { *; }
+-keep class com.xiaohypercleaner.data.PreferencesManager { *; }
 
 # ───────────────────────────────────────────────────────────────
 # Service-слой
@@ -74,6 +83,26 @@
 #noinspection ShrinkerUnresolvedReference
 -keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite {
     <fields>;
+}
+
+# ───────────────────────────────────────────────────────────────
+# Kotlinx Serialization (для JSON: RestoreSnapshot, semantic_steps)
+# ДОБАВЛЕНО: kotlinx.serialization использует reflection, R8 не видит
+# ───────────────────────────────────────────────────────────────
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.AnnotationsKt
+-keepclassmembers class kotlinx.serialization.json.** {
+    *** Companion;
+}
+-keepclasseswithmembers class kotlinx.serialization.json.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+-keep,includedescriptorclasses class com.xiaohypercleaner.**$$serializer { *; }
+-keepclassmembers class com.xiaohypercleaner.** {
+    *** Companion;
+}
+-keepclasseswithmembers class com.xiaohypercleaner.** {
+    kotlinx.serialization.KSerializer serializer(...);
 }
 
 # ───────────────────────────────────────────────────────────────
@@ -110,5 +139,6 @@
 
 # ───────────────────────────────────────────────────────────────
 # Исключения (для читаемых логов)
+# ИСПРАВЛЕНО: сужено до пользовательских исключений
 # ───────────────────────────────────────────────────────────────
--keep class * extends java.lang.Exception { *; }
+-keep class com.xiaohypercleaner.data.AdbException { *; }
