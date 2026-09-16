@@ -13,10 +13,14 @@ import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.AdaptiveCatalog
 import com.xiaohypercleaner.data.ComponentVerifier
+import com.xiaohypercleaner.data.ConsentWallHandler
 import com.xiaohypercleaner.data.DirectIntentNavigator
 import com.xiaohypercleaner.data.PreferencesManager
 import com.xiaohypercleaner.data.RomProfile
 import com.xiaohypercleaner.data.ScanOrchestrator
+import com.xiaohypercleaner.data.SemanticCatalog
+import com.xiaohypercleaner.data.SemanticGate
+import com.xiaohypercleaner.data.SimplePlan
 import com.xiaohypercleaner.data.SimpleSteps
 import com.xiaohypercleaner.data.SwitchFinder
 import com.xiaohypercleaner.util.AppLog
@@ -79,7 +83,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // ═══════════════════════════════════════════════════════════════
         // П.5: Системные диалоги
         // ═══════════════════════════════════════════════════════════════
-        private val MEDIA_APP_STEPS = setOf("music_sys", "mivideo")
+        // MEDIA-шаги перенесены в ConsentWallHandler (allow аудио-разрешения для music_sys/mivideo).
 
         // ═══════════════════════════════════════════════════════════════
         // П.4: Структурный поиск ⋮/⚙
@@ -195,6 +199,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
         currentStepId = step.id
         lastFailureReason = null
         romProfile = profile
+        // Семантика шага (keywords/markers/consent) должна быть загружена.
+        SemanticCatalog.ensureLoaded(service)
         // Выбираем вариант каталога по fingerprint (global_ru / cn_hyperos).
         AdaptiveCatalog.selectVariant(service, profile)
 
@@ -203,7 +209,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         job = scope.launch {
             val start = System.currentTimeMillis()
-            StepDiagnostics.stepStart(step.id, 0, SimpleSteps.ALL.size, null, profile)
+            // Размер плана (префильтр) в диагностике: total на оверлее = размер плана.
+            val planTotal = SimplePlan.total().takeIf { it > 0 } ?: SimpleSteps.ALL.size
+            StepDiagnostics.stepStart(step.id, 0, planTotal, null, profile)
 
             val result = try {
                 val r = withTimeoutOrNull(timeout) { runInternal(step, profile) } ?: Result(
@@ -276,34 +284,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     // ─── Internal execution ───────────────────────────────────────────────
-    private suspend fun runInternal(step: SimpleSteps.Step, profile: RomProfile): Result {
+    private suspend fun runInternal(stepParam: SimpleSteps.Step, profile: RomProfile): Result {
+        // Семантический launchPackage (каталог) дополняет legacy-структуру шага.
+        val step = applySemanticLaunchPackage(stepParam)
         if (cancelled) return Result(false, "cancelled")
 
         // Гейт целостности оверлея (Аддендум A4): навигация без окна прогресса запрещена.
         if (!awaitOverlayReadyOrPause()) return Result(false, "overlay_lost")
 
-        // П.5: Перехват системных диалогов
-        val mediaGrant = step.id in MEDIA_APP_STEPS
-        interceptSystemDialogs(step, mediaGrant)
-
-        // П.3: Резолвинг пакета через AdaptiveCatalog
+        // Резолвинг пакета: вариантный каталог + семантический launchPackage
         val resolvedPkg = AdaptiveCatalog.resolveInstalledPackageForGroup(service, step.id, profile)
             ?: AdaptiveCatalog.packagesForStep(service, step.id, step.requiredPackages, profile)
                 .firstOrNull { isInstalled(it) }
-
-        if (step.requiredPackages.isNotEmpty() && resolvedPkg == null) {
-            return Result(false, "app_not_installed")
-        }
-
-        // П.2: home_suggestions — пропуск, если лаунчер не MIUI
-        if (step.id == "home_suggestions") {
-            val miuiLaunchers = step.requiredPackages
-            val hasMiuiHome = miuiLaunchers.any { isInstalled(it) }
-            if (!hasMiuiHome) {
-                AppLog.i(TAG, "home_suggestions: skipped (home_not_miui)")
-                return Result(false, "home_not_miui")
-            }
-        }
 
         // П.6: Умный сброс настроек
         if (step.launchPackage == null) {
@@ -317,7 +309,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val legacyIntents = DirectIntentNavigator.buildIntentsForStep(service, step, resolvedPkg, profile)
         // Stage 3: после каждого интента проверяем экран по merged-маркерам и,
         // если открылся не тот экран, пробуем следующий интент.
-        val verifyTexts = AdaptiveCatalog.mergeSearchTexts(service, step.id, step.searchTexts)
+        val verifyTexts = searchTextsFor(step)
         // Для шагов-приложений целевой экран достигается бурением, поэтому
         // проверка на этапе интента не нужна (иначе Settings-фолбэк уводит из приложения).
         val isAppStep = step.launchPackage != null
@@ -375,17 +367,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
         if (!screenOpened) return Result(false, "no_screen_opened")
 
         delay(if (step.launchPackage != null) APP_LAUNCH_DELAY_MS else UI_SETTLE_DELAY_MS)
-        interceptSystemDialogs(step, mediaGrant)
+        // Единая точка входа для системных диалогов (welcome/permission, Аддендум B)
+        handleConsentWalls(step)
 
-        // П.3: consent-цикл для themes — тапаем кнопки согласия перед drill
-        if (step.id == "themes") {
-            dismissConsentScreens()
-        }
-
-        // П.3: Навигация по маршруту
-        if (step.drillPath.isNotEmpty()) {
+        // Навигация по маршруту: вариантный путь + fallbackDrillPath-подсказки каталога
+        val mergedDrillPath = semanticDrillPath(
+            step,
+            AdaptiveCatalog.mergeDrillPath(service, step.id, step.drillPath)
+        )
+        if (mergedDrillPath.isNotEmpty()) {
             if (step.preDrillWaitMs > 0) delay(step.preDrillWaitMs)
-            val mergedDrillPath = AdaptiveCatalog.mergeDrillPath(service, step.id, step.drillPath)
             for ((levelIndex, levelTexts) in mergedDrillPath.withIndex()) {
                 if (cancelled) return Result(false, "cancelled")
                 // Навигационное действие — только при целостном оверлее.
@@ -395,6 +386,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     "drill_failed"
                 )
                 delay(UI_SETTLE_DELAY_MS)
+                // Диалоги могут появиться после любого навигационного действия.
+                handleConsentWalls(step)
             }
         }
 
@@ -556,7 +549,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     // ─── Switch finding and toggling ──────────────────────────────────────
     private suspend fun findAndToggleSwitch(step: SimpleSteps.Step): Result {
-        val mergedSearchTexts = AdaptiveCatalog.mergeSearchTexts(service, step.id, step.searchTexts)
+        val mergedSearchTexts = searchTextsFor(step)
         if (mergedSearchTexts.isEmpty()) return Result(false, "no_switch")
 
         if (!awaitScreen(mergedSearchTexts)) return Result(false, "switch_not_found")
@@ -589,12 +582,30 @@ class SimpleRunner(private val service: AdbEnablerService) {
             }
         }
 
+        val tapTexts = tapFallbackTextsFor(step)
+        // Гейт уверенности: keyword-match И переключатель (или tap-fallback) И screenMarkers.
+        val screenRoot = currentRoot ?: service.rootInActiveWindow
+        val screenText = ComponentVerifier.screenText(screenRoot)
+        if (currentRoot == null) recycleNode(screenRoot)
+        val decision = SemanticGate.decide(
+            keywords = mergedSearchTexts,
+            screenText = screenText,
+            screenMarkers = SemanticCatalog.screenMarkers(step.id),
+            switchFound = switchNode != null,
+            hasTapFallback = tapTexts.isNotEmpty()
+        )
+        SemanticGate.log(step.id, decision)
+        if (!decision.act) {
+            recycleNode(switchNode)
+            recycleNode(currentRoot)
+            // Никаких угадываний: пропускаем шаг, ложные нажатия недопустимы.
+            return Result(false, "low_confidence")
+        }
+
         if (switchNode == null) {
             recycleNode(currentRoot)
             // Variant-aware фолбэк: на экранах без тумблера (Global: Google «Реклама»
             // с кнопкой «Удалить рекламный идентификатор») тапаем кнопку-действие.
-            val tapTexts =
-                AdaptiveCatalog.mergeTapFallbackTexts(service, step.id, step.tapFallbackTexts)
             if (tapTexts.isNotEmpty()) return tapActionButton(step, tapTexts)
             return Result(false, "switch_not_found")
         }
@@ -674,10 +685,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     /** Тапает кнопку подтверждения диалога, если он появился (confirmTexts шага). */
     private suspend fun tapConfirmIfNeeded(step: SimpleSteps.Step) {
-        if (step.confirmTexts.isEmpty()) return
-        val mergedConfirmTexts =
-            AdaptiveCatalog.mergeConfirmTexts(service, step.id, step.confirmTexts)
-        if (step.confirmWaitMs > 0) delay(step.confirmWaitMs)
+        val mergedConfirmTexts = confirmTextsFor(step)
+        if (mergedConfirmTexts.isEmpty()) return
+        val waitMs = SemanticCatalog.confirmWaitMs(step.id, step.confirmWaitMs)
+        if (waitMs > 0) delay(waitMs)
         for (attempt in 1..3) {
             val confirmRoot = service.rootInActiveWindow ?: break
             val confirmNode = findClickableByText(confirmRoot, mergedConfirmTexts)
@@ -782,43 +793,75 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     // ═════════════════════════════════════════════════════════════════════
-    // П.5: Перехват системных диалогов
+    // Consent-стены (welcome/permission) — см. handleConsentWalls + ConsentWallHandler
     // ═════════════════════════════════════════════════════════════════════
-    private suspend fun interceptSystemDialogs(step: SimpleSteps.Step, mediaGrant: Boolean) {
-        var attempts = 0
-        while (attempts < 5 && !cancelled) {
-            val root = service.rootInActiveWindow ?: break
-            val screenText = collectAllText(root)
-            recycleNode(root)
+    /** Мост нажатий для ConsentWallHandler (поиск кликабельного узла по текстам). */
+    private val consentTapBridge = object : ConsentWallHandler.TapBridge {
+        override suspend fun tapByTexts(texts: List<String>): Boolean = tapSystemDialogButton(texts)
+    }
 
-            val isAudioDialog =
-                screenText.contains("Разрешить приложению") && (screenText.contains("музык") || screenText.contains(
-                    "аудио"
-                ))
-            val isDefaultAppDialog =
-                screenText.contains("приложением по умолчанию") || screenText.contains("приложением для обмена")
+    /**
+     * Единая точка входа для системных диалогов: welcome-стены и
+     * runtime-permission запросы по consentPolicy (deny по умолчанию).
+     */
+    private suspend fun handleConsentWalls(step: SimpleSteps.Step) {
+        val handled = ConsentWallHandler.handleUntilSettled(
+            service = service,
+            bridge = consentTapBridge,
+            stepId = step.id,
+            stepConsentTexts = SemanticCatalog.consentTexts(step.id),
+            maxIterations = SemanticCatalog.maxConsentIterations(
+                step.id,
+                SemanticCatalog.maxConsentIterationsPolicy()
+            ),
+            isCancelled = { cancelled }
+        )
+        if (handled > 0) delay(UI_SETTLE_DELAY_MS)
+    }
 
-            if (!isAudioDialog && !isDefaultAppDialog) break
-            attempts++
+    /** Тексты поиска: keywords каталога + deprecated legacy searchTexts. */
+    private fun searchTextsFor(step: SimpleSteps.Step): List<String> = SemanticCatalog.keywords(
+        step.id,
+        AdaptiveCatalog.mergeSearchTexts(service, step.id, step.searchTexts)
+    )
 
-            if (isAudioDialog) {
-                val targetTexts = if (mediaGrant) listOf(
-                    "РАЗРЕШИТЬ",
-                    "Разрешить",
-                    "ALLOW",
-                    "Allow"
-                ) else listOf("ЗАПРЕТИТЬ", "Запретить", "DENY", "Deny")
-                if (tapSystemDialogButton(targetTexts)) {
-                    delay(UI_SETTLE_DELAY_MS); continue
-                }
-            }
-            if (isDefaultAppDialog) {
-                if (tapSystemDialogButton(listOf("ОТМЕНА", "Отмена", "CANCEL", "Cancel"))) {
-                    delay(UI_SETTLE_DELAY_MS); continue
-                }
-            }
-            break
+    /** Тексты подтверждения: каталог + вариантный каталог + legacy. */
+    private fun confirmTextsFor(step: SimpleSteps.Step): List<String> = SemanticCatalog.confirmTexts(
+        step.id,
+        AdaptiveCatalog.mergeConfirmTexts(service, step.id, step.confirmTexts)
+    )
+
+    /** Тексты кнопки-действия (экран без тумблера): каталог + вариантный каталог. */
+    private fun tapFallbackTextsFor(step: SimpleSteps.Step): List<String> =
+        SemanticCatalog.tapFallbackTexts(
+            step.id,
+            AdaptiveCatalog.mergeTapFallbackTexts(service, step.id, step.tapFallbackTexts)
+        )
+
+    /**
+     * Маршрут навигации: вариантный drillPath первым (поведение cn_hyperos не
+     * меняется), fallbackDrillPath каталога — подсказками после него.
+     */
+    private fun semanticDrillPath(
+        step: SimpleSteps.Step,
+        legacyPath: List<List<String>>
+    ): List<List<String>> {
+        val semantic = SemanticCatalog.fallbackDrillPath(step.id)
+        if (semantic.isEmpty()) return legacyPath
+        val seen = HashSet<String>()
+        val result = ArrayList<List<String>>(legacyPath.size + semantic.size)
+        for (level in legacyPath + semantic) {
+            if (seen.add(level.joinToString("\u0001"))) result.add(level)
         }
+        return result
+    }
+
+    /** launchPackage: legacy-значение главнее, каталог дополняет. */
+    private fun applySemanticLaunchPackage(step: SimpleSteps.Step): SimpleSteps.Step {
+        if (step.launchPackage != null) return step
+        val fromCatalog = SemanticCatalog.launchPackage(step.id) ?: return step
+        AppLog.i(TAG, "semantic launchPackage for ${step.id}: $fromCatalog")
+        return step.copy(launchPackage = fromCatalog)
     }
 
     private suspend fun tapSystemDialogButton(texts: List<String>): Boolean {
@@ -831,34 +874,6 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
         recycleNode(root)
         return false
-    }
-
-    /**
-     * Consent-цикл для app-шагов (themes): тапает кнопки согласия/принятия
-     * на приветственных экранах приложения перед началом drill-навигации.
-     * До 3 итераций, каждая с задержкой для отрисовки следующего экрана.
-     */
-    private suspend fun dismissConsentScreens() {
-        val consentTexts = listOf(
-            "Согласен", "Agree", "Accept", "Принять", "I agree",
-            "同意", "Aceptar", "Concordar", "Setuju", "Sim",
-            "Да", "Yes", "हाँ", "OK", "ОК"
-        )
-        repeat(3) { iteration ->
-            if (cancelled) return
-            delay(800)
-            val root = service.rootInActiveWindow ?: return
-            val node = findClickableByText(root, consentTexts)
-            if (node != null) {
-                val text = node.text?.toString() ?: ""
-                AppLog.i(TAG, "consent: tapped '$text' (iteration ${iteration + 1})")
-                tapNode(node)
-                recycleNode(node); recycleNode(root)
-            } else {
-                recycleNode(root)
-                return
-            }
-        }
     }
 
     // ─── Navigation & Utilities ───────────────────────────────────────────

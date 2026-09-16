@@ -149,6 +149,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch {
+            prefs.notifTransparency.collect { enabled ->
+                AppLog.i(TAG, "notifTransparency changed to $enabled")
+                simpleController.setNotifTransparency(enabled)
+            }
+        }
+
+        viewModelScope.launch {
             OptimizationNotifier.result.collect { result ->
                 AppLog.i(TAG, "notifier result: $result")
                 when (result) {

@@ -8,6 +8,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.data.RomProfile
+import com.xiaohypercleaner.data.SimplePlan
 import com.xiaohypercleaner.data.SimpleSteps
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.StepDiagnostics
@@ -198,8 +199,9 @@ class AdbEnablerService : AccessibilityService() {
             ACTION_SIMPLE_STEP -> {
                 val index: Int = intent.getIntExtra("step_index", -1)
                 val stepId: String = intent.getStringExtra(EXTRA_STEP_ID) ?: ""
-                val total: Int = SimpleSteps.ALL.size
-                if (index in SimpleSteps.ALL.indices) {
+                val planSize: Int = SimplePlan.total()
+                val total: Int = if (planSize > 0) planSize else SimpleSteps.ALL.size
+                if (index in 0 until total) {
                     if (index == 0) acquireWakeLock()
                     stepJob?.cancel()
                     simpleRunner.cancel()
@@ -244,7 +246,14 @@ class AdbEnablerService : AccessibilityService() {
 
     private suspend fun runSimpleStep(index: Int, total: Int, expectedStepId: String) {
         try {
-            val step: SimpleSteps.Step = SimpleSteps.ALL[index]
+            // Шаг из активного плана (PlanBuilder); fallback — legacy-порядок.
+            val step: SimpleSteps.Step = SimplePlan.stepAt(index)?.step
+                ?: SimpleSteps.ALL.getOrNull(index)
+                ?: run {
+                    AppLog.w(TAG, "runSimpleStep: step at index=$index not found (total=$total)")
+                    SimpleStepBridge.onResult?.invoke(false, "step_missing")
+                    return
+                }
 
             if (expectedStepId.isNotEmpty() && step.id != expectedStepId) {
                 AppLog.w(
@@ -307,8 +316,8 @@ class AdbEnablerService : AccessibilityService() {
                 // ИСПРАВЛЕНО (строка 295): В новом Result нет поля `skipped`.
                 // Если пакет не установлен, раннер возвращает reason="app_not_installed"
                 // ═══════════════════════════════════════════════════════════════
-                if (!result.success && result.reason == "app_not_installed") {
-                    AppLog.i(TAG, "runSimpleStep: step ${step.id} skipped (app not installed)")
+                if (!result.success && (result.reason == "app_not_installed" || result.reason == "low_confidence")) {
+                    AppLog.i(TAG, "runSimpleStep: step ${step.id} skipped (${result.reason})")
                     OverlayController.updateStatus(
                         this, getString(R.string.automation_status_skip)
                     )

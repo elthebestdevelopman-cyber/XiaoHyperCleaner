@@ -84,6 +84,11 @@ class SimpleModeController(
     private var isOverlayGranted: Boolean = checkOverlay()
     private var stepAttempt: Int = 1
     private var stepsStarted: Boolean = false
+
+    /** Прозрачность уведомлений (дефолт ON): фильтр notif_* в PlanBuilder. */
+    @Volatile
+    private var notifTransparency: Boolean = true
+
     private var autoFlowJob: Job? = null
     private val failedIds: MutableList<String> = mutableListOf()
     private val skippedIds: MutableList<String> = mutableListOf()
@@ -364,6 +369,10 @@ class SimpleModeController(
                     .setPendingSimpleMode(false)
             }
         }
+        // Префильтр плана: только установленные пакеты, plan-time home-skip,
+        // фильтр notif_* по настройке прозрачности уведомлений.
+        val profile = RomProfile.detect(context)
+        SimplePlan.set(PlanBuilder.build(context, profile, notifTransparency))
         setState {
             copy(
                 phase = SimpleModePhase.STEPS,
@@ -371,6 +380,11 @@ class SimpleModeController(
                 showBatteryDialog = false
             )
         }
+    }
+
+    /** Прозрачность уведомлений (Аддендум C4): OFF исключает notif_* из плана. */
+    fun setNotifTransparency(enabled: Boolean) {
+        notifTransparency = enabled
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -517,7 +531,7 @@ class SimpleModeController(
     fun nextStep(autoStart: Boolean = false) {
         if (state.phase == SimpleModePhase.DONE) return
 
-        val steps: List<SimpleSteps.Step> = SimpleSteps.ALL
+        val steps: List<SimpleSteps.Step> = SimplePlan.all().map { it.step }
         val nextIndex: Int = if (stepsStarted) state.currentStepIndex + 1 else 0
         stepsStarted = true
 
@@ -707,6 +721,7 @@ class SimpleModeController(
         skippedIds.clear()
         stepAttempt = 1
         stepsStarted = false
+        SimplePlan.reset()
         restrictedLocation = RestrictedLocation.UNKNOWN
         batteryDialogAlreadyShown = false  // НОВОЕ (beta11): сброс флага
         state = SimpleModeState()

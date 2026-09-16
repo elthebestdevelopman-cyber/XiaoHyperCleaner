@@ -54,6 +54,11 @@ sealed interface PreferenceKey {
         override val name = "dns_filter_enabled"
     }
 
+    /** Прозрачность уведомлений: OFF исключает notif_* из плана (Аддендум C4). */
+    data object NotifTransparency : PreferenceKey {
+        override val name = "notif_transparency"
+    }
+
     data object HasSeenDnsWarning : PreferenceKey {
         override val name = "has_seen_dns_warning"
     }
@@ -159,6 +164,19 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
 
     suspend fun setDnsFilterEnabled(enabled: Boolean) =
         writeBool(PreferenceKey.DnsFilterEnabled, enabled)
+
+    /** Прозрачность уведомлений (дефолт ON): фильтр notif_* в PlanBuilder. */
+    val notifTransparency: Flow<Boolean> = readBool(PreferenceKey.NotifTransparency, true)
+
+    suspend fun setNotifTransparency(enabled: Boolean) =
+        writeBool(PreferenceKey.NotifTransparency, enabled)
+
+    suspend fun getNotifTransparency(): Boolean = runCatching {
+        notifTransparency.first()
+    }.getOrElse { e ->
+        AppLog.w(TAG, "getNotifTransparency failed: ${e.message}")
+        true
+    }
 
     suspend fun setHasSeenDnsWarning(seen: Boolean) =
         writeBool(PreferenceKey.HasSeenDnsWarning, seen)

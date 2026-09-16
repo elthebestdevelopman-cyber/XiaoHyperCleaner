@@ -868,5 +868,18 @@ object SimpleSteps {
                 "com.mi.global.video"
             )
         )
-    )
+    ).map { it.withNotificationWarning() }
+
+    /**
+     * Прозрачность notif_*-шагов (Аддендум C1): CONDITIONAL + честное
+     * предупреждение, что приложение перестанет показывать уведомления
+     * (включая сервисные). Пользователь видит риск до прогона.
+     */
+    private fun Step.withNotificationWarning(): Step =
+        if (!id.startsWith("notif_")) this
+        else copy(
+            riskLevel = RiskLevel.CONDITIONAL,
+            warningRu = "Приложение перестанет показывать уведомления, включая сервисные.",
+            warningEn = "The app will stop showing notifications, including service ones."
+        )
 }
