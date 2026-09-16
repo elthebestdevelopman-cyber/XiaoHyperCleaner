@@ -1,4 +1,4 @@
-# ==================== Gradle ====================
+==================== Gradle ====================
 .gradle/
 build/
 **/build/
@@ -6,8 +6,7 @@ gradle-app.setting
 *.jar
 !gradle/wrapper/gradle-wrapper.jar
 !gradle/wrapper/gradle-wrapper.properties
-
-# ==================== Android Studio / IntelliJ ====================
+==================== Android Studio / IntelliJ ====================
 .idea/
 .vscode/
 *.iml
@@ -16,13 +15,11 @@ gradle-app.setting
 .navigation/
 captures/
 output.json
-
-# ==================== JVM crash logs ====================
+==================== JVM crash logs ====================
 hs_err_pid*.log
 replay_pid*.log
 java_pid*.log
-
-# ==================== Android ====================
+==================== Android ====================
 local.properties
 *.apk
 *.aab
@@ -31,57 +28,64 @@ local.properties
 *.aar
 *.class
 *.so
+.cxx/
+externalNativeBuild/
 app/release/
-
-# ==================== Keystore и секреты (никогда в git) ====================
+==================== Keystore и секреты (никогда в git) ====================
 *.jks
 *.keystore
 *.pem
 secrets.properties
 keystore.properties
 !debug.keystore
-
-# ==================== Логи и временные файлы ====================
+==================== Логи и временные файлы ====================
 *.log
 *.tmp
 *.swp
-*.ctxt
-!app/src/main/assets/*.log
-
-# ==================== Environment ====================
+.ctxt
+*.hprof
+*.zip
+==================== Environment ====================
 .env
 .env.local
-*.env.*
-
-# ==================== OS ====================
+.env.*
+==================== OS ====================
 .DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
+.DocumentRevisions-V100
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
 .Trashes
 ehthumbs.db
 Thumbs.db
-
-# ==================== Node / Python (если появятся скрипты) ====================
+==================== Node / Python (если появятся скрипты) ====================
 node_modules/
 npm-debug.log
 yarn-error.log
-__pycache__/
+pycache/
 *.pyc
 *.pyo
 *.pyd
 .Python
 .venv/
 venv/
-
-# ==================== Кэши и планы AI-инструментов ====================
-/.continue/
+==================== Кэши AI-инструментов ====================
+/.agents/
 /.kotlin/
-/.gigacode/
+==================== Дампы диагностики (локальные baseline/after) ====================
 diag-dumps/
-
-# ==================== Внутренняя аналитика (не публикуем) ====================
+==================== Локальная каноническая документация (ВАРИАНТ B) ====================
+# docs/ — канонические документы проекта (SUMMARY.md, diag/*): живут ТОЛЬКО
+# в рабочей копии, в VCS не коммитятся (решение 2026-09-17, вариант B).
+# Из индекса удалено командой: git rm -r --cached docs/
+docs/
+==================== Внутренняя аналитика (не публикуем) ====================
 IMPROVEMENTS.md
 RECOMMENDATIONS.md
 WORKFLOW_ANALYSIS.md
-docs/diag/global_ru_plan.md
+==================== Стратегические документы (не публикуем) ====================
+*.plan.md

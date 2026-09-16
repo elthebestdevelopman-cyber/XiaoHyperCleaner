@@ -3,8 +3,11 @@
 # Формат совпадает с .gitignore
 # Цель: не жечь квоту Token Plan на бинарниках, сборке и кэше
 # ВАЖНО: Cline не читает .gitignore — при правках синхронизируй оба файла.
+# ВАРИАНТ B (2026-09-17): docs/ исключён из VCS, но остаётся ЧИТАЕМЫМ
+# для агента — НЕ добавляй docs/ в этот файл: канонические документы
+# (SUMMARY, handoff_flash, master_prompt_v2, аудит, план, черновик
+# переводов) агент читает из локальной рабочей копии.
 # ─────────────────────────────────────────────────────────────
-
 # Сборочные артефакты и кэш Gradle
 app/build/
 build/
@@ -15,7 +18,8 @@ build/
 captures/
 externalNativeBuild/
 app/release/
-
+gradle-app.setting
+output.json
 # Бинарники и упакованные файлы
 *.apk
 *.aab
@@ -33,24 +37,27 @@ app/release/
 *.tar.gz
 *.hprof
 *.bin
-
+# Санкционированное чтение дампов: скриншоты и архивы диагностики
+!diag-dumps/**/*.png
+!diag-dumps/**/*.zip
 # Логи (включая шаринг-логи приложения и crash-логи JVM)
 *.log
 hs_err_pid*.log
 replay_pid*.log
+java_pid*.log
 xhc.log
 *.tmp
 *.swp
-
 # Настройки IDE, ОС и кэши AI-инструментов
 .idea/
 .vscode/
 *.iml
+*.iws
+*.ipr
+.navigation/
 .DS_Store
 Thumbs.db
-.continue/
-.gigacode/
-
+/.agents/
 # Чувствительные файлы: пути SDK, ключи подписи, секреты
 local.properties
 secrets.properties
@@ -58,17 +65,19 @@ keystore.properties
 *.keystore
 *.jks
 *.pem
-
+.env
+.env.local
+.env.*
 # Git-служебное
 .git/
-
-# ProGuard/R8 артефакты маппинга (сужено до app/, чтобы не скрыть легитимные файлы)
+# ProGuard/R8 артефакты маппинга (сужено до app/, чтобы не скрыть легитимное)
 app/**/mapping.txt
 app/**/seeds.txt
 app/**/usage.txt
-
-# Тяжёлая внутренняя аналитика: экономия токенов на каждом обходе дерева
-IMPROVEMENTS.md
-RECOMMENDATIONS.md
-WORKFLOW_ANALYSIS.md
-README.en.md
+# Стратегические архивы: не в контекст агентов (фантамы монетизации, объём)
+docs/strategy/
+*.plan.md
+# Внутренняя аналитика: НЕ игнорируется (агент может читать по необходимости).
+# Статус файлов задаётся баннером внутри них: «АРХИВ, устарело,
+# источник истины — docs/SUMMARY.md». Игнор здесь скрыл бы файлы
+# и из листинга, и из чтения.
