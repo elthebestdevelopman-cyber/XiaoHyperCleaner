@@ -48,6 +48,7 @@ private const val TAG = "InfoDialog"
  * @param dismissText Текст кнопки отмены (по умолчанию «Отмена» из strings.xml)
  * @param onConfirm Callback при нажатии кнопки подтверждения
  * @param onDismiss Callback при нажатии кнопки отмены или закрытии диалога
+ * @param extraText Дополнительная строка-пояснение под основным текстом (опционально)
  */
 @Composable
 fun InfoDialog(
@@ -56,7 +57,8 @@ fun InfoDialog(
     confirmText: String? = null,
     dismissText: String? = null,
     onConfirm: (() -> Unit)? = null,
-    onDismiss: (() -> Unit)? = null
+    onDismiss: (() -> Unit)? = null,
+    extraText: String? = null
 ) {
     val effectiveDismissText: String = dismissText ?: stringResource(R.string.cancel)
 
@@ -96,6 +98,15 @@ fun InfoDialog(
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.fillMaxWidth()
                 )
+                if (extraText != null) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        extraText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
                 Spacer(Modifier.height(20.dp))
 
                 // Кнопка подтверждения

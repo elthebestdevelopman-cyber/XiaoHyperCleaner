@@ -71,6 +71,11 @@ sealed interface PreferenceKey {
         override val name = "simple_toggled_steps"
     }
 
+    /** Уровень диагностики в release: OFF/COMPACT/FULL (7 тапов по версии). */
+    data object DiagLevelOverride : PreferenceKey {
+        override val name = "diag_level_override"
+    }
+
     data object OptimizationModeKey : PreferenceKey {
         override val name = "optimization_mode"
     }
@@ -106,6 +111,8 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
             stringPreferencesKey(PreferenceKey.SimpleToggledSteps.name)
         private val RESTORE_SNAPSHOT_KEY =
             stringPreferencesKey(PreferenceKey.RestoreSnapshotJson.name)
+        private val DIAG_LEVEL_KEY =
+            stringPreferencesKey(PreferenceKey.DiagLevelOverride.name)
 
         /** Префикс динамических ключей кэша активностей (ActivityCacheStore). */
         private const val ACTIVITY_CACHE_PREFIX = "act_cache_"
@@ -176,6 +183,32 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
     }.getOrElse { e ->
         AppLog.w(TAG, "getNotifTransparency failed: ${e.message}")
         true
+    }
+
+    /**
+     * Override уровня диагностики (OFF/COMPACT/FULL) для release-сборок.
+     * null/пусто — уровень определяется дефолтом сборки (debug=FULL, release=COMPACT).
+     */
+    val diagLevelOverride: Flow<String?> = context.dataStore.data
+        .map { it[DIAG_LEVEL_KEY]?.takeIf { raw -> raw.isNotBlank() } }
+        .catch { e ->
+            AppLog.e(TAG, "diagLevelOverride flow error: ${e.message}")
+            emit(null)
+        }
+
+    suspend fun setDiagLevelOverride(level: String?) = runCatching {
+        context.dataStore.edit { prefs ->
+            if (level == null) prefs.remove(DIAG_LEVEL_KEY) else prefs[DIAG_LEVEL_KEY] = level
+        }
+    }.onFailure { e ->
+        AppLog.e(TAG, "setDiagLevelOverride failed: ${e.message}")
+    }
+
+    suspend fun getDiagLevelOverride(): String? = runCatching {
+        diagLevelOverride.first()
+    }.getOrElse { e ->
+        AppLog.w(TAG, "getDiagLevelOverride failed: ${e.message}")
+        null
     }
 
     suspend fun setHasSeenDnsWarning(seen: Boolean) =

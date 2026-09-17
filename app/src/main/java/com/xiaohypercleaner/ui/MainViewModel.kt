@@ -23,6 +23,7 @@ import com.xiaohypercleaner.service.SimpleStepBridge
 import com.xiaohypercleaner.ui.vm.ProFlowController
 import com.xiaohypercleaner.ui.vm.ShizukuUiController
 import com.xiaohypercleaner.util.AppLog
+import com.xiaohypercleaner.util.DiagnosticSnapshotManager
 import com.xiaohypercleaner.util.OptimizationNotifier
 import com.xiaohypercleaner.util.ShizukuHelper
 import kotlinx.coroutines.Job
@@ -54,6 +55,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         private const val TAG = "MainViewModel"
         const val SHIZUKU_PERMISSION_CODE: Int = 9001
+
+        /** Скрытый вход в FULL-диагностику: тапов по версии в меню. */
+        private const val VERSION_TAPS_FOR_FULL = 7
+        private const val VERSION_TAP_WINDOW_MS = 7000L
     }
 
     private val app: XiaoHyperApp = application as XiaoHyperApp
@@ -86,6 +91,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var autoFlowJob: Job? = null
     private val failedSimpleStepIds: MutableList<String> = mutableListOf()
 
+    /** Счётчик тапов по версии в меню (скрытый вход в FULL-диагностику). */
+    private var versionTapCount: Int = 0
+    private var versionTapFirstMs: Long = 0L
+
     init {
         AppLog.i(TAG, "init started")
 
@@ -95,6 +104,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (success && (reason == "toggled" || reason == "confirmed" || reason == "tapped_fallback")) {
                 val stepId = _state.value.simpleStep?.step?.id
                 if (stepId != null) {
+                    // Экран результатов: что именно отключено по уведомлениям.
+                    simpleController.noteNotifToggled(stepId)
                     viewModelScope.launch {
                         prefs.addSimpleToggledStep(stepId)
                         prefs.setHiddenSettingsApplied(true)
@@ -151,7 +162,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             prefs.notifTransparency.collect { enabled ->
                 AppLog.i(TAG, "notifTransparency changed to $enabled")
+                update { it.copy(notifTransparency = enabled) }
                 simpleController.setNotifTransparency(enabled)
+            }
+        }
+
+        // Уровень диагностики: release-дефолт задаёт приложение, override — 7 тапов.
+        viewModelScope.launch {
+            prefs.diagLevelOverride.collect { raw ->
+                val parsed = DiagnosticSnapshotManager.parseLevel(raw)
+                AppLog.i(TAG, "diagLevelOverride=$raw parsed=${parsed?.name}")
+                if (parsed != null) {
+                    DiagnosticSnapshotManager.setLevel(parsed, "override")
+                }
+                update { it.copy(diagLevelFull = parsed == DiagnosticSnapshotManager.DiagnosticLevel.FULL) }
             }
         }
 
@@ -625,6 +649,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i(TAG, "toggleDnsFilter: $enabled")
         update { it.copy(dnsFilterEnabled = enabled) }
         viewModelScope.launch { prefs.setDnsFilterEnabled(enabled) }
+    }
+
+    /**
+     * Прозрачность notif_*: OFF исключает шаги отключения уведомлений из плана
+     * (PlanBuilder читает настройку при построении плана).
+     */
+    fun toggleNotifTransparency(enabled: Boolean) {
+        AppLog.i(TAG, "toggleNotifTransparency: $enabled")
+        update { it.copy(notifTransparency = enabled) }
+        simpleController.setNotifTransparency(enabled)
+        viewModelScope.launch { prefs.setNotifTransparency(enabled) }
+    }
+
+    /**
+     * Скрытый вход в FULL-диагностику release-сборки: 7 тапов по версии в меню
+     * подряд (окно [VERSION_TAP_WINDOW_MS]). Пишет diagLevelOverride=FULL.
+     */
+    fun onVersionTapped() {
+        val now = System.currentTimeMillis()
+        if (versionTapCount == 0 || now - versionTapFirstMs > VERSION_TAP_WINDOW_MS) {
+            versionTapCount = 0
+            versionTapFirstMs = now
+        }
+        versionTapCount++
+        AppLog.i(TAG, "version tapped: $versionTapCount/$VERSION_TAPS_FOR_FULL")
+        if (versionTapCount < VERSION_TAPS_FOR_FULL) return
+        versionTapCount = 0
+        viewModelScope.launch {
+            prefs.setDiagLevelOverride(DiagnosticSnapshotManager.DiagnosticLevel.FULL.name)
+            DiagnosticSnapshotManager.setLevel(DiagnosticSnapshotManager.DiagnosticLevel.FULL, "override")
+            update { it.copy(diagLevelFull = true) }
+            AppLog.i(TAG, "diag unlocked: level=FULL source=override")
+        }
     }
 
     fun shizukuDialogInstall() = shizuku.dialogInstall()

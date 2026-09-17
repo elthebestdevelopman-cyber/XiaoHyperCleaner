@@ -9,6 +9,7 @@ import android.os.Build
 import android.view.Display
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.content.pm.PackageInfoCompat
+import com.xiaohypercleaner.BuildConfig
 import com.xiaohypercleaner.data.AdaptiveCatalog
 import com.xiaohypercleaner.data.RomProfile
 import kotlinx.coroutines.Dispatchers
@@ -37,8 +38,47 @@ object DiagnosticSnapshotManager {
     private const val DIAG_DIR = "diag"
     private const val MAX_TREE_DEPTH = 15
     private const val MAX_NODES_COLLECTED = 80
+    /** COMPACT-сводка: ≤60 узлов, без bounds (меньше размер, тот же текст экрана). */
+    private const val COMPACT_MAX_NODES_COLLECTED = 60
     private const val SCREENSHOT_MAX_ATTEMPTS = 3
     private const val SCREENSHOT_RETRY_DELAY_MS = 500L
+
+    /** Purge: не больше 3 прогонов, не старше 7 дней, суммарный потолок 50 МБ. */
+    private const val MAX_KEPT_RUNS = 3
+    private const val MAX_AGE_MS = 7L * 24 * 60 * 60 * 1000
+    private const val MAX_TOTAL_BYTES = 50L * 1024 * 1024
+    /** Разрыв между прогонами: файлы с большим разрывом считаются разными прогонами. */
+    private const val RUN_GAP_MS = 30L * 60 * 1000
+
+    /**
+     * Уровень диагностики:
+     * - OFF — снапшоты/скриншоты не пишутся;
+     * - COMPACT — сводка дерева без bounds (дефолт release);
+     * - FULL — полный дамп дерева + скриншоты (дефолт debug, release — opt-in).
+     */
+    enum class DiagnosticLevel { OFF, COMPACT, FULL }
+
+    @Volatile
+    private var level: DiagnosticLevel =
+        if (BuildConfig.DEBUG) DiagnosticLevel.FULL else DiagnosticLevel.COMPACT
+
+    @Volatile
+    private var levelSource: String = if (BuildConfig.DEBUG) "debug" else "default"
+
+    /** Текущий уровень диагностики. */
+    fun currentLevel(): DiagnosticLevel = level
+
+    /** Устанавливает уровень и пишет единый лог `diag: level=… source=…`. */
+    fun setLevel(newLevel: DiagnosticLevel, source: String) {
+        level = newLevel
+        levelSource = source
+        AppLog.i(TAG, "diag: level=${newLevel.name} source=$source")
+    }
+
+    /** Разбор override из DataStore: неизвестное значение игнорируется. */
+    fun parseLevel(raw: String?): DiagnosticLevel? = DiagnosticLevel.entries.firstOrNull {
+        it.name.equals(raw?.trim(), ignoreCase = true)
+    }
 
     data class DiagnosticReport(
         val timestamp: Long,
@@ -64,7 +104,10 @@ object DiagnosticSnapshotManager {
         profile: RomProfile,
         targetPackage: String?
     ): File? {
+        if (level == DiagnosticLevel.OFF) return null
         return try {
+            // Purge-триггер: каждая запись снапшота подчищает старые прогоны.
+            purge(context)
             val appVersion = targetPackage?.let { pkg ->
                 try {
                     val info = context.packageManager.getPackageInfo(pkg, 0)
@@ -77,13 +120,14 @@ object DiagnosticSnapshotManager {
 
             val dumpTree = StringBuilder()
             var collectedCount = 0
+            // COMPACT: сводка без bounds (меньше объём, текст экрана сохранён).
+            val compactDump = level != DiagnosticLevel.FULL
+            val nodeLimit = if (compactDump) COMPACT_MAX_NODES_COLLECTED else MAX_NODES_COLLECTED
             @Suppress("DEPRECATION")
             fun dump(node: AccessibilityNodeInfo?, depth: Int) {
-                if (node == null || depth > MAX_TREE_DEPTH || collectedCount > MAX_NODES_COLLECTED) return
+                if (node == null || depth > MAX_TREE_DEPTH || collectedCount > nodeLimit) return
                 collectedCount++
                 val indent = "  ".repeat(depth)
-                val rect = Rect()
-                node.getBoundsInScreen(rect)
                 val cls = node.className?.toString()?.substringAfterLast('.') ?: "View"
                 val id = node.viewIdResourceName?.substringAfterLast(":id/") ?: ""
                 val text = node.text?.toString()?.take(60) ?: ""
@@ -94,8 +138,13 @@ object DiagnosticSnapshotManager {
                     if (node.isScrollable) append("[scrollable] ")
                     if (node.isFocused) append("[focused] ")
                 }
+                val boundsAttr = if (compactDump) "" else {
+                    val rect = Rect()
+                    node.getBoundsInScreen(rect)
+                    " bounds=\"${rect.toShortString()}\""
+                }
                 dumpTree.appendLine(
-                    "$indent<$cls id=\"$id\" bounds=\"${rect.toShortString()}\" $flags text=\"$text\" desc=\"$desc\"/>"
+                    "$indent<$cls id=\"$id\"$boundsAttr $flags text=\"$text\" desc=\"$desc\"/>"
                 )
                 for (i in 0 until node.childCount) {
                     dump(node.getChild(i), depth + 1)
@@ -142,13 +191,67 @@ object DiagnosticSnapshotManager {
             file.writeText(json.toString(2))
             AppLog.i(
                 TAG,
-                "Saved local diagnostic snapshot for step '$stepId' (reason=$failureReason) to ${file.absolutePath}"
+                "Saved local diagnostic snapshot for step '$stepId' (reason=$failureReason, " +
+                    "level=${level.name}, source=$levelSource) to ${file.absolutePath}"
             )
             file
         } catch (e: Exception) {
             AppLog.w(TAG, "Failed to capture diagnostic snapshot: ${e.message}")
             null
         }
+    }
+
+    /**
+     * Очистка diag-директории: последние [MAX_KEPT_RUNS] прогонов, не старше
+     * [MAX_AGE_MS], суммарный объём не больше [MAX_TOTAL_BYTES].
+     * Триггеры: старт приложения и [captureAndSaveSnapshot].
+     */
+    fun purge(context: Context) = runCatching {
+        val dir = diagDir(context)
+        val files = dir.listFiles()
+            ?.filter { it.isFile }
+            ?.sortedByDescending { it.lastModified() }
+            ?: return@runCatching
+        if (files.isEmpty()) return@runCatching
+
+        val removed = LinkedHashSet<File>()
+
+        // 1) Оставляем только последние MAX_KEPT_RUNS прогонов.
+        var runs = 0
+        var prevTs = Long.MAX_VALUE
+        for (f in files) {
+            val ts = f.lastModified()
+            if (prevTs - ts > RUN_GAP_MS) runs++
+            prevTs = ts
+            if (runs > MAX_KEPT_RUNS) removed.add(f)
+        }
+
+        // 2) Всё старше MAX_AGE_MS.
+        val cutoff = System.currentTimeMillis() - MAX_AGE_MS
+        files.filter { it.lastModified() < cutoff }.forEach { removed.add(it) }
+
+        // 3) Потолок по объёму: удаляем от старых к новым.
+        val survivors = files.filterNot { it in removed }
+        var totalBytes = survivors.sumOf { it.length() }
+        for (f in survivors.asReversed()) {
+            if (totalBytes <= MAX_TOTAL_BYTES) break
+            removed.add(f)
+            totalBytes -= f.length()
+        }
+
+        if (removed.isEmpty()) return@runCatching
+        var failed = 0
+        var freedBytes = 0L
+        removed.forEach { f ->
+            val size = f.length()
+            if (f.delete()) freedBytes += size else failed++
+        }
+        AppLog.i(
+            TAG,
+            "diag: purge removed=${removed.size - failed} failed=$failed " +
+                "keptBytes=${(totalBytes / 1024)}KB freedBytes=${(freedBytes / 1024)}KB " +
+                "maxRuns=$MAX_KEPT_RUNS maxAgeDays=7 maxTotalMb=50"
+        )
     }
 
     fun getLatestSnapshotJson(context: Context): String? {
@@ -170,6 +273,8 @@ object DiagnosticSnapshotManager {
      */
     suspend fun captureScreenshot(service: AccessibilityService, stepId: String): File? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        // Скриншоты только при FULL: в release не собираем изображения экрана.
+        if (level != DiagnosticLevel.FULL) return null
         val result: AccessibilityService.ScreenshotResult =
             takeScreenshotWithRetry(service) ?: return null
         return try {

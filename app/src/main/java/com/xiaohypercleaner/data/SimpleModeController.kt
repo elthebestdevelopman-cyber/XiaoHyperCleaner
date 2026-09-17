@@ -16,6 +16,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Locale
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -62,7 +63,9 @@ class SimpleModeController(
         val appInfoAttempts: Int = 0,
         val showBatteryDialog: Boolean = false,
         val failedStepIds: List<String> = emptyList(),
-        val skippedStepIds: List<String> = emptyList()
+        val skippedStepIds: List<String> = emptyList(),
+        /** Реально переключённые notif_*-шаги: список для экрана результатов (Аддендум C3). */
+        val notifToggledStepIds: List<String> = emptyList()
     )
 
     val isActive: Boolean get() = state.active
@@ -92,6 +95,7 @@ class SimpleModeController(
     private var autoFlowJob: Job? = null
     private val failedIds: MutableList<String> = mutableListOf()
     private val skippedIds: MutableList<String> = mutableListOf()
+    private val notifToggledIds: MutableList<String> = mutableListOf()
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private var restrictedLocation: RestrictedLocation = RestrictedLocation.UNKNOWN
@@ -167,6 +171,7 @@ class SimpleModeController(
         isOverlayGranted = checkOverlay()
         failedIds.clear()
         skippedIds.clear()
+        notifToggledIds.clear()
         stepAttempt = 1
         stepsStarted = false
         restrictedLocation = RestrictedLocation.UNKNOWN
@@ -387,6 +392,16 @@ class SimpleModeController(
         notifTransparency = enabled
     }
 
+    /** Локализованное имя notif_*-шага для экрана результатов. */
+    private fun notifStepTitle(id: String): String {
+        val legacy = SimpleSteps.ALL.firstOrNull { it.id == id }
+        val fallback = when (Locale.getDefault().language) {
+            "ru" -> legacy?.titleRu ?: id
+            else -> legacy?.titleEn ?: legacy?.titleRu ?: id
+        }
+        return SemanticCatalog.title(id, fallback)
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // Fallback
     // ═══════════════════════════════════════════════════════════════
@@ -513,6 +528,18 @@ class SimpleModeController(
         scheduleAdvance()
     }
 
+    /**
+     * Регистрирует фактически переключённый notif_*-шаг: такие шаги попадают
+     * списком на экран результатов (уведомление отключено у этих приложений).
+     */
+    fun noteNotifToggled(stepId: String) {
+        if (!stepId.startsWith("notif_")) return
+        if (notifToggledIds.contains(stepId)) return
+        notifToggledIds.add(stepId)
+        AppLog.i(TAG, "notif toggled: step=$stepId total=${notifToggledIds.size}")
+        setState { copy(notifToggledStepIds = notifToggledIds.toList()) }
+    }
+
     private fun scheduleAdvance() {
         autoFlowJob?.cancel()
         autoFlowJob = scope.launch {
@@ -549,7 +576,8 @@ class SimpleModeController(
                 )
             }
             OverlayController.showResult(
-                context, finalCompleted, applicable, failedIds.size, skippedIds.size
+                context, finalCompleted, applicable, failedIds.size, skippedIds.size,
+                notifToggledIds.map { notifStepTitle(it) }
             )
             return
         }
@@ -719,6 +747,7 @@ class SimpleModeController(
         releaseWakeLock()  // НОВОЕ (beta11): освобождаем wake lock
         failedIds.clear()
         skippedIds.clear()
+        notifToggledIds.clear()
         stepAttempt = 1
         stepsStarted = false
         SimplePlan.reset()

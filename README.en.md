@@ -151,6 +151,20 @@ This is done **only once**. The app will prompt you to do this when needed.
 4. All system parameters return to original values
 5. DNS returns to system default (if it was enabled)
 
+#### What exactly is reversible and how
+
+| What was applied | How to revert in the app | How to revert manually |
+|---|---|---|
+| Private MIUI / HyperOS settings (telemetry, recommendation services) | "Undo optimization" — originals saved before applying are restored | Settings → Apps → the app → switch the value back |
+| Disabled service packages | "Undo optimization" — packages are re-enabled | Settings → Apps → the app → "Enable" |
+| Toggles turned off by Simple mode | "Undo optimization" — the actual state of each toggle at run time is restored | Turn the toggle back on in the app settings |
+| Notifications of recommendation services turned off | "Undo optimization"; or disable this step with the "Turn off notifications from recommendation services" switch in the ⋮ menu | Settings → Apps → the app → "Notifications" |
+| Private DNS | "Undo optimization" — the previous value is restored | Settings → Connection & sharing → Private DNS → "Automatic" |
+
+Before applying changes the app stores the original values and the actual state of every toggle, so
+rollback restores exactly what was on the device. There are no irreversible changes: when the
+firmware updates, disabled system components are restored by the system, and the run can be repeated.
+
 ### Sharing Logs
 
 If something went wrong:

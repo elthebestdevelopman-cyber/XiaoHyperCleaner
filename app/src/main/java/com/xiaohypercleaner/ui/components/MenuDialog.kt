@@ -1,5 +1,6 @@
 package com.xiaohypercleaner.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -46,6 +47,10 @@ private const val TAG = "MenuDialog"
  *
  * @param isDark Текущее состояние тёмной темы
  * @param onDarkChange Callback при переключении тёмной темы
+ * @param isNotifTransparency Прозрачность уведомлений (notif_*-шаги в плане)
+ * @param onNotifTransparencyChange Callback при переключении прозрачности уведомлений
+ * @param diagLevelFull Диагностика в release переведена в FULL
+ * @param onVersionTap Callback при тапе по номеру версии (скрытый вход в FULL)
  * @param onClose Callback при закрытии меню
  * @param onRate Callback при нажатии "Оценить приложение"
  * @param onSupportPage Callback при нажатии "Поддержать проект"
@@ -56,11 +61,15 @@ private const val TAG = "MenuDialog"
 fun MenuDialog(
     isDark: Boolean,
     onDarkChange: (Boolean) -> Unit,
+    onNotifTransparencyChange: (Boolean) -> Unit,
+    onVersionTap: () -> Unit,
     onClose: () -> Unit,
     onRate: () -> Unit,
     onSupportPage: () -> Unit,
     onShareLog: () -> Unit,
-    onPrivacyPolicyClick: () -> Unit
+    onPrivacyPolicyClick: () -> Unit,
+    isNotifTransparency: Boolean = true,
+    diagLevelFull: Boolean = false
 ) {
     AppLog.d(TAG, "MenuDialog shown")
 
@@ -110,6 +119,32 @@ fun MenuDialog(
                         onCheckedChange = { checked: Boolean ->
                             AppLog.i(TAG, "Dark theme toggled: $checked")
                             onDarkChange(checked)
+                        }
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+
+                // Прозрачность notif_*: OFF исключает шаги отключения уведомлений из плана.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            stringResource(R.string.menu_notif_transparency),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            stringResource(R.string.menu_notif_transparency_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = isNotifTransparency,
+                        onCheckedChange = { checked: Boolean ->
+                            AppLog.i(TAG, "Notification transparency toggled: $checked")
+                            onNotifTransparencyChange(checked)
                         }
                     )
                 }
@@ -177,8 +212,20 @@ fun MenuDialog(
                 Text(
                     "Version ${BuildConfig.VERSION_NAME}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.clickable {
+                        AppLog.i(TAG, "Version tapped (hidden diagnostics entry)")
+                        onVersionTap()
+                    }
                 )
+
+                if (diagLevelFull) {
+                    Text(
+                        stringResource(R.string.menu_diag_full),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
 
                 Text(
                     stringResource(R.string.about_author),

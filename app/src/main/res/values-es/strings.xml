@@ -53,6 +53,7 @@
 
     <string name="level_confirm_simple_title">¿Iniciar optimización simple?</string>
     <string name="level_confirm_simple_text">La app abrirá los ajustes y aplicará los parámetros de privacidad. Tomará 2–3 minutos.</string>
+    <string name="level_confirm_simple_notif">Los servicios de recomendaciones dejarán de mostrar notificaciones; se puede revertir en cualquier momento.</string>
     <string name="level_confirm_advanced_title">¿Iniciar optimización avanzada?</string>
     <string name="level_confirm_advanced_text">Requiere configurar Shizuku o ADB inalámbrico. El proceso es más profundo y fiable, pero toma más tiempo.</string>
     <string name="level_confirm_start">Iniciar</string>
@@ -176,6 +177,9 @@
     <!-- ========== DIÁLOGO DE MENÚ ========== -->
     <string name="menu_about">Acerca de</string>
     <string name="menu_dark_theme">Tema oscuro</string>
+    <string name="menu_notif_transparency">Desactivar notificaciones de servicios de recomendaciones</string>
+    <string name="menu_notif_transparency_desc">La aplicación dejará de mostrar notificaciones, incluidas las de servicio. Es reversible.</string>
+    <string name="menu_diag_full">Diagnóstico: detallado (para informe del desarrollador)</string>
     <string name="menu_privacy_policy">Política de privacidad</string>
     <string name="rate_app">Calificar la app</string>
     <string name="support_page">Apoyar el proyecto</string>
@@ -303,6 +307,7 @@
     <string name="result_summary">Completados %1$d de %2$d pasos</string>
     <string name="result_skipped">Omitidos (no en el dispositivo): %d</string>
     <string name="result_failed">No se pudo completar (protegido por el sistema): %d</string>
+    <string name="result_notif_title">Notificaciones desactivadas:</string>
     <string name="result_soft">Si te ayudó — una reseña o cualquier apoyo sería apreciado. Ayuda a otros a encontrar la app.</string>
     <string name="result_rate">Calificar</string>
     <string name="result_support">Apoyar</string>

@@ -44,6 +44,7 @@
 
     <string name="level_confirm_simple_title">Start simple optimization?</string>
     <string name="level_confirm_simple_text">The app will open settings and apply privacy parameters. This will take 2–3 minutes.</string>
+    <string name="level_confirm_simple_notif">Recommendation services will stop showing notifications — this can be reverted at any time.</string>
     <string name="level_confirm_advanced_title">Start advanced optimization?</string>
     <string name="level_confirm_advanced_text">Requires Shizuku or Wireless ADB setup. The process is deeper and more reliable but takes longer.</string>
     <string name="level_confirm_start">Start</string>
@@ -166,6 +167,9 @@
     <!-- ========== MENU DIALOG ========== -->
     <string name="menu_about">About</string>
     <string name="menu_dark_theme">Dark theme</string>
+    <string name="menu_notif_transparency">Turn off notifications from recommendation services</string>
+    <string name="menu_notif_transparency_desc">The app will stop showing notifications, including service ones. This is reversible.</string>
+    <string name="menu_diag_full">Diagnostics: detailed (for developer report)</string>
     <string name="menu_privacy_policy">Privacy Policy</string>
     <string name="rate_app">Rate the app</string>
     <string name="support_page">Support the project</string>
@@ -293,6 +297,7 @@
     <string name="result_summary">Completed %1$d of %2$d steps</string>
     <string name="result_skipped">Skipped (not on device): %d</string>
     <string name="result_failed">Couldn\'t complete (system-protected): %d</string>
+    <string name="result_notif_title">Notifications turned off:</string>
     <string name="result_soft">If it helped — a review or any support would be appreciated. It helps others find the app.</string>
     <string name="result_rate">Rate</string>
     <string name="result_support">Support</string>

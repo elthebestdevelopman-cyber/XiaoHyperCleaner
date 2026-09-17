@@ -117,6 +117,12 @@ data class MainUiState(
     /** Предупреждение о DNS filter */
     val showDnsWarningDialog: Boolean = false,
 
+    /** Прозрачность уведомлений: ON — notif_* входят в план (дефолт), OFF — исключаются */
+    val notifTransparency: Boolean = true,
+
+    /** Диагностика в release переведена в FULL (7 тапов по версии в меню) */
+    val diagLevelFull: Boolean = false,
+
     // ═══════════════════════════════════════════════════════════════
     // Выбор уровня
     // ═══════════════════════════════════════════════════════════════

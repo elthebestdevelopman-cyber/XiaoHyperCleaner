@@ -4,7 +4,12 @@ import android.annotation.SuppressLint
 import android.app.Application
 import androidx.annotation.VisibleForTesting
 import com.xiaohypercleaner.util.AppLog
+import com.xiaohypercleaner.util.DiagnosticSnapshotManager
 import com.xiaohypercleaner.util.LogMasker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * Точка входа приложения XiaoHyperCleaner.
@@ -64,6 +69,9 @@ class XiaoHyperApp : Application() {
         @SuppressLint("StaticFieldLeak")
         @VisibleForTesting
         internal var testDeps: AppDependencies? = null
+
+        /** Одноразовые фоновые задачи инициализации (Application живёт весь процесс). */
+        private val initScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
         /**
          * Инъекция тестовых зависимостей (convenience-метод).
@@ -135,7 +143,35 @@ class XiaoHyperApp : Application() {
             throw e
         }
 
+        initDiagnostics()
         AppLog.i(TAG, "=== XiaoHyperApp onCreate completed ===")
+    }
+
+    /**
+     * Диагностика на старте: применяет уровень (override → дефолт сборки)
+     * и очищает старые дампы (purge: 3 прогона / 7 дней / 50 МБ).
+     */
+    private fun initDiagnostics() {
+        val defaultLevel = if (com.xiaohypercleaner.BuildConfig.DEBUG) {
+            DiagnosticSnapshotManager.DiagnosticLevel.FULL
+        } else {
+            DiagnosticSnapshotManager.DiagnosticLevel.COMPACT
+        }
+        val defaultSource = if (com.xiaohypercleaner.BuildConfig.DEBUG) "debug" else "default"
+        initScope.launch {
+            runCatching {
+                val raw = deps.preferencesManager.getDiagLevelOverride()
+                val parsed = DiagnosticSnapshotManager.parseLevel(raw)
+                if (parsed != null) {
+                    DiagnosticSnapshotManager.setLevel(parsed, "override")
+                } else {
+                    DiagnosticSnapshotManager.setLevel(defaultLevel, defaultSource)
+                }
+                DiagnosticSnapshotManager.purge(this@XiaoHyperApp)
+            }.onFailure { e ->
+                AppLog.w(TAG, "initDiagnostics failed: ${e.message}")
+            }
+        }
     }
 
     /**

@@ -54,6 +54,7 @@
 
     <string name="level_confirm_simple_title">开始简单优化？</string>
     <string name="level_confirm_simple_text">应用将打开设置并应用隐私参数。这将需要 2–3 分钟。</string>
+    <string name="level_confirm_simple_notif">推荐服务将不再显示通知，可随时恢复。</string>
     <string name="level_confirm_advanced_title">开始高级优化？</string>
     <string name="level_confirm_advanced_text">需要配置 Shizuku 或无线 ADB。流程更深入可靠，但耗时更长。</string>
     <string name="level_confirm_start">开始</string>
@@ -175,6 +176,9 @@
     <!-- ========== 菜单对话框 ========== -->
     <string name="menu_about">关于</string>
     <string name="menu_dark_theme">深色主题</string>
+    <string name="menu_notif_transparency">关闭推荐服务的通知</string>
+    <string name="menu_notif_transparency_desc">应用将不再显示通知（包括服务通知）。此操作可恢复。</string>
+    <string name="menu_diag_full">诊断：详细（用于开发者报告）</string>
     <string name="menu_privacy_policy">隐私政策</string>
     <string name="rate_app">评价应用</string>
     <string name="support_page">支持项目</string>
@@ -302,6 +306,7 @@
     <string name="result_summary">已完成 %1$d / %2$d 步</string>
     <string name="result_skipped">已跳过（设备上不存在）：%d</string>
     <string name="result_failed">无法完成（系统保护）：%d</string>
+    <string name="result_notif_title">已关闭通知：</string>
     <string name="result_soft">如果有帮助 — 欢迎评价或支持。这能帮助其他人找到这款应用。</string>
     <string name="result_rate">评价</string>
     <string name="result_support">支持</string>

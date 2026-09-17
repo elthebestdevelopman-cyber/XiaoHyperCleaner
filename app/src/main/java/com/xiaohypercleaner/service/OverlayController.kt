@@ -118,11 +118,19 @@ object OverlayController {
         )
     }
 
-    fun showResult(ctx: Context, completed: Int, total: Int, failed: Int, skipped: Int) {
+    fun showResult(
+        ctx: Context,
+        completed: Int,
+        total: Int,
+        failed: Int,
+        skipped: Int,
+        notifSteps: List<String> = emptyList()
+    ) {
         endPhase()
         AppLog.i(
             TAG,
-            "showResult: $completed/$total, failed=$failed, skipped=$skipped caller=${callerName()}"
+            "showResult: $completed/$total, failed=$failed, skipped=$skipped " +
+                "notif=${notifSteps.size} caller=${callerName()}"
         )
         ctx.startService(
             intent(ctx, OverlayService.ACTION_RESULT)
@@ -130,6 +138,7 @@ object OverlayController {
                 .putExtra(OverlayService.EXTRA_TOTAL, total)
                 .putExtra(OverlayService.EXTRA_FAILED, failed)
                 .putExtra(OverlayService.EXTRA_SKIPPED, skipped)
+                .putExtra(OverlayService.EXTRA_NOTIF_STEPS, notifSteps.joinToString("\n"))
         )
     }
 

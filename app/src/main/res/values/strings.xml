@@ -31,6 +31,7 @@
 
     <string name="level_confirm_simple_title">Запустить простую оптимизацию?</string>
     <string name="level_confirm_simple_text">Приложение откроет настройки и применит параметры приватности. Это займёт 2–3 минуты.</string>
+    <string name="level_confirm_simple_notif">Сервисы рекомендаций перестанут показывать уведомления — это можно вернуть в любой момент.</string>
     <string name="level_confirm_advanced_title">Запустить продвинутую оптимизацию?</string>
     <string name="level_confirm_advanced_text">Потребуется настроить Shizuku или Wireless ADB. Процесс глубже и надёжнее, но занимает больше времени.</string>
     <string name="level_confirm_start">Начать</string>
@@ -155,6 +156,9 @@
     <!-- ========== MENU DIALOG ========== -->
     <string name="menu_about">О приложении</string>
     <string name="menu_dark_theme">Тёмная тема</string>
+    <string name="menu_notif_transparency">Отключать уведомления сервисов рекомендаций</string>
+    <string name="menu_notif_transparency_desc">Приложение перестанет показывать уведомления, включая сервисные. Изменение обратимо.</string>
+    <string name="menu_diag_full">Диагностика: подробная (для отчёта разработчику)</string>
     <string name="menu_privacy_policy">Политика приватности</string>
     <string name="rate_app">Оценить приложение</string>
     <string name="support_page">Поддержать проект</string>
@@ -282,6 +286,7 @@
     <string name="result_summary">Выполнено %1$d из %2$d шагов</string>
     <string name="result_skipped">Пропущено (нет на устройстве): %d</string>
     <string name="result_failed">Не получилось (защищено системой): %d</string>
+    <string name="result_notif_title">Уведомления отключены:</string>
     <string name="result_soft">Если было полезно — буду рад отзыву или любой поддержке. Это помогает другим найти приложение.</string>
     <string name="result_rate">Оценить</string>
     <string name="result_support">Поддержать</string>

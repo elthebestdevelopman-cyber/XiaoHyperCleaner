@@ -442,6 +442,11 @@ private fun MainDialogsHost(
             title = stringResource(if (isSimple) R.string.level_confirm_simple_title else R.string.level_confirm_advanced_title),
             text = stringResource(if (isSimple) R.string.level_confirm_simple_text else R.string.level_confirm_advanced_text),
             confirmText = stringResource(R.string.level_confirm_start),
+            extraText = if (isSimple && state.notifTransparency) {
+                stringResource(R.string.level_confirm_simple_notif)
+            } else {
+                null
+            },
             onConfirm = {
                 AppLog.i(MainActivity.TAG, "level confirm: start clicked, level=$level")
                 level?.let { vm.confirmLevelStart(it) }  // ✅ передаём level
@@ -760,6 +765,13 @@ private fun MainDialogsHost(
         MenuDialog(
             isDark = isDark,
             onDarkChange = onDarkChange,
+            isNotifTransparency = state.notifTransparency,
+            onNotifTransparencyChange = { enabled ->
+                AppLog.i(MainActivity.TAG, "menu: notif transparency toggled to $enabled")
+                vm.toggleNotifTransparency(enabled)
+            },
+            diagLevelFull = state.diagLevelFull,
+            onVersionTap = { vm.onVersionTapped() },
             onClose = { AppLog.i(MainActivity.TAG, "menu: closed"); onMenuOpenChange(false) },
             onRate = { AppLog.i(MainActivity.TAG, "menu: rate clicked"); openRateApp(context) },
             onSupportPage = {

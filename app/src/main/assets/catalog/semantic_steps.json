@@ -720,6 +720,15 @@
         "pt",
         "id"
       ],
+      "consentTexts": {
+        "ru": ["Согласиться", "Принять", "Продолжить", "Принять и продолжить"],
+        "en": ["Agree", "Accept", "Continue", "Accept and continue"],
+        "es": ["Aceptar", "Continuar", "Aceptar y continuar"],
+        "zh": ["同意", "接受", "继续", "同意并继续"],
+        "hi": ["सहमत हूँ", "स्वीकार करें", "जारी रखें", "स्वीकार करें और जारी रखें"],
+        "pt": ["Concordo", "Aceitar", "Continuar", "Aceitar e continuar"],
+        "id": ["Setuju", "Terima", "Lanjutkan", "Terima dan lanjutkan"]
+      },
       "launchPackage": "com.mi.globalbrowser"
     },
     {
@@ -797,6 +806,15 @@
         "pt",
         "id"
       ],
+      "consentTexts": {
+        "ru": ["Согласиться", "Принять", "Продолжить", "Принять и продолжить"],
+        "en": ["Agree", "Accept", "Continue", "Accept and continue"],
+        "es": ["Aceptar", "Continuar", "Aceptar y continuar"],
+        "zh": ["同意", "接受", "继续", "同意并继续"],
+        "hi": ["सहमत हूँ", "स्वीकार करें", "जारी रखें", "स्वीकार करें और जारी रखें"],
+        "pt": ["Concordo", "Aceitar", "Continuar", "Aceitar e continuar"],
+        "id": ["Setuju", "Terima", "Lanjutkan", "Terima dan lanjutkan"]
+      },
       "launchPackage": "com.miui.player"
     },
     {
@@ -891,6 +909,15 @@
         "pt",
         "id"
       ],
+      "consentTexts": {
+        "ru": ["Согласиться", "Принять", "Продолжить", "Принять и продолжить"],
+        "en": ["Agree", "Accept", "Continue", "Accept and continue"],
+        "es": ["Aceptar", "Continuar", "Aceptar y continuar"],
+        "zh": ["同意", "接受", "继续", "同意并继续"],
+        "hi": ["सहमत हूँ", "स्वीकार करें", "जारी रखें", "स्वीकार करें और जारी रखें"],
+        "pt": ["Concordo", "Aceitar", "Continuar", "Aceitar e continuar"],
+        "id": ["Setuju", "Terima", "Lanjutkan", "Terima dan lanjutkan"]
+      },
       "launchPackage": "com.miui.securitycenter"
     },
     {
@@ -1261,6 +1288,15 @@
         "pt",
         "id"
       ],
+      "consentTexts": {
+        "ru": ["Согласиться", "Принять", "Продолжить", "Принять и продолжить"],
+        "en": ["Agree", "Accept", "Continue", "Accept and continue"],
+        "es": ["Aceptar", "Continuar", "Aceptar y continuar"],
+        "zh": ["同意", "接受", "继续", "同意并继续"],
+        "hi": ["सहमत हूँ", "स्वीकार करें", "जारी रखें", "स्वीकार करें और जारी रखें"],
+        "pt": ["Concordo", "Aceitar", "Continuar", "Aceitar e continuar"],
+        "id": ["Setuju", "Terima", "Lanjutkan", "Terima dan lanjutkan"]
+      },
       "launchPackage": "com.miui.videoplayer"
     },
     {
@@ -1422,6 +1458,15 @@
         "pt",
         "id"
       ],
+      "consentTexts": {
+        "ru": ["Согласиться", "Принять", "Продолжить", "Принять и продолжить"],
+        "en": ["Agree", "Accept", "Continue", "Accept and continue"],
+        "es": ["Aceptar", "Continuar", "Aceptar y continuar"],
+        "zh": ["同意", "接受", "继续", "同意并继续"],
+        "hi": ["सहमत हूँ", "स्वीकार करें", "जारी रखें", "स्वीकार करें और जारी रखें"],
+        "pt": ["Concordo", "Aceitar", "Continuar", "Aceitar e continuar"],
+        "id": ["Setuju", "Terima", "Lanjutkan", "Terima dan lanjutkan"]
+      },
       "launchPackage": "com.mi.android.fileexplorer"
     },
     {

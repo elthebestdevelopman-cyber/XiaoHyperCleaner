@@ -54,10 +54,14 @@ class OverlayService : Service() {
         const val EXTRA_COMPLETED = "completed"
         const val EXTRA_FAILED = "failed"
         const val EXTRA_SKIPPED = "skipped"
+        const val EXTRA_NOTIF_STEPS = "notif_steps"
         private const val HEARTBEAT_INTERVAL_MS = 500L
 
         /** Каждый N-й удар heartbeat пишет alive-строку в лог (2 с при 500 мс). */
         private const val HEARTBEAT_ALIVE_LOG_EVERY = 4
+
+        /** Потолок строк в списке отключённых уведомлений на экране результатов. */
+        private const val NOTIF_LIST_MAX = 8
     }
 
     enum class PointerMode { TOP_RIGHT, BOTTOM_LIST, SWITCH_RIGHT, LIST_ITEM_CENTER, GENERIC_BOTTOM }
@@ -128,7 +132,8 @@ class OverlayService : Service() {
                 intent.getIntExtra(EXTRA_COMPLETED, 0),
                 intent.getIntExtra(EXTRA_TOTAL, 0),
                 intent.getIntExtra(EXTRA_FAILED, 0),
-                intent.getIntExtra(EXTRA_SKIPPED, 0)
+                intent.getIntExtra(EXTRA_SKIPPED, 0),
+                intent.getStringExtra(EXTRA_NOTIF_STEPS).orEmpty()
             )
         }
         return START_NOT_STICKY
@@ -235,7 +240,13 @@ class OverlayService : Service() {
 
     // ═══ RESULT ═══
 
-    private fun showResult(completed: Int, total: Int, failed: Int, skipped: Int) {
+    private fun showResult(
+        completed: Int,
+        total: Int,
+        failed: Int,
+        skipped: Int,
+        notifSteps: String
+    ) {
         stopHeartbeat()
         hide()
         isBlocking = true
@@ -251,6 +262,17 @@ class OverlayService : Service() {
         layout.addView(bodyText(getString(R.string.result_summary, completed, total)), llWrap().apply { topMargin = dp(6) })
         if (skipped > 0) layout.addView(bodyText(getString(R.string.result_skipped, skipped), small = true), llWrap().apply { topMargin = dp(4) })
         if (failed > 0) layout.addView(bodyText(getString(R.string.result_failed, failed), small = true), llWrap().apply { topMargin = dp(4) })
+        // Прозрачность notif_*: что именно отключено (Аддендум C3).
+        val notifTitles = notifSteps.split('\n').filter { it.isNotBlank() }.take(NOTIF_LIST_MAX)
+        if (notifTitles.isNotEmpty()) {
+            layout.addView(
+                titleText(getString(R.string.result_notif_title), 14f, bold = true),
+                llWrap().apply { topMargin = dp(10) }
+            )
+            notifTitles.forEach { title ->
+                layout.addView(bodyText("• $title", small = true), llWrap().apply { topMargin = dp(2) })
+            }
+        }
         layout.addView(bodyText(getString(R.string.result_soft), small = true).apply { setPadding(0, dp(10), 0, 0) }, llWrap())
         val row1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
         val btnParams = { LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
@@ -263,7 +285,11 @@ class OverlayService : Service() {
         layout.addView(row2, llWrap().apply { topMargin = dp(4) })
         returnToApp()
         addRoot(touchable = true, fullScreen = true).apply { addView(layout, flParams(Gravity.CENTER)) }
-        AppLog.i(TAG, "result shown: $completed/$total, failed=$failed, skipped=$skipped")
+        AppLog.i(
+            TAG,
+            "result shown: $completed/$total, failed=$failed, skipped=$skipped " +
+                "notif=${notifTitles.size}"
+        )
     }
 
     // ═══ HEARTBEAT ═══
