@@ -11,6 +11,7 @@ import android.provider.Settings
 import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
+import com.xiaohypercleaner.data.ActivityScanner
 import com.xiaohypercleaner.data.AdaptiveCatalog
 import com.xiaohypercleaner.data.ComponentVerifier
 import com.xiaohypercleaner.data.ConsentWallHandler
@@ -286,16 +287,23 @@ class SimpleRunner(private val service: AdbEnablerService) {
     // ─── Internal execution ───────────────────────────────────────────────
     private suspend fun runInternal(stepParam: SimpleSteps.Step, profile: RomProfile): Result {
         // Семантический launchPackage (каталог) дополняет legacy-структуру шага.
-        val step = applySemanticLaunchPackage(stepParam)
+        var step = applySemanticLaunchPackage(stepParam)
         if (cancelled) return Result(false, "cancelled")
 
         // Гейт целостности оверлея (Аддендум A4): навигация без окна прогресса запрещена.
         if (!awaitOverlayReadyOrPause()) return Result(false, "overlay_lost")
 
-        // Резолвинг пакета: вариантный каталог + семантический launchPackage
+        // Резолвинг пакета: вариантный каталог + семантическая таблица (visibility-aware)
         val resolvedPkg = AdaptiveCatalog.resolveInstalledPackageForGroup(service, step.id, profile)
-            ?: AdaptiveCatalog.packagesForStep(service, step.id, step.requiredPackages, profile)
+            ?: AdaptiveCatalog.packagesForStep(service, step.id, candidatePackages(step), profile)
                 .firstOrNull { isInstalled(it) }
+
+        // Для app-шагов фактический целевой пакет важнее статического launchPackage:
+        // иначе GetApps/App Vault уходят на несуществующие market/personalassistant.
+        if (step.launchPackage != null && resolvedPkg != null && resolvedPkg != step.launchPackage) {
+            AppLog.i(TAG, "launch package for ${step.id}: ${step.launchPackage} -> $resolvedPkg")
+            step = step.copy(launchPackage = resolvedPkg)
+        }
 
         // П.6: Умный сброс настроек
         if (step.launchPackage == null) {
@@ -313,14 +321,21 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Для шагов-приложений целевой экран достигается бурением, поэтому
         // проверка на этапе интента не нужна (иначе Settings-фолбэк уводит из приложения).
         val isAppStep = step.launchPackage != null
-        // Discovery: найденные сканером активности дополняют вариантные подсказки.
-        val intents = ScanOrchestrator.planNavigation(
+        // Discovery: явная компонента из candidates первична, неявный LAUNCHER — фолбэк.
+        val plan = ScanOrchestrator.planNavigation(
             context = service,
             pkg = resolvedPkg.takeIf { isAppStep },
             legacyIntents = legacyIntents,
             keywords = verifyTexts + step.id.split('_'),
             cache = prefs
-        ).orderedIntents()
+        )
+        // Причина нуля скана видна в StepDiag: тихая деградация запрещена.
+        StepDiagnostics.note(
+            step.id,
+            "SCAN",
+            "reason=${plan.scanReason} candidates=${plan.candidates.size} cached=${plan.fromCache}"
+        )
+        val intents = plan.orderedIntents()
         var screenOpened = false
         for (intent in intents) {
             if (cancelled) return Result(false, "cancelled")
@@ -1045,11 +1060,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
         if (!dispatched && cont.isActive) cont.resume(false)
     }
 
-    private fun isInstalled(pkg: String): Boolean = try {
-        service.packageManager.getPackageInfo(pkg, 0); true
-    } catch (e: Exception) {
-        false
-    }
+    /** Установлен/виден ли пакет: getPackageInfo + видимость через launcher-интент. */
+    private fun isInstalled(pkg: String): Boolean = ActivityScanner.isPackageVisible(service, pkg)
+
+    /** Пакеты-кандидаты шага: семантика каталога + legacy requiredPackages. */
+    private fun candidatePackages(step: SimpleSteps.Step): List<String> =
+        (SemanticCatalog.requiredPackages(step.id) + step.requiredPackages).distinct()
 
 
     // Легаси: recycle() deprecated с API 33 (система перерабатывает узлы автоматически),

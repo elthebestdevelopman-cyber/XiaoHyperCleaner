@@ -223,7 +223,8 @@ object DiagnosticSnapshotManager {
             AppLog.e(
                 TAG,
                 "captureScreenshot: attempt ${attempt + 1}/$SCREENSHOT_MAX_ATTEMPTS failed: " +
-                    "${screenshotErrorName(errorCode)} ($errorCode)"
+                    "${screenshotErrorName(errorCode)} ($errorCode) " +
+                    "displayId=${Display.DEFAULT_DISPLAY}"
             )
             if (!isTransientScreenshotError(errorCode)) return null
             delay(SCREENSHOT_RETRY_DELAY_MS)

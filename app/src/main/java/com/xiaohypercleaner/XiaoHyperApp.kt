@@ -171,11 +171,13 @@ class XiaoHyperApp : Application() {
                 "com.miui.player", "com.miui.music", "com.android.music", "com.mi.music",
                 "com.miui.mms", "com.android.mms", "com.miui.mms.global",
                 "com.google.android.apps.messaging",
+                "com.google.android.apps.messaging",
                 "com.miui.securitycenter", "com.miui.securitycore",
                 "com.android.providers.downloads.ui", "com.miui.android.downloads",
                 "com.android.downloads",
                 "com.android.thememanager", "com.miui.thememanager", "com.mi.thememanager",
                 "com.xiaomi.market", "com.miui.market", "com.mi.global.market",
+                "com.xiaomi.mipicks",
                 "com.miui.videoplayer", "com.miui.video", "com.mi.global.video",
                 "com.xiaomi.midrop", "com.mi.android.globalshareme",
                 "com.mi.android.globalFileexplorer", "com.android.fileexplorer",
@@ -184,15 +186,13 @@ class XiaoHyperApp : Application() {
                 "com.miui.launcher", "com.mi.global.home",
                 "com.miui.personalassistant", "com.mi.android.global.personalassistant",
                 "com.android.personalassistant",
+                "com.mi.android.globalminusscreen",
                 "com.xiaomi.gamecenter", "com.miui.gamecenter", "com.xiaomi.glgm"
             )
             val installed = allXiaomiPackages.filter { pkg ->
-                try {
-                    packageManager.getPackageInfo(pkg, 0)
-                    true
-                } catch (_: Exception) {
-                    false
-                }
+                // Видимость, а не голый getPackageInfo: launcher-интенты и <queries>
+                // делают пакет видимым даже без точной записи в <package>.
+                com.xiaohypercleaner.data.ActivityScanner.isPackageVisible(this, pkg)
             }
             val notInstalled = allXiaomiPackages - installed
             AppLog.i(

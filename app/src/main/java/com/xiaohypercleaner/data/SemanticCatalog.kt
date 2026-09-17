@@ -62,7 +62,9 @@ object SemanticCatalog {
         val skipReason: String?,
         val fallbackDrillPath: List<List<String>>,
         val safe: Boolean,
-        val localeCoverage: List<String>
+        val localeCoverage: List<String>,
+        /** Пакеты-цели шага (видимость задаётся <queries> манифеста). */
+        val requiredPackages: List<String> = emptyList()
     )
 
     /** Политика обработки системных диалогов (deny по умолчанию). */
@@ -148,6 +150,9 @@ object SemanticCatalog {
 
     fun launchPackage(id: String): String? = step(id)?.launchPackage
 
+    /** Пакеты-цели шага из семантической таблицы (fallback к legacy requiredPackages). */
+    fun requiredPackages(id: String): List<String> = step(id)?.requiredPackages.orEmpty()
+
     fun skipReason(id: String): String? = step(id)?.skipReason
 
     /** Подсказки-фолбэки drillPath (старые вариантные пути). */
@@ -218,7 +223,8 @@ object SemanticCatalog {
         skipReason = o.optString("skipReason").takeIf { it.isNotEmpty() },
         fallbackDrillPath = parseDrillPath(o.optJSONArray("fallbackDrillPath")),
         safe = o.optBoolean("safe", true),
-        localeCoverage = parseStringArray(o.optJSONArray("localeCoverage"))
+        localeCoverage = parseStringArray(o.optJSONArray("localeCoverage")),
+        requiredPackages = parseStringArray(o.optJSONArray("requiredPackages"))
     )
 
     private fun parsePolicy(o: JSONObject?): ConsentPolicy? {

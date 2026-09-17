@@ -23,7 +23,7 @@ class ScanOrchestratorTest {
         Intent().setClassName(pkg, cls).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
     @Test
-    fun `legacy hints keep priority over discovered intents`() {
+    fun `discovered explicit components take priority over legacy hints`() {
         val legacy = listOf(componentIntent("com.miui.player", "com.miui.player.ui.MainActivity"))
         val discovered = listOf(componentIntent("com.miui.player", "com.miui.player.ui.MusicActivity"))
         val plan = ScanOrchestrator.NavigationPlan(
@@ -36,8 +36,12 @@ class ScanOrchestratorTest {
         val ordered = plan.orderedIntents()
 
         assertEquals(2, ordered.size)
-        assertEquals("com.miui.player.ui.MainActivity", ordered[0].component?.className)
-        assertEquals("com.miui.player.ui.MusicActivity", ordered[1].component?.className)
+        assertEquals(
+            "явная компонента сканера идёт первой (не зависит от package visibility)",
+            "com.miui.player.ui.MusicActivity",
+            ordered[0].component?.className
+        )
+        assertEquals("com.miui.player.ui.MainActivity", ordered[1].component?.className)
     }
 
     @Test

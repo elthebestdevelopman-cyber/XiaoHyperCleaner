@@ -546,7 +546,7 @@ object SimpleSteps {
             titleEn = "GetApps recommendations",
             descRu = "Выключаем рекомендации в GetApps.",
             descEn = "Turning off GetApps recommendations.",
-            intents = listOf(launchIntent("com.xiaomi.market")),
+            intents = listOf(launchIntent("com.xiaomi.mipicks"), launchIntent("com.xiaomi.market")),
             searchTexts = listOf(
                 "Персональные рекомендации",
                 "Personalized recommendations"
@@ -554,9 +554,10 @@ object SimpleSteps {
             manualHintRu = "GetApps → Профиль → ⚙ → Конфиденциальность → " +
                     "выключите «Персональные рекомендации».",
             manualHintEn = "GetApps → Profile → ⚙ → Privacy → turn off recommendations.",
-            launchPackage = "com.xiaomi.market",
+            launchPackage = "com.xiaomi.mipicks",
             drillPath = listOf(PROFILE, GEAR, PRIVACY),
             requiredPackages = listOf(
+                "com.xiaomi.mipicks",           // Global: фактический пакет GetApps
                 "com.xiaomi.market",            // Китай (основное)
                 "com.miui.market",              // Старое имя (до ребрендинга)
                 "com.mi.global.market"          // Глобал
@@ -658,7 +659,7 @@ object SimpleSteps {
             titleEn = "App Vault suggestions",
             descRu = "Выключаем «Предложения» в ленте виджетов.",
             descEn = "Turning off App Vault suggestions.",
-            intents = listOf(launchIntent("com.miui.personalassistant")),
+            intents = listOf(launchIntent("com.mi.android.globalminusscreen"), launchIntent("com.miui.personalassistant")),
             searchTexts = listOf(
                 "Предложения", "Предложение", "Suggestions", "Suggestion",
                 "Рекомендации", "Recommendations",
@@ -671,12 +672,13 @@ object SimpleSteps {
             manualHintRu = "Лента виджетов → ⋮ → Управление службами → " +
                     "выключите «Предложения».",
             manualHintEn = "App Vault → ⋮ → Service management → turn off Suggestions.",
-            launchPackage = "com.miui.personalassistant",
+            launchPackage = "com.mi.android.globalminusscreen",
             drillPath = listOf(
                 OVERFLOW,
                 listOf("Управление службами", "Service management")
             ),
             requiredPackages = listOf(
+                "com.mi.android.globalminusscreen",             // Global: фактический пакет
                 "com.miui.personalassistant",                    // Китай (основное)
                 "com.mi.android.global.personalassistant",       // Глобал
                 "com.android.personalassistant"                  // AOSP
@@ -701,12 +703,13 @@ object SimpleSteps {
             manualHintRu = "Лента виджетов → ⋮ → О ленте виджетов → " +
                     "выключите «Персонализированные услуги».",
             manualHintEn = "App Vault → ⋮ → About → turn off Personalized services.",
-            launchPackage = "com.miui.personalassistant",
+            launchPackage = "com.mi.android.globalminusscreen",
             drillPath = listOf(
                 OVERFLOW,
                 listOf("О ленте виджетов", "About App Vault", "About widget feed")
             ),
             requiredPackages = listOf(
+                "com.mi.android.globalminusscreen",
                 "com.miui.personalassistant",
                 "com.mi.android.global.personalassistant",
                 "com.android.personalassistant"
@@ -772,7 +775,10 @@ object SimpleSteps {
             titleEn = "App Vault notifications",
             descRu = "Выключаем уведомления Ленты виджетов.",
             descEn = "Turning off App Vault notifications.",
-            intents = listOf(notificationsIntent("com.miui.personalassistant")),
+            intents = listOf(
+                notificationsIntent("com.mi.android.globalminusscreen"),
+                notificationsIntent("com.miui.personalassistant")
+            ),
             searchTexts = listOf(
                 "Разрешить уведомления", "Allow notifications",
                 "Показывать уведомления", "Show notifications"
@@ -781,6 +787,7 @@ object SimpleSteps {
                     "Уведомления → выключите.",
             manualHintEn = "Settings → Apps → App Vault → Notifications → turn off.",
             requiredPackages = listOf(
+                "com.mi.android.globalminusscreen",
                 "com.miui.personalassistant",
                 "com.mi.android.global.personalassistant"
             )
@@ -813,7 +820,7 @@ object SimpleSteps {
             titleEn = "GetApps notifications",
             descRu = "Выключаем уведомления GetApps.",
             descEn = "Turning off GetApps notifications.",
-            intents = listOf(notificationsIntent("com.xiaomi.market")),
+            intents = listOf(notificationsIntent("com.xiaomi.mipicks"), notificationsIntent("com.xiaomi.market")),
             searchTexts = listOf(
                 "Разрешить уведомления", "Allow notifications",
                 "Показывать уведомления", "Show notifications"
@@ -821,6 +828,7 @@ object SimpleSteps {
             manualHintRu = "Настройки → Приложения → GetApps → Уведомления → выключите.",
             manualHintEn = "Settings → Apps → GetApps → Notifications → turn off.",
             requiredPackages = listOf(
+                "com.xiaomi.mipicks",
                 "com.xiaomi.market",
                 "com.miui.market",
                 "com.mi.global.market"

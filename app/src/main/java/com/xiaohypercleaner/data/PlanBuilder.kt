@@ -72,7 +72,7 @@ object PlanBuilder {
             }
 
             val packages = candidatePackages(context, step, profile)
-            if (packages.isNotEmpty() && packages.none { isInstalled(context, it) }) {
+            if (packages.isNotEmpty() && packages.none { ActivityScanner.isPackageVisible(context, it) }) {
                 excluded.add("${step.id}:app_not_installed")
                 continue
             }
@@ -88,14 +88,23 @@ object PlanBuilder {
         return plan
     }
 
-    /** Пакет лаунчера по умолчанию (plan-time home-skip). */
-    fun resolveHomePackage(context: Context): String? = runCatching {
-        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-        context.packageManager.resolveActivity(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
-            ?.activityInfo?.packageName
-    }.getOrNull()
+    /**
+     * Пакет лаунчера по умолчанию (plan-time home-skip).
+     * resolveActivity может быть отфильтрован package visibility — тогда
+     * проверяем видимость известных HOME-пакетов (иначе home-шаг ложно выпадет).
+     */
+    fun resolveHomePackage(context: Context): String? {
+        val resolved = runCatching {
+            val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+            context.packageManager
+                .resolveActivity(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
+                ?.activityInfo?.packageName
+        }.getOrNull()
+        if (resolved != null) return resolved
+        return HOME_PACKAGES.firstOrNull { ActivityScanner.isPackageVisible(context, it) }
+    }
 
-    /** Пакеты шага: каталожные варианты + legacy requiredPackages. */
+    /** Пакеты шага: семантическая таблица + каталожные варианты + legacy requiredPackages. */
     private fun candidatePackages(
         context: Context,
         step: SimpleSteps.Step,
@@ -104,14 +113,8 @@ object PlanBuilder {
         val catalog = runCatching {
             AdaptiveCatalog.packagesForStep(context, step.id, step.requiredPackages, profile)
         }.getOrDefault(emptyList())
-        return (catalog + step.requiredPackages).distinct()
-    }
-
-    private fun isInstalled(context: Context, pkg: String): Boolean = try {
-        context.packageManager.getPackageInfo(pkg, 0)
-        true
-    } catch (_: Exception) {
-        false
+        val semantic = SemanticCatalog.requiredPackages(step.id)
+        return (semantic + catalog + step.requiredPackages).distinct()
     }
 }
 

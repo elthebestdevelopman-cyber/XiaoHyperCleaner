@@ -1150,6 +1150,13 @@
     },
     {
       "id": "getapps",
+      "requiredPackages": [
+        "com.xiaomi.mipicks",
+        "com.xiaomi.market",
+        "com.miui.market",
+        "com.mi.global.market"
+      ],
+      "launchPackage": "com.xiaomi.mipicks",
       "title": {
         "ru": "GetApps",
         "en": "GetApps",
@@ -1419,6 +1426,13 @@
     },
     {
       "id": "appvault_services",
+      "requiredPackages": [
+        "com.mi.android.globalminusscreen",
+        "com.miui.personalassistant",
+        "com.mi.android.global.personalassistant",
+        "com.android.personalassistant"
+      ],
+      "launchPackage": "com.mi.android.globalminusscreen",
       "title": {
         "ru": "App Vault",
         "en": "App Vault",
@@ -1443,6 +1457,13 @@
     },
     {
       "id": "appvault_about",
+      "requiredPackages": [
+        "com.mi.android.globalminusscreen",
+        "com.miui.personalassistant",
+        "com.mi.android.global.personalassistant",
+        "com.android.personalassistant"
+      ],
+      "launchPackage": "com.mi.android.globalminusscreen",
       "title": {
         "ru": "App Vault (о приложении)",
         "en": "App Vault (about)",
@@ -1605,6 +1626,12 @@
     },
     {
       "id": "notif_appvault",
+      "requiredPackages": [
+        "com.mi.android.globalminusscreen",
+        "com.miui.personalassistant",
+        "com.mi.android.global.personalassistant"
+      ],
+      "launchPackage": "com.mi.android.globalminusscreen",
       "title": {
         "ru": "App Vault уведомления",
         "en": "App Vault notifications",
@@ -1698,6 +1725,13 @@
     },
     {
       "id": "notif_getapps",
+      "requiredPackages": [
+        "com.xiaomi.mipicks",
+        "com.xiaomi.market",
+        "com.miui.market",
+        "com.mi.global.market"
+      ],
+      "launchPackage": "com.xiaomi.mipicks",
       "title": {
         "ru": "GetApps уведомления",
         "en": "GetApps notifications",

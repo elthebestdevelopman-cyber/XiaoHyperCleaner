@@ -17,18 +17,24 @@ object ScanOrchestrator {
 
     private const val TAG = "discover"
 
-    /** План навигации шага: вариантные и найденные сканером интенты. */
+    /** План навигации шага: найденные сканером интенты + вариантные подсказки. */
     data class NavigationPlan(
         val legacyIntents: List<Intent>,
         val discoveredIntents: List<Intent>,
         val candidates: List<ActivityScanner.ActivityCandidate>,
-        val fromCache: Boolean
+        val fromCache: Boolean,
+        /** Причина результата скана (ok | cache | package_invisible | no_exported_activity). */
+        val scanReason: String = "ok"
     ) {
-        /** Порядок попыток: вариантные подсказки, затем скан; дубликаты компонентов убраны. */
+        /**
+         * Порядок попыток: ЯВНАЯ компонента из candidates сканера первична
+         * (не зависит от package visibility), неявный LAUNCHER — только фолбэк;
+         * дубликаты компонентов убраны.
+         */
         fun orderedIntents(): List<Intent> {
             val seen = HashSet<String>()
             val result = ArrayList<Intent>(legacyIntents.size + discoveredIntents.size)
-            for (intent in legacyIntents + discoveredIntents) {
+            for (intent in discoveredIntents + legacyIntents) {
                 val key = "${intent.component?.flattenToShortString() ?: intent.action ?: ""}"
                 if (seen.add(key)) result.add(intent)
             }
@@ -51,14 +57,18 @@ object ScanOrchestrator {
         pkg ?: return NavigationPlan(legacyIntents, emptyList(), emptyList(), false)
         val scan = ActivityScanner.scan(context, pkg, keywords, cache, incremental)
         val discovered = buildIntents(pkg, scan.candidates)
-        if (discovered.isNotEmpty()) {
-            AppLog.i(
-                TAG,
-                "plan pkg=$pkg legacy=${legacyIntents.size} discovered=${discovered.size} " +
-                    "cache=${scan.fromCache}"
-            )
-        }
-        return NavigationPlan(legacyIntents, discovered, scan.candidates, scan.fromCache)
+        AppLog.i(
+            TAG,
+            "scan pkg=$pkg reason=${scan.reason} candidates=${scan.candidates.size} " +
+                "cache=${scan.fromCache} discovered=${discovered.size} legacy=${legacyIntents.size}"
+        )
+        return NavigationPlan(
+            legacyIntents = legacyIntents,
+            discoveredIntents = discovered,
+            candidates = scan.candidates,
+            fromCache = scan.fromCache,
+            scanReason = scan.reason
+        )
     }
 
     /** Явные интенты по найденным активностям (внешние приложения — NEW_TASK обязателен). */

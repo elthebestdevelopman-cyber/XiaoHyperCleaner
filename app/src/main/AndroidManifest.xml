@@ -67,6 +67,8 @@
         <package android:name="com.xiaomi.market" />
         <package android:name="com.miui.market" />
         <package android:name="com.mi.global.market" />
+        <!-- GetApps: фактический пакет магазина на Global (был невидим без queries) -->
+        <package android:name="com.xiaomi.mipicks" />
 
         <!-- Утилиты: Загрузки, Проводник, ShareMe -->
         <package android:name="com.android.providers.downloads.ui" />
@@ -84,14 +86,35 @@
         <package android:name="com.mi.global.home" />
         <package android:name="com.miui.personalassistant" />
         <package android:name="com.mi.android.global.personalassistant" />
+        <!-- App Vault Global: фактический пакет ленты виджетов -->
+        <package android:name="com.mi.android.globalminusscreen" />
 
         <!-- Сообщения и игровые центры -->
         <package android:name="com.miui.mms" />
         <package android:name="com.android.mms" />
         <package android:name="com.miui.mms.global" />
+        <!-- Google Messages: видим для диагностики (шаг messages_sys остаётся
+             пропущенным: настраивается экран Xiaomi Messages) -->
+        <package android:name="com.google.android.apps.messaging" />
         <package android:name="com.xiaomi.gamecenter" />
         <package android:name="com.miui.gamecenter" />
         <package android:name="com.xiaomi.glgm" />
+
+        <!-- Автономное перечисление: все приложения с launcher-активностью
+             видны без хардкода имён (Android 11+ package visibility) -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+
+        <!-- Экраны, которые открывает раннер -->
+        <intent>
+            <action android:name="android.settings.APP_NOTIFICATION_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.APPLICATION_DETAILS_SETTINGS" />
+            <data android:scheme="package" />
+        </intent>
 
         <!-- Магазины приложений (для установки Shizuku) -->
         <intent>

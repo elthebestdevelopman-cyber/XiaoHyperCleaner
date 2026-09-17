@@ -191,6 +191,15 @@ class AdbEnablerService : AccessibilityService() {
         super.onServiceConnected()
         instance = this
         AppLog.i(TAG, "Service connected")
+        // Диагностика восприятия: флаги сервиса и доступность окон (P0-слепота).
+        val info = serviceInfo
+        AppLog.i(
+            TAG,
+            "perception: flags=${info?.flags ?: -1} eventTypes=${info?.eventTypes ?: -1} " +
+                "capabilities(windows=${info?.canRetrieveWindowContent ?: false}) " +
+                "windows=${runCatching { windows.size }.getOrDefault(-1)} " +
+                "root=${rootInActiveWindow != null}"
+        )
         ChainFlags.waitingAccessibilityReturn = true
     }
 
@@ -271,6 +280,15 @@ class AdbEnablerService : AccessibilityService() {
             val profile = RomProfile.detect(this)
             StepDiagnostics.stepStart(step.id, index, total, null, profile)
             AppLog.i(TAG, "runSimpleStep: starting step ${index + 1}/$total (${step.id})")
+            // Причина «слепоты»: окна/корень фиксируем ДО навигации (P0-диагностика).
+            val windowsSize = runCatching { windows.size }.getOrDefault(-1)
+            val root = rootInActiveWindow
+            StepDiagnostics.note(
+                step.id,
+                "PERCEPTION",
+                "windows=$windowsSize root=${root != null} pkg=${root?.packageName ?: "-"}"
+            )
+            recycleNode(root)
 
             OverlayController.updateAutomation(this, index + 1, total, step.titleRu)
             OverlayController.updateStatus(

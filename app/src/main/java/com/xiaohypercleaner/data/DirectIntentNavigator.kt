@@ -205,14 +205,13 @@ object DirectIntentNavigator {
             }
 
             "messages_sys" -> {
-                // Сообщения — персонализация
+                // Сообщения — персонализация. Хардкод-фолбэка на com.miui.mms нет:
+                // целевой пакет приходит из requiredPackages/каталога (resolvedPackage).
                 val pkg = resolvedPackage ?: "com.android.mms"
                 intents.addAll(
                     listOf(
                         launchIntent(pkg),
-                        launchIntent("com.android.mms"),
-                        launchIntent("com.miui.mms"),
-                        launchIntent("com.miui.mms.global")
+                        launchIntent("com.android.mms")
                     )
                 )
             }
@@ -267,11 +266,12 @@ object DirectIntentNavigator {
             }
 
             "getapps" -> {
-                // GetApps — рекомендации
+                // GetApps — рекомендации (mipicks = фактический пакет магазина на Global)
                 val pkg = resolvedPackage ?: "com.xiaomi.market"
                 intents.addAll(
                     listOf(
                         launchIntent(pkg),
+                        launchIntent("com.xiaomi.mipicks"),
                         launchIntent("com.xiaomi.market"),
                         launchIntent("com.miui.market"),
                         launchIntent("com.mi.global.market")
@@ -322,11 +322,12 @@ object DirectIntentNavigator {
             // ═══════════════════════════════════════════════════════════
 
             "appvault_services", "appvault_about" -> {
-                // Лента виджетов — предложения / услуги
+                // Лента виджетов — предложения / услуги (globalminusscreen = Global пакет)
                 val pkg = resolvedPackage ?: "com.miui.personalassistant"
                 intents.addAll(
                     listOf(
                         launchIntent(pkg),
+                        launchIntent("com.mi.android.globalminusscreen"),
                         launchIntent("com.miui.personalassistant"),
                         launchIntent("com.mi.android.global.personalassistant"),
                         launchIntent("com.android.personalassistant")
@@ -371,6 +372,7 @@ object DirectIntentNavigator {
                 intents.addAll(
                     listOf(
                         notificationsIntent(pkg),
+                        notificationsIntent("com.mi.android.globalminusscreen"),
                         notificationsIntent("com.miui.personalassistant"),
                         notificationsIntent("com.mi.android.global.personalassistant"),
                         appDetailsIntent(pkg)
@@ -392,11 +394,12 @@ object DirectIntentNavigator {
             }
 
             "notif_getapps" -> {
-                // Уведомления GetApps
+                // Уведомления GetApps (mipicks = фактический пакет на Global)
                 val pkg = resolvedPackage ?: "com.xiaomi.market"
                 intents.addAll(
                     listOf(
                         notificationsIntent(pkg),
+                        notificationsIntent("com.xiaomi.mipicks"),
                         notificationsIntent("com.xiaomi.market"),
                         notificationsIntent("com.miui.market"),
                         notificationsIntent("com.mi.global.market"),

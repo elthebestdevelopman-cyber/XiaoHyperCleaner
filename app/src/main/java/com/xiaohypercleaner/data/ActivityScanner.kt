@@ -1,6 +1,7 @@
 package com.xiaohypercleaner.data
 
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.pm.PackageInfoCompat
@@ -46,7 +47,9 @@ object ActivityScanner {
         val packageName: String,
         val candidates: List<ActivityCandidate>,
         val cacheKey: String,
-        val fromCache: Boolean
+        val fromCache: Boolean,
+        /** Причина результата: ok | cache | package_invisible | no_exported_activity. */
+        val reason: String = "ok"
     ) {
         val isEmpty: Boolean get() = candidates.isEmpty()
     }
@@ -110,8 +113,18 @@ object ActivityScanner {
             val parsed = cached?.takeIf { it.isNotBlank() }?.let { fromJson(it) }
             if (parsed != null) {
                 AppLog.i(TAG, "cache hit pkg=$pkg key=$key candidates=${parsed.size}")
-                return ScanResult(pkg, parsed, key, fromCache = true)
+                return ScanResult(pkg, parsed, key, fromCache = true, reason = "cache")
             }
+        }
+
+        // Причина нуля различима: пакет невидим (package visibility) ≠ нет компонент.
+        if (!isPackageVisible(context, pkg)) {
+            AppLog.w(
+                TAG,
+                "scan pkg=$pkg key=$key reason=package_invisible candidates=0 — " +
+                    "пакет не виден (нужен <package>/<queries> или launcher-активность)"
+            )
+            return ScanResult(pkg, emptyList(), key, fromCache = false, reason = "package_invisible")
         }
 
         val candidates = runCatching { scanActivities(context, pkg, keywords) }
@@ -119,15 +132,35 @@ object ActivityScanner {
                 AppLog.w(TAG, "scan failed pkg=$pkg: ${e.message}")
                 emptyList()
             }
+        val reason = if (candidates.isEmpty()) "no_exported_activity" else "ok"
         AppLog.i(
             TAG,
-            "cache miss pkg=$pkg key=$key candidates=${candidates.size} " +
+            "scan pkg=$pkg key=$key reason=$reason candidates=${candidates.size} " +
                 "top=${candidates.firstOrNull()?.className ?: "-"}"
         )
         if (cache != null && candidates.isNotEmpty()) {
             runCatching { cache.saveActivityCache(key, toJson(candidates)) }
         }
-        return ScanResult(pkg, candidates, key, fromCache = false)
+        return ScanResult(pkg, candidates, key, fromCache = false, reason = reason)
+    }
+
+    /**
+     * Видимость пакета (Android 11+ package visibility): прямой запрос, иначе —
+     * наличие launcher-активности в видимом множестве. Голый getPackageInfo по
+     * хардкод-имени даёт ложное «не установлен».
+     */
+    fun isPackageVisible(context: Context, pkg: String): Boolean {
+        val direct = runCatching {
+            context.packageManager.getPackageInfo(pkg, 0); true
+        }.getOrDefault(false)
+        if (direct) return true
+        val launcherVisible = runCatching {
+            context.packageManager.queryIntentActivities(launcherIntent(pkg), 0).isNotEmpty()
+        }.getOrDefault(false)
+        if (launcherVisible) {
+            AppLog.d(TAG, "package $pkg visible via launcher-intent query")
+        }
+        return launcherVisible
     }
 
     /** Сериализация кандидатов в кэш (schema-версия обязательна). */
@@ -156,9 +189,38 @@ object ActivityScanner {
         }
     }.getOrNull()
 
+    /** Неявный launcher-интент по пакету (класс заранее неизвестен). */
+    private fun launcherIntent(pkg: String): Intent =
+        Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(pkg)
+
+    /**
+     * Launcher-активности пакета из видимого множества. Фолбэк, когда
+     * GET_ACTIVITIES фильтруется package visibility: entry point приложения
+     * всё равно даёт явную компоненту для запуска.
+     */
+    private fun launcherActivities(
+        context: Context,
+        pkg: String,
+        keywords: List<String>
+    ): List<ActivityCandidate> {
+        val resolved = runCatching {
+            context.packageManager.queryIntentActivities(launcherIntent(pkg), 0)
+        }.getOrNull().orEmpty()
+        return resolved.mapNotNull { info ->
+            val activity = info.activityInfo ?: return@mapNotNull null
+            val className = activity.name ?: return@mapNotNull null
+            if (activity.packageName != pkg) return@mapNotNull null
+            val label = runCatching { activity.loadLabel(context.packageManager).toString() }
+                .getOrNull().orEmpty()
+            val score = scoreCandidate(className, label, keywords)
+            ActivityCandidate(className, label, if (score > 0) score else 1)
+        }
+    }
+
     /**
      * Запрос экспортируемых активностей пакета и скоринг по keywords.
-     * Package visibility обеспечена `<queries>` в манифесте.
+     * Package visibility обеспечена `<queries>` в манифесте; при пустом
+     * результате — фолбэк на launcher-активности видимого множества.
      */
     private fun scanActivities(
         context: Context,
@@ -177,6 +239,15 @@ object ActivityScanner {
                 .getOrNull().orEmpty()
             val score = scoreCandidate(className, label, keywords)
             if (score > 0) result.add(ActivityCandidate(className, label, score))
+        }
+        if (result.isEmpty()) {
+            val launcher = launcherActivities(context, pkg, keywords)
+            if (launcher.isNotEmpty()) {
+                AppLog.i(TAG, "scan pkg=$pkg launcher-fallback candidates=${launcher.size}")
+            }
+            return launcher
+                .sortedWith(compareByDescending<ActivityCandidate> { it.score }.thenBy { it.className })
+                .take(MAX_CANDIDATES)
         }
         return result
             .sortedWith(compareByDescending<ActivityCandidate> { it.score }.thenBy { it.className })
