@@ -110,8 +110,9 @@
       "uiSteps": {
         "msa": {
           "replaceDrillPath": true,
-          "drillPath": [["Конфиденциальность", "Privacy"], ["Реклама", "Ads"]],
-          "searchTexts": ["Персонализация рекламы", "Ads personalization", "MSA", "msa", "Рекламные службы"]
+          "skipDrill": true,
+          "drillPath": [],
+          "searchTexts": ["Разрешения", "Разрешения приложений", "Доступ к личным данным", "Authorization & revocation", "Access to personal data"]
         },
         "ads_personalization": {
           "replaceDrillPath": true,

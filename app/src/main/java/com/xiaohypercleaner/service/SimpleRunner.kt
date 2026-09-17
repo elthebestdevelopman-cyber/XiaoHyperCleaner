@@ -108,7 +108,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
         private const val APP_LAUNCH_DELAY_MS = 2000L
         private const val CONTENT_WAIT_MS = 2500L
         private const val CONFIRM_RETRY_MS = 2500L
-        private const val SWITCH_FALLBACK_SCROLLS = 3
+        private const val SWITCH_FALLBACK_SCROLLS = 4
+
+    /** Scroll-until-found для уровней drill: до 4 прокруток на уровень. */
+    private const val DRILL_SCROLL_TRIES = 4
         private const val FRESH_DEVICE_DISMISS_LIMIT = 3
 
         /** Гейт оверлея: ожидание восстановления окна (Аддендум A4). */
@@ -320,7 +323,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val verifyTexts = searchTextsFor(step)
         // Для шагов-приложений целевой экран достигается бурением, поэтому
         // проверка на этапе интента не нужна (иначе Settings-фолбэк уводит из приложения).
-        val isAppStep = step.launchPackage != null
+        // CLEAR_DATA_DECLINE идёт в App Info (APPLICATION_DETAILS_SETTINGS), а не в
+        // приложение: discovery-скан приложения здесь запрещён (он открывал главный экран).
+        val isAppStep = step.launchPackage != null &&
+            step.actionType != SimpleSteps.ActionType.CLEAR_DATA_DECLINE
         // Discovery: явная компонента из candidates первична, неявный LAUNCHER — фолбэк.
         val plan = ScanOrchestrator.planNavigation(
             context = service,
@@ -385,11 +391,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Единая точка входа для системных диалогов (welcome/permission, Аддендум B)
         handleConsentWalls(step)
 
-        // Навигация по маршруту: вариантный путь + fallbackDrillPath-подсказки каталога
-        val mergedDrillPath = semanticDrillPath(
-            step,
-            AdaptiveCatalog.mergeDrillPath(service, step.id, step.drillPath)
-        )
+        // Навигация по маршруту: вариантный путь + fallbackDrillPath-подсказки каталога.
+        // skipDrill каталога означает «интент уже открыл целевой экран» — бурение не нужно.
+        val mergedDrillPath = if (AdaptiveCatalog.isDrillSkipped(service, step.id)) {
+            AppLog.i(TAG, "drill skipped by catalog flag id=${step.id}")
+            emptyList()
+        } else {
+            semanticDrillPath(
+                step,
+                AdaptiveCatalog.mergeDrillPath(service, step.id, step.drillPath)
+            )
+        }
         if (mergedDrillPath.isNotEmpty()) {
             if (step.preDrillWaitMs > 0) delay(step.preDrillWaitMs)
             for ((levelIndex, levelTexts) in mergedDrillPath.withIndex()) {
@@ -450,16 +462,39 @@ class SimpleRunner(private val service: AdbEnablerService) {
             "Очистить хранилище", "Clear storage"
         )
         val genericClear = listOf("Очистить", "Clear")
-        val clearNode = findClickableByText(root, specificClear)
+        var clearNode = findClickableByText(root, specificClear)
             ?: findClickableByText(root, genericClear)
+
+        // MIUI: на странице «О приложении» кнопок очистки может не быть — они
+        // скрыты за пунктом «Память» (id am_storage_view на дампе прогона).
         if (clearNode == null) {
             recycleNode(root)
+            val storageNode = findClickableByText(
+                texts = listOf("Память", "Storage", "Хранилище", "Очистить")
+            )
+            if (storageNode != null) {
+                val tappedStorage = tapNode(storageNode)
+                recycleNode(storageNode)
+                AppLog.i(TAG, "CLEAR_DATA: кнопка очистки не найдена, открываю «Память» ($tappedStorage)")
+                if (tappedStorage) {
+                    delay(UI_SETTLE_DELAY_MS)
+                    val inner = service.rootInActiveWindow
+                    if (inner != null) {
+                        clearNode = findClickableByText(inner, specificClear)
+                            ?: findClickableByText(inner, genericClear)
+                        recycleNode(inner)
+                    }
+                }
+            }
+        } else {
+            recycleNode(root)
+        }
+        if (clearNode == null) {
             AppLog.w(TAG, "CLEAR_DATA: кнопка очистки не найдена (${step.id})")
             return Result(false, "clear_button_not_found")
         }
         val tappedClear = tapNode(clearNode)
         recycleNode(clearNode)
-        recycleNode(root)
         if (!tappedClear) return Result(false, "clear_button_tap_failed")
         delay(UI_SETTLE_DELAY_MS)
 
@@ -543,7 +578,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val isGearLevel = levelTexts.any { it in listOf("⚙", "⚙️", "⋮") }
         if (isGearLevel && findAndTapOverflow(levelTexts)) return true
 
-        val node = findClickableByTextWithScroll(levelTexts)
+        val node = findClickableByTextWithScroll(
+            levelTexts,
+            attempts = DRILL_SCROLL_TRIES,
+            logLabel = levelTexts.firstOrNull()
+        )
         if (node == null) {
             AppLog.w(
                 TAG,
@@ -576,8 +615,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Fallback: скролл (ИСПРАВЛЕНО: не ресайклим root, если нашли ноду, чтобы избежать IllegalStateException)
         if (switchNode == null && mergedSearchTexts.isNotEmpty()) {
             recycleNode(currentRoot)
-            repeat(SWITCH_FALLBACK_SCROLLS) {
+            repeat(SWITCH_FALLBACK_SCROLLS) { attempt ->
                 if (cancelled) return Result(false, "cancelled")
+                AppLog.i(
+                    TAG,
+                    "switch: scroll attempt ${attempt + 1}/$SWITCH_FALLBACK_SCROLLS " +
+                        "for '${mergedSearchTexts.firstOrNull()}'"
+                )
                 val r = service.rootInActiveWindow ?: return Result(false, "no_root_window")
                 val scrollable = findScrollableContainer(r)
                 if (scrollable == null) {
@@ -983,13 +1027,20 @@ class SimpleRunner(private val service: AdbEnablerService) {
             ?.let { clickableAncestorOrSelf(it) }
     }
 
-    private suspend fun findClickableByTextWithScroll(texts: List<String>): AccessibilityNodeInfo? {
-        repeat(SWITCH_FALLBACK_SCROLLS) {
+    private suspend fun findClickableByTextWithScroll(
+        texts: List<String>,
+        attempts: Int = SWITCH_FALLBACK_SCROLLS,
+        logLabel: String? = null
+    ): AccessibilityNodeInfo? {
+        repeat(attempts) { attempt ->
             findClickableByText(texts = texts)?.let { return it }
             val root = service.rootInActiveWindow ?: return null
             val scrollable = findScrollableContainer(root)
             if (scrollable == null) {
                 recycleNode(root); return null
+            }
+            if (logLabel != null) {
+                AppLog.i(TAG, "drill: scroll attempt ${attempt + 1}/$attempts for '$logLabel'")
             }
             if (!scrollable.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)) swipeUp()
             recycleNode(scrollable); recycleNode(root)

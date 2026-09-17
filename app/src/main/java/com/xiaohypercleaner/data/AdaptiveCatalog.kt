@@ -139,6 +139,15 @@ object AdaptiveCatalog {
     private fun isReplaceDrillPath(stepId: String): Boolean =
         variantStepObj("uiSteps", stepId)?.optBoolean("replaceDrillPath", false) ?: false
 
+    /**
+     * Флаг skipDrill: интент открывает целевой экран напрямую, бурение не нужно
+     * (например, msa через APP_PERM_EDITOR открывает экран разрешений сразу).
+     */
+    fun isDrillSkipped(context: Context, stepId: String): Boolean {
+        ensureLoaded(context)
+        return variantStepObj("uiSteps", stepId)?.optBoolean("skipDrill", false) ?: false
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // Загрузка каталога
     // ═══════════════════════════════════════════════════════════════

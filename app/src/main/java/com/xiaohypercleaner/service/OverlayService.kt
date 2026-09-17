@@ -8,6 +8,7 @@ import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.drawable.Animatable
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -74,6 +75,17 @@ class OverlayService : Service() {
     private val animators = mutableListOf<ObjectAnimator>()
     private val handler = Handler(Looper.getMainLooper())
 
+    /** Окно добавлено через AccessibilityService (TYPE_ACCESSIBILITY_OVERLAY). */
+    private var addedViaAccService = false
+
+    /** Ожидаемая геометрия оверлея (полный размер дисплея, включая системные панели). */
+    private var expectedWidth = 0
+    private var expectedHeight = 0
+
+    /** Логи-однократники: не спамим при каждой проверке heartbeat. */
+    private var geometryMismatchLogged = false
+    private var zOrderBelowLogged = false
+
     private val heartbeatHandler = Handler(Looper.getMainLooper())
     private var heartbeatRunnable: Runnable? = null
 
@@ -95,12 +107,32 @@ class OverlayService : Service() {
         override fun onVisibilityChanged(changedView: View, visibility: Int) {
             super.onVisibilityChanged(changedView, visibility)
             AppLog.i(TAG, "overlay: visibility changed to $visibility ts=${System.currentTimeMillis()}")
+            if (visibility != View.VISIBLE) restoreIfIllegal("viewVisibility=$visibility")
         }
 
         override fun onWindowVisibilityChanged(visibility: Int) {
             super.onWindowVisibilityChanged(visibility)
             AppLog.i(TAG, "overlay: windowVisibility=$visibility ts=${System.currentTimeMillis()}")
             OverlayController.markVisible(visibility == View.VISIBLE && isAttachedToWindow)
+            if (visibility != View.VISIBLE) restoreIfIllegal("windowVisibility=$visibility")
+        }
+
+        /**
+         * В защищённой фазе (STEPS) окно не имеет права становиться невидимым:
+         * любое скрытие, кроме user cancel/close, логируется как illegal и откатывается.
+         */
+        private fun restoreIfIllegal(reason: String) {
+            if (!OverlayController.phaseRunning || expectingDetach) return
+            AppLog.e(TAG, "overlay: illegal $reason during phase — restoring")
+            handler.post {
+                val v = root ?: return@post
+                if (v.visibility != View.VISIBLE) v.visibility = View.VISIBLE
+                val p = layoutParams ?: return@post
+                try { wm?.updateViewLayout(v, p) } catch (e: Exception) {
+                    AppLog.w(TAG, "overlay: restore update failed: ${e.message}")
+                }
+                OverlayController.markVisible(true)
+            }
         }
     }
 
@@ -309,6 +341,9 @@ class OverlayService : Service() {
                 if (v == null) { AppLog.w(TAG, "overlay: heartbeat recovered reason=root-null"); return }
                 val attached = v.isAttachedToWindow
                 val visible = attached && v.windowVisibility == View.VISIBLE && v.getGlobalVisibleRect(Rect())
+                if (visible) verifyGeometry(v)
+                // Реальная отрисовка: сверяем z-order нашего окна с фоновым приложением.
+                checkZOrder()
                 OverlayController.markVisible(visible)
                 if (visible && heartbeatTicks % HEARTBEAT_ALIVE_LOG_EVERY == 0) {
                     val rect = Rect().also { v.getGlobalVisibleRect(it) }
@@ -327,8 +362,7 @@ class OverlayService : Service() {
                     AppLog.w(TAG, "overlay: heartbeat recovered reason=$reason")
                     val params = layoutParams
                     if (params != null && !attached) {
-                        try { wm?.addView(v, params); AppLog.i(TAG, "overlay: heartbeat re-added after $reason") }
-                        catch (e: Exception) { AppLog.w(TAG, "overlay: heartbeat re-add failed: ${e.message}") }
+                        reAddView(v, params, "heartbeat")
                     } else if (params != null) {
                         try { wm?.updateViewLayout(v, params); AppLog.i(TAG, "overlay: heartbeat updateViewLayout after $reason") }
                         catch (e: Exception) { AppLog.w(TAG, "overlay: heartbeat update failed: ${e.message}") }
@@ -400,26 +434,55 @@ class OverlayService : Service() {
     }
 
     private fun addRoot(touchable: Boolean, fullScreen: Boolean): FrameLayout {
-        val v = OverlayRootView(this)
+        val v = OverlayRootView(this).apply {
+            // Панели не прячем — окно их перекрывает целиком.
+            fitsSystemWindows = false
+            isFocusable = false
+        }
         var flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         if (!touchable) flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         if (touchable) flags = flags or WindowManager.LayoutParams.FLAG_DIM_BEHIND
+
+        // Тип окна: из AccessibilityService — TYPE_ACCESSIBILITY_OVERLAY (выше фонового
+        // приложения). Fallback без сервиса — TYPE_APPLICATION_OVERLAY (token=null),
+        // поэтому дополнительно SHORT_EDGES, чтобы окно шло под вырез экрана.
+        val accService = AdbEnablerService.instance
+        val windowType = if (accService != null) {
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+        } else {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        }
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             if (fullScreen) WindowManager.LayoutParams.MATCH_PARENT else WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            windowType,
             flags, PixelFormat.TRANSLUCENT
         ).apply {
             if (touchable) dimAmount = 0.12f
             if (!fullScreen) gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            layoutInDisplayCutoutMode = WindowManager.LayoutParams
+                .LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
-        wm?.addView(v, params)
+
+        addedViaAccService = accService?.attachOverlay(v, params) == true
+        if (!addedViaAccService) wm?.addView(v, params)
+
+        updateExpectedGeometry()
         root = v
         layoutParams = params
         isBlocking = touchable
         expectingDetach = false
+        geometryMismatchLogged = false
+        zOrderBelowLogged = false
+
+        AppLog.i(
+            TAG,
+            "overlay: add type=${windowTypeName(windowType)} token=${params.token != null} " +
+                "flags=0x${Integer.toHexString(params.flags)} viaAcc=$addedViaAccService " +
+                "expected=${expectedWidth}x${expectedHeight}"
+        )
 
         // Логируем все смены attach/detach
         v.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
@@ -432,24 +495,109 @@ class OverlayService : Service() {
                 OverlayController.markDetached()
                 AppLog.i(TAG, "overlay: viewDetachedFromWindow ts=${System.currentTimeMillis()}")
                 if (expectingDetach) return
+                // Вне защищённой фазы (например, DONE после showResult) re-add не нужен.
+                if (!OverlayController.phaseRunning) {
+                    AppLog.i(TAG, "overlay: detach ignored (phase not running, no re-add)")
+                    return
+                }
                 AppLog.w(TAG, "overlay detached unexpectedly, re-adding via watchdog")
                 handler.postDelayed({
                     if (root == v && !OverlayController.isAttached && !expectingDetach) {
-                        try { wm?.addView(v, params); AppLog.i(TAG, "watchdog: overlay re-added") }
-                        catch (e: Exception) { AppLog.w(TAG, "watchdog re-add failed: ${e.message}") }
+                        reAddView(v, params, "watchdog")
                     }
                 }, 100)
             }
         })
 
-        // Touch-лог
+        // Тапы поглощаем по всей площади, включая системные панели: пользовательские
+        // Back/Home не должны прерывать автоматизацию.
         if (touchable) {
             v.setOnTouchListener { _, event ->
                 AppLog.d(TAG, "touch intercepted: x=${event.x}, y=${event.y}")
-                false
+                true
             }
         }
         return v
+    }
+
+    /** Тип окна для лога. */
+    private fun windowTypeName(type: Int): String = when (type) {
+        WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY -> "ACCESSIBILITY_OVERLAY"
+        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY -> "APPLICATION_OVERLAY"
+        else -> "type=$type"
+    }
+
+    /** Полный размер дисплея (с системными панелями) — эталон геометрии оверлея. */
+    private fun updateExpectedGeometry() {
+        val bounds = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                wm?.currentWindowMetrics?.bounds
+            } else {
+                null
+            }
+        }.getOrNull()
+        if (bounds != null && !bounds.isEmpty) {
+            expectedWidth = bounds.width()
+            expectedHeight = bounds.height()
+            return
+        }
+        val dm = resources.displayMetrics
+        expectedWidth = dm.widthPixels
+        expectedHeight = dm.heightPixels
+    }
+
+    /** Сверяет фактический rect оверлея с ожидаемым; расхождение — в лог. */
+    private fun verifyGeometry(view: View): Boolean {
+        val rect = Rect().also { view.getGlobalVisibleRect(it) }
+        val ok = rect.width() >= expectedWidth && rect.height() >= expectedHeight
+        if (!ok && !geometryMismatchLogged) {
+            geometryMismatchLogged = true
+            AppLog.w(
+                TAG,
+                "overlay: geometry mismatch rect=${rect.width()}x${rect.height()} " +
+                    "expected=${expectedWidth}x${expectedHeight}"
+            )
+        }
+        return ok
+    }
+
+    /** Добавляет окно тем же путём, что и [addRoot] (AccessibilityService или WM). */
+    private fun reAddView(view: View, params: WindowManager.LayoutParams, caller: String): Boolean {
+        val acc = AdbEnablerService.instance
+        if (acc != null) {
+            addedViaAccService = acc.attachOverlay(view, params)
+            if (addedViaAccService) {
+                AppLog.i(TAG, "$caller: overlay re-added via acc service")
+                return true
+            }
+        }
+        return try {
+            wm?.addView(view, params)
+            addedViaAccService = false
+            AppLog.i(TAG, "$caller: overlay re-added via window manager")
+            true
+        } catch (e: Exception) {
+            AppLog.w(TAG, "$caller re-add failed: ${e.message}")
+            false
+        }
+    }
+
+    /** Проверка z-order: наш слой против слоя фонового app-окна. */
+    private fun checkZOrder() {
+        val state = AdbEnablerService.instance?.overlayLayerState() ?: return
+        val (ourLayer, fgPkg, fgLayer) = state
+        val below = ourLayer < fgLayer
+        if (below) {
+            if (!zOrderBelowLogged) {
+                zOrderBelowLogged = true
+                AppLog.w(TAG, "overlay: zorder-below fg=$fgPkg ourLayer=$ourLayer fgLayer=$fgLayer")
+            }
+            OverlayController.markVisible(false)
+        } else if (zOrderBelowLogged) {
+            zOrderBelowLogged = false
+            AppLog.i(TAG, "overlay: zorder restored ourLayer=$ourLayer fgLayer=$fgLayer")
+            OverlayController.markVisible(true)
+        }
     }
 
     private fun washWobble(view: View) {
@@ -472,7 +620,7 @@ class OverlayService : Service() {
         stopHeartbeat()
         expectingDetach = true
         animators.forEach { it.cancel() }; animators.clear()
-        root?.let { try { wm?.removeView(it) } catch (_: Exception) {} }
+        removeRootView()
         root = null
         layoutParams = null
         isBlocking = true
@@ -481,11 +629,22 @@ class OverlayService : Service() {
         AppLog.i(TAG, "overlay hidden")
     }
 
+    /** Снимает окно тем же путём, каким оно было добавлено. */
+    private fun removeRootView() {
+        val v = root ?: return
+        if (addedViaAccService && AdbEnablerService.instance?.detachOverlay(v) == true) {
+            addedViaAccService = false
+            return
+        }
+        try { wm?.removeView(v) } catch (_: Exception) {}
+        addedViaAccService = false
+    }
+
     override fun onDestroy() {
         stopHeartbeat()
         expectingDetach = true
         animators.forEach { it.cancel() }; animators.clear()
-        root?.let { try { wm?.removeView(it) } catch (_: Exception) {} }
+        removeRootView()
         root = null
         layoutParams = null
         isBlocking = true

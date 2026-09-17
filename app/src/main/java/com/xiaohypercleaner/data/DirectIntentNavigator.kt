@@ -97,11 +97,16 @@ object DirectIntentNavigator {
             // ═══════════════════════════════════════════════════════════
 
             "msa" -> {
-                // MSA — отзыв разрешения на доступ к личным данным.
-                // На MIUI Global 13 «Рекламные службы» открывает ACTION_PRIVACY_SETTINGS.
+                // MSA — отзыв доступа к личным данным (Authorization & revocation).
+                // MIUI-экран «Разрешения» приложения (APP_PERM_EDITOR) первичен:
+                // ACTION_PRIVACY_SETTINGS на Global 13 уводил на «О приложении»/Privacy.
                 val msaPkg = resolvedPackage ?: "com.miui.msa.global"
                 intents.addAll(
                     listOf(
+                        Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                            putExtra("extra_package_name", msaPkg)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        },
                         miuiIntent("miui.intent.action.AD_SERVICES_SETTINGS"),
                         settingsIntent(Settings.ACTION_PRIVACY_SETTINGS),
                         miuiIntent("miui.intent.action.PRIVACY_SETTINGS"),

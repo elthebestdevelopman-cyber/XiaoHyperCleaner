@@ -26,6 +26,9 @@ local.properties
 *.ap_
 *.dex
 *.aar
+# Артефакты variant-output (assembleDebug мог складывать APK сюда)
+app/debug/
+app/release/
 *.class
 *.so
 .cxx/

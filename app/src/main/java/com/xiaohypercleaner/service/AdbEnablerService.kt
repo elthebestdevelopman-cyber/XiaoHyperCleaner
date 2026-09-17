@@ -4,8 +4,11 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.os.Build
 import android.os.PowerManager
+import android.view.View
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.data.RomProfile
 import com.xiaohypercleaner.data.SimplePlan
@@ -202,6 +205,49 @@ class AdbEnablerService : AccessibilityService() {
         )
         ChainFlags.waitingAccessibilityReturn = true
     }
+
+    /**
+     * Окно оверлея, добавленное из AccessibilityService: только этот контекст
+     * даёт TYPE_ACCESSIBILITY_OVERLAY (окно выше фонового приложения).
+     */
+    fun attachOverlay(view: View, params: WindowManager.LayoutParams): Boolean = runCatching {
+        windowManager.addView(view, params)
+        true
+    }.getOrElse { e ->
+        AppLog.w(TAG, "attachOverlay failed: ${e.message}")
+        false
+    }
+
+    /** Снять окно оверлея, добавленное через [attachOverlay]. */
+    fun detachOverlay(view: View): Boolean = runCatching {
+        windowManager.removeView(view)
+        true
+    }.getOrElse { e ->
+        AppLog.w(TAG, "detachOverlay failed: ${e.message}")
+        false
+    }
+
+    /**
+     * Слой (z-order) нашего окна оверлея против слоя фонового app-окна.
+     * Возвращает пару (ourLayer, fgPkg, fgLayer) или null, если сравнить не с чем.
+     */
+    fun overlayLayerState(): Triple<Int, String, Int>? = runCatching {
+        val all = windows ?: return@runCatching null
+        val mine = all.firstOrNull { w ->
+            w.type == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY &&
+                w.root?.packageName?.toString() == packageName
+        } ?: all.firstOrNull { w ->
+            w.root?.packageName?.toString() == packageName
+        } ?: return@runCatching null
+        val fg = all.firstOrNull { w ->
+            w.type == AccessibilityWindowInfo.TYPE_APPLICATION &&
+                w.root?.packageName?.toString()?.let { it != packageName } == true
+        } ?: return@runCatching null
+        Triple(mine.layer, fg.root?.packageName?.toString() ?: "?", fg.layer)
+    }.getOrNull()
+
+    private val windowManager: WindowManager
+        get() = getSystemService(WINDOW_SERVICE) as WindowManager
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {

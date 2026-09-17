@@ -84,10 +84,14 @@
       },
       "screenMarkers": {
         "ru": [
+          "Разрешения",
+          "Разрешения приложений",
           "Авторизация и отзыв",
           "Доступ к личным данным"
         ],
         "en": [
+          "Permissions",
+          "App permissions",
           "Authorization & revocation",
           "Access to personal data"
         ],
@@ -152,8 +156,10 @@
       ],
       "fallbackDrillPath": [
         [
-          "Пароли и безопасность",
-          "Passwords & security"
+          "Разрешения приложений",
+          "Разрешения",
+          "App permissions",
+          "Permissions"
         ],
         [
           "Авторизация и отзыв",
@@ -1419,12 +1425,16 @@
       },
       "screenMarkers": {
         "ru": [
-          "Настройки",
-          "Информация"
+          "О приложении",
+          "Память",
+          "Уведомления",
+          "Очистить данные"
         ],
         "en": [
-          "Settings",
-          "Info"
+          "About",
+          "Storage",
+          "Notifications",
+          "Clear data"
         ],
         "es": [
           "Configuración",
