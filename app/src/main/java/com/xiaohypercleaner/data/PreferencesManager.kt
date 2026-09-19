@@ -86,6 +86,11 @@ sealed interface PreferenceKey {
 
     /** Динамический ключ кэша активностей: `act_cache_<pkg>_<versionCode>_<incremental>`. */
     data class ActivityCache(override val name: String) : PreferenceKey
+
+    /** Последний отчёт read-only обхода экранов (краулер). */
+    data object CrawlReportJson : PreferenceKey {
+        override val name = "crawl_report_json"
+    }
 }
 
 /**
@@ -113,6 +118,8 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
             stringPreferencesKey(PreferenceKey.RestoreSnapshotJson.name)
         private val DIAG_LEVEL_KEY =
             stringPreferencesKey(PreferenceKey.DiagLevelOverride.name)
+        private val CRAWL_REPORT_KEY =
+            stringPreferencesKey(PreferenceKey.CrawlReportJson.name)
 
         /** Префикс динамических ключей кэша активностей (ActivityCacheStore). */
         private const val ACTIVITY_CACHE_PREFIX = "act_cache_"
@@ -387,6 +394,21 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
             AppLog.e(TAG, "clearActivityCache($pkg) failed: ${e.message}")
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Отчёт read-only обхода экранов (ScreenCrawler)
+    // ══════════════════════════════════════════════════════════════
+
+    /** Сохраняет последний отчёт краулера (перезаписывается, кэш не растёт). */
+    suspend fun saveCrawlReport(json: String) {
+        runCatching {
+            context.dataStore.edit { prefs -> prefs[stringPreferencesKey(CRAWL_REPORT_KEY.name)] = json }
+        }.onFailure { e -> AppLog.e(TAG, "saveCrawlReport failed: ${e.message}") }
+    }
+
+    suspend fun getCrawlReport(): String? = runCatching {
+        context.dataStore.data.first()[stringPreferencesKey(CRAWL_REPORT_KEY.name)]
+    }.getOrNull()
 
     // ═══════════════════════════════════════════════════════════════
     // OptimizationMode
