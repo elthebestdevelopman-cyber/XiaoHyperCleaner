@@ -14,6 +14,7 @@ import org.mockito.Mockito
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import java.util.Locale
 
 /**
  * Обработчик системных диалогов: welcome-стены и runtime-permission запросы.
@@ -29,12 +30,23 @@ class ConsentWallTest {
     private lateinit var service: AccessibilityService
     private val tappedTexts = mutableListOf<String>()
 
+    /** Маркеры, переданные мосту как avoid-список (по ним тапать запрещено). */
+    private var avoidTexts: List<String> = emptyList()
+
     private val bridge = object : ConsentWallHandler.TapBridge {
         var tapResult = true
         override suspend fun tapByTexts(texts: List<String>): Boolean {
             if (!tapResult) return false
             tappedTexts.addAll(texts)
             return true
+        }
+
+        override suspend fun tapDialogButtonByTexts(
+            texts: List<String>,
+            avoidTexts: List<String>
+        ): Boolean {
+            this@ConsentWallTest.avoidTexts = avoidTexts
+            return tapByTexts(texts)
         }
     }
 
@@ -305,5 +317,136 @@ class ConsentWallTest {
 
         assertFalse("ничего не нажали — не сообщаем об обработке", outcome.handled)
         assertEquals("deny", outcome.decision)
+    }
+
+    /** Прогон кейса в конкретной локали (локаль каталога берётся из Locale.getDefault). */
+    private suspend fun <T> withLocale(lang: String, block: suspend () -> T): T {
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale(lang))
+            return block()
+        } finally {
+            Locale.setDefault(original)
+        }
+    }
+
+    @Test
+    fun `force stop dialog is closed by a button and its own title is avoided`() = runTest {
+        // Прогон rmu8lzcu9: «Закрыть принудительно?» считалось закрытым тапом по
+        // собственному заголовку («Закрыть» ⊂ «Закрыть принудительно?») — шаг крутился
+        // девять итераций и падал.
+        withLocale("ru") {
+            val node = screen(
+                "Закрыть принудительно? При принудительном закрытии приложения " +
+                    "его работа может нарушиться Отмена"
+            )
+            Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
+
+            val outcome = ConsentWallHandler.handleOnce(service, bridge, "filemanager")
+
+            assertTrue(outcome.handled)
+            assertEquals("dialog", outcome.kind)
+            assertEquals("dismissed", outcome.decision)
+            assertTrue(
+                "заголовок диалога передан как avoid-маркер",
+                avoidTexts.any { it.contains("Закрыть принудительно") }
+            )
+            assertTrue(
+                "по заголовку диалога не тапаем",
+                tappedTexts.none { it.contains("Закрыть принудительно") }
+            )
+        }
+    }
+
+    @Test
+    fun `force stop classification keeps the negative path`() = runTest {
+        withLocale("ru") {
+            val action = ConsentWallHandler.classify(
+                screenText = "Закрыть принудительно? Принудительное закрытие приложения Отмена",
+                ownerPackage = "android",
+                stepPackages = listOf("com.android.fileexplorer"),
+                stepId = "filemanager",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = emptyList(),
+                alertDialog = false
+            )
+            assertEquals("force_stop", action?.cause)
+            assertEquals("dismissed", action?.decision)
+            assertTrue(
+                "тексты тапа — кнопки, а не заголовок",
+                action!!.texts.none { it.contains("принудительно") }
+            )
+        }
+    }
+
+    @Test
+    fun `default app prompt is dismissed even when the dialog belongs to the app`() = runTest {
+        withLocale("ru") {
+            val action = ConsentWallHandler.classify(
+                screenText = "Установите Mi Браузер в качестве браузера по умолчанию Отмена",
+                ownerPackage = "com.miui.globalbrowser",
+                stepPackages = listOf("com.miui.globalbrowser"),
+                stepId = "browser_sys",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = emptyList(),
+                alertDialog = true
+            )
+            assertEquals("dialog", action?.kind)
+            assertEquals("default_app", action?.cause)
+            assertEquals("dismissed", action?.decision)
+        }
+    }
+
+    @Test
+    fun `app owned welcome wall is accepted instead of cancelled`() = runTest {
+        withLocale("ru") {
+            val action = ConsentWallHandler.classify(
+                screenText = "Проводник Добро пожаловать в Проводник Условия использования Согласиться",
+                ownerPackage = "com.android.fileexplorer",
+                stepPackages = listOf("com.android.fileexplorer"),
+                stepId = "filemanager",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = emptyList(),
+                alertDialog = false
+            )
+            assertEquals("welcome", action?.kind)
+            assertEquals("app_owned", action?.cause)
+            assertEquals("accepted", action?.decision)
+        }
+    }
+
+    @Test
+    fun `permission dialog owned by the app is allowed`() = runTest {
+        withLocale("ru") {
+            val action = ConsentWallHandler.classify(
+                screenText = "Разрешить приложению доступ к файлам Запрос разрешения Отклонить",
+                ownerPackage = "com.android.fileexplorer",
+                stepPackages = listOf("com.android.fileexplorer"),
+                stepId = "filemanager",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = emptyList(),
+                alertDialog = false
+            )
+            assertEquals("permission", action?.kind)
+            assertEquals("app_owned", action?.cause)
+            assertEquals("allow", action?.decision)
+        }
+    }
+
+    @Test
+    fun `unowned permission dialog is denied`() = runTest {
+        withLocale("ru") {
+            val action = ConsentWallHandler.classify(
+                screenText = "Разрешить приложению доступ к файлам Запрос разрешения",
+                ownerPackage = "com.android.permissioncontroller",
+                stepPackages = listOf("com.android.fileexplorer"),
+                stepId = "filemanager",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = emptyList(),
+                alertDialog = false
+            )
+            assertEquals("permission", action?.kind)
+            assertEquals("deny", action?.decision)
+        }
     }
 }

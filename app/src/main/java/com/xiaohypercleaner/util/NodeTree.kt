@@ -73,6 +73,26 @@ object NodeTree {
         return false
     }
 
+    /**
+     * Обходит дерево и возвращает ВСЕ узлы, подходящие под предикат (порядок —
+     * обход в глубину). Нужен там, где мало первого совпадения: кандидаты-папки
+     * рабочего стола, названия в поповере.
+     */
+    fun findAllInTree(
+        root: AccessibilityNodeInfo,
+        predicate: (AccessibilityNodeInfo) -> Boolean,
+        maxDepth: Int = DEFAULT_MAX_DEPTH
+    ): List<AccessibilityNodeInfo> {
+        val result = ArrayList<AccessibilityNodeInfo>()
+        fun walk(node: AccessibilityNodeInfo?, depth: Int) {
+            if (node == null || depth > maxDepth) return
+            if (predicate(node)) result.add(node)
+            for (i in 0 until node.childCount) walk(node.getChild(i), depth + 1)
+        }
+        walk(root, 0)
+        return result
+    }
+
     /** Ближайший кликабельный узел (сам узел или предок до 5 уровней). */
     fun clickableAncestorOrSelf(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         if (node.isClickable) return node

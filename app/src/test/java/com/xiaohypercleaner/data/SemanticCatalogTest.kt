@@ -10,6 +10,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import java.util.Locale
 
 /**
  * Семантическая таблица: пакеты-цели шагов (P0: ложные `app_not_installed`).
@@ -35,7 +36,7 @@ class SemanticCatalogTest {
 
     @Test
     fun `catalog loads all steps`() {
-        assertEquals(26, SemanticCatalog.all().size)
+        assertEquals(28, SemanticCatalog.all().size)
     }
 
     @Test
@@ -78,5 +79,63 @@ class SemanticCatalogTest {
     fun `steps without packages stay empty`() {
         assertTrue(SemanticCatalog.requiredPackages("msa").isEmpty())
         assertFalse(SemanticCatalog.keywords("msa").isEmpty())
+    }
+
+    @Test
+    fun `consent policy declares dialog markers and media overrides`() {
+        assertTrue(
+            "маркеры force-stop есть в каталоге",
+            SemanticCatalog.forceStopMarkers().any { it.contains("Force stop") }
+        )
+        assertTrue(SemanticCatalog.crashReportMarkers().isNotEmpty())
+        assertTrue(SemanticCatalog.defaultAppMarkers().isNotEmpty())
+        assertTrue(SemanticCatalog.alertMarkerTexts().isNotEmpty())
+        assertEquals("accept", SemanticCatalog.appOwnedDecision())
+        assertTrue(
+            "аудио-разрешение media-шагов исторически разрешено",
+            SemanticCatalog.shouldAllow("music_sys")
+        )
+        assertFalse(
+            "filemanager остаётся deny по умолчанию",
+            SemanticCatalog.shouldAllow("filemanager")
+        )
+    }
+
+    @Test
+    fun `folder step declares switch labels for every locale`() {
+        val original = Locale.getDefault()
+        try {
+            SemanticCatalog.LOCALES.forEach { lang ->
+                Locale.setDefault(Locale(lang))
+                assertTrue("$lang: подпись тумблера", SemanticCatalog.itemTexts("folder_recommendations").isNotEmpty())
+                assertTrue("$lang: маркеры редактора папки", SemanticCatalog.screenMarkers("folder_recommendations").isNotEmpty())
+                assertTrue("$lang: пункт «Изменить папку»", SemanticCatalog.overflowMenuLabels("folder_recommendations").isNotEmpty())
+            }
+        } finally {
+            Locale.setDefault(original)
+        }
+    }
+
+    @Test
+    fun `installer step declares the settings route for every locale`() {
+        assertEquals(
+            "пакеты установщика",
+            listOf(
+                "com.miui.packageinstaller",
+                "com.google.android.packageinstaller",
+                "com.android.packageinstaller"
+            ),
+            SemanticCatalog.requiredPackages("installer_recommendations")
+        )
+        val original = Locale.getDefault()
+        try {
+            SemanticCatalog.LOCALES.forEach { lang ->
+                Locale.setDefault(Locale(lang))
+                assertTrue("$lang: подпись тумблера", SemanticCatalog.itemTexts("installer_recommendations").isNotEmpty())
+                assertTrue("$lang: маркеры экрана настроек", SemanticCatalog.screenMarkers("installer_recommendations").isNotEmpty())
+            }
+        } finally {
+            Locale.setDefault(original)
+        }
     }
 }

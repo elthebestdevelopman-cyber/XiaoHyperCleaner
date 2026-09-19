@@ -5,26 +5,37 @@ import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.NodeTree
 import com.xiaohypercleaner.util.TextMatcher
+import kotlinx.coroutines.delay
 
 /**
  * Единая точка входа для системных диалогов вместо старого хардкода
- * (`interceptSystemDialogs`): welcome-стены и runtime-permission запросы.
+ * (`interceptSystemDialogs`): welcome-стены, runtime-permission запросы и
+ * системные alert-диалоги MIUI.
  *
  * Правила (Аддендум B):
- * - welcome-маркеры → (чекбоксы, если есть) → тап согласия → ПРОДОЛЖИТЬ шаг
- *   (≤ maxIterationsPerStep);
- * - permission-запрос → deny по умолчанию (`consentPolicy`), allow только
- *   для `allowOverrides`/медиа-шагов;
+ * - системные alert-диалоги (force-stop, отчёт о сбое, «по умолчанию») закрываются
+ *   ОТРИЦАТЕЛЬНОЙ кнопкой, тап идёт только по кнопкам: узлы-маркеры (заголовок,
+ *   сообщение) исключены. Иначе «Закрыть принудительно?» «закрывался» тапом по
+ *   собственному заголовку — шаг крутился 9 итераций (прогон rmu8lzcu9, filemanager);
+ * - диалог, которым владеет приложение шага (Проводник, Музыка, Mi Браузер), ведёт
+ *   себя как welcome-стена: `appOwnedDecision=accept`, потому что «Отмена» на нём
+ *   означает «приложение не открылось»;
+ * - permission-запрос → deny по умолчанию (`consentPolicy`), allow только для
+ *   `allowOverrides` и диалогов приложения шага;
  * - диалог-заглушка («Произошла ошибка сети» → «Понятно», «Нет, спасибо»)
  *   закрывается ВНУТРИ цикла шага;
- * - лог: `consent: kind=<welcome|permission|dismiss> decision=<...> step=<id> text='...'`.
+ * - лог: `consent: kind=<...> decision=<...> step=<id> cause=<...> pkg=<owner>
+ *   verified=<bool> text=<preview>`.
  */
 object ConsentWallHandler {
 
     private const val TAG = "consent"
 
-    /** Медиа-шаги: аудио-разрешение исторически гранилось (поведение не меняем). */
-    private val MEDIA_STEPS = setOf("music_sys", "mivideo")
+    /** Длиннее этого текста экран считается настройками, а не диалогом. */
+    private const val DIALOG_TEXT_MAX = 500
+
+    /** Пауза перед проверкой «диалог закрылся» (тап уже отправлен). */
+    private const val VERIFY_DELAY_MS = 250L
 
     /**
      * Отрицательные кнопки системных alert-диалогов. Робот закрывает диалог и
@@ -42,9 +53,15 @@ object ConsentWallHandler {
     private val GENERIC_CONFIRM_TEXTS =
         setOf("ok", "ок", "oк", "yes", "да", "aceptar", "确定", "ठीक है", "oke")
 
-    data class Outcome(val handled: Boolean, val kind: String, val decision: String)
+    data class Outcome(
+        val handled: Boolean,
+        val kind: String,
+        val decision: String,
+        /** Тап отправлен, и экран изменился (false — тап не дал эффекта). */
+        val verified: Boolean = true
+    )
 
-    /** Мост нажатий: реализует SimpleRunner (поиск кликабельного узла по текстам). */
+    /** Мост нажатий: реализует SimpleRunner (поиск узла по текстам). */
     interface TapBridge {
         suspend fun tapByTexts(texts: List<String>): Boolean
 
@@ -54,11 +71,38 @@ object ConsentWallHandler {
          * По умолчанию — обычный тап (обратная совместимость).
          */
         suspend fun tapEnabledByTexts(texts: List<String>): Boolean = tapByTexts(texts)
+
+        /**
+         * Тап по КНОПКЕ диалога: узлы, чей текст совпал с [avoidTexts] (заголовок
+         * или сообщение диалога), не нажимаются.
+         */
+        suspend fun tapDialogButtonByTexts(
+            texts: List<String>,
+            avoidTexts: List<String>
+        ): Boolean = tapByTexts(texts)
+
+        /** То же, но кнопка должна быть enabled (стены с чекбоксами/отсчётом). */
+        suspend fun tapEnabledDialogButtonByTexts(
+            texts: List<String>,
+            avoidTexts: List<String>
+        ): Boolean = tapEnabledByTexts(texts)
     }
+
+    /** Разобранный диалог: что это и каким действием он закрывается. */
+    internal data class DialogAction(
+        val kind: String,
+        val decision: String,
+        val cause: String,
+        val texts: List<String>,
+        val markers: List<String>
+    )
 
     /**
      * Обрабатывает диалог, если он на экране. Вызывается в начале шага
      * и после каждого навигационного действия.
+     *
+     * @param stepPackages пакеты-цели шага: диалог с таким владельцем считается
+     *   диалогом приложения шага (согласие), а не системной стеной
      */
     suspend fun handleOnce(
         service: AccessibilityService,
@@ -66,69 +110,189 @@ object ConsentWallHandler {
         stepId: String,
         stepConsentTexts: List<String> = emptyList(),
         stepConfirmTexts: List<String> = emptyList(),
+        stepPackages: List<String> = emptyList(),
         isCancelled: () -> Boolean = { false }
     ): Outcome {
         if (isCancelled()) return Outcome(false, "none", "cancelled")
         val root = service.rootInActiveWindow ?: return Outcome(false, "none", "no_window")
+        val owner = root.packageName?.toString()
         val screenText = NodeTree.collectText(root)
-
-        // 1. Системный alert-диалог (crash-report MIUI, «Установить по умолчанию»,
-        //    «Закрыть принудительно?»): закрываем ОТРИЦАТЕЛЬНОЙ кнопкой и продолжаем
-        //    шаг. Без этого шаги падали на диалоге (прогон rmu8lzcu9: browser_sys,
-        //    notif_getapps, filemanager). Диалог, которым владеет шаг, не трогаем.
         val alertDialog = isAlertDialog(root)
         recycle(root)
-        if (alertDialog && !ownsDialog(screenText, stepConfirmTexts)) {
-            val tapped = bridge.tapByTexts(ALERT_NEGATIVE_TEXTS)
-            log(stepId, "dialog", if (tapped) "dismissed" else "not_found", screenText)
-            if (tapped) return Outcome(true, "dialog", "dismissed")
-        }
 
-        val welcomeMarkers = SemanticCatalog.welcomeMarkers()
-        val permissionMarkers = SemanticCatalog.permissionMarkers()
+        val action = classify(
+            screenText = screenText,
+            ownerPackage = owner,
+            stepPackages = stepPackages,
+            stepId = stepId,
+            stepConfirmTexts = stepConfirmTexts,
+            stepConsentTexts = stepConsentTexts,
+            alertDialog = alertDialog
+        ) ?: return Outcome(false, "none", "no_dialog")
 
-        // 2. Диалог-заглушка внутри шага («Произошла ошибка сети» → «Понятно»,
-        //    «Нет, спасибо» после выключения Карусели) — закрываем и продолжаем шаг.
-        val dismissTexts = SemanticCatalog.dismissTexts()
-        if (dismissTexts.isNotEmpty() && dismissDialogVisible(screenText, dismissTexts)) {
-            val tapped = bridge.tapByTexts(dismissTexts)
-            log(stepId, "dismiss", if (tapped) "closed" else "not_found", screenText)
-            if (tapped) return Outcome(true, "dismiss", "closed")
-        }
-
-        // 3. Welcome-стена: только если экран НЕ совпал с маркерами цели шага —
-        //    иначе ссылка «Условия использования» внутри настроек карусели принималась
-        //    за стену и шаг тапал согласие на своём же экране (прогон rmu8lzcu9).
-        val stepMarkers = SemanticCatalog.screenMarkers(stepId)
-        val onTargetScreen = stepMarkers.isNotEmpty() &&
-            stepMarkers.any { TextMatcher.normalizedContains(screenText, it) }
-        if (!onTargetScreen &&
-            welcomeMarkers.isNotEmpty() &&
-            welcomeMarkers.any { TextMatcher.normalizedContains(screenText, it) }
-        ) {
-            val actions = (stepConsentTexts + SemanticCatalog.welcomeActions()).distinct()
-            // Стена с чекбоксами: сначала отмечаем «Выбрать все»/обязательные пункты,
-            // затем жмём кнопку (до отметки она неактивна).
+        if (action.kind == "welcome") {
+            // Стена с чекбоксами: сначала отмечаем «Выбрать все»/обязательные
+            // пункты, затем жмём кнопку (до отметки она неактивна).
             val checkboxTexts = SemanticCatalog.checkboxTexts()
             val checkboxVisible = checkboxTexts.isNotEmpty() &&
                 checkboxTexts.any { TextMatcher.normalizedContains(screenText, it) }
-            val checkboxTapped = checkboxVisible && bridge.tapByTexts(checkboxTexts)
-            if (checkboxTapped) log(stepId, "welcome", "checkbox_marked", screenText)
-            val tapped = actions.isNotEmpty() && bridge.tapEnabledByTexts(actions)
-            log(stepId, "welcome", if (tapped) "accepted" else "no_action", screenText)
-            return Outcome(tapped, "welcome", if (tapped) "accept" else "not_found")
+            if (checkboxVisible && bridge.tapByTexts(checkboxTexts)) {
+                AppLog.i(TAG, "consent: kind=welcome decision=checkbox_marked step=$stepId")
+            }
+        }
+        val dispatched = dispatch(bridge, action)
+        if (!dispatched) {
+            log(stepId, action, owner, verified = false, decision = "not_found", screenText = screenText)
+            return Outcome(false, action.kind, action.decision, true)
         }
 
-        if (permissionMarkers.isNotEmpty() && permissionMarkers.any { TextMatcher.normalizedContains(screenText, it) }) {
-            val allow = SemanticCatalog.shouldAllow(stepId) || stepId in MEDIA_STEPS
-            val texts = if (allow) SemanticCatalog.allowTexts() else SemanticCatalog.denyTexts()
-            val decision = if (allow) "allow" else "deny"
-            val tapped = texts.isNotEmpty() && bridge.tapByTexts(texts)
-            log(stepId, "permission", if (tapped) decision else "$decision:not_found", screenText)
-            return Outcome(tapped, "permission", decision)
+        var verified = settled(service, screenText)
+        if (!verified && action.kind == "dialog") {
+            // Первый тап мог не попасть (MIUI меняет подпись кнопки после
+            // анимации): один повтор расширенным набором, затем честный отказ.
+            val retry = action.copy(
+                texts = (ALERT_NEGATIVE_TEXTS + SemanticCatalog.dismissTexts()).distinct()
+            )
+            dispatch(bridge, retry)
+            verified = settled(service, screenText)
+        }
+        log(
+            stepId = stepId,
+            action = action,
+            ownerPackage = owner,
+            verified = verified,
+            decision = if (verified) action.decision else "${action.decision}:unverified",
+            screenText = screenText
+        )
+        return Outcome(true, action.kind, action.decision, verified)
+    }
+
+    private suspend fun dispatch(bridge: TapBridge, action: DialogAction): Boolean =
+        if (action.kind == "welcome") {
+            bridge.tapEnabledDialogButtonByTexts(action.texts, action.markers)
+        } else {
+            bridge.tapDialogButtonByTexts(action.texts, action.markers)
         }
 
-        return Outcome(false, "none", "no_dialog")
+
+    /**
+     * Решение по экрану: что за диалог и чем он закрывается. Чистая функция
+     * (тестируется без Accessibility).
+     */
+    internal fun classify(
+        screenText: String,
+        ownerPackage: String?,
+        stepPackages: List<String>,
+        stepId: String,
+        stepConfirmTexts: List<String>,
+        stepConsentTexts: List<String>,
+        alertDialog: Boolean
+    ): DialogAction? {
+        if (ownsDialog(screenText, stepConfirmTexts)) return null
+
+        val welcomeMarkers = SemanticCatalog.welcomeMarkers()
+        val permissionMarkers = SemanticCatalog.permissionMarkers()
+        val dismissMarkers = SemanticCatalog.dismissMarkers()
+        val dismissTexts = SemanticCatalog.dismissTexts()
+        val alertMarkers = SemanticCatalog.alertMarkerTexts()
+        val forceStop = markerHit(screenText, SemanticCatalog.forceStopMarkers())
+        val crashReport = markerHit(screenText, SemanticCatalog.crashReportMarkers())
+        val defaultApp = markerHit(screenText, SemanticCatalog.defaultAppMarkers())
+
+        // Целевой экран шага диалогом не считаем: маркеры диалогов («по умолчанию»,
+        // «Условия использования») встречаются и в обычных настройках.
+        val stepMarkers = SemanticCatalog.screenMarkers(stepId)
+        val onTargetScreen = stepMarkers.isNotEmpty() &&
+            stepMarkers.any { TextMatcher.normalizedContains(screenText, it) }
+        val shortDialog = !onTargetScreen && screenText.length <= DIALOG_TEXT_MAX
+
+        // 1. Системные alert-диалоги: «Закрыть принудительно?», отчёт о сбое,
+        //    «Установить … по умолчанию?» — отрицательная кнопка, без согласия.
+        //    MIUI-диалог без android:id/alertTitle распознаётся по короткому тексту.
+        if ((forceStop || crashReport || defaultApp) && (alertDialog || shortDialog)) {
+            return DialogAction(
+                kind = "dialog",
+                decision = "dismissed",
+                cause = when {
+                    forceStop -> "force_stop"
+                    crashReport -> "crash_report"
+                    else -> "default_app"
+                },
+                texts = (ALERT_NEGATIVE_TEXTS + dismissTexts).distinct(),
+                markers = alertMarkers
+            )
+        }
+
+        // 2. Диалог-заглушка внутри шага («Произошла ошибка сети» → «Понятно»).
+        if (dismissTexts.isNotEmpty() && dismissDialogVisible(screenText, dismissTexts, dismissMarkers)) {
+            return DialogAction("dismiss", "closed", "network", dismissTexts, alertMarkers)
+        }
+
+        val welcomeHit = markerHit(screenText, welcomeMarkers)
+        val permissionHit = markerHit(screenText, permissionMarkers)
+
+        // 3. Диалог принадлежит приложению шага: «Отмена» на нём означает, что
+        //    приложение не открылось, — соглашаемся (Проводник, Музыка, Браузер).
+        val appOwned = ownerPackage != null &&
+            stepPackages.any { it.equals(ownerPackage, ignoreCase = true) }
+        if (appOwned && (welcomeHit || permissionHit) &&
+            SemanticCatalog.appOwnedDecision() == "accept"
+        ) {
+            return if (permissionHit && !welcomeHit) {
+                DialogAction(
+                    kind = "permission",
+                    decision = "allow",
+                    cause = "app_owned",
+                    texts = SemanticCatalog.allowTexts(),
+                    markers = permissionMarkers
+                )
+            } else {
+                DialogAction(
+                    kind = "welcome",
+                    decision = "accepted",
+                    cause = "app_owned",
+                    texts = (stepConsentTexts + SemanticCatalog.welcomeActions()).distinct(),
+                    markers = welcomeMarkers
+                )
+            }
+        }
+
+        // 4. Welcome-стена: тапаем согласие и продолжаем шаг.
+        if (!onTargetScreen && welcomeHit) {
+            return DialogAction(
+                kind = "welcome",
+                decision = "accepted",
+                cause = "wall",
+                texts = (stepConsentTexts + SemanticCatalog.welcomeActions()).distinct(),
+                markers = welcomeMarkers
+            )
+        }
+
+        // 5. Runtime-permission: deny по умолчанию, allow только по политике.
+        if (permissionHit) {
+            val allow = SemanticCatalog.shouldAllow(stepId)
+            return DialogAction(
+                kind = "permission",
+                decision = if (allow) "allow" else "deny",
+                cause = if (allow) "allow_override" else "deny_default",
+                texts = if (allow) SemanticCatalog.allowTexts() else SemanticCatalog.denyTexts(),
+                markers = permissionMarkers
+            )
+        }
+
+        // 6. Прочий AlertDialog (ни стена, ни разрешение не найдены): закрываем
+        //    отрицательной кнопкой и продолжаем шаг — прежнее поведение.
+        if (alertDialog) {
+            return DialogAction(
+                kind = "dialog",
+                decision = "dismissed",
+                cause = "alert",
+                texts = (ALERT_NEGATIVE_TEXTS + dismissTexts).distinct(),
+                markers = alertMarkers
+            )
+        }
+
+        return null
     }
 
     /**
@@ -141,6 +305,7 @@ object ConsentWallHandler {
         stepId: String,
         stepConsentTexts: List<String> = emptyList(),
         stepConfirmTexts: List<String> = emptyList(),
+        stepPackages: List<String> = emptyList(),
         maxIterations: Int = SemanticCatalog.maxConsentIterationsPolicy(),
         isCancelled: () -> Boolean = { false }
     ): Int {
@@ -153,7 +318,7 @@ object ConsentWallHandler {
         while (handled < limit) {
             if (isCancelled()) break
             val outcome = handleOnce(
-                service, bridge, stepId, stepConsentTexts, stepConfirmTexts, isCancelled
+                service, bridge, stepId, stepConsentTexts, stepConfirmTexts, stepPackages, isCancelled
             )
             if (!outcome.handled) break
             handled++
@@ -162,6 +327,17 @@ object ConsentWallHandler {
             previousScreen = screen
         }
         return handled
+    }
+
+    /** Текст-маркер считается вхождением по нормализованному тексту экрана. */
+    private fun markerHit(screenText: String, markers: List<String>): Boolean =
+        markers.isNotEmpty() && markers.any { TextMatcher.normalizedContains(screenText, it) }
+
+    /** Экран изменился после тапа (пустой экран — успех: проверять нечего). */
+    private suspend fun settled(service: AccessibilityService, before: String): Boolean {
+        delay(VERIFY_DELAY_MS)
+        val after = screenSignature(service)
+        return after.isEmpty() || after != before
     }
 
     /** Стандартный alert-диалог: id `alertTitle`/`message` + кнопка `button1/button2`. */
@@ -191,17 +367,28 @@ object ConsentWallHandler {
         return text
     }
 
-    private fun dismissDialogVisible(screenText: String, dismissTexts: List<String>): Boolean {
-        val markers = SemanticCatalog.dismissMarkers()
-        if (markers.isNotEmpty() && markers.any { TextMatcher.normalizedContains(screenText, it) }) return true
+    private fun dismissDialogVisible(
+        screenText: String,
+        dismissTexts: List<String>,
+        dismissMarkers: List<String>
+    ): Boolean {
+        if (markerHit(screenText, dismissMarkers)) return true
         // «Нет, спасибо»/«Понятно» сами по себе — маркер диалога-заглушки.
         return dismissTexts.any { TextMatcher.normalizedContains(screenText, it) }
     }
 
-    private fun log(stepId: String, kind: String, decision: String, screenText: String) {
+    private fun log(
+        stepId: String,
+        action: DialogAction,
+        ownerPackage: String?,
+        verified: Boolean,
+        decision: String,
+        screenText: String
+    ) {
         AppLog.i(
             TAG,
-            "consent: kind=$kind decision=$decision step=$stepId text='${screenText.take(80)}'"
+            "consent: kind=${action.kind} decision=$decision step=$stepId cause=${action.cause} " +
+                "pkg=${ownerPackage ?: "-"} verified=$verified text='${screenText.take(80)}'"
         )
     }
 
@@ -213,3 +400,4 @@ object ConsentWallHandler {
         }
     }
 }
+

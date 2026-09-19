@@ -2,7 +2,9 @@ package com.xiaohypercleaner.service
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Path
 import android.graphics.Rect
 import android.media.AudioManager
@@ -29,6 +31,7 @@ import com.xiaohypercleaner.util.NodeTree
 import com.xiaohypercleaner.util.TextMatcher
 import com.xiaohypercleaner.util.DiagnosticSnapshotManager
 import com.xiaohypercleaner.util.StepDiagnostics
+import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -71,7 +74,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
         private val SPECIAL_TIMEOUTS = mapOf(
             "msa" to MSA_TIMEOUT_MS,
             "security_sys" to SECURITY_CLEANER_TIMEOUT_MS,
-            "cleaner" to SECURITY_CLEANER_TIMEOUT_MS
+            "cleaner" to SECURITY_CLEANER_TIMEOUT_MS,
+            // Перебор кандидатов-папок и активностей установщика: шаги дольше базовых.
+            "folder_recommendations" to 34_000L,
+            "installer_recommendations" to 26_000L
         )
 
         // ═══════════════════════════════════════════════════════════════
@@ -108,6 +114,33 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         /** Пакет системных настроек (проверка foreground для системных шагов). */
         private const val SETTINGS_PACKAGE = "com.android.settings"
+        /** Сколько папок рабочего стола перебираем, прежде чем признать шаг неприменимым. */
+        private const val MAX_HOME_FOLDERS = 3
+
+        /** Долгий тап: контекстное меню папки (HyperOS 2/3 → «Изменить папку»). */
+        private const val LONG_PRESS_MS = 800L
+
+        /** Пауза после открытия папки: поповер анимируется. */
+        private const val FOLDER_OPEN_DELAY_MS = 700L
+
+        /** Сколько активностей установщика пробуем, прежде чем признать шаг неприменимым. */
+        private const val MAX_INSTALLER_CANDIDATES = 5
+
+        /** Сколько иконок рабочего стола проверяем на «это папка», прежде чем сдаться. */
+        private const val MAX_FOLDER_PROBES = 6
+
+        /** Пакеты-лаунчеры MIUI: папки рабочего стола есть только в них. */
+        private val LAUNCHER_PACKAGES = listOf(
+            "com.miui.home", "com.mi.android.globallauncher", "com.miui.launcher", "com.mi.global.home"
+        )
+
+        /** Признаки активности настроек установщика (активности установки не входят). */
+        private val INSTALLER_SETTINGS_KEYWORDS =
+            listOf("settings", "preference", "recommend", "advanced", "scan")
+
+        /** Тексты подтверждения установки: по ним не тапаем никогда. */
+        private val INSTALL_CONFIRM_TEXTS =
+            listOf("установить", "установка", "install", "安装", "instalar", "instalir")
 
         /** msa: максимум ожидания включённой кнопки отзыва, поллинг и пауза на сам отзыв. */
         private const val MSA_REVOKE_WAIT_MAX_MS = 11_000L
@@ -318,6 +351,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         // Гейт целостности оверлея (Аддендум A4): навигация без окна прогресса запрещена.
         if (!awaitOverlayReadyOrPause()) return Result(false, "overlay_lost")
+
+        // Папки рабочего стола: вход — лаунчер MIUI, маршрут Настроек не используется.
+        if (step.actionType == SimpleSteps.ActionType.HOME_FOLDER_TOGGLE) {
+            return toggleHomeFolderSuggestions(step)
+        }
+
+        // Настройки установщика: активность настроек проверки, установка APK не запускается.
+        if (step.actionType == SimpleSteps.ActionType.INSTALLER_SETTINGS_TOGGLE) {
+            return toggleInstallerRecommendations(step)
+        }
 
         // Резолвинг пакета: вариантный каталог + семантическая таблица (visibility-aware).
         // Маршрут варианта может идти через Настройки (appvault_*: Рабочий стол → Лента
@@ -797,16 +840,6 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return confirmed
     }
 
-    /** Кнопка по тексту, доступная для нажатия (enabled) — для отсчётных диалогов. */
-    private fun findEnabledClickableByText(
-        root: AccessibilityNodeInfo?,
-        texts: List<String>
-    ): AccessibilityNodeInfo? {
-        root ?: return null
-        val node = findInTree(root) { matchesAny(it, texts) && it.isEnabled } ?: return null
-        return clickableAncestorOrSelf(node) ?: node
-    }
-
     /**
      * Дополнительная цель варианта (второй экран/второй тумблер): «Назад» (back раз),
      * drillPath, затем тумблер или кнопка-действие.
@@ -1149,6 +1182,410 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     // ═════════════════════════════════════════════════════════════════════
+    // Папки рабочего стола: «Рекомендуемое сегодня» внутри папки лаунчера
+    // ════════════════════════════════════════════════════════════════════
+
+    /**
+     * Рекомендации в папках рабочего стола: открываем папку лаунчера, затем её
+     * редактор (тап по названию, иначе долгий тап → «Изменить папку») и выключаем
+     * «Рекомендуемое сегодня». Имя папки задаёт пользователь, поэтому папка
+     * ищется структурно, а тумблер — по семантике каталога и гейту уверенности.
+     */
+    internal suspend fun toggleHomeFolderSuggestions(step: SimpleSteps.Step): Result {
+        val toggleTexts = SemanticCatalog.itemTexts(step.id)
+        val editorMarkers = SemanticCatalog.screenMarkers(step.id)
+        val menuTexts = SemanticCatalog.overflowMenuLabels(step.id)
+        resetToHome()
+        delay(UI_SETTLE_DELAY_MS)
+
+        val candidates = homeFolderCandidates()
+        StepDiagnostics.note(step.id, "FOLDER", "candidates=${candidates.size}")
+        AppLog.i(TAG, "folder: candidates=${candidates.size} step=${step.id}")
+        if (candidates.isEmpty()) return Result(false, "folder_not_found")
+
+        var probed = 0
+        for (candidate in candidates) {
+            if (probed >= MAX_FOLDER_PROBES) break
+            probed++
+            if (cancelled) return Result(false, "cancelled")
+            if (!awaitOverlayReadyOrPause()) return Result(false, "overlay_lost")
+
+            val label = folderLabel(candidate)
+            val rect = Rect()
+            candidate.getBoundsInScreen(rect)
+            StepDiagnostics.note(
+                step.id, "FOLDER",
+                "probe=$probed name='$label' class=${candidate.className}"
+            )
+            val tapped = tapNode(candidate)
+            recycleNode(candidate)
+            if (!tapped) {
+                AppLog.w(TAG, "folder: tap failed for '$label'")
+                continue
+            }
+            delay(FOLDER_OPEN_DELAY_MS)
+
+            // Папка внешне неотличима от иконки приложения (дамп POCO Launcher:
+            // одинаковые FrameLayout с icon_container/icon_title). Признак папки —
+            // лаунчер остался в фокусе: тап по приложению сменил бы пакет.
+            val foreground = activePackage()
+            if (foreground != null && !isLauncherPackage(foreground)) {
+                StepDiagnostics.note(
+                    step.id, "FOLDER",
+                    "probe=$probed name='$label' not_a_folder fg=$foreground"
+                )
+                AppLog.i(TAG, "folder: '$label' is not a folder (fg=$foreground)")
+                resetToHome()
+                delay(UI_SETTLE_DELAY_MS)
+                continue
+            }
+            AppLog.i(TAG, "folder: popup opened for '$label'")
+
+            val editorOpened = openFolderEditor(
+                folderLabel = label,
+                folderX = rect.centerX().toFloat(),
+                folderY = rect.centerY().toFloat(),
+                menuTexts = menuTexts,
+                editorMarkers = editorMarkers
+            )
+            if (!editorOpened) AppLog.w(TAG, "folder: editor not opened for '$label'")
+            val result = if (editorOpened) {
+                toggleWithGate(step, toggleTexts, editorMarkers)
+            } else {
+                null
+            }
+            leaveFolderEditor()
+            if (result != null) return result
+            AppLog.i(TAG, "folder: no switch in '$label' — next candidate")
+        }
+        return Result(false, "switch_not_found")
+    }
+
+    /**
+     * Кандидаты-иконки рабочего стола: подпись + структура иконки лаунчера
+     * (`icon_container`/`icon_title`) либо класс/описание папки. Папка внешне не
+     * отличима от приложения, поэтому кандидаты упорядочены «похожие на папку» →
+     * остальные, а фактический признак проверяется в рутине (фокус остался лаунчером).
+     */
+    internal fun homeFolderCandidates(): List<AccessibilityNodeInfo> =
+        scanHomeRoot { isHomeIconNode(it) }
+            .sortedByDescending { node -> if (isFolderCandidate(node)) 1 else 0 }
+
+    /** Иконка рабочего стола: кликабельный узел с подписью и структурой иконки. */
+    internal fun isHomeIconNode(node: AccessibilityNodeInfo): Boolean {
+        if (!node.isClickable || folderLabel(node).isBlank()) return false
+        if (isFolderCandidate(node)) return true
+        return NodeTree.findInTree(node) { child ->
+            val id = child.viewIdResourceName ?: ""
+            id.endsWith("icon_container") || id.endsWith("icon_title")
+        } != null
+    }
+
+    /** Пакет в фокусе: отличает поповер папки от запущенного приложения. */
+    private fun activePackage(): String? {
+        val root = service.rootInActiveWindow ?: return null
+        val pkg = root.packageName?.toString()
+        recycleNode(root)
+        return pkg
+    }
+
+    private fun isLauncherPackage(pkg: String): Boolean =
+        LAUNCHER_PACKAGES.any { it.equals(pkg, ignoreCase = true) }
+
+    private fun scanHomeRoot(
+        predicate: (AccessibilityNodeInfo) -> Boolean
+    ): List<AccessibilityNodeInfo> {
+        val root = service.rootInActiveWindow ?: return emptyList()
+        val found = NodeTree.findAllInTree(root, predicate)
+        recycleNode(root)
+        return found
+    }
+
+    /** Папка лаунчера: класс или описание содержат folder, у узла есть подпись. */
+    internal fun isFolderCandidate(node: AccessibilityNodeInfo): Boolean {
+        if (folderLabel(node).isBlank()) return false
+        val cls = node.className?.toString()?.lowercase(Locale.ROOT).orEmpty()
+        if (cls.contains("folder")) return true
+        val desc = node.contentDescription?.toString()?.lowercase(Locale.ROOT).orEmpty()
+        return desc.contains("folder") || desc.contains("папка")
+    }
+
+    /** Превью папки без явного класса: кликабельная ячейка с несколькими иконками. */
+    internal fun isFolderGridCandidate(node: AccessibilityNodeInfo): Boolean {
+        if (!node.isClickable) return false
+        var icons = 0
+        fun walk(n: AccessibilityNodeInfo?, depth: Int) {
+            if (n == null || depth > 2) return
+            val cls = n.className?.toString()?.lowercase(Locale.ROOT).orEmpty()
+            if (cls.contains("imageview") && !n.contentDescription.isNullOrBlank()) icons++
+            for (i in 0 until n.childCount) walk(n.getChild(i), depth + 1)
+        }
+        walk(node, 0)
+        return icons >= 2
+    }
+
+    /** Подпись папки: текст узла, иначе описание (имя задаёт пользователь). */
+    private fun folderLabel(node: AccessibilityNodeInfo): String =
+        node.text?.toString()?.trim().orEmpty().ifEmpty {
+            node.contentDescription?.toString()?.trim().orEmpty()
+        }
+
+    /**
+     * Открытие редактора папки: тап по названию в поповере, иначе долгий тап по
+     * иконке папки и «Изменить папку» (HyperOS 2/3).
+     */
+    private suspend fun openFolderEditor(
+        folderLabel: String,
+        folderX: Float,
+        folderY: Float,
+        menuTexts: List<String>,
+        editorMarkers: List<String>
+    ): Boolean {
+        if (tapFolderTitle(folderLabel)) {
+            delay(UI_SETTLE_DELAY_MS)
+            if (isFolderEditorVisible(editorMarkers)) return true
+        }
+        if (menuTexts.isEmpty()) return false
+        if (!awaitOverlayReadyOrPause()) return false
+        // Контекстное меню папки живёт только на рабочем столе: возвращаемся.
+        resetToHome()
+        delay(UI_SETTLE_DELAY_MS)
+        longPressAt(folderX, folderY)
+        delay(FOLDER_OPEN_DELAY_MS)
+        val root = service.rootInActiveWindow ?: return false
+        val item = findClickableByText(root, menuTexts)
+        if (item == null) {
+            recycleNode(root)
+            return false
+        }
+        val tapped = tapNode(item)
+        recycleNode(item); recycleNode(root)
+        delay(FOLDER_OPEN_DELAY_MS)
+        return tapped && isFolderEditorVisible(editorMarkers)
+    }
+
+    /**
+     * Название папки в поповере: узел с её подписью, иначе самый верхний
+     * кликабельный текстовый узел (имя задаёт пользователь — сравнение мягкое).
+     */
+    private suspend fun tapFolderTitle(label: String): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val candidates = NodeTree.findAllInTree(root, predicate = { node ->
+            !node.text.isNullOrBlank() && clickableAncestorOrSelf(node) != null
+        })
+        recycleNode(root)
+        val named = if (label.isNotBlank()) {
+            candidates.firstOrNull { TextMatcher.normalizedContains(it.text?.toString(), label) }
+        } else {
+            null
+        }
+        val chosen = named ?: candidates.minByOrNull { node ->
+            val rect = Rect()
+            node.getBoundsInScreen(rect)
+            rect.centerY()
+        }
+        candidates.forEach { if (it !== chosen) recycleNode(it) }
+        chosen ?: return false
+        val title = clickableAncestorOrSelf(chosen) ?: chosen
+        val tapped = tapNode(title)
+        recycleNode(chosen)
+        if (title !== chosen) recycleNode(title)
+        return tapped
+    }
+
+    /** Экран редактора папки: совпал хотя бы один маркер каталога. */
+    private fun isFolderEditorVisible(markers: List<String>): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val text = collectAllText(root)
+        recycleNode(root)
+        return markers.isNotEmpty() && markers.any { TextMatcher.normalizedContains(text, it) }
+    }
+
+    /**
+     * Тумблер на целевом экране (редактор папки, настройки установщика): гейт
+     * уверенности (keywords + маркеры + тумблер), checked_before в снапшот отката,
+     * валидация после тапа. `null` — тумблера нет (пробуем следующую цель), иначе
+     * результат шага.
+     */
+    private suspend fun toggleWithGate(
+        step: SimpleSteps.Step,
+        toggleTexts: List<String>,
+        editorMarkers: List<String>
+    ): Result? {
+        val root = service.rootInActiveWindow ?: return null
+        val screenText = collectAllText(root)
+        val switchNode = findSwitchByText(root, toggleTexts)
+        val decision = SemanticGate.decide(
+            keywords = toggleTexts,
+            screenText = screenText,
+            screenMarkers = editorMarkers,
+            switchFound = switchNode != null,
+            hasTapFallback = false
+        )
+        SemanticGate.log(step.id, decision)
+        if (switchNode == null) {
+            recycleNode(root)
+            return null
+        }
+        if (!decision.act) {
+            AppLog.w(TAG, "folder: low confidence in editor (${decision.detail}) — не тумблим")
+            recycleNode(switchNode); recycleNode(root)
+            return null
+        }
+        val checkedBefore = SwitchFinder.isChecked(switchNode)
+        recordCheckedBefore(step.id, checkedBefore)
+        if (checkedBefore == step.targetChecked) {
+            AppLog.i(TAG, "folder: '${toggleTexts.firstOrNull()}' already off — nothing to toggle")
+            recycleNode(switchNode); recycleNode(root)
+            return Result(true, "already_off")
+        }
+        val tapped = tapNode(switchNode)
+        recycleNode(switchNode); recycleNode(root)
+        if (!tapped) return Result(false, "tap_failed")
+        delay(600)
+        if (!verifySwitchState(step, toggleTexts)) {
+            AppLog.w(TAG, "folder: switch state not verified after tap (step=${step.id})")
+            return Result(false, "verify_failed")
+        }
+        AppLog.i(TAG, "folder: toggled '${toggleTexts.firstOrNull()}' step=${step.id}")
+        return Result(true, "toggled")
+    }
+
+    /** Закрываем редактор папки (Back ×2) и возвращаемся на рабочий стол. */
+    private suspend fun leaveFolderEditor() {
+        repeat(2) {
+            if (cancelled) return
+            service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+            delay(UI_SETTLE_DELAY_MS)
+        }
+        resetToHome()
+        delay(UI_SETTLE_DELAY_MS)
+    }
+
+    /** Долгий тап по координатам (контекстное меню папки на HyperOS 2/3). */
+    private suspend fun longPressAt(x: Float, y: Float): Boolean =
+        performGesture(x, y, x, y, LONG_PRESS_MS)
+
+    // ════════════════════════════════════════════════════════════════════
+    // Установщик приложений: настройки проверки (APK не устанавливаем)
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Проверка приложений при установке: открываем активность настроек установщика
+     * (та же, что даёт шестерёнка в окне проверки) и выключаем «Получать
+     * рекомендации». Установка APK не запускается: ни один текст-подтверждение
+     * установки не тапается (guard [isInstallConfirmText]), после шага — HOME.
+     */
+    internal suspend fun toggleInstallerRecommendations(step: SimpleSteps.Step): Result {
+        val toggleTexts = SemanticCatalog.itemTexts(step.id)
+        val settingsMarkers = SemanticCatalog.screenMarkers(step.id)
+        // Страховка: подписи тумблера из каталога не должны выглядеть как «Установить».
+        if (toggleTexts.any { isInstallConfirmText(it) }) {
+            AppLog.w(TAG, "installer: catalog label looks like an install confirmation — step skipped")
+            return Result(false, "catalog_label_looks_like_install")
+        }
+        val candidates = installerSettingsCandidates(candidatePackages(step))
+        StepDiagnostics.note(step.id, "INSTALLER", "candidates=${candidates.size}")
+        AppLog.i(TAG, "installer: candidates=${candidates.size} step=${step.id}")
+        if (candidates.isEmpty()) return Result(false, "installer_settings_not_found")
+
+        var tried = 0
+        for (component in candidates) {
+            if (tried >= MAX_INSTALLER_CANDIDATES) break
+            tried++
+            if (cancelled) return Result(false, "cancelled")
+            if (!awaitOverlayReadyOrPause()) return Result(false, "overlay_lost")
+            val short = component.flattenToShortString()
+            StepDiagnostics.note(step.id, "INSTALLER", "open=$tried component=$short")
+            if (!launchComponent(component)) {
+                AppLog.w(TAG, "installer: launch failed for $short")
+                continue
+            }
+            delay(APP_LAUNCH_DELAY_MS)
+            handleConsentWalls(step)
+            if (!isInstallerSettingsScreen(settingsMarkers, toggleTexts)) {
+                AppLog.w(TAG, "installer: not a settings screen ($short)")
+                pressBackToNeutral()
+                continue
+            }
+            val result = toggleWithGate(step, toggleTexts, settingsMarkers)
+            pressBackToNeutral()
+            if (result != null) return result
+            AppLog.i(TAG, "installer: no switch on $short — next activity")
+        }
+        return Result(false, "switch_not_found")
+    }
+
+    /**
+     * Кандидаты-активности настроек установщика: экспортируемые активности с
+     * признаком настроек/проверки. Полный список пишется в StepDiag — по нему
+     * debug-прогон показывает фактическую активность на конкретной прошивке.
+     */
+    internal fun installerSettingsCandidates(packages: List<String>): List<ComponentName> {
+        val pm = runCatching { service.packageManager }.getOrNull() ?: return emptyList()
+        val result = ArrayList<ComponentName>()
+        for (pkg in packages) {
+            val info = runCatching {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(pkg, PackageManager.GET_ACTIVITIES)
+            }.getOrNull() ?: continue
+            val activities = info.activities.orEmpty()
+            StepDiagnostics.note(
+                "installer", "ACTIVITIES",
+                "pkg=$pkg exported=" + activities.filter { it.exported }.joinToString(",") { it.name }
+            )
+            activities.filter { it.exported && isInstallerSettingsActivity(it.name) }
+                .forEach { result.add(ComponentName(pkg, it.name)) }
+        }
+        return result
+    }
+
+    /**
+     * Признак активности настроек: settings/preference/recommend/advanced/scan.
+     * Активности самой установки (`PackageInstallerActivity`, `InstallAppProgress`)
+     * сюда не попадают — установку мы не открываем.
+     */
+    internal fun isInstallerSettingsActivity(name: String): Boolean {
+        val n = name.lowercase(Locale.ROOT)
+        return INSTALLER_SETTINGS_KEYWORDS.any { n.contains(it) }
+    }
+
+    /** Тексты подтверждения установки: по ним не тапаем никогда. */
+    internal fun isInstallConfirmText(text: String): Boolean {
+        val n = TextMatcher.normalize(text)
+        return n.isNotEmpty() && INSTALL_CONFIRM_TEXTS.any { n.contains(it) }
+    }
+
+    private fun launchComponent(component: ComponentName): Boolean = try {
+        service.startActivity(
+            Intent(Intent.ACTION_MAIN)
+                .setComponent(component)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+        true
+    } catch (e: Exception) {
+        AppLog.w(TAG, "installer: startActivity failed: ${e.message}")
+        false
+    }
+
+    /** Экран настроек установщика: маркеры каталога или найденный тумблер. */
+    private fun isInstallerSettingsScreen(markers: List<String>, toggleTexts: List<String>): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val text = collectAllText(root)
+        val hasSwitch = findSwitchByText(root, toggleTexts) != null
+        recycleNode(root)
+        val markerHit = markers.isNotEmpty() && markers.any { TextMatcher.normalizedContains(text, it) }
+        return markerHit || hasSwitch
+    }
+
+    /** Закрываем экран установщика и возвращаемся на рабочий стол. */
+    private suspend fun pressBackToNeutral() {
+        service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+        delay(UI_SETTLE_DELAY_MS)
+        resetToHome()
+        delay(UI_SETTLE_DELAY_MS)
+    }
+
     // Consent-стены (welcome/permission) — см. handleConsentWalls + ConsentWallHandler
     // ═════════════════════════════════════════════════════════════════════
     /** Мост нажатий для ConsentWallHandler (поиск кликабельного узла по текстам). */
@@ -1157,6 +1594,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         override suspend fun tapEnabledByTexts(texts: List<String>): Boolean =
             tapSystemDialogButton(texts, requireEnabled = true)
+
+        override suspend fun tapDialogButtonByTexts(
+            texts: List<String>,
+            avoidTexts: List<String>
+        ): Boolean = tapSystemDialogButton(texts, avoidTexts = avoidTexts)
+
+        override suspend fun tapEnabledDialogButtonByTexts(
+            texts: List<String>,
+            avoidTexts: List<String>
+        ): Boolean = tapSystemDialogButton(texts, requireEnabled = true, avoidTexts = avoidTexts)
     }
 
     /**
@@ -1172,6 +1619,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
             // Confirm-тексты шага: диалог, который ведёт сам шаг (msa «Отозвать»),
             // generic-закрытие не трогает.
             stepConfirmTexts = confirmTextsFor(step),
+            // Владелец диалога = пакет-цель шага: это диалог самого приложения.
+            stepPackages = stepPackagesFor(step),
             maxIterations = SemanticCatalog.maxConsentIterations(
                 step.id,
                 SemanticCatalog.maxConsentIterationsPolicy()
@@ -1230,16 +1679,23 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return step.copy(launchPackage = fromCatalog)
     }
 
+    /** Кнопка по тексту, доступная для нажатия (enabled) — для отсчётных диалогов msa. */
+    private fun findEnabledClickableByText(
+        root: AccessibilityNodeInfo?,
+        texts: List<String>
+    ): AccessibilityNodeInfo? {
+        root ?: return null
+        val node = findInTree(root) { matchesAny(it, texts) && it.isEnabled } ?: return null
+        return clickableAncestorOrSelf(node) ?: node
+    }
+
     private suspend fun tapSystemDialogButton(
         texts: List<String>,
-        requireEnabled: Boolean = false
+        requireEnabled: Boolean = false,
+        avoidTexts: List<String> = emptyList()
     ): Boolean {
         val root = service.rootInActiveWindow ?: return false
-        val node = if (requireEnabled) {
-            findEnabledClickableByText(root, texts)
-        } else {
-            findClickableByText(root, texts)
-        }
+        val node = findDialogButton(root, texts, avoidTexts, requireEnabled)
         if (node != null) {
             val tapped = tapNode(node)
             recycleNode(node); recycleNode(root)
@@ -1249,6 +1705,54 @@ class SimpleRunner(private val service: AdbEnablerService) {
         recycleNode(root)
         return false
     }
+
+    /**
+     * Кнопка диалога: сначала узлы с button-ролью (button1/2/3 или класс Button),
+     * затем прочие кликабельные. Узлы-маркеры ([avoidTexts]) и узлы заголовка/
+     * сообщения не нажимаются никогда: «Закрыть принудительно?» ранее «закрывалось»
+     * тапом по собственному заголовку (прогон rmu8lzcu9, filemanager).
+     */
+    private fun findDialogButton(
+        root: AccessibilityNodeInfo?,
+        texts: List<String>,
+        avoidTexts: List<String>,
+        requireEnabled: Boolean
+    ): AccessibilityNodeInfo? {
+        root ?: return null
+        val button = findInTree(root) { node ->
+            isDialogButtonNode(node) &&
+                matchesAny(node, texts) &&
+                !isDialogMarkerNode(node, avoidTexts) &&
+                (!requireEnabled || node.isEnabled)
+        }
+        if (button != null) return clickableAncestorOrSelf(button) ?: button
+        val fallback = findInTree(root) { node ->
+            !isDialogMarkerNode(node, avoidTexts) &&
+                matchesAny(node, texts) &&
+                (!requireEnabled || node.isEnabled) &&
+                clickableAncestorOrSelf(node) != null
+        }
+        return fallback?.let { clickableAncestorOrSelf(it) }
+    }
+
+    /** Заголовок, сообщение или маркер диалога — по таким узлам не тапаем. */
+    private fun isDialogMarkerNode(node: AccessibilityNodeInfo, avoidTexts: List<String>): Boolean {
+        val id = node.viewIdResourceName ?: ""
+        if (id.endsWith("alertTitle") || id.endsWith("message")) return true
+        return avoidTexts.isNotEmpty() && NodeTree.matchesAny(node, avoidTexts)
+    }
+
+    /** Button-роль: id кнопки AlertDialog или класс android.widget.Button. */
+    private fun isDialogButtonNode(node: AccessibilityNodeInfo): Boolean {
+        val id = node.viewIdResourceName ?: ""
+        if (id.endsWith("button1") || id.endsWith("button2") || id.endsWith("button3")) return true
+        return node.className?.toString()?.contains("Button", ignoreCase = true) == true
+    }
+
+    /** Пакеты-цели шага: владелец такого диалога = само приложение шага. */
+    private fun stepPackagesFor(step: SimpleSteps.Step): List<String> =
+        (listOfNotNull(step.launchPackage) + SemanticCatalog.requiredPackages(step.id) + step.requiredPackages)
+            .distinct()
 
     // ─── Navigation & Utilities ───────────────────────────────────────────
     private suspend fun resetSettingsToRoot(): Boolean {

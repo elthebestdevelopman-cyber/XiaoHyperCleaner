@@ -137,7 +137,15 @@ object SemanticCatalog {
         /** Маркеры диалогов-заглушек внутри шага («Произошла ошибка сети»). */
         val dismissMarkers: Map<String, List<String>> = emptyMap(),
         /** Кнопки закрытия диалогов-заглушек («Нет, спасибо», «Понятно»). */
-        val dismissTexts: Map<String, List<String>> = emptyMap()
+        val dismissTexts: Map<String, List<String>> = emptyMap(),
+        /** Маркеры системного диалога «Закрыть принудительно?» (force-stop). */
+        val forceStopMarkers: Map<String, List<String>> = emptyMap(),
+        /** Маркеры диалога отчёта о сбое приложения. */
+        val crashReportMarkers: Map<String, List<String>> = emptyMap(),
+        /** Маркеры диалога «Установить … по умолчанию?» (браузер и лаунчер). */
+        val defaultAppMarkers: Map<String, List<String>> = emptyMap(),
+        /** Решение для диалога, которым владеет приложение шага (accept). */
+        val appOwnedDecision: String = "accept"
     )
 
     @Volatile
@@ -342,6 +350,17 @@ object SemanticCatalog {
     }
 
     /**
+     * Подписи тумблеров шага (itemTexts варианта, 7 локалей). Фолбэк — keywords:
+     * рантайм-рутины (папки рабочего стола) не бурятся по drillPath и берут тумблер
+     * из семантики.
+     */
+    fun itemTexts(id: String): List<String> {
+        val fromVariant = localizedTexts(selection(id)?.variant?.itemTexts)
+        if (fromVariant.isNotEmpty()) return fromVariant
+        return localizedTexts(step(id)?.keywords)
+    }
+
+    /**
      * Маркеры экрана: вариант ОС авторитетен (наборы маркеров различаются между
      * MIUI и HyperOS), базовые поля — когда вариант их не задаёт.
      */
@@ -424,6 +443,27 @@ object SemanticCatalog {
 
     /** Кнопки закрытия диалогов-заглушек («Нет, спасибо», «Понятно»). */
     fun dismissTexts(): List<String> = localizedTexts(consentPolicy?.dismissTexts)
+
+    /** Маркеры системного диалога «Закрыть принудительно?» (force-stop). */
+    fun forceStopMarkers(): List<String> = localizedTexts(consentPolicy?.forceStopMarkers)
+
+    /** Маркеры диалога отчёта о сбое приложения. */
+    fun crashReportMarkers(): List<String> = localizedTexts(consentPolicy?.crashReportMarkers)
+
+    /** Маркеры диалога «Установить … по умолчанию?» (браузер и лаунчер). */
+    fun defaultAppMarkers(): List<String> = localizedTexts(consentPolicy?.defaultAppMarkers)
+
+    /** Решение для диалога, которым владеет приложение шага (accept). */
+    fun appOwnedDecision(): String = consentPolicy?.appOwnedDecision ?: "accept"
+
+    /**
+     * Тексты-маркеры диалогов: по ним тапать запрещено — это заголовки и
+     * сообщения, а не кнопки. Tap-мост использует список как avoid-набор.
+     */
+    fun alertMarkerTexts(): List<String> = listOf(
+        forceStopMarkers(), crashReportMarkers(), defaultAppMarkers(),
+        welcomeMarkers(), permissionMarkers(), dismissMarkers()
+    ).flatten().filter { it.isNotBlank() }.distinct()
 
     fun shouldAllow(stepId: String): Boolean =
         consentPolicy?.allowOverrides?.contains(stepId) == true
@@ -572,7 +612,11 @@ object SemanticCatalog {
             maxIterationsPerStep = o.optInt("maxIterationsPerStep", 3),
             checkboxTexts = parseListMap(o.optJSONObject("checkboxTexts")),
             dismissMarkers = parseListMap(o.optJSONObject("dismissMarkers")),
-            dismissTexts = parseListMap(o.optJSONObject("dismissTexts"))
+            dismissTexts = parseListMap(o.optJSONObject("dismissTexts")),
+            forceStopMarkers = parseListMap(o.optJSONObject("forceStopMarkers")),
+            crashReportMarkers = parseListMap(o.optJSONObject("crashReportMarkers")),
+            defaultAppMarkers = parseListMap(o.optJSONObject("defaultAppMarkers")),
+            appOwnedDecision = o.optString("appOwnedDecision", "accept")
         )
     }
 

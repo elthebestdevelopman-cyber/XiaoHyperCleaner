@@ -235,4 +235,47 @@ class SwitchFinderTest {
         assertEquals(10, hit.bounds.left)
         assertEquals(40, hit.bounds.bottom)
     }
+
+    @Test
+    fun `switch below the label inside a row sized container is accepted`() {
+        // Реальный кейс ads_personalization (MIUI 13, дамп прогона rmu8qhjhi):
+        // подпись [80,477][834,544], пояснение ниже, CheckBox [866,638][1000,790] —
+        // вертикального пересечения с подписью нет, но контейнер соразмерен строке.
+        val label = node("android.widget.TextView", text = "Персонализированная реклама")
+        val summary = node("android.widget.TextView", text = "Включение или отключение функции")
+        val checkbox = node("android.widget.CheckBox", checked = true, checkable = true, clickable = true)
+        val row = node("android.widget.RelativeLayout", clickable = true, children = arrayOf(label, summary, checkbox))
+        val root = node("android.widget.FrameLayout", clickable = false, children = arrayOf(row))
+        link(root, row)
+        link(row, label, summary, checkbox)
+        withBounds(label, 80, 477, 834, 544)
+        withBounds(summary, 80, 548, 846, 952)
+        withBounds(checkbox, 866, 638, 1000, 790)
+        withBounds(row, 80, 477, 1000, 952)
+
+        assertEquals(
+            "тумблер строки «подпись + пояснение» должен находиться",
+            checkbox,
+            SwitchFinder.findSwitch(root, listOf("Персонализированная реклама"))
+        )
+    }
+
+    @Test
+    fun `switch far below the label inside a full list is rejected`() {
+        // Защита от ложного OK: контейнер во всю высоту экрана строкой не является.
+        val label = node("android.widget.TextView", text = "Персонализированная реклама")
+        val checkbox = node("android.widget.CheckBox", checked = false, checkable = true, clickable = true)
+        val list = node("androidx.recyclerview.widget.RecyclerView", clickable = false, children = arrayOf(label, checkbox))
+        val root = node("android.widget.FrameLayout", clickable = false, children = arrayOf(list))
+        link(root, list)
+        link(list, label, checkbox)
+        withBounds(label, 80, 477, 834, 544)
+        withBounds(checkbox, 866, 1800, 1000, 1952)
+        withBounds(list, 0, 0, 1080, 2400)
+
+        assertNull(
+            "тумблер ниже сгиба в общем списке не принимается",
+            SwitchFinder.findSwitch(root, listOf("Персонализированная реклама"))
+        )
+    }
 }

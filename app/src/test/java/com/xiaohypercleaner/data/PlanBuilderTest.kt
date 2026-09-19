@@ -91,6 +91,17 @@ class PlanBuilderTest {
     }
 
     @Test
+    fun `folder step is excluded when the launcher is not MIUI`() {
+        // Шаг папок рабочего стола имеет смысл только в лаунчере MIUI/HyperOS.
+        val plan = PlanBuilder.build(context, profile).map { it.id }
+
+        assertFalse(
+            "папки рабочего стола только для лаунчера MIUI",
+            plan.contains("folder_recommendations")
+        )
+    }
+
+    @Test
     fun `hyperos3 keeps security and cleaner steps in plan`() {
         // Красный список не исключает UI-шаги: на HyperOS 3 Security = com.miui.securitycore.
         install("com.miui.securitycore")

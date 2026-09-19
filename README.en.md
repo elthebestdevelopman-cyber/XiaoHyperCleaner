@@ -77,6 +77,8 @@ required manual console commands:
 - 📝 **Log sharing** — "Share log" button in the menu
 - 🌍 **Localization** — 7 languages: RU, EN, ES, ZH, HI, ID, PT
 - 🌙 **Dark theme** — follows system settings
+- 🗂 **Home folder suggestions** — Simple mode opens a folder and turns off "Recommended today" (MIUI/HyperOS launcher)
+-  **App scan on install** — Simple mode opens the installer settings and turns off "Receive recommendations" (no APK is installed)
 
 ---
 
@@ -174,7 +176,6 @@ opens on the result screen by tapping "For the best result, do manually":
 | Item | What to do |
 |---|---|
 | App scan on install | When installing from a store open the scan window → gear at the top right → turn off "Receive recommendations" (HyperOS 2/3: "Advanced settings"). |
-| Home folder suggestions | Open a home folder → tap its name (HyperOS 2/3: hold the folder → "Edit folder") → turn off "Recommended today". |
 | Search in HyperOS 3 | Swipe up for search → three dots next to the search field → "Settings" → turn off "App recommendations". |
 | HyperOS 3: wallpaper carousel service ⚠ | If lock-screen captions remain: Settings → Apps → All apps → "Wallpaper Carousel" → "Disable". It is a system app — disable consciously. |
 | Changing device region ⚠ | Changing the region erases some data and changes the set of system apps. We never do this automatically — only manually, consciously. |
@@ -363,7 +364,7 @@ app/src/test/java/com/xiaohypercleaner/
 
 ## 🧪 Testing
 
-### Unit Tests (142 tests, 20 suites)
+### Unit Tests (183 tests, 24 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -371,23 +372,27 @@ app/src/test/java/com/xiaohypercleaner/
 
 | File                          | Tests | What is tested                                     |
 |-------------------------------|-------|----------------------------------------------------|
-| `OptimizationEngineTest`      | 11    | Optimization, rollback, DNS, transactions          |
-| `RestoreSnapshotTest`         | 3     | Rollback snapshot of original values               |
+| `OptimizationEngineTest`      | 14    | Optimization, rollback, DNS, transactions          |
+| `RestoreSnapshotTest`         | 5     | Rollback snapshot of original values               |
 | `AdbPortResolverTest`         | 5     | mDNS discovery, mergePorts                         |
 | `AdaptiveCatalogTest`         | 16    | Variant catalog, text merging                      |
-| `SemanticCatalogTest`         | 6     | Step semantics, target packages                    |
+| `SemanticCatalogTest`         | 9     | Step semantics, packages, dialog policy            |
 | `SemanticVariantTest`         | 7     | OS variant selection (MIUI 13 / HyperOS 2)         |
 | `SemanticGateTest`            | 6     | Confidence gate                                    |
-| `PlanBuilderTest`             | 6     | Plan pre-filter + red list                         |
+| `PlanBuilderTest`             | 7     | Plan pre-filter + red list                         |
 | `ManualStepsTest`             | 4     | Manual checklist: 7-locale parity                  |
-| `SwitchFinderTest`            | 8     | Toggles, checked_before, foreign row rejection     |
-| `ConsentWallTest`             | 9     | Consent dialogs, checkboxes, dismiss               |
+| `SwitchFinderTest`            | 11    | Toggles, checked_before, foreign row rejection     |
+| `ConsentWallTest`             | 20    | Dialogs: force-stop, default app, consent          |
 | `SimpleRunnerMsaResumeTest`   | 5     | Drill resume + msa revoke confirmation             |
 | `SimpleRunnerClearDataTest`   | 2     | CLEAR_DATA_DECLINE without false success           |
+| `SimpleRunnerFolderTest`      | 6     | Home folder search (structural markers)            |
+| `SimpleRunnerInstallerTest`   | 3     | Installer settings route, no APK install           |
+| `SimpleRunnerScrollTest`      | 2     | Scroll container lookup                            |
 | `ScanOrchestratorTest`        | 4     | Navigation planning, cache                         |
+| `ScreenCrawlerTest`           | 6     | Screen crawler (diagnostics)                       |
 | `ActivityScannerTest`         | 8     | Package/activity visibility                        |
 | `RomProfileTest`              | 5     | ROM profile: region, family, version               |
-| `SimpleStepsTest`             | 5     | Simple mode step map                               |
+| `SimpleStepsTest`             | 6     | Simple mode step map                               |
 | `MainViewModelTest`           | 8     | UI logic (Robolectric)                             |
 | `LogMaskerTest`               | 15    | IP, token, path masking                            |
 | `TextMatcherTest`             | 9     | Text normalization and fuzzy matching              |

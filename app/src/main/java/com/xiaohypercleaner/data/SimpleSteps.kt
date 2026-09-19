@@ -10,6 +10,9 @@ import androidx.core.net.toUri
  * Типы действий:
  *  TOGGLE             — найти переключатель и выключить (+ additionalToggles рядом)
  *  CLEAR_DATA_DECLINE — очистить данные приложения и нажать «Отмена» на приветствии
+ *  HOME_FOLDER_TOGGLE — выключить тумблер рекомендаций внутри папки рабочего стола
+ *  INSTALLER_SETTINGS_TOGGLE — выключить тумблер на экране настроек установщика
+ *     (активность настроек, БЕЗ запуска установки APK)
  *
  * Поля:
  *  forceStopBeforeLaunch — для шагов-приложений: force-stop очищает recents-стек MIUI,
@@ -26,7 +29,7 @@ import androidx.core.net.toUri
 object SimpleSteps {
 
     enum class RiskLevel { SAFE, CONDITIONAL, HIGH }
-    enum class ActionType { TOGGLE, CLEAR_DATA_DECLINE }
+    enum class ActionType { TOGGLE, CLEAR_DATA_DECLINE, HOME_FOLDER_TOGGLE, INSTALLER_SETTINGS_TOGGLE }
 
     data class Step(
         val id: String,
@@ -877,6 +880,61 @@ object SimpleSteps {
                 "com.miui.video",
                 "com.mi.global.video"
             )
+        ),
+
+        // Папки рабочего стола: «Рекомендуемое сегодня» внутри папки (лаунчер MIUI).
+        // Вход — рабочий стол, поэтому маршрут Настроек и launchPackage не нужны:
+        // папку находит рантайм-рутина по структуре (имя задаёт пользователь).
+        Step(
+            id = "folder_recommendations",
+            titleRu = "Рекомендации в папках рабочего стола",
+            titleEn = "Home folder suggestions",
+            descRu = "Выключаем «Рекомендуемое сегодня» внутри папок рабочего стола.",
+            descEn = "Turning off \"Recommended today\" inside home screen folders.",
+            intents = emptyList(),
+            searchTexts = listOf(
+                "Рекомендуемое сегодня", "Recommended today",
+                "Рекомендации", "Recommendations",
+                "Изменить папку", "Edit folder"
+            ),
+            manualHintRu = "Откройте папку на рабочем столе → нажмите на её название " +
+                "(HyperOS 2/3: удерживайте папку → «Изменить папку») → выключите «Рекомендуемое сегодня».",
+            manualHintEn = "Open a home folder → tap its name (HyperOS 2/3: hold the folder → " +
+                "\"Edit folder\") → turn off \"Recommended today\".",
+            requiredPackages = listOf(
+                "com.miui.home",
+                "com.mi.android.globallauncher",
+                "com.miui.launcher",
+                "com.mi.global.home"
+            ),
+            actionType = ActionType.HOME_FOLDER_TOGGLE,
+            targetChecked = false
+        ),
+
+        // Проверка приложений при установке: экран настроек установщика (шестерёнка из
+        // окна сканирования). Установка APK не запускается — только активность настроек.
+        Step(
+            id = "installer_recommendations",
+            titleRu = "Проверка приложений при установке",
+            titleEn = "App scan on install",
+            descRu = "Выключаем «Получать рекомендации» в настройках установщика приложений.",
+            descEn = "Turning off \"Receive recommendations\" in the app installer settings.",
+            intents = emptyList(),
+            searchTexts = listOf(
+                "Получать рекомендации", "Receive recommendations",
+                "Расширенные настройки", "Advanced settings"
+            ),
+            manualHintRu = "При установке из стора откройте окно проверки → шестерёнка справа вверху → " +
+                "отключите «Получать рекомендации» (HyperOS 2/3 — раздел «Расширенные настройки»).",
+            manualHintEn = "When installing from a store open the scan window → gear at the top right → " +
+                "turn off \"Receive recommendations\" (HyperOS 2/3: \"Advanced settings\").",
+            requiredPackages = listOf(
+                "com.miui.packageinstaller",
+                "com.google.android.packageinstaller",
+                "com.android.packageinstaller"
+            ),
+            actionType = ActionType.INSTALLER_SETTINGS_TOGGLE,
+            targetChecked = false
         )
     ).map { it.withNotificationWarning() }
 

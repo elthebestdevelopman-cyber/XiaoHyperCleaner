@@ -37,7 +37,7 @@
       "ru": ["Разрешить"], "en": ["Allow"], "es": ["Permitir"],
       "zh": ["允许"], "hi": ["अनुमति दें"], "pt": ["Permitir"], "id": ["Izinkan"]
     },
-    "allowOverrides": [],
+    "allowOverrides": ["music_sys", "mivideo"],
     "maxIterationsPerStep": 3,
     "checkboxTexts": {
       "ru": ["Выбрать все", "Согласен со всеми", "(обязательно)", "обязательно"],
@@ -65,7 +65,35 @@
       "hi": ["नहीं, धन्यवाद", "समझ गया", "बंद करें"],
       "pt": ["Não, obrigado", "Entendi", "Fechar"],
       "id": ["Tidak, terima kasih", "Mengerti", "Tutup"]
-    }
+    },
+    "forceStopMarkers": {
+      "ru": ["Закрыть принудительно?", "Закрыть принудительно", "Принудительное закрытие"],
+      "en": ["Force stop?", "Force stop", "Force close"],
+      "es": ["¿Forzar detención?", "Forzar detención", "Forzar cierre"],
+      "zh": ["强制关闭", "强行停止"],
+      "hi": ["जबरदस्ती बंद करें", "जबरन रोकें"],
+      "pt": ["Forçar parada", "Forçar fechamento"],
+      "id": ["Paksa berhenti", "Hentikan paksa"]
+    },
+    "crashReportMarkers": {
+      "ru": ["Отправить отчет", "произошел сбой", "произошёл сбой"],
+      "en": ["Send report", "has stopped", "keeps stopping"],
+      "es": ["Enviar informe", "se ha detenido"],
+      "zh": ["发送报告", "已停止运行"],
+      "hi": ["रिपोर् भेजें", "बंद हो गया"],
+      "pt": ["Enviar relatório", "parou de funcionar"],
+      "id": ["Kirim laporan", "berhenti berfungsi"]
+    },
+    "defaultAppMarkers": {
+      "ru": ["по умолчанию"],
+      "en": ["as default", "default app", "default browser"],
+      "es": ["como predeterminada", "predeterminada"],
+      "zh": ["默认"],
+      "hi": ["डिफ़ॉल्ट"],
+      "pt": ["padrão"],
+      "id": ["bawaan"]
+    },
+    "appOwnedDecision": "accept"
   },
   "manualSteps": [
     {
@@ -88,28 +116,6 @@
         "hi": "स्टोर से इंस्टॉल करते समय स्कैन विंडो खोलें → ऊपर दाएँ गियर → “सिफ़ारिशें प्राप्त करें” बंद करें।",
         "pt": "Ao instalar de uma loja abra a janela de verificação → engrenagem no topo à direita → desative \"Receber recomendações\".",
         "id": "Saat memasang dari toko buka jendela pemindaian → ikon roda di kanan atas → matikan \"Terima rekomendasi\"."
-      }
-    },
-    {
-      "id": "folders_today",
-      "warning": false,
-      "title": {
-        "ru": "Рекомендации в папках рабочего стола",
-        "en": "Home folder suggestions",
-        "es": "Sugerencias en carpetas",
-        "zh": "桌面文件夹推荐",
-        "hi": "फ़ोल्डर सुझाव",
-        "pt": "Sugestões em pastas",
-        "id": "Saran di folder"
-      },
-      "body": {
-        "ru": "Откройте папку на рабочем столе → нажмите на её название (HyperOS 2/3: удерживайте папку → «Изменить папку») → выключите «Рекомендуемое сегодня».",
-        "en": "Open a home folder → tap its name (HyperOS 2/3: hold the folder → \"Edit folder\") → turn off \"Recommended today\".",
-        "es": "Abra una carpeta → toque su nombre (HyperOS 2/3: mantenga la carpeta → \"Editar carpeta\") → desactive \"Recomendado hoy\".",
-        "zh": "打开桌面文件夹 → 点击文件夹名称（HyperOS 2/3：长按文件夹 → “编辑文件夹”） → 关闭“今日推荐”。",
-        "hi": "होम फ़ोल्डर खोलें → उसका नाम दबाएँ (HyperOS 2/3: फ़ोल्डर दबाए रखें → “फ़ोल्डर संपादित करें”) → “आज के लिए अनुशंसित” बंद करें।",
-        "pt": "Abra uma pasta → toque no nome (HyperOS 2/3: mantenha a pasta → \"Editar pasta\") → desative \"Recomendado hoje\".",
-        "id": "Buka folder → ketuk namanya (HyperOS 2/3: tahan folder → \"Edit folder\") → matikan \"Direkomendasikan hari ini\"."
       }
     },
     {
@@ -3121,6 +3127,195 @@
         "hi",
         "pt",
         "id"
+      ]
+    },
+    {
+      "id": "folder_recommendations",
+      "title": {
+        "ru": "Рекомендации в папках рабочего стола",
+        "en": "Home folder suggestions",
+        "es": "Sugerencias en carpetas",
+        "zh": "桌面文件夹推荐",
+        "hi": "फ़ोल्डर सुझाव",
+        "pt": "Sugestões em pastas",
+        "id": "Saran di folder"
+      },
+      "keywords": {
+        "ru": ["Рекомендуемое сегодня", "Рекомендации", "Изменить папку", "Название папки"],
+        "en": ["Recommended today", "Recommendations", "Edit folder", "Folder name"],
+        "es": ["Recomendado hoy", "Recomendaciones", "Editar carpeta", "Nombre de la carpeta"],
+        "zh": ["今日推荐", "推荐", "编辑文件夹", "文件夹名称"],
+        "hi": ["आज के लिए अनुशंसित", "अनुशंसाएँ", "फ़ोल्डर संपादित करें", "फ़ोल्डर नाम"],
+        "pt": ["Recomendado hoje", "Recomendações", "Editar pasta", "Nome da pasta"],
+        "id": ["Direkomendasikan hari ini", "Rekomendasi", "Edit folder", "Nama folder"]
+      },
+      "screenMarkers": {
+        "ru": ["Рекомендуемое сегодня", "Изменить папку", "Название папки"],
+        "en": ["Recommended today", "Edit folder", "Folder name"],
+        "es": ["Recomendado hoy", "Editar carpeta", "Nombre de la carpeta"],
+        "zh": ["今日推荐", "编辑文件夹", "文件夹名称"],
+        "hi": ["आज के लिए अनुशंसित", "फ़ोल्डर संपादित करें", "फ़ोल्डर नाम"],
+        "pt": ["Recomendado hoje", "Editar pasta", "Nome da pasta"],
+        "id": ["Direkomendasikan hari ini", "Edit folder", "Nama folder"]
+      },
+      "overflowMenuLabels": {
+        "ru": ["Изменить папку", "Переименовать"],
+        "en": ["Edit folder", "Rename"],
+        "es": ["Editar carpeta", "Cambiar nombre"],
+        "zh": ["编辑文件夹", "重命名"],
+        "hi": ["फ़ोल्डर संपादित करें", "नाम बदलें"],
+        "pt": ["Editar pasta", "Renomear"],
+        "id": ["Edit folder", "Ubah nama"]
+      },
+      "fallbackDrillPath": [
+        ["Рабочий стол", "Home screen"]
+      ],
+      "requiredPackages": [
+        "com.miui.home",
+        "com.mi.android.globallauncher",
+        "com.miui.launcher",
+        "com.mi.global.home"
+      ],
+      "actionType": "toggle",
+      "safe": true,
+      "localeCoverage": ["ru", "en", "es", "zh", "hi", "pt", "id"],
+      "variants": [
+        {
+          "id": "miui12_14",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
+          "fallback": true,
+          "control": "toggle",
+          "screenMarkers": {
+            "ru": ["Рекомендуемое сегодня", "Название папки"],
+            "en": ["Recommended today", "Folder name"],
+            "es": ["Recomendado hoy", "Nombre de la carpeta"],
+            "zh": ["今日推荐", "文件夹名称"],
+            "hi": ["आज के लिए अनुशंसित", "फ़ोल्डर नाम"],
+            "pt": ["Recomendado hoje", "Nome da pasta"],
+            "id": ["Direkomendasikan hari ini", "Nama folder"]
+          },
+          "itemTexts": {
+            "ru": ["Рекомендуемое сегодня", "Рекомендации"],
+            "en": ["Recommended today", "Recommendations"],
+            "es": ["Recomendado hoy", "Recomendaciones"],
+            "zh": ["今日推荐", "推荐"],
+            "hi": ["आज के लिए अनुशंसित", "अनुशंसाएँ"],
+            "pt": ["Recomendado hoje", "Recomendações"],
+            "id": ["Direkomendasikan hari ini", "Rekomendasi"]
+          }
+        },
+        {
+          "id": "hyperos1_3",
+          "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
+          "fallback": false,
+          "control": "toggle",
+          "screenMarkers": {
+            "ru": ["Рекомендуемое сегодня", "Изменить папку"],
+            "en": ["Recommended today", "Edit folder"],
+            "es": ["Recomendado hoy", "Editar carpeta"],
+            "zh": ["今日推荐", "编辑文件夹"],
+            "hi": ["आज के लिए अनुशंसित", "फ़ोल्डर संपादित करें"],
+            "pt": ["Recomendado hoje", "Editar pasta"],
+            "id": ["Direkomendasikan hari ini", "Edit folder"]
+          },
+          "itemTexts": {
+            "ru": ["Рекомендуемое сегодня"],
+            "en": ["Recommended today"],
+            "es": ["Recomendado hoy"],
+            "zh": ["今日推荐"],
+            "hi": ["आज के लिए अनुशंसित"],
+            "pt": ["Recomendado hoje"],
+            "id": ["Direkomendasikan hari ini"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "installer_recommendations",
+      "title": {
+        "ru": "Проверка приложений при установке",
+        "en": "App scan on install",
+        "es": "Análisis al instalar",
+        "zh": "安装时的应用扫描",
+        "hi": "इंस्टॉल पर ऐप स्कैन",
+        "pt": "Verificação ao instalar",
+        "id": "Pemindaian saat memasang"
+      },
+      "keywords": {
+        "ru": ["Получать рекомендации", "Расширенные настройки"],
+        "en": ["Receive recommendations", "Advanced settings"],
+        "es": ["Recibir recomendaciones", "Configuración avanzada"],
+        "zh": ["接收推荐", "高级设置"],
+        "hi": ["सुझाव प्राप्त करें", "उन्नत सेटिंग्स"],
+        "pt": ["Receber recomendações", "Configurações avançadas"],
+        "id": ["Terima rekomendasi", "Pengaturan lanjutan"]
+      },
+      "screenMarkers": {
+        "ru": ["Получать рекомендации", "Расширенные настройки"],
+        "en": ["Receive recommendations", "Advanced settings"],
+        "es": ["Recibir recomendaciones", "Configuración avanzada"],
+        "zh": ["接收推荐", "高级设置"],
+        "hi": ["सुझाव प्राप्त करें", "उन्नत सेटिंग्स"],
+        "pt": ["Receber recomendações", "Configurações avançadas"],
+        "id": ["Terima rekomendasi", "Pengaturan lanjutan"]
+      },
+      "requiredPackages": [
+        "com.miui.packageinstaller",
+        "com.google.android.packageinstaller",
+        "com.android.packageinstaller"
+      ],
+      "actionType": "toggle",
+      "safe": true,
+      "localeCoverage": ["ru", "en", "es", "zh", "hi", "pt", "id"],
+      "variants": [
+        {
+          "id": "miui12_14",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
+          "fallback": true,
+          "control": "toggle",
+          "screenMarkers": {
+            "ru": ["Получать рекомендации"],
+            "en": ["Receive recommendations"],
+            "es": ["Recibir recomendaciones"],
+            "zh": ["接收推荐"],
+            "hi": ["सुझाव प्राप्त करें"],
+            "pt": ["Receber recomendações"],
+            "id": ["Terima rekomendasi"]
+          },
+          "itemTexts": {
+            "ru": ["Получать рекомендации"],
+            "en": ["Receive recommendations"],
+            "es": ["Recibir recomendaciones"],
+            "zh": ["接收推荐"],
+            "hi": ["सुझाव प्राप्त करें"],
+            "pt": ["Receber recomendações"],
+            "id": ["Terima rekomendasi"]
+          }
+        },
+        {
+          "id": "hyperos1_3",
+          "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
+          "fallback": false,
+          "control": "toggle",
+          "screenMarkers": {
+            "ru": ["Получать рекомендации", "Расширенные настройки"],
+            "en": ["Receive recommendations", "Advanced settings"],
+            "es": ["Recibir recomendaciones", "Configuración avanzada"],
+            "zh": ["接收推荐", "高级设置"],
+            "hi": ["सुझाव प्राप्त करें", "उन्नत सेटिंग्स"],
+            "pt": ["Receber recomendações", "Configurações avançadas"],
+            "id": ["Terima rekomendasi", "Pengaturan lanjutan"]
+          },
+          "itemTexts": {
+            "ru": ["Получать рекомендации"],
+            "en": ["Receive recommendations"],
+            "es": ["Recibir recomendaciones"],
+            "zh": ["接收推荐"],
+            "hi": ["सुझाव प्राप्त करें"],
+            "pt": ["Receber recomendações"],
+            "id": ["Terima rekomendasi"]
+          }
+        }
       ]
     }
   ]

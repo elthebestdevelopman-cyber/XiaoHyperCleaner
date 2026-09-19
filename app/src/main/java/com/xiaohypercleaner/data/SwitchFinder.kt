@@ -130,6 +130,14 @@ object SwitchFinder {
             switches.firstOrNull()?.let { candidate ->
                 val row = current
                 if (sharesRow(candidate, labelBounds)) return candidate
+                // Строка MIUI «подпись + пояснение»: тумблер центрирован по всей строке
+                // и не пересекается с подписью (дамп ads_personalization: подпись
+                // [80,477][834,544], CheckBox [866,638][1000,790]). Принимаем тумблер, если
+                // контейнер соразмерен строке, а не всему списку.
+                if (isRowSizedContainer(row, labelBounds, candidate)) {
+                    AppLog.i(TAG, "switch accepted below label (row-like container)")
+                    return candidate
+                }
                 // Без геометрии действует прежний структурный контракт.
                 return acceptIfSameRow(candidate, row)
             }
@@ -164,6 +172,29 @@ object SwitchFinder {
         val best = switches.maxByOrNull { verticalOverlap(it, labelBounds) }
         AppLog.w(TAG, "row has ${switches.size} switches — pick nearest to label")
         return best ?: switches.first()
+    }
+
+    /**
+     * Контейнер соразмерен строке настройки: его высота не превышает вертикальный
+     * охват подписи и тумблера плюс два «запаса» (по высоте подписи/тумблера). Так
+     * строка «подпись + пояснение + тумблер» (MIUI: тумблер центрирован по строке и
+     * ниже подписи) отличается от списка, где тот же единственный тумблер находится
+     * ниже сгиба: там контейнер во всю высоту экрана и правило не срабатывает.
+     */
+    private fun isRowSizedContainer(
+        container: AccessibilityNodeInfo,
+        labelBounds: Rect,
+        switchNode: AccessibilityNodeInfo
+    ): Boolean {
+        val switchBounds = boundsOf(switchNode)
+        val rowHeight = boundsOf(container).height()
+        if (rowHeight <= 0 || switchBounds.isEmpty || labelBounds.isEmpty) return false
+        val top = minOf(labelBounds.top, switchBounds.top)
+        val bottom = maxOf(labelBounds.bottom, switchBounds.bottom)
+        val slack = 2 * maxOf(labelBounds.height(), switchBounds.height())
+        if (rowHeight > (bottom - top) + slack) return false
+        // Тумблер строки стоит справа от подписи (MIUI: единый правый край строки).
+        return switchBounds.left >= labelBounds.right - labelBounds.width()
     }
 
     private fun verticalOverlap(node: AccessibilityNodeInfo, labelBounds: Rect): Int {

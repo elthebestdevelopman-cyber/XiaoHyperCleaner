@@ -37,6 +37,9 @@ object PlanBuilder {
 
     private const val NOTIF_PREFIX = "notif_"
 
+    /** Шаг рекомендаций в папках рабочего стола: вход — лаунчер, а не Настройки. */
+    private const val FOLDER_STEP = "folder_recommendations"
+
     /**
      * Собирает план прогона. Вызывается один раз перед фазой STEPS.
      *
@@ -65,7 +68,7 @@ object PlanBuilder {
                 continue
             }
 
-            if (step.id == "home_suggestions") {
+            if (step.id == "home_suggestions" || step.id == FOLDER_STEP) {
                 val isMiuiHome = installedHome != null && HOME_PACKAGES.any {
                     it.equals(installedHome, ignoreCase = true)
                 }

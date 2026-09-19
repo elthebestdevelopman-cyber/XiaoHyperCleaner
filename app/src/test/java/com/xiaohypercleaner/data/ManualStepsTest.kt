@@ -24,7 +24,6 @@ class ManualStepsTest {
 
     private val expectedIds = listOf(
         "package_installer",
-        "folders_today",
         "hyperos3_search",
         "hyperos3_carousel_disable",
         "region_change",

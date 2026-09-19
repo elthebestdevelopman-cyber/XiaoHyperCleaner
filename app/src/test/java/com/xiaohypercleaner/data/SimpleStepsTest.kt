@@ -1,5 +1,6 @@
 package com.xiaohypercleaner.data
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -71,5 +72,14 @@ class SimpleStepsTest {
 
         assertTrue(home.requiredPackages.contains("com.miui.home"))
         assertTrue(home.requiredPackages.contains("com.mi.android.globallauncher"))
+    }
+
+    @Test
+    fun `installer step targets installers and opens no install activity`() {
+        val step = SimpleSteps.ALL.first { it.id == "installer_recommendations" }
+
+        assertTrue(step.requiredPackages.contains("com.miui.packageinstaller"))
+        assertTrue("вход — активность настроек, а не intent установки", step.intents.isEmpty())
+        assertEquals(SimpleSteps.ActionType.INSTALLER_SETTINGS_TOGGLE, step.actionType)
     }
 }

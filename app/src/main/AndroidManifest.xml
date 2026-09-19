@@ -100,6 +100,11 @@
         <package android:name="com.miui.gamecenter" />
         <package android:name="com.xiaomi.glgm" />
 
+        <!-- Установщик приложений: активность настроек проверки (APK не устанавливаем) -->
+        <package android:name="com.miui.packageinstaller" />
+        <package android:name="com.google.android.packageinstaller" />
+        <package android:name="com.android.packageinstaller" />
+
         <!-- Автономное перечисление: все приложения с launcher-активностью
              видны без хардкода имён (Android 11+ package visibility) -->
         <intent>
