@@ -82,7 +82,9 @@ object SimpleSteps {
     private fun launchIntent(pkg: String): Intent = Intent(Intent.ACTION_MAIN).apply {
         addCategory(Intent.CATEGORY_LAUNCHER)
         setPackage(pkg)
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        // CLEAR_TASK — чистая задача: MIUI иначе возвращает приложение на последний
+        // экран (ShareMe — мастер отправки, Темы — прежняя вкладка).
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
     }
 
     // ── Переиспользуемые фрагменты drillPath ─────────────────────────

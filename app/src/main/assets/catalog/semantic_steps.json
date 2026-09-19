@@ -565,6 +565,7 @@
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
           "drillPath": [
+            ["Пароли и безопасность", "Отпечатки, данные лица и защита устройства", "Экран блокировки и защита", "Биометрия и защита", "Passwords & security", "Fingerprints, face data & device security", "Конфиденциальность", "Privacy", "隐私", "Privacidad", "गोपनीयता", "Privacidade"],
             ["Конфиденциальность", "Privacy", "隐私", "Privacidad", "गोपनीयता", "Privacidade"],
             ["Рекламные службы", "Ad services", "广告服务", "Servicios de anuncios", "Layanan iklan", "Serviços de anúncios"]
           ],
@@ -598,6 +599,7 @@
           "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
           "fallback": false,
           "drillPath": [
+            ["Пароли и безопасность", "Отпечатки, данные лица и защита устройства", "Экран блокировки и защита", "Биометрия и защита", "Passwords & security", "Fingerprints, face data & device security"],
             ["Конфиденциальность", "Privacy", "隐私"],
             ["Рекламные службы", "Ad services", "广告服务"]
           ],

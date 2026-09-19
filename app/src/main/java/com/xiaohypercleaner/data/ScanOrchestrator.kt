@@ -76,7 +76,11 @@ object ScanOrchestrator {
         pkg: String,
         candidates: List<ActivityScanner.ActivityCandidate>
     ): List<Intent> = candidates.map { c ->
-        Intent().setClassName(pkg, c.className).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        Intent().setClassName(pkg, c.className).addFlags(
+            // CLEAR_TASK: приложение открывается на чистой задаче — без восстановления
+            // последнего экрана MIUI (мастер ShareMe, старая вкладка Тем).
+            Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        )
     }
 
     /** Ожидание целевого экрана по screen-маркерам (делегат [ComponentVerifier]). */

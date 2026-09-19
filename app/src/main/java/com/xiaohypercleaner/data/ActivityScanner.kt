@@ -35,6 +35,10 @@ object ActivityScanner {
     private const val MIN_KEYWORD_LENGTH = 3
     private const val CACHE_SCHEMA = 1
 
+    /** «Входные» имена классов для пакетов без launcher-активности. */
+    private val ENTRY_NAME_HINTS =
+        listOf("Main", "Home", "Entry", "Launcher", "Start", "Index", "First")
+
     /** Найденная активность с весом совпадения. */
     data class ActivityCandidate(
         val className: String,
@@ -245,12 +249,57 @@ object ActivityScanner {
             if (launcher.isNotEmpty()) {
                 AppLog.i(TAG, "scan pkg=$pkg launcher-fallback candidates=${launcher.size}")
             }
-            return launcher
+            val merged = launcher.ifEmpty { entryActivities(context, pkg, keywords) }
+            if (launcher.isEmpty() && merged.isNotEmpty()) {
+                AppLog.i(TAG, "scan pkg=$pkg entry-fallback candidates=${merged.size}")
+            }
+            return merged
                 .sortedWith(compareByDescending<ActivityCandidate> { it.score }.thenBy { it.className })
                 .take(MAX_CANDIDATES)
         }
         return result
             .sortedWith(compareByDescending<ActivityCandidate> { it.score }.thenBy { it.className })
             .take(MAX_CANDIDATES)
+    }
+
+    /**
+     * Входы пакета, у которых нет CATEGORY_LAUNCHER (Безопасность, Загрузки, GetApps):
+     * 1) активности, обрабатывающие ACTION_MAIN; 2) экспортируемые активности с
+     * «входным» именем класса. Без этого фолбэка такие шаги объявлялись
+     * `no_screen_opened` (прогон rmu8lzcu9).
+     */
+    private fun entryActivities(
+        context: Context,
+        pkg: String,
+        keywords: List<String>
+    ): List<ActivityCandidate> {
+        val mainAction = runCatching {
+            context.packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).setPackage(pkg), 0)
+        }.getOrNull().orEmpty().mapNotNull { info ->
+            val activity = info.activityInfo ?: return@mapNotNull null
+            if (activity.packageName != pkg) return@mapNotNull null
+            val className = activity.name ?: return@mapNotNull null
+            val label = runCatching { activity.loadLabel(context.packageManager).toString() }
+                .getOrNull().orEmpty()
+            val score = scoreCandidate(className, label, keywords)
+            ActivityCandidate(className, label, if (score > 0) score else 2)
+        }
+        if (mainAction.isNotEmpty()) return mainAction
+
+        val info = runCatching {
+            context.packageManager.getPackageInfo(pkg, PackageManager.GET_ACTIVITIES)
+        }.getOrNull() ?: return emptyList()
+        return info.activities.orEmpty().mapNotNull { activity ->
+            val className = activity.name ?: return@mapNotNull null
+            if (!activity.exported) return@mapNotNull null
+            if (activity.packageName != null && activity.packageName != pkg) return@mapNotNull null
+            val simple = className.substringAfterLast('.')
+            val entryLike = ENTRY_NAME_HINTS.any { TextMatcher.normalizedContains(simple, it) }
+            if (!entryLike) return@mapNotNull null
+            val label = runCatching { activity.loadLabel(context.packageManager).toString() }
+                .getOrNull().orEmpty()
+            val score = scoreCandidate(className, label, keywords)
+            ActivityCandidate(className, label, if (score > 0) score else 1)
+        }
     }
 }

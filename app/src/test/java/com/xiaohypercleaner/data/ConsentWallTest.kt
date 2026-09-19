@@ -116,7 +116,11 @@ class ConsentWallTest {
 
     @Test
     fun `iteration limit stops the welcome loop`() = runTest {
-        val node = screen("Welcome to Themes Terms of Service")
+        // Экран стены меняется после каждого тапа — иначе сработал бы анти-повтор.
+        val node = Mockito.mock(AccessibilityNodeInfo::class.java)
+        var counter = 0
+        Mockito.`when`(node.text).thenAnswer { "Welcome to Themes Terms of Service ${counter++}" }
+        Mockito.`when`(node.childCount).thenReturn(0)
         Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
 
         val handled = ConsentWallHandler.handleUntilSettled(
@@ -127,6 +131,111 @@ class ConsentWallTest {
         )
 
         assertEquals("цикл ограничен maxIterationsPerStep", 3, handled)
+    }
+
+    @Test
+    fun `stubborn wall is not tapped twice on unchanged screen`() = runTest {
+        // Реальный баг прогона rmu8lzcu9: одна и та же стена «принималась» трижды
+        // (browser_sys/music_sys), потому что цикл не проверял прогресс.
+        val node = screen("Welcome to Themes Terms of Service")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
+
+        val handled = ConsentWallHandler.handleUntilSettled(
+            service = service,
+            bridge = bridge,
+            stepId = "themes",
+            maxIterations = 3
+        )
+
+        assertEquals("неизменившийся экран — прогресса нет", 1, handled)
+    }
+
+    /** Узел с Android-id диалога (alertTitle/message/button1/button2). */
+    private fun dialogNode(
+        id: String,
+        text: String? = null,
+        clickable: Boolean = false
+    ): AccessibilityNodeInfo {
+        val n = Mockito.mock(AccessibilityNodeInfo::class.java)
+        Mockito.`when`(n.viewIdResourceName).thenReturn(id)
+        if (text != null) Mockito.`when`(n.text).thenReturn(text)
+        Mockito.`when`(n.isClickable).thenReturn(clickable)
+        Mockito.`when`(n.childCount).thenReturn(0)
+        return n
+    }
+
+    private fun container(vararg children: AccessibilityNodeInfo): AccessibilityNodeInfo {
+        val n = Mockito.mock(AccessibilityNodeInfo::class.java)
+        Mockito.`when`(n.childCount).thenReturn(children.size)
+        children.forEachIndexed { i, c -> Mockito.`when`(n.getChild(i)).thenReturn(c) }
+        return n
+    }
+
+    @Test
+    fun `default browser prompt is dismissed by negative button`() = runTest {
+        val root = container(
+            dialogNode("android:id/alertTitle", "Mi Браузер"),
+            dialogNode("android:id/message", "Установите Mi Браузер в качестве браузера по умолчанию"),
+            dialogNode("android:id/button2", "Отмена", clickable = true),
+            dialogNode("android:id/button1", "OK", clickable = true)
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        val outcome = ConsentWallHandler.handleOnce(service, bridge, "browser_sys")
+
+        assertTrue("промпт «по умолчанию» должен закрываться", outcome.handled)
+        assertEquals("dialog", outcome.kind)
+        assertEquals("dismissed", outcome.decision)
+        assertEquals("первой тапается отрицательная кнопка", "Отмена", tappedTexts.first())
+    }
+
+    @Test
+    fun `crash report dialog is dismissed instead of blocking the step`() = runTest {
+        val root = container(
+            dialogNode("android:id/alertTitle", "В приложении \"GetApps\" снова произошел сбой"),
+            dialogNode("android:id/message", "Отправить отчет об ошибке в Xiaomi?"),
+            dialogNode("android:id/button2", "Отмена", clickable = true),
+            dialogNode("android:id/button1", "Отправить отчет", clickable = true)
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        val outcome = ConsentWallHandler.handleOnce(service, bridge, "notif_getapps")
+
+        assertTrue(outcome.handled)
+        assertEquals("dialog", outcome.kind)
+        assertTrue("отчёт об ошибке не отправляем", "Отправить отчет" !in tappedTexts)
+    }
+
+    @Test
+    fun `dialog owned by the step is left to the step confirm logic`() = runTest {
+        // msa: диалог «Отозвать» ведёт confirmDelayedRevoke — generic-закрытие
+        // «Отменой» сломало бы отзыв.
+        val root = container(
+            dialogNode("android:id/alertTitle", "Отозвать доступ к личным данным?"),
+            dialogNode("android:id/button1", "Отозвать", clickable = true),
+            dialogNode("android:id/button2", "Отмена", clickable = true)
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        val outcome = ConsentWallHandler.handleOnce(
+            service, bridge, "msa", stepConfirmTexts = listOf("Отозвать", "ОК")
+        )
+
+        assertFalse("диалог шага не закрывается generic-путём", outcome.handled)
+        assertTrue("ничего не тапали", tappedTexts.isEmpty())
+    }
+
+    @Test
+    fun `welcome markers inside the target screen are not a consent wall`() = runTest {
+        // carousel: ссылка «Условия использования» на СВОЁМ экране настроек
+        // считалась стеной и тапала согласие (прогон rmu8lzcu9).
+        val node = screen("Wallpaper Carousel Terms of Service")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
+
+        val outcome = ConsentWallHandler.handleOnce(service, bridge, "carousel")
+
+        assertFalse("целевой экран шага — не стена согласия", outcome.handled)
+        assertTrue(tappedTexts.isEmpty())
     }
 
     @Test

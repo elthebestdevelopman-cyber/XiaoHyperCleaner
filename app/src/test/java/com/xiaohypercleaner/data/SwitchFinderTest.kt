@@ -143,6 +143,84 @@ class SwitchFinderTest {
     }
 
     @Test
+    fun `miui row with outer switch and inner checkbox picks the row switch`() {
+        // Реальная структура строки MIUI (дамп carousel, прогон rmu8lzcu9): внешний
+        // Switch строки + внутренний `Switch id=checkbox` в widget_frame. Прежнее
+        // правило «ровно один тумблер» отклоняло такую строку как ambiguous.
+        val label = node("android.widget.TextView", text = "Персонализированная реклама")
+        val outer = node("android.widget.Switch", checkable = true, checked = true)
+        val inner = node("android.widget.Switch", checkable = true, checked = true)
+        val row = node("android.widget.LinearLayout", clickable = true, children = arrayOf(label, outer, inner))
+        val root = node("android.widget.FrameLayout", clickable = false, children = arrayOf(row))
+        link(row, label, outer, inner)
+        link(root, row)
+        withBounds(label, 60, 1000, 700, 1060)
+        withBounds(outer, 900, 990, 1050, 1070)
+        withBounds(inner, 930, 1005, 1020, 1055)
+
+        val found = SwitchFinder.findSwitch(root, listOf("Персонализированная реклама"))
+
+        assertNotNull("тумблер строки должен быть найден по геометрии", found)
+        assertTrue(SwitchFinder.isSwitchLike(found!!))
+        assertEquals("выбирается тумблер строки (крупнее внутреннего checkbox)", outer, found)
+    }
+
+    @Test
+    fun `switch of a foreign row is rejected by geometry`() {
+        // С подписями и bounds: тумблер соседней строки не пересекается по вертикали
+        // с подписью и не должен приниматься (защита от ложного OK).
+        val label = node("android.widget.TextView", text = "Персонализированная реклама")
+        val labelRow = node("android.widget.LinearLayout", clickable = true, children = arrayOf(label))
+        val stranger = node("android.widget.Switch", checkable = true, checked = true)
+        val strangerRow = node("android.widget.LinearLayout", clickable = true, children = arrayOf(stranger))
+        val screen = node("android.widget.FrameLayout", clickable = false, children = arrayOf(labelRow, strangerRow))
+        link(screen, labelRow, strangerRow)
+        link(labelRow, label)
+        link(strangerRow, stranger)
+        withBounds(label, 60, 1000, 700, 1060)
+        withBounds(stranger, 900, 1200, 1050, 1260)
+
+        assertNull(
+            "тумблер чужой строки не должен быть выбран",
+            SwitchFinder.findSwitch(screen, listOf("Персонализированная реклама"))
+        )
+    }
+
+    @Test
+    fun `miui notification row with widget_frame checkbox is found`() {
+        // Реальная структура (дамп notif_msa, прогон rmu8lzcu9):
+        // LinearLayout[clickable](row) → RelativeLayout(TextView title) + widget_frame(CheckBox).
+        // CheckBox не clickable и без текста — раньше такой тумблер не находился вовсе.
+        val title = node("android.widget.TextView", text = "Показывать уведомления")
+        val titleHolder = node("android.widget.RelativeLayout", children = arrayOf(title))
+        val checkbox = node("android.widget.CheckBox", checked = false, checkable = true)
+        val widgetFrame = node("android.widget.LinearLayout", children = arrayOf(checkbox))
+        val row = node(
+            "android.widget.LinearLayout",
+            clickable = true,
+            children = arrayOf(titleHolder, widgetFrame)
+        )
+        val root = node("android.widget.FrameLayout", clickable = false, children = arrayOf(row))
+        link(row, titleHolder, widgetFrame)
+        link(titleHolder, title)
+        link(widgetFrame, checkbox)
+        link(root, row)
+
+        val found = SwitchFinder.findSwitch(root, listOf("Показывать уведомления"))
+
+        assertEquals("тумблер строки уведомлений должен находиться", checkbox, found)
+        assertFalse("checked_before читается как есть", SwitchFinder.isChecked(found!!))
+    }
+
+    /** Проставляет bounds узлу: без геометрии правила строки не работают. */
+    private fun withBounds(node: AccessibilityNodeInfo, left: Int, top: Int, right: Int, bottom: Int) {
+        Mockito.doAnswer { invocation ->
+            (invocation.arguments[0] as Rect).set(left, top, right, bottom)
+            null
+        }.`when`(node).getBoundsInScreen(Mockito.any(Rect::class.java))
+    }
+
+    @Test
     fun `describe captures checked_before label and bounds`() {
         val switch = node("android.widget.Switch", checked = false, text = "Карусель", checkable = true)
         Mockito.doAnswer { invocation ->

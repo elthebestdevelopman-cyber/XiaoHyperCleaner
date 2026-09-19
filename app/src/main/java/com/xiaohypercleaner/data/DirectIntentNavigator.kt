@@ -310,11 +310,15 @@ object DirectIntentNavigator {
             }
 
             "filemanager" -> {
-                // Проводник — очистка данных + отмена
-                val pkg = resolvedPackage ?: "com.mi.android.globalFileexplorer"
+                // Проводник: вариант ОС ведёт через сам Проводник (☰ → Настройки →
+                // Информация), CLEAR_DATA — фолбэк. Поэтому запуск приложения первичен,
+                // «Сведения о приложении» — только фолбэк (прогон rmu8lzcu9: шаг уходил
+                // в App Info и падал на диалоге).
+                val main = resolvedPackage ?: "com.mi.android.globalFileexplorer"
                 intents.addAll(
                     listOf(
-                        appDetailsIntent(pkg),
+                        launchIntent(main),
+                        appDetailsIntent(main),
                         appDetailsIntent("com.mi.android.globalFileexplorer"),
                         appDetailsIntent("com.android.fileexplorer"),
                         appDetailsIntent("com.mi.android.fileexplorer")
@@ -483,7 +487,13 @@ object DirectIntentNavigator {
         return Intent(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_LAUNCHER)
             setPackage(packageName)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            // CLEAR_TASK: MIUI восстанавливает последний экран приложения (ShareMe —
+            // мастер отправки, Темы — старую вкладку). Чистая задача даёт корневой экран.
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_CLEAR_TASK
+            )
         }
     }
 

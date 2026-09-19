@@ -26,6 +26,22 @@ object ConsentWallHandler {
     /** Медиа-шаги: аудио-разрешение исторически гранилось (поведение не меняем). */
     private val MEDIA_STEPS = setOf("music_sys", "mivideo")
 
+    /**
+     * Отрицательные кнопки системных alert-диалогов. Робот закрывает диалог и
+     * продолжает шаг: «Установить по умолчанию» (Отмена), отчёт о сбое (Отмена),
+     * «Закрыть принудительно?» (Отмена). Диалог, принадлежащий шагу (msa: «Отозвать»),
+     * сюда не попадает — его ведёт confirm-логика шага.
+     */
+    private val ALERT_NEGATIVE_TEXTS = listOf(
+        "Отмена", "Отменить", "Cancel", "Abbrechen", "Cancelar", "Batal",
+        "Позже", "Later", "Не сейчас", "Not now", "Пропустить", "Skip",
+        "Нет", "No", "取消", "취소"
+    )
+
+    /** Обобщённые подтверждения: не считаются «владением» диалога шагом. */
+    private val GENERIC_CONFIRM_TEXTS =
+        setOf("ok", "ок", "oк", "yes", "да", "aceptar", "确定", "ठीक है", "oke")
+
     data class Outcome(val handled: Boolean, val kind: String, val decision: String)
 
     /** Мост нажатий: реализует SimpleRunner (поиск кликабельного узла по текстам). */
@@ -49,17 +65,29 @@ object ConsentWallHandler {
         bridge: TapBridge,
         stepId: String,
         stepConsentTexts: List<String> = emptyList(),
+        stepConfirmTexts: List<String> = emptyList(),
         isCancelled: () -> Boolean = { false }
     ): Outcome {
         if (isCancelled()) return Outcome(false, "none", "cancelled")
         val root = service.rootInActiveWindow ?: return Outcome(false, "none", "no_window")
         val screenText = NodeTree.collectText(root)
+
+        // 1. Системный alert-диалог (crash-report MIUI, «Установить по умолчанию»,
+        //    «Закрыть принудительно?»): закрываем ОТРИЦАТЕЛЬНОЙ кнопкой и продолжаем
+        //    шаг. Без этого шаги падали на диалоге (прогон rmu8lzcu9: browser_sys,
+        //    notif_getapps, filemanager). Диалог, которым владеет шаг, не трогаем.
+        val alertDialog = isAlertDialog(root)
         recycle(root)
+        if (alertDialog && !ownsDialog(screenText, stepConfirmTexts)) {
+            val tapped = bridge.tapByTexts(ALERT_NEGATIVE_TEXTS)
+            log(stepId, "dialog", if (tapped) "dismissed" else "not_found", screenText)
+            if (tapped) return Outcome(true, "dialog", "dismissed")
+        }
 
         val welcomeMarkers = SemanticCatalog.welcomeMarkers()
         val permissionMarkers = SemanticCatalog.permissionMarkers()
 
-        // 1. Диалог-заглушка внутри шага («Произошла ошибка сети» → «Понятно»,
+        // 2. Диалог-заглушка внутри шага («Произошла ошибка сети» → «Понятно»,
         //    «Нет, спасибо» после выключения Карусели) — закрываем и продолжаем шаг.
         val dismissTexts = SemanticCatalog.dismissTexts()
         if (dismissTexts.isNotEmpty() && dismissDialogVisible(screenText, dismissTexts)) {
@@ -68,7 +96,16 @@ object ConsentWallHandler {
             if (tapped) return Outcome(true, "dismiss", "closed")
         }
 
-        if (welcomeMarkers.isNotEmpty() && welcomeMarkers.any { TextMatcher.normalizedContains(screenText, it) }) {
+        // 3. Welcome-стена: только если экран НЕ совпал с маркерами цели шага —
+        //    иначе ссылка «Условия использования» внутри настроек карусели принималась
+        //    за стену и шаг тапал согласие на своём же экране (прогон rmu8lzcu9).
+        val stepMarkers = SemanticCatalog.screenMarkers(stepId)
+        val onTargetScreen = stepMarkers.isNotEmpty() &&
+            stepMarkers.any { TextMatcher.normalizedContains(screenText, it) }
+        if (!onTargetScreen &&
+            welcomeMarkers.isNotEmpty() &&
+            welcomeMarkers.any { TextMatcher.normalizedContains(screenText, it) }
+        ) {
             val actions = (stepConsentTexts + SemanticCatalog.welcomeActions()).distinct()
             // Стена с чекбоксами: сначала отмечаем «Выбрать все»/обязательные пункты,
             // затем жмём кнопку (до отметки она неактивна).
@@ -103,18 +140,55 @@ object ConsentWallHandler {
         bridge: TapBridge,
         stepId: String,
         stepConsentTexts: List<String> = emptyList(),
+        stepConfirmTexts: List<String> = emptyList(),
         maxIterations: Int = SemanticCatalog.maxConsentIterationsPolicy(),
         isCancelled: () -> Boolean = { false }
     ): Int {
         var handled = 0
         val limit = maxIterations.coerceAtLeast(1)
+        // Подпись экрана ДО первого действия: тап, который ничего не изменил,
+        // дальше повторять нечего (прежний цикл трижды «принимал» одну и ту же
+        // стену — browser_sys/music_sys, прогон rmu8lzcu9).
+        var previousScreen = screenSignature(service)
         while (handled < limit) {
             if (isCancelled()) break
-            val outcome = handleOnce(service, bridge, stepId, stepConsentTexts, isCancelled)
+            val outcome = handleOnce(
+                service, bridge, stepId, stepConsentTexts, stepConfirmTexts, isCancelled
+            )
             if (!outcome.handled) break
             handled++
+            val screen = screenSignature(service)
+            if (screen.isNotEmpty() && screen == previousScreen) break
+            previousScreen = screen
         }
         return handled
+    }
+
+    /** Стандартный alert-диалог: id `alertTitle`/`message` + кнопка `button1/button2`. */
+    internal fun isAlertDialog(root: AccessibilityNodeInfo): Boolean {
+        val hasTitle = NodeTree.findInTree(root) { viewId(it).endsWith("alertTitle") } != null
+        if (hasTitle) return true
+        val hasMessage = NodeTree.findInTree(root) { viewId(it).endsWith("message") } != null
+        val hasNegative = NodeTree.findInTree(root) { viewId(it).endsWith("button2") } != null
+        return hasMessage && hasNegative
+    }
+
+    /** Диалог принадлежит шагу, если на экране его собственный confirm-текст (msa). */
+    private fun ownsDialog(screenText: String, stepConfirmTexts: List<String>): Boolean =
+        stepConfirmTexts.any { text ->
+            val normalized = TextMatcher.normalize(text)
+            normalized.isNotEmpty() &&
+                normalized !in GENERIC_CONFIRM_TEXTS &&
+                TextMatcher.normalizedContains(screenText, text)
+        }
+
+    private fun viewId(node: AccessibilityNodeInfo): String = node.viewIdResourceName ?: ""
+
+    private fun screenSignature(service: AccessibilityService): String {
+        val root = service.rootInActiveWindow ?: return ""
+        val text = NodeTree.collectText(root)
+        recycle(root)
+        return text
     }
 
     private fun dismissDialogVisible(screenText: String, dismissTexts: List<String>): Boolean {

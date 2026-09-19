@@ -116,7 +116,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         SimpleStepBridge.onSkipped = { stepId ->
-            AppLog.i(TAG, "SimpleStepBridge skipped (app not installed): $stepId")
+            // Skipped = нет уверенности в экране (low_confidence) или пакет не установлен:
+            // текст лога не должен выдавать одно за другое.
+            AppLog.i(TAG, "SimpleStepBridge skipped: $stepId")
             stepAttempt = 1
             simpleController.onStepSkipped(stepId)
         }

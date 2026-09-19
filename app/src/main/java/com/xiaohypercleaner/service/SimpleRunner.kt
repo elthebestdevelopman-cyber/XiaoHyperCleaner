@@ -322,8 +322,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Резолвинг пакета: вариантный каталог + семантическая таблица (visibility-aware).
         // Маршрут варианта может идти через Настройки (appvault_*: Рабочий стол → Лента
         // виджетов) — тогда приложение не запускаем и пакет не резолвим.
-        val settingsEntry = SemanticCatalog.entry(step.id) == ENTRY_SETTINGS
-        if (settingsEntry) {
+        // notif_*: точка входа — системный экран уведомлений приложения
+        // (ACTION_APP_NOTIFICATION_SETTINGS). Discovery-скан приложения здесь вреден:
+        // его явная компонента открывала ленту App Vault вместо уведомлений (rmu8lzcu9).
+        val notifStep = step.id.startsWith("notif_")
+        val settingsEntry = SemanticCatalog.entry(step.id) == ENTRY_SETTINGS || notifStep
+        if (notifStep) {
+            AppLog.i(TAG, "notif step ${step.id}: маршрут через экран уведомлений Настроек")
+            step = step.copy(launchPackage = null)
+        } else if (settingsEntry) {
             AppLog.i(TAG, "variant entry=settings for ${step.id} — маршрут через Настройки")
             step = step.copy(launchPackage = null)
         }
@@ -359,8 +366,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // проверка на этапе интента не нужна (иначе Settings-фолбэк уводит из приложения).
         // CLEAR_DATA_DECLINE идёт в App Info (APPLICATION_DETAILS_SETTINGS), а не в
         // приложение: discovery-скан приложения здесь запрещён (он открывал главный экран).
+        // Вариант ОС переопределяет тип шага (Проводник: CLEAR_DATA_DECLINE → тумблер):
+        // тогда нужен экран приложения, а не «Сведения о приложении», иначе шаг уходил
+        // в App Info и падал (прогон rmu8lzcu9, filemanager).
+        val variantToggle =
+            SemanticCatalog.variantControl(step.id) == SemanticCatalog.ActionType.TOGGLE
         val isAppStep = step.launchPackage != null &&
-            step.actionType != SimpleSteps.ActionType.CLEAR_DATA_DECLINE
+            (step.actionType != SimpleSteps.ActionType.CLEAR_DATA_DECLINE || variantToggle)
         // Discovery: явная компонента из candidates первична, неявный LAUNCHER — фолбэк.
         val plan = ScanOrchestrator.planNavigation(
             context = service,
@@ -419,6 +431,28 @@ class SimpleRunner(private val service: AdbEnablerService) {
             }
         }
 
+        // Последний рубеж для app-шагов без CATEGORY_LAUNCHER (Безопасность, Загрузки,
+        // GetApps): launcher-интент у PackageManager — он не зависит от того, нашёл ли
+        // его queryIntentActivities. Без этого шаги объявлялись no_screen_opened.
+        if (!screenOpened) {
+            val pkg = step.launchPackage
+            if (pkg != null) {
+                val launch = runCatching { service.packageManager.getLaunchIntentForPackage(pkg) }
+                    .getOrNull()
+                if (launch != null) {
+                    launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    runCatching { service.startActivity(launch) }
+                        .onSuccess {
+                            AppLog.i(TAG, "launcher intent from PackageManager for $pkg")
+                            screenOpened = true
+                        }
+                        .onFailure { AppLog.w(TAG, "pm launcher intent failed for $pkg: ${it.message}") }
+                } else {
+                    AppLog.w(TAG, "no launcher intent for $pkg — шаг без точки входа")
+                }
+            }
+        }
+
         if (!screenOpened) return Result(false, "no_screen_opened")
 
         delay(if (step.launchPackage != null) APP_LAUNCH_DELAY_MS else UI_SETTLE_DELAY_MS)
@@ -440,6 +474,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 step,
                 AdaptiveCatalog.mergeDrillPath(service, step.id, step.drillPath)
             )
+        }
+        // Интенты MIUI умеют открывать не тот подэкран (msa: APP_PERM_EDITOR ведёт в
+        // «Конфиденциальность» → «Разрешения»). Если после интентов мы не на корне
+        // Настроек и цель шага не видна — возвращаемся в корень: drill пойдёт от
+        // известной точки, а не с середины чужого экрана (прогон rmu8lzcu9).
+        if (step.launchPackage == null && mergedDrillPath.isNotEmpty() &&
+            !onTargetScreen(step) && !isSettingsRoot()
+        ) {
+            AppLog.i(TAG, "settings step ${step.id}: intent screen unusable — re-anchor to root")
+            canResumeSettings = false
+            resetSettingsToRoot()
         }
         // Resume: если интент уже открыл нужный экран, начинаем с текущего уровня
         // (совпадение с целью шага отменяет бурение вовсе).
@@ -675,21 +720,32 @@ class SimpleRunner(private val service: AdbEnablerService) {
      */
     internal fun resumeDrillIndex(step: SimpleSteps.Step, path: List<List<String>>): Int {
         val root = service.rootInActiveWindow ?: return 0
-        val screenText = collectAllText(root)
+        // Заголовок тулбара — не уровень маршрута: прежний сбор текста ловил
+        // «Конфиденциальность» из action_bar и resume уходил в середину пути
+        // (ux_program, прогон rmu8lzcu9).
+        val screenText = collectBodyText(root)
         recycleNode(root)
         if (screenText.isBlank()) return 0
 
-        val targets = searchTextsFor(step)
-        val markers = SemanticCatalog.screenMarkers(step.id)
-        val targetVisible = targets.isNotEmpty() &&
-            targets.any { TextMatcher.normalizedContains(screenText, it) } &&
-            (markers.isEmpty() || markers.any { TextMatcher.normalizedContains(screenText, it) })
-        if (targetVisible) return path.size
+        if (onTargetScreen(step)) return path.size
 
         for (levelIndex in path.indices) {
             if (path[levelIndex].any { TextMatcher.normalizedContains(screenText, it) }) return levelIndex
         }
         return 0
+    }
+
+    /** Экран уже совпал с целью шага: keyword-match И screenMarkers (как в resume). */
+    private fun onTargetScreen(step: SimpleSteps.Step): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val screenText = collectBodyText(root)
+        recycleNode(root)
+        val targets = searchTextsFor(step)
+        if (targets.isEmpty() || !targets.any { TextMatcher.normalizedContains(screenText, it) }) {
+            return false
+        }
+        val markers = SemanticCatalog.screenMarkers(step.id)
+        return markers.isEmpty() || markers.any { TextMatcher.normalizedContains(screenText, it) }
     }
 
     /**
@@ -852,15 +908,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
                         "for '${mergedSearchTexts.firstOrNull()}'"
                 )
                 val r = service.rootInActiveWindow ?: return Result(false, "no_root_window")
-                val scrollable = findScrollableContainer(r)
-                if (scrollable == null) {
-                    recycleNode(r); return@repeat
-                }
-
-                val scrolled = scrollable.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
-                recycleNode(scrollable); recycleNode(r)
-                if (!scrolled) swipeUp()
-                delay(400)
+                recycleNode(r)
+                scrollDownOnce()
 
                 currentRoot = service.rootInActiveWindow ?: return Result(false, "no_root_window")
                 switchNode = findSwitchByText(currentRoot, mergedSearchTexts)
@@ -1120,6 +1169,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
             bridge = consentTapBridge,
             stepId = step.id,
             stepConsentTexts = SemanticCatalog.consentTexts(step.id),
+            // Confirm-тексты шага: диалог, который ведёт сам шаг (msa «Отозвать»),
+            // generic-закрытие не трогает.
+            stepConfirmTexts = confirmTextsFor(step),
             maxIterations = SemanticCatalog.maxConsentIterations(
                 step.id,
                 SemanticCatalog.maxConsentIterationsPolicy()
@@ -1298,26 +1350,36 @@ class SimpleRunner(private val service: AdbEnablerService) {
         repeat(attempts) { attempt ->
             findClickableByText(texts = texts)?.let { return it }
             val root = service.rootInActiveWindow ?: return null
-            val scrollable = findScrollableContainer(root)
-            if (scrollable == null) {
-                recycleNode(root); return null
-            }
+            recycleNode(root)
             if (logLabel != null) {
                 AppLog.i(TAG, "drill: scroll attempt ${attempt + 1}/$attempts for '$logLabel'")
             }
-            if (!scrollable.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)) swipeUp()
-            recycleNode(scrollable); recycleNode(root)
-            delay(400)
+            scrollDownOnce()
         }
         return findClickableByText(texts = texts)
     }
 
-    private fun findScrollableContainer(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        var node: AccessibilityNodeInfo? = root
-        while (node != null) {
-            if (node.isScrollable) return node; node = node.parent
-        }
-        return null
+    /**
+     * Первый прокручиваемый контейнер ПОД окном. Прежняя версия поднималась вверх
+     * по `parent` и всегда возвращала null (у окна нет scrollable-предка): drill и
+     * поиск тумблеров не прокручивали экран вовсе — «Приложения» на корне Настроек
+     * и тумблеры ниже сгиба не находились (прогон rmu8lzcu9).
+     */
+    internal fun findScrollableContainer(root: AccessibilityNodeInfo): AccessibilityNodeInfo? =
+        NodeTree.findInTree(root) { it.isScrollable }
+
+    /**
+     * Прокрутка экрана вниз. Контейнер прокручивается action'ом, а если его нет —
+     * жестом: списки MIUI бывают без ScrollView-предка, доступного accessibility.
+     */
+    private suspend fun scrollDownOnce() {
+        val root = service.rootInActiveWindow ?: return
+        val scrollable = findScrollableContainer(root)
+        val byContainer = scrollable?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true
+        recycleNode(scrollable); recycleNode(root)
+        if (!byContainer) swipeUp()
+        AppLog.i(TAG, "scroll: ${if (byContainer) "container" else "gesture"} down")
+        delay(400)
     }
 
     /** Ожидание экрана вынесено в [ComponentVerifier] (маркеры + нечёткий рубеж). */
@@ -1332,6 +1394,24 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     /** Сбор текста экрана вынесен в [NodeTree]. */
     private fun collectAllText(node: AccessibilityNodeInfo?): String = NodeTree.collectText(node)
+
+    /**
+     * Текст экрана без тулбара (`action_bar*`): заголовок «Конфиденциальность» не
+     * должен считаться ни уровнем маршрута, ни признаком целевого экрана.
+     */
+    private fun collectBodyText(node: AccessibilityNodeInfo?): String {
+        node ?: return ""
+        val sb = StringBuilder()
+        fun walk(n: AccessibilityNodeInfo?, depth: Int) {
+            if (n == null || depth > NodeTree.DEFAULT_MAX_DEPTH) return
+            if (n.viewIdResourceName?.contains("action_bar") == true) return
+            n.text?.let { sb.append(it).append(' ') }
+            n.contentDescription?.let { sb.append(it).append(' ') }
+            for (i in 0 until n.childCount) walk(n.getChild(i), depth + 1)
+        }
+        walk(node, 0)
+        return sb.toString()
+    }
 
     private suspend fun tapNode(node: AccessibilityNodeInfo): Boolean {
         if (node.isClickable && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true

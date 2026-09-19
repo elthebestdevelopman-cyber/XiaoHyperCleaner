@@ -52,13 +52,12 @@ object SwitchFinder {
     }
 
     /**
-     * Ищет переключатель по тексту/описанию. Строгое правило: совпадение ключа
-     * обязано быть в text/desc самого switch ИЛИ в строке-контейнере, где лежит
-     * ровно один переключатель. Фолбэк «первый switch на экране» запрещён как
-     * класс — именно он давал ложные OK (bounds совпадали с чужим тумблером).
+     * Ищет переключатель по тексту/описанию. Фолбэк «первый switch на экране»
+     * запрещён как класс — именно он давал ложные OK (bounds совпадали с чужим
+     * тумблером).
      *
      * 1. сам переключатель с подходящим текстом;
-     * 2. подпись (TextView), в строке которой ровно один переключатель;
+     * 2. подпись (TextView) → тумблер ТОЙ ЖЕ строки;
      * 3. нечёткое совпадение — тем же правилом строки.
      */
     fun findSwitch(
@@ -70,7 +69,7 @@ object SwitchFinder {
             ?.let { return it }
 
         NodeTree.findInTree(root) { !isSwitchLike(it) && NodeTree.matchesAny(it, texts) }
-            ?.let { label -> findSwitchInRow(label)?.let { sw -> return sw } }
+            ?.let { label -> findSwitchInRow(label, texts)?.let { sw -> return sw } }
 
         NodeTree.findInTree(root) { isSwitchLike(it) && NodeTree.matchesAny(it, texts, fuzzy = true) }
             ?.let {
@@ -79,19 +78,28 @@ object SwitchFinder {
             }
         NodeTree.findInTree(root) { !isSwitchLike(it) && NodeTree.matchesAny(it, texts, fuzzy = true) }
             ?.let { label ->
-                findSwitchInRow(label)?.let { sw ->
+                findSwitchInRow(label, texts)?.let { sw ->
                     AppLog.w(TAG, "fuzzy label match next to switch")
                     return sw
                 }
             }
+        // Диагностика прогона: видно, что именно не сошлось (файл/строку ищем по логу).
+        AppLog.w(TAG, "switch not found for '${texts.firstOrNull()}' (texts=${texts.size})")
         return null
     }
 
     /**
-     * Переключатель строки подписи: поднимаемся по предкам и в первом контейнере,
-     * где найден РОВНО ОДИН переключатель, возвращаем его. Контейнер с двумя и
-     * более переключателями — не строка настройки: переключать чужой тумблер
-     * запрещено, поиск отклоняется ([AppLog] логирует отказ).
+     * Переключатель строки подписи.
+     *
+     * Строка настройки MIUI содержит ДВА узла-тумблера: внешний `Switch` строки
+     * (его `contentDescription` — текст строки) и внутренний `Switch id="checkbox"`
+     * в `widget_frame`. Прежнее правило «ровно один тумблер в контейнере» из-за
+     * этого отклоняло настоящие строки (`ambiguous row: switches=2`, `switch
+     * belongs to another row` — прогон rmu8lzcu9: carousel, ads_personalization).
+     *
+     * Различаем строки по геометрии: тумблер строки пересекается по вертикали с
+     * подписью, тумблер чужой строки — нет. Без геометрии (узлы без bounds)
+     * сохраняется строгий контракт: контейнер с двумя тумблерами отклоняется.
      */
     fun findSwitchNear(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         if (isSwitchLike(node)) return node
@@ -101,38 +109,71 @@ object SwitchFinder {
     /** Максимальная глубина подъёма по предкам при поиске строки настройки. */
     private const val MAX_ROW_DEPTH = 6
 
-    /** Лимит собранных переключателей: достаточно, чтобы различить 1 и «больше одного». */
-    private const val SWITCH_COLLECT_LIMIT = 2
+    /** Лимит собранных переключателей контейнера: строка MIUI отдаёт внешний + внутренний. */
+    private const val SWITCH_COLLECT_LIMIT = 4
 
-    private fun findSwitchInRow(label: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        // 1. Кликабельная строка подписи: в ней обязан быть ровно один тумблер,
-        //    и он должен принадлежать этой же строке.
-        val labelRow = NodeTree.clickableAncestorOrSelf(label)
-        if (labelRow != null) {
-            val switches = collectSwitches(labelRow)
-            if (switches.size > 1) {
-                AppLog.w(TAG, "ambiguous row: switches=${switches.size} — switch_not_found")
-                return null
-            }
-            switches.firstOrNull()?.let { candidate -> return acceptIfSameRow(candidate, labelRow) }
-        }
-
-        // 2. Строка без кликабельного предка: поднимаемся по предкам, принимая только
-        //    контейнер с РОВНО ОДНИМ тумблером, который принадлежит этому контейнеру.
+    private fun findSwitchInRow(
+        label: AccessibilityNodeInfo,
+        texts: List<String> = emptyList()
+    ): AccessibilityNodeInfo? {
+        val labelBounds = boundsOf(label)
         var current: AccessibilityNodeInfo? = label.parent
         var depth = 0
         while (current != null && depth <= MAX_ROW_DEPTH) {
             val switches = collectSwitches(current)
             if (switches.size > 1) {
+                val sameRow = switches.filter { sharesRow(it, labelBounds) }
+                if (sameRow.isNotEmpty()) return pickNearest(sameRow, labelBounds, texts)
                 AppLog.w(TAG, "ambiguous row: switches=${switches.size} — switch_not_found")
                 return null
             }
-            switches.firstOrNull()?.let { candidate -> return acceptIfSameRow(candidate, current) }
+            switches.firstOrNull()?.let { candidate ->
+                val row = current
+                if (sharesRow(candidate, labelBounds)) return candidate
+                // Без геометрии действует прежний структурный контракт.
+                return acceptIfSameRow(candidate, row)
+            }
             current = current.parent
             depth++
         }
+        AppLog.w(
+            TAG,
+            "row search failed: label='${label.text ?: label.contentDescription}' depth=$depth"
+        )
         return null
     }
+
+    /** Тумблер и подпись в одной визуальной строке (пересечение по вертикали). */
+    private fun sharesRow(node: AccessibilityNodeInfo, labelBounds: Rect): Boolean {
+        if (labelBounds.isEmpty) return false
+        val b = boundsOf(node)
+        if (b.isEmpty) return false
+        return b.top < labelBounds.bottom && labelBounds.top < b.bottom
+    }
+
+    /** Выбор тумблера строки: совпадение по тексту → наибольшее пересечение с подписью. */
+    private fun pickNearest(
+        switches: List<AccessibilityNodeInfo>,
+        labelBounds: Rect,
+        texts: List<String>
+    ): AccessibilityNodeInfo {
+        if (switches.size == 1) return switches.first()
+        if (texts.isNotEmpty()) {
+            switches.firstOrNull { NodeTree.matchesAny(it, texts) }?.let { return it }
+        }
+        val best = switches.maxByOrNull { verticalOverlap(it, labelBounds) }
+        AppLog.w(TAG, "row has ${switches.size} switches — pick nearest to label")
+        return best ?: switches.first()
+    }
+
+    private fun verticalOverlap(node: AccessibilityNodeInfo, labelBounds: Rect): Int {
+        val b = boundsOf(node)
+        val top = maxOf(b.top, labelBounds.top)
+        val bottom = minOf(b.bottom, labelBounds.bottom)
+        return (bottom - top).coerceAtLeast(0) * 1000 + (b.width() * b.height()).coerceAtMost(999)
+    }
+
+    private fun boundsOf(node: AccessibilityNodeInfo): Rect = Rect().also { node.getBoundsInScreen(it) }
 
     /** Тумблер принимается, только если он лежит в том же контейнере, что и подпись. */
     private fun acceptIfSameRow(
