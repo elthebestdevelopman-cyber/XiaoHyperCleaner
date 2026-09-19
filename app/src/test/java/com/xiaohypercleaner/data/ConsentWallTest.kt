@@ -130,6 +130,61 @@ class ConsentWallTest {
     }
 
     @Test
+    fun `welcome wall with checkboxes marks them before the enabled button`() = runTest {
+        val node = screen("Terms of Service Select all (required)")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
+        var enabledTaps = 0
+        val bridge = object : ConsentWallHandler.TapBridge {
+            override suspend fun tapByTexts(texts: List<String>): Boolean {
+                tappedTexts.addAll(texts)
+                return true
+            }
+
+            override suspend fun tapEnabledByTexts(texts: List<String>): Boolean {
+                enabledTaps++
+                tappedTexts.addAll(texts)
+                return true
+            }
+        }
+
+        val outcome = ConsentWallHandler.handleOnce(service, bridge, "themes")
+
+        assertTrue(outcome.handled)
+        assertEquals("кнопка согласия нажимается по enabled-пути", 1, enabledTaps)
+        assertTrue(
+            "чекбоксы отмечаются до кнопки",
+            tappedTexts.indexOf(SemanticCatalog.checkboxTexts().first()) <
+                tappedTexts.indexOf(SemanticCatalog.welcomeActions().first())
+        )
+    }
+
+    @Test
+    fun `network error dialog is dismissed inside the step loop`() = runTest {
+        val node = screen("Network error occurred")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
+
+        val outcome = ConsentWallHandler.handleOnce(service, bridge, "browser_sys")
+
+        assertTrue("диалог-заглушка закрыт", outcome.handled)
+        assertEquals("dismiss", outcome.kind)
+        assertTrue(
+            "тапнули кнопку закрытия диалога",
+            tappedTexts.any { it in SemanticCatalog.dismissTexts() }
+        )
+    }
+
+    @Test
+    fun `no thanks dialog after carousel toggle is dismissed`() = runTest {
+        val node = screen("No, thanks")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
+
+        val outcome = ConsentWallHandler.handleOnce(service, bridge, "carousel")
+
+        assertTrue(outcome.handled)
+        assertEquals("dismiss", outcome.kind)
+    }
+
+    @Test
     fun `failed tap is reported as not found`() = runTest {
         val node = screen("Allow app to access files permission request")
         Mockito.`when`(service.rootInActiveWindow).thenReturn(node)

@@ -49,7 +49,11 @@ object PlanBuilder {
         notifTransparency: Boolean = true
     ): List<PlanStep> {
         SemanticCatalog.ensureLoaded(context)
+        // Варианты шагов под версию прошивки выбираются один раз на прогон:
+        // дальше accessors каталога отдают эффективные (вариантные) значения.
+        SemanticCatalog.selectVariant(profile)
         val installedHome = resolveHomePackage(context)
+        val neverTouch = SemanticCatalog.neverTouchPackages()
         val excluded = ArrayList<String>()
         val plan = ArrayList<PlanStep>(SimpleSteps.ALL.size)
 
@@ -72,6 +76,21 @@ object PlanBuilder {
             }
 
             val packages = candidatePackages(context, step, profile)
+
+            // Красный список: destructive-операция над neverTouch-пакетом не создаётся
+            // никогда. Наличие пакета в requiredPackages/launchPackage само по себе
+            // не основание для исключения: UI-тумблеры внутри его экранов разрешены.
+            if (isForbiddenDestructive(
+                    actionType = step.actionType,
+                    destructiveAction = semantic?.destructiveAction,
+                    packages = packages,
+                    neverTouch = neverTouch
+                )
+            ) {
+                excluded.add("${step.id}:never_touch")
+                continue
+            }
+
             if (packages.isNotEmpty() && packages.none { ActivityScanner.isPackageVisible(context, it) }) {
                 excluded.add("${step.id}:app_not_installed")
                 continue
@@ -83,9 +102,32 @@ object PlanBuilder {
         AppLog.i(
             TAG,
             "plan steps=${plan.size} excluded=${excluded.size} notif=$notifTransparency " +
-                "region=${profile.regionCode} excludedIds=${excluded.joinToString(",")}"
+                "region=${profile.regionCode} rom=${profile.family}/${profile.uiVersion ?: "?"} " +
+                "excludedIds=${excluded.joinToString(",")}"
         )
         return plan
+    }
+
+    /** Destructive-действия, запрещённые для пакетов красного списка. */
+    internal val DESTRUCTIVE_ACTIONS: Set<String> = setOf("disable", "uninstall", "clear_data", "force_stop")
+
+    /**
+     * Гейт красного списка [SemanticCatalog.neverTouchPackages]: шаг исключается,
+     * только если он выполняет destructive-операцию (disable/uninstall/clear data/
+     * force-stop) над пакетом из списка. Открытие UI и UI-тумблеры разрешены.
+     *
+     * Чистая функция — тестируется без Android.
+     */
+    internal fun isForbiddenDestructive(
+        actionType: SimpleSteps.ActionType,
+        destructiveAction: String?,
+        packages: Collection<String>,
+        neverTouch: Set<String>
+    ): Boolean {
+        val action = destructiveAction?.trim()?.lowercase(java.util.Locale.ROOT)?.takeIf { it.isNotEmpty() }
+            ?: if (actionType == SimpleSteps.ActionType.CLEAR_DATA_DECLINE) "clear_data" else null
+        if (action == null || action !in DESTRUCTIVE_ACTIONS) return false
+        return packages.any { it in neverTouch }
     }
 
     /**

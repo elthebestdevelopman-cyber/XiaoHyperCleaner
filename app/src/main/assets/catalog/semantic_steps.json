@@ -11,13 +11,13 @@
       "id": ["Selamat datang", "Ketentuan Layanan", "Kebijakan Privasi"]
     },
     "welcomeActions": {
-      "ru": ["Согласиться", "Принять", "Продолжить"],
-      "en": ["Agree", "Accept", "Continue"],
-      "es": ["Aceptar", "Continuar"],
-      "zh": ["同意", "接受", "继续"],
-      "hi": ["सहमत हूँ", "स्वीकार करें", "जारी रखें"],
-      "pt": ["Concordo", "Aceitar", "Continuar"],
-      "id": ["Setuju", "Terima", "Lanjutkan"]
+      "ru": ["Согласиться", "Принять", "Принять и продолжить", "Согласен", "Еще", "Ещё", "Далее", "Продолжить"],
+      "en": ["Agree", "Accept", "Accept and continue", "I agree", "More", "Next", "Continue"],
+      "es": ["Aceptar", "Aceptar y continuar", "De acuerdo", "Más", "Siguiente", "Continuar"],
+      "zh": ["同意", "接受", "同意并继续", "我同意", "更多", "下一步", "继续"],
+      "hi": ["सहमत हूँ", "स्वीकार करें", "स्वीकार करें और जारी रखें", "अधिक", "अगला", "जारी रखें"],
+      "pt": ["Concordo", "Aceitar", "Aceitar e continuar", "Mais", "Próximo", "Continuar"],
+      "id": ["Setuju", "Terima", "Terima dan lanjutkan", "Lainnya", "Berikutnya", "Lanjutkan"]
     },
     "permissionMarkers": {
       "ru": ["Разрешить приложению", "Запрос разрешения"],
@@ -38,11 +38,236 @@
       "zh": ["允许"], "hi": ["अनुमति दें"], "pt": ["Permitir"], "id": ["Izinkan"]
     },
     "allowOverrides": [],
-    "maxIterationsPerStep": 3
+    "maxIterationsPerStep": 3,
+    "checkboxTexts": {
+      "ru": ["Выбрать все", "Согласен со всеми", "(обязательно)", "обязательно"],
+      "en": ["Select all", "I agree to all", "(required)", "required"],
+      "es": ["Seleccionar todo", "Acepto todo", "(obligatorio)", "obligatorio"],
+      "zh": ["全选", "同意全部", "（必选）", "必选"],
+      "hi": ["सभी चुनें", "सभी से सहमत हूँ", "(आवश्यक)", "आवश्यक"],
+      "pt": ["Selecionar tudo", "Concordo com tudo", "(obrigatório)", "obrigatório"],
+      "id": ["Pilih semua", "Saya setuju dengan semua", "(wajib)", "wajib"]
+    },
+    "dismissMarkers": {
+      "ru": ["Произошла ошибка сети", "Ошибка сети", "Нет подключения к сети"],
+      "en": ["Network error occurred", "Network error", "No network connection"],
+      "es": ["Se produjo un error de red", "Error de red"],
+      "zh": ["网络错误", "发生网络错误"],
+      "hi": ["नेटवर्क त्रुटि", "नेटवर्क त्रुटि हुई"],
+      "pt": ["Ocorreu um erro de rede", "Erro de rede"],
+      "id": ["Terjadi kesalahan jaringan", "Kesalahan jaringan"]
+    },
+    "dismissTexts": {
+      "ru": ["Нет, спасибо", "Понятно", "Закрыть"],
+      "en": ["No, thanks", "No thanks", "Got it", "Close"],
+      "es": ["No, gracias", "Entendido", "Cerrar"],
+      "zh": ["不用了，谢谢", "知道了", "关闭"],
+      "hi": ["नहीं, धन्यवाद", "समझ गया", "बंद करें"],
+      "pt": ["Não, obrigado", "Entendi", "Fechar"],
+      "id": ["Tidak, terima kasih", "Mengerti", "Tutup"]
+    }
   },
+  "manualSteps": [
+    {
+      "id": "package_installer",
+      "warning": false,
+      "title": {
+        "ru": "Проверка приложений при установке",
+        "en": "App scan on install",
+        "es": "Análisis al instalar",
+        "zh": "安装时的应用扫描",
+        "hi": "इंस्टॉल पर ऐप स्कैन",
+        "pt": "Verificação ao instalar",
+        "id": "Pemindaian saat memasang"
+      },
+      "body": {
+        "ru": "При установке из стора откройте окно проверки → шестерёнка справа вверху → отключите «Получать рекомендации» (HyperOS 2/3 — раздел «Расширенные настройки»).",
+        "en": "When installing from a store open the scan window → gear at the top right → turn off \"Receive recommendations\" (HyperOS 2/3: \"Advanced settings\").",
+        "es": "Al instalar desde una tienda abra la ventana de análisis → engranaje arriba a la derecha → desactive \"Recibir recomendaciones\".",
+        "zh": "从应用商店安装时打开扫描窗口 → 右上角齿轮 → 关闭“接收推荐”。",
+        "hi": "स्टोर से इंस्टॉल करते समय स्कैन विंडो खोलें → पर दाएँ गियर → “सि़ारिशें प्राप्त करें” बंद करें।",
+        "pt": "Ao instalar de uma loja abra a janela de verificação → engrenagem no topo à direita → desative \"Receber recomendações\".",
+        "id": "Saat memasang dari toko buka jendela pemindaian → ikon roda di kanan atas → matikan \"Terima rekomendasi\"."
+      }
+    },
+    {
+      "id": "folders_today",
+      "warning": false,
+      "title": {
+        "ru": "Рекомендации в папках рабочего стола",
+        "en": "Home folder suggestions",
+        "es": "Sugerencias en carpetas",
+        "zh": "桌面文件夹推荐",
+        "hi": "फ़ोल्डर सुझाव",
+        "pt": "Sugestões em pastas",
+        "id": "Saran di folder"
+      },
+      "body": {
+        "ru": "Откройте папку на рабочем столе → нажмите на её название (HyperOS 2/3: удерживайте папку → «Изменить папку») → выключите «Рекомендуемое сегодня».",
+        "en": "Open a home folder → tap its name (HyperOS 2/3: hold the folder → \"Edit folder\") → turn off \"Recommended today\".",
+        "es": "Abra una carpeta → toque su nombre (HyperOS 2/3: mantenga la carpeta → \"Editar carpeta\") → desactive \"Recomendado hoy\".",
+        "zh": "打开桌面文件夹 → 点击文件夹名称（HyperOS 2/3：长按文件夹 → “编辑文件夹”） → 关闭“今日推荐”。",
+        "hi": "होम फ़ोल्डर खोलें → उसका नाम दबाएँ (HyperOS 2/3: फ़ोल्डर दबाए रखें → “फ़ोल्डर संपादित करें”) → “आज के लिए अनुशंसित” बंद करें।",
+        "pt": "Abra uma pasta → toque no nome (HyperOS 2/3: mantenha a pasta → \"Editar pasta\") → desative \"Recomendado hoje\".",
+        "id": "Buka folder → ketuk namanya (HyperOS 2/3: tahan folder → \"Edit folder\") → matikan \"Direkomendasikan hari ini\"."
+      }
+    },
+    {
+      "id": "hyperos3_search",
+      "warning": false,
+      "title": {
+        "ru": "Поиск в HyperOS 3",
+        "en": "Search in HyperOS 3",
+        "es": "Búsqueda en HyperOS 3",
+        "zh": "HyperOS 3 搜索",
+        "hi": "HyperOS 3 में खोज",
+        "pt": "Busca no HyperOS 3",
+        "id": "Pencarian di HyperOS 3"
+      },
+      "body": {
+        "ru": "Свайп вверх для поиска → три точки у поисковой строки → «Настройки» → выключите «Рекомендации приложений».",
+        "en": "Swipe up for search → three dots next to the search field → \"Settings\" → turn off \"App recommendations\".",
+        "es": "Deslice hacia arriba para buscar → tres puntos junto a la barra → \"Configuración\" → desactive \"Recomendaciones de apps\".",
+        "zh": "上滑进入搜索 → 搜索框旁的三点 → “设置” → 关闭“应用推荐”。",
+        "hi": "खोज के लिए पर स्वाइप करें → खोज पट्टी के पास तीन बिंदु → “सेटिंग्स” → “ऐप सि़ारिशें” बंद करें।",
+        "pt": "Deslize para cima para buscar → três pontos ao lado da busca → \"Configurações\" → desative \"Recomendações de apps\".",
+        "id": "Geser ke atas untuk mencari → tiga titik di samping kolom pencarian → \"Pengaturan\" → matikan \"Rekomendasi aplikasi\"."
+      }
+    },
+    {
+      "id": "hyperos3_carousel_disable",
+      "warning": true,
+      "title": {
+        "ru": "HyperOS 3: служба карусели обоев",
+        "en": "HyperOS 3: wallpaper carousel service",
+        "es": "HyperOS 3: servicio de carrusel",
+        "zh": "HyperOS 3：壁纸轮播服务",
+        "hi": "HyperOS 3: वॉलपेपर कैरोसेल सेवा",
+        "pt": "HyperOS 3: serviço de carrossel",
+        "id": "HyperOS 3: layanan karosel"
+      },
+      "body": {
+        "ru": "Если подписи под часами на экране блокировки остались: Настройки → Приложения → Все приложения → «Карусель обоев» → «Отключить». Системное приложение, отключайте осознанно.",
+        "en": "If lock-screen captions remain: Settings → Apps → All apps → \"Wallpaper Carousel\" → \"Disable\". It is a system app — disable consciously.",
+        "es": "Si quedan textos en la pantalla de bloqueo: Ajustes → Aplicaciones → Todas → \"Carrusel de fondos\" → \"Desactivar\". Es una app del sistema.",
+        "zh": "若锁屏仍有文字：设置 → 应用 → 全部应用 → “壁纸轮播” → “停用”。这是系统应用，请谨慎操作。",
+        "hi": "अगर लॉक स्क्रीन पर टेक्स्ट रह गया: सेटिंग्स → ऐप्स → सभी प्स → “वॉलपेपर कैरोसेल” → “अक्षम करें”। यह सिस्टम ऐप है।",
+        "pt": "Se restarem textos na tela de bloqueio: Configurações → Apps → Todos → \"Carrossel de papéis de parede\" → \"Desativar\". É um app do sistema.",
+        "id": "Jika teks di layar kunci masih ada: Pengaturan → Aplikasi → Semua aplikasi → \"Karosel wallpaper\" → \"Nonaktifkan\". Ini aplikasi sistem."
+      }
+    },
+    {
+      "id": "region_change",
+      "warning": true,
+      "title": {
+        "ru": "Смена региона устройства",
+        "en": "Changing device region",
+        "es": "Cambiar la región del dispositivo",
+        "zh": "更改设备地区",
+        "hi": "डिवाइस क्षेत्र बदलना",
+        "pt": "Mudar a região do aparelho",
+        "id": "Mengubah wilayah perangkat"
+      },
+      "body": {
+        "ru": "Смена региона удаляет часть данных и меняет набор системных приложений. Автоматически это не выполняется — только вручную и осознанно.",
+        "en": "Changing the region erases some data and changes the set of system apps. We never do this automatically — only manually, consciously.",
+        "es": "Cambiar la región borra datos y modifica las apps del sistema. Nunca lo hacemos automáticamente.",
+        "zh": "更改地区会清除部分数据并改变系统应用。我们不会自动执行，只由你手动决定。",
+        "hi": "क्षेत्र बदलने से कुछ डेटा मिट जाता है और सिस्टम ऐप्स बदल जाते हैं। यह हम कभी स्वतः नहीं करते।",
+        "pt": "Mudar a região apaga dados e altera os apps do sistema. Nunca fazemos isso automaticamente.",
+        "id": "Mengubah wilayah menghapus sebagian data dan mengubah aplikasi sistem. Kami tidak melakukannya otomatis."
+      }
+    },
+    {
+      "id": "daemon_warning",
+      "warning": true,
+      "title": {
+        "ru": "Службы System Daemon и Отчёт",
+        "en": "System Daemon and Feedback services",
+        "es": "Servicios System Daemon y Comentarios",
+        "zh": "System Daemon 与反馈服务",
+        "hi": "System Daemon और फ़ीडबैक सेवाएँ",
+        "pt": "Serviços System Daemon e Feedback",
+        "id": "Layanan System Daemon dan Umpan Balik"
+      },
+      "body": {
+        "ru": "System Daemon (MiuiDaemon) и «Отчёт» можно отключить вручную, но мы не рекомендуем: возможны сбои уведомлений и синхронизации.",
+        "en": "System Daemon (MiuiDaemon) and Feedback can be disabled manually, but we do not recommend it: notifications and sync may break.",
+        "es": "System Daemon (MiuiDaemon) y Comentarios se pueden desactivar manualmente, pero no lo recomendamos: pueden fallar avisos y sincronización.",
+        "zh": "可手动关闭 System Daemon（MiuiDaemon）与“反馈”，但我们不建议：通知和同步可能异常。",
+        "hi": "System Daemon (MiuiDaemon) और फ़ीडबैक मैन्युअल रूप से बंद किए जा सकते हैं, पर हम सलाह नहीं देते: सूचनाएँ और सिंक बिगड़ सकते हैं।",
+        "pt": "System Daemon (MiuiDaemon) e Feedback podem ser desativados manualmente, mas não recomendamos: notificações e sincronização podem falhar.",
+        "id": "System Daemon (MiuiDaemon) dan Umpan Balik dapat dimatikan manual, tetapi kami tidak menyarankannya: notifikasi dan sinkronisasi bisa terganggu."
+      }
+    },
+    {
+      "id": "dns_pointer",
+      "warning": false,
+      "title": {
+        "ru": "Приватный DNS",
+        "en": "Private DNS",
+        "es": "DNS privado",
+        "zh": "私人 DNS",
+        "hi": "निी DNS",
+        "pt": "DNS privado",
+        "id": "DNS pribadi"
+      },
+      "body": {
+        "ru": "DNS переключается нашим тумблером в Простом режиме (AdGuard DNS) — вручную ничего менять не нужно.",
+        "en": "DNS is switched by our toggle in Simple mode (AdGuard DNS) — no manual change needed.",
+        "es": "El DNS se cambia con nuestro interruptor en el modo Simple (AdGuard DNS): no hay que hacerlo a mano.",
+        "zh": "DNS 由简易模式中的开关切换（AdGuard DNS），无需手动更改。",
+        "hi": "DNS हमारे सरल मोड टॉगल (AdGuard DNS) से बदलता है — मैन्युअल बदलाव की ज़रूरत नहीं।",
+        "pt": "O DNS é alterado pelo nosso interruptor no modo Simples (AdGuard DNS) — nada manual.",
+        "id": "DNS diubah oleh tombol kami di mode Sederhana (AdGuard DNS) — tidak perlu manual."
+      }
+    }
+  ],
+  "neverTouchPackages": [
+    "com.miui.daemon",
+    "com.miui.guardprovider",
+    "com.miui.securitycore",
+    "com.xiaomi.simactivate.service"
+  ],
   "steps": [
     {
       "id": "msa",
+      "variants": [
+        {
+          "id": "miui12_14",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
+          "fallback": true,
+          "drillPath": [
+            ["Пароли и безопасность", "Отпечатки, данные лица и защита устройства", "Экран блокировки и защита", "Биометрия и защита", "Passwords & security", "Fingerprints, face data & device security"],
+            ["Доступ к личным данным", "Авторизация и отзыв", "Access to personal data", "Authorization & revocation"]
+          ],
+          "screenMarkers": {
+            "ru": ["Доступ к личным данным", "Авторизация и отзыв"],
+            "en": ["Access to personal data", "Authorization & revocation"],
+            "zh": ["授权管理"],
+            "es": ["Autorización y revocación"],
+            "hi": ["प्राधिकरण और प्रत्याहरण"],
+            "pt": ["Autorização e revogação"],
+            "id": ["Otorisasi & pencabutan"]
+          },
+          "itemTexts": { "ru": ["msa"], "en": ["msa"], "es": ["msa"], "zh": ["msa"], "hi": ["msa"], "pt": ["msa"], "id": ["msa"] }
+        },
+        {
+          "id": "hyperos1_3",
+          "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
+          "fallback": false,
+          "drillPath": [
+            ["Отпечатки, данные лица и защита устройства", "Пароли и безопасность", "Экран блокировки и защита", "Биометрия и защита", "Fingerprints, face data & device security", "Passwords & security"],
+            ["Доступ к личным данным", "Авторизация и отзыв", "Access to personal data", "Authorization & revocation"]
+          ],
+          "screenMarkers": {
+            "ru": ["Доступ к личным данным", "Авторизация и отзыв"],
+            "en": ["Access to personal data", "Authorization & revocation"],
+            "zh": ["授权管理"]
+          },
+          "itemTexts": { "ru": ["msa"], "en": ["msa"], "es": ["msa"], "zh": ["msa"], "hi": ["msa"], "pt": ["msa"], "id": ["msa"] }
+        }
+      ],
       "title": {
         "ru": "Отзыв MSA",
         "en": "Revoke MSA",
@@ -169,6 +394,59 @@
     },
     {
       "id": "sys_recommendations",
+      "variants": [
+        {
+          "id": "miui12_14",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
+          "fallback": true,
+          "drillPath": [
+            ["Приложения", "Apps", "Applications"],
+            ["Все приложения", "All apps", "All applications"],
+            ["⋮", "Ещё", "More", "Дополнительно", "More options"],
+            ["Прочие настройки", "Additional settings", "Advanced settings"]
+          ],
+          "screenMarkers": {
+            "ru": ["Прочие настройки", "Приложения"],
+            "en": ["Additional settings", "Apps"],
+            "zh": ["其他设置"],
+            "es": ["Ajustes adicionales"]
+          },
+          "itemTexts": {
+            "ru": ["Получать рекомендации", "Рекомендации"],
+            "en": ["Receive recommendations"],
+            "es": ["Recibir recomendaciones"],
+            "zh": ["接收推荐", "个性化推荐"],
+            "hi": ["सुझाव प्राप्त करें"],
+            "pt": ["Receber recomendações"],
+            "id": ["Terima rekomendasi"]
+          }
+        },
+        {
+          "id": "hyperos1_3",
+          "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
+          "fallback": false,
+          "drillPath": [
+            ["Приложения", "Apps", "Applications"],
+            ["Все приложения", "All apps"],
+            ["⋮", "Ещё", "More", "Дополнительно"],
+            ["Прочие настройки", "Additional settings"]
+          ],
+          "screenMarkers": {
+            "ru": ["Прочие настройки", "Приложения"],
+            "en": ["Additional settings", "Apps"],
+            "zh": ["其他设置"]
+          },
+          "itemTexts": {
+            "ru": ["Получать рекомендации"],
+            "en": ["Receive recommendations"],
+            "es": ["Recibir recomendaciones"],
+            "zh": ["接收推荐"],
+            "hi": ["सुझाव प्राप्त करें"],
+            "pt": ["Receber recomendações"],
+            "id": ["Terima rekomendasi"]
+          }
+        }
+      ],
       "title": {
         "ru": "Системные рекомендации",
         "en": "System recommendations",
@@ -281,6 +559,64 @@
     },
     {
       "id": "ads_personalization",
+      "variants": [
+        {
+          "id": "miui12_14",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
+          "fallback": true,
+          "drillPath": [
+            ["Конфиденциальность", "Privacy", "隐私", "Privacidad", "गोपनीयता", "Privacidade"],
+            ["Рекламные службы", "Ad services", "广告服务", "Servicios de anuncios", "Layanan iklan", "Serviços de anúncios"]
+          ],
+          "screenMarkers": {
+            "ru": ["Рекламные службы", "Конфиденциальность"],
+            "en": ["Ad services", "Privacy"],
+            "zh": ["广告服务"],
+            "es": ["Servicios de anuncios"]
+          },
+          "itemTexts": {
+            "ru": ["Персонализированная реклама", "Персонализация рекламы"],
+            "en": ["Personalized ads", "Ads personalization"],
+            "es": ["Anuncios personalizados"],
+            "zh": ["个性化广告"],
+            "hi": ["वैयक्तिकृत विज्ञापन"],
+            "pt": ["Anúncios personalizados"],
+            "id": ["Iklan yang dipersonalisasi"]
+          },
+          "tapFallbackTexts": {
+            "ru": ["Удалить рекламный идентификатор"],
+            "en": ["Delete advertising ID"],
+            "es": ["Eliminar ID de publicidad"],
+            "zh": ["删除广告标识符"],
+            "hi": ["विज्ञापन आईडी हटाएँ"],
+            "pt": ["Excluir ID de publicidade"],
+            "id": ["Hapus ID iklan"]
+          }
+        },
+        {
+          "id": "hyperos1_3",
+          "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
+          "fallback": false,
+          "drillPath": [
+            ["Конфиденциальность", "Privacy", "隐私"],
+            ["Рекламные службы", "Ad services", "广告服务"]
+          ],
+          "screenMarkers": {
+            "ru": ["Рекламные службы"],
+            "en": ["Ad services"],
+            "zh": ["广告服务"]
+          },
+          "itemTexts": {
+            "ru": ["Персонализированная реклама"],
+            "en": ["Personalized ads"],
+            "es": ["Anuncios personalizados"],
+            "zh": ["个性化广告"],
+            "hi": ["वैयक्तिकृत विज्ञापन"],
+            "pt": ["Anúncios personalizados"],
+            "id": ["Iklan yang dipersonalisasi"]
+          }
+        }
+      ],
       "title": {
         "ru": "Персонализация рекламы",
         "en": "Personalized ads",
@@ -427,6 +763,48 @@
     },
     {
       "id": "ux_program",
+      "variants": [
+        {
+          "id": "miui12_14",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
+          "fallback": true,
+          "drillPath": [
+            ["Пароли и безопасность", "Отпечатки, данные лица и защита устройства", "Экран блокировки и защита", "Passwords & security"],
+            ["Конфиденциальность", "Privacy", "隐私"],
+            ["Дополнительные настройки", "Additional settings"]
+          ],
+          "screenMarkers": { "ru": ["Конфиденциальность"], "en": ["Privacy"], "zh": ["隐私"] },
+          "itemTexts": {
+            "ru": ["Программа улучшения качества", "Присоединиться к программе"],
+            "en": ["User Experience Program", "Join the program"],
+            "es": ["Programa de experiencia"],
+            "zh": ["用户体验计划"],
+            "hi": ["उपयोगकर्ता अनुभव कार्यक्रम"],
+            "pt": ["Programa de experiência"],
+            "id": ["Program Pengalaman Pengguna"]
+          }
+        },
+        {
+          "id": "hyperos1_3",
+          "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
+          "fallback": false,
+          "drillPath": [
+            ["Отпечатки, данные лица и защита устройства", "Пароли и безопасность", "Экран блокировки и защита", "Биометрия и защита"],
+            ["Конфиденциальность", "Privacy"],
+            ["Дополнительные настройки", "Additional settings"]
+          ],
+          "screenMarkers": { "ru": ["Конфиденциальность"], "en": ["Privacy"] },
+          "itemTexts": {
+            "ru": ["Программа улучшения качества", "Присоединиться к программе"],
+            "en": ["User Experience Program", "Join the program"],
+            "es": ["Programa de experiencia"],
+            "zh": ["用户体验计划"],
+            "hi": ["उपयोगकर्ता अनुभव कार्यक्रम"],
+            "pt": ["Programa de experiência"],
+            "id": ["Program Pengalaman Pengguna"]
+          }
+        }
+      ],
       "title": {
         "ru": "Программа улучшения качества",
         "en": "User Experience Program",
@@ -507,6 +885,46 @@
     },
     {
       "id": "carousel",
+      "variants": [
+        {
+          "id": "miui12_14",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
+          "fallback": true,
+          "drillPath": [
+            ["Блокировка экрана", "Lock screen", "锁屏"],
+            ["Карусель обоев", "Wallpaper Carousel", "Glance", "壁纸轮播"]
+          ],
+          "screenMarkers": { "ru": ["Карусель обоев"], "en": ["Wallpaper Carousel"], "zh": ["壁纸轮播"] },
+          "itemTexts": {
+            "ru": ["Включить", "Карусель обоев"],
+            "en": ["Enable", "Wallpaper Carousel"],
+            "es": ["Activar", "Carrusel de fondos"],
+            "zh": ["启用", "壁纸轮播"],
+            "hi": ["सक्षम करें", "वॉलपेपर कैरोसेल"],
+            "pt": ["Ativar", "Carrossel de papéis de parede"],
+            "id": ["Aktifkan", "Karosel wallpaper"]
+          }
+        },
+        {
+          "id": "hyperos1_3",
+          "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
+          "fallback": false,
+          "drillPath": [
+            ["Блокировка экрана", "Lock screen"],
+            ["Карусель обоев", "Wallpaper Carousel"]
+          ],
+          "screenMarkers": { "ru": ["Карусель обоев"], "en": ["Wallpaper Carousel"] },
+          "itemTexts": {
+            "ru": ["Включить"],
+            "en": ["Enable"],
+            "es": ["Activar"],
+            "zh": ["启用"],
+            "hi": ["सक्षम करें"],
+            "pt": ["Ativar"],
+            "id": ["Aktifkan"]
+          }
+        }
+      ],
       "title": {
         "ru": "Карусель обоев",
         "en": "Wallpaper Carousel",
@@ -583,6 +1001,109 @@
     },
     {
       "id": "home_suggestions",
+      "variants": [
+        {
+          "id": "miui12_12_5",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 12.5 },
+          "fallback": true,
+          "drillPath": [
+            ["Главный экран", "Рабочий стол", "Home screen"],
+            ["Лента виджетов", "App Vault"]
+          ],
+          "screenMarkers": {
+            "ru": ["Главный экран", "Лента виджетов"],
+            "en": ["Home screen", "App Vault"]
+          },
+          "itemTexts": {
+            "ru": ["Лента виджетов"],
+            "en": ["App Vault"],
+            "es": ["App Vault"],
+            "zh": ["小部件面板"],
+            "hi": ["विजेट फ़ीड"],
+            "pt": ["App Vault"],
+            "id": ["App Vault"]
+          }
+        },
+        {
+          "id": "miui13_14",
+          "os": { "family": "miui", "uiMin": 13, "uiMax": 14 },
+          "fallback": false,
+          "drillPath": [
+            ["Рабочий стол", "Home screen"],
+            ["Лента виджетов", "Показывать предложения", "App Vault", "Show suggestions"]
+          ],
+          "screenMarkers": {
+            "ru": ["Рабочий стол", "Лента виджетов"],
+            "en": ["Home screen", "App Vault"]
+          },
+          "itemTexts": {
+            "ru": ["Лента виджетов", "Показывать предложения"],
+            "en": ["App Vault", "Show suggestions"],
+            "es": ["App Vault", "Mostrar sugerencias"],
+            "zh": ["小部件面板", "显示建议"],
+            "hi": ["विजेट फ़ीड", "सुझाव दिखाएँ"],
+            "pt": ["App Vault", "Mostrar sugestões"],
+            "id": ["App Vault", "Tampilkan saran"]
+          }
+        },
+        {
+          "id": "hyperos1",
+          "os": { "family": "hyperos", "uiMin": 1, "uiMax": 1 },
+          "fallback": false,
+          "drillPath": [
+            ["Рабочий стол", "Home screen"],
+            ["Лента виджетов", "App Vault"]
+          ],
+          "screenMarkers": { "ru": ["Рабочий стол"], "en": ["Home screen"] },
+          "itemTexts": {
+            "ru": ["Лента виджетов", "Показывать предложения"],
+            "en": ["App Vault", "Show suggestions"],
+            "es": ["App Vault"],
+            "zh": ["小部件面板"],
+            "hi": ["विजेट फ़ीड"],
+            "pt": ["App Vault"],
+            "id": ["App Vault"]
+          }
+        },
+        {
+          "id": "hyperos2_3",
+          "os": { "family": "hyperos", "uiMin": 2, "uiMax": 3 },
+          "fallback": false,
+          "drillPath": [
+            ["Рабочий стол", "Home screen"],
+            ["Лента виджетов", "Показывать предложения", "App Vault"]
+          ],
+          "screenMarkers": { "ru": ["Рабочий стол"], "en": ["Home screen"] },
+          "itemTexts": {
+            "ru": ["Лента виджетов", "Показывать предложения"],
+            "en": ["App Vault", "Show suggestions"],
+            "es": ["App Vault", "Mostrar sugerencias"],
+            "zh": ["小部件面板", "显示建议"],
+            "hi": ["विजेट फ़ीड"],
+            "pt": ["App Vault"],
+            "id": ["App Vault"]
+          },
+          "extraTargets": [
+            {
+              "back": 0,
+              "drillPath": [
+                ["⋮", "Ещё", "More"],
+                ["Управление службами", "Manage services"]
+              ],
+              "itemTexts": {
+                "ru": ["Предложения", "Предложения приложений и рекламу"],
+                "en": ["Suggestions", "App suggestions and ads"],
+                "es": ["Sugerencias"],
+                "zh": ["建议"],
+                "hi": ["सुझाव"],
+                "pt": ["Sugestões"],
+                "id": ["Saran"]
+              },
+              "control": "toggle"
+            }
+          ]
+        }
+      ],
       "title": {
         "ru": "Предложения на рабочем столе",
         "en": "Home screen suggestions",
@@ -653,6 +1174,87 @@
     },
     {
       "id": "browser_sys",
+      "variants": [
+        {
+          "id": "miui12_14",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
+          "fallback": true,
+          "drillPath": [
+            ["Профиль", "Profile", "我的", "Perfil"],
+            ["", "⚙️", "Настройки", "Settings"],
+            ["Дополнительные настройки", "Additional settings", "更多设置"]
+          ],
+          "screenMarkers": {
+            "ru": ["Дополнительные настройки", "Профиль"],
+            "en": ["Additional settings", "Profile"],
+            "zh": ["更多设置"]
+          },
+          "itemTexts": {
+            "ru": ["Показывать рекламу"],
+            "en": ["Show ads"],
+            "es": ["Mostrar anuncios"],
+            "zh": ["显示广告"],
+            "hi": ["विज्ञापन दिखाएँ"],
+            "pt": ["Mostrar anúncios"],
+            "id": ["Tampilkan iklan"]
+          },
+          "extraTargets": [
+            {
+              "back": 1,
+              "drillPath": [["Конфиденциальность", "Privacy", "隐私"]],
+              "itemTexts": {
+                "ru": ["Персональные рекомендации", "Персонализированные услуги"],
+                "en": ["Personalized recommendations", "Personalized services"],
+                "es": ["Recomendaciones personalizadas"],
+                "zh": ["个性化推荐"],
+                "hi": ["व्यक्तिगत सुझाव"],
+                "pt": ["Recomendações personalizadas"],
+                "id": ["Rekomendasi personal"]
+              },
+              "control": "toggle"
+            }
+          ]
+        },
+        {
+          "id": "hyperos1_3",
+          "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
+          "fallback": false,
+          "drillPath": [
+            ["Профиль", "Profile", "我的"],
+            ["⚙", "⚙️", "Настройки", "Settings"],
+            ["Дополнительные настройки", "Additional settings"]
+          ],
+          "screenMarkers": {
+            "ru": ["Дополнительные настройки", "Профиль"],
+            "en": ["Additional settings", "Profile"]
+          },
+          "itemTexts": {
+            "ru": ["Показывать рекламу"],
+            "en": ["Show ads"],
+            "es": ["Mostrar anuncios"],
+            "zh": ["显示广告"],
+            "hi": ["विज्ञापन दिखाएँ"],
+            "pt": ["Mostrar anúncios"],
+            "id": ["Tampilkan iklan"]
+          },
+          "extraTargets": [
+            {
+              "back": 1,
+              "drillPath": [["Конфиденциальность", "Privacy"]],
+              "itemTexts": {
+                "ru": ["Персональные рекомендации"],
+                "en": ["Personalized recommendations"],
+                "es": ["Recomendaciones personalizadas"],
+                "zh": ["个性化推荐"],
+                "hi": ["व्यक्तिगत सुझाव"],
+                "pt": ["Recomendações personalizadas"],
+                "id": ["Rekomendasi personal"]
+              },
+              "control": "toggle"
+            }
+          ]
+        }
+      ],
       "title": {
         "ru": "Mi Браузер — реклама",
         "en": "Mi Browser ads",
@@ -739,6 +1341,75 @@
     },
     {
       "id": "music_sys",
+      "variants": [
+        {
+          "id": "miui12_12_5",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 12.5 },
+          "fallback": true,
+          "drillPath": [
+            ["☰", "", "Ещё", "More", "Больше"],
+            ["Настройки", "Settings"],
+            ["Расширенные настройки", "Advanced settings"]
+          ],
+          "screenMarkers": {
+            "ru": ["Расширенные настройки", "Настройки"],
+            "en": ["Advanced settings", "Settings"]
+          },
+          "itemTexts": {
+            "ru": ["Показывать рекламу", "Получать рекомендации", "Разрешить постоянные уведомления"],
+            "en": ["Show ads", "Receive recommendations", "Allow persistent notifications"],
+            "es": ["Mostrar anuncios", "Recibir recomendaciones"],
+            "zh": ["显示广告", "接收推荐"],
+            "hi": ["विज्ञापन दिखाएँ", "सुझाव प्राप्त करें"],
+            "pt": ["Mostrar anúncios", "Receber recomendações"],
+            "id": ["Tampilkan iklan", "Terima rekomendasi"]
+          }
+        },
+        {
+          "id": "miui13_14",
+          "os": { "family": "miui", "uiMin": 13, "uiMax": 14 },
+          "fallback": false,
+          "drillPath": [
+            ["Настройки", "Settings", "设置"],
+            ["Расширенные настройки", "Advanced settings"]
+          ],
+          "screenMarkers": {
+            "ru": ["Расширенные настройки", "Настройки"],
+            "en": ["Advanced settings", "Settings"]
+          },
+          "itemTexts": {
+            "ru": ["Получать рекомендации", "Персональные рекомендации", "Показывать рекламу"],
+            "en": ["Receive recommendations", "Personalized recommendations", "Show ads"],
+            "es": ["Recibir recomendaciones", "Recomendaciones personalizadas"],
+            "zh": ["接收推荐", "个性化推荐"],
+            "hi": ["सुझाव प्राप्त करें", "व्यक्तिगत सुाव"],
+            "pt": ["Receber recomendações", "Recomendações personalizadas"],
+            "id": ["Terima rekomendasi", "Rekomendasi personal"]
+          }
+        },
+        {
+          "id": "hyperos1_3",
+          "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
+          "fallback": false,
+          "drillPath": [
+            ["Настройки", "Settings"],
+            ["Расширенные настройки", "Advanced settings"]
+          ],
+          "screenMarkers": {
+            "ru": ["Расширенные настройки", "Настройки"],
+            "en": ["Advanced settings", "Settings"]
+          },
+          "itemTexts": {
+            "ru": ["Получать рекомендации", "Персональные рекомендации"],
+            "en": ["Receive recommendations", "Personalized recommendations"],
+            "es": ["Recibir recomendaciones"],
+            "zh": ["接收推荐", "个性化推荐"],
+            "hi": ["सुझाव प्राप्त करें"],
+            "pt": ["Receber recomendações"],
+            "id": ["Terima rekomendasi"]
+          }
+        }
+      ],
       "title": {
         "ru": "Музыка — реклама",
         "en": "Music ads",
@@ -849,6 +1520,70 @@
     },
     {
       "id": "security_sys",
+      "variants": [
+        {
+          "id": "miui12_12_5",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 12.5 },
+          "fallback": true,
+          "drillPath": [["⚙", "️", "Настройки", "Settings", "设置"]],
+          "screenMarkers": {
+            "ru": ["Настройки"],
+            "en": ["Settings"],
+            "zh": ["设置"]
+          },
+          "itemTexts": {
+            "ru": ["Получать рекомендации"],
+            "en": ["Receive recommendations"],
+            "es": ["Recibir recomendaciones"],
+            "zh": ["接收推荐"],
+            "hi": ["सुझाव प्राप्त करें"],
+            "pt": ["Receber recomendações"],
+            "id": ["Terima rekomendasi"]
+          },
+          "extraTargets": [
+            { "back": 1, "drillPath": [["Очистка", "Cleaner", "清理"]], "itemTexts": { "ru": ["Получать рекомендации"], "en": ["Receive recommendations"], "es": ["Recibir recomendaciones"], "zh": ["接收推荐"], "hi": ["सुझाव प्राप्त करें"], "pt": ["Receber recomendações"], "id": ["Terima rekomendasi"] }, "control": "toggle" },
+            { "back": 1, "drillPath": [["Ускорение", "Boost", "加速"]], "itemTexts": { "ru": ["Получать рекомендации"], "en": ["Receive recommendations"], "es": ["Recibir recomendaciones"], "zh": ["接收推荐"], "hi": ["सुझाव प्राप्त करें"], "pt": ["Receber recomendações"], "id": ["Terima rekomendasi"] }, "control": "toggle" }
+          ]
+        },
+        {
+          "id": "miui13_14",
+          "os": { "family": "miui", "uiMin": 13, "uiMax": 14 },
+          "fallback": false,
+          "drillPath": [["⚙", "⚙️", "Настройки", "Settings"]],
+          "screenMarkers": { "ru": ["Настройки"], "en": ["Settings"] },
+          "itemTexts": {
+            "ru": ["Получать рекомендации"],
+            "en": ["Receive recommendations"],
+            "es": ["Recibir recomendaciones"],
+            "zh": ["接收推荐"],
+            "hi": ["सुझाव प्राप्त करें"],
+            "pt": ["Receber recomendações"],
+            "id": ["Terima rekomendasi"]
+          },
+          "extraTargets": [
+            { "back": 1, "drillPath": [["Очистка", "Cleaner", "清理"]], "itemTexts": { "ru": ["Получать рекомендации"], "en": ["Receive recommendations"], "es": ["Recibir recomendaciones"], "zh": ["接收推荐"], "hi": ["सुझाव प्राप्त करें"], "pt": ["Receber recomendações"], "id": ["Terima rekomendasi"] }, "control": "toggle" }
+          ]
+        },
+        {
+          "id": "hyperos1_3",
+          "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
+          "fallback": false,
+          "drillPath": [["⚙", "⚙️", "Настройки", "Settings"]],
+          "screenMarkers": { "ru": ["Настройки"], "en": ["Settings"] },
+          "itemTexts": {
+            "ru": ["Получать рекомендации"],
+            "en": ["Receive recommendations"],
+            "es": ["Recibir recomendaciones"],
+            "zh": ["接收推荐"],
+            "hi": ["सुझाव प्राप्त करें"],
+            "pt": ["Receber recomendações"],
+            "id": ["Terima rekomendasi"]
+          },
+          "extraTargets": [
+            { "back": 1, "drillPath": [["Очистка", "Cleaner", "清理"]], "itemTexts": { "ru": ["Получать рекомендации"], "en": ["Receive recommendations"], "es": ["Recibir recomendaciones"], "zh": ["接收推荐"], "hi": ["सुझाव प्राप्त करें"], "pt": ["Receber recomendações"], "id": ["Terima rekomendasi"] }, "control": "toggle" }
+          ]
+        }
+      ],
       "title": {
         "ru": "Безопасность — рекомендации",
         "en": "Security recommendations",
@@ -928,6 +1663,46 @@
     },
     {
       "id": "cleaner",
+      "variants": [
+        {
+          "id": "miui12_14",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
+          "fallback": true,
+          "drillPath": [
+            ["Очистка", "Cleaner", "清理", "Cleanup"],
+            ["⚙", "⚙️", "Настройки", "Settings", "设置"]
+          ],
+          "screenMarkers": { "ru": ["Очистка", "Настройки"], "en": ["Cleaner", "Settings"], "zh": ["清理"] },
+          "itemTexts": {
+            "ru": ["Получать рекомендации"],
+            "en": ["Receive recommendations"],
+            "es": ["Recibir recomendaciones"],
+            "zh": ["接收推荐"],
+            "hi": ["सुझाव प्राप्त करें"],
+            "pt": ["Receber recomendações"],
+            "id": ["Terima rekomendasi"]
+          }
+        },
+        {
+          "id": "hyperos1_3",
+          "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
+          "fallback": false,
+          "drillPath": [
+            ["Очистка", "Cleaner", "清理"],
+            ["⚙", "⚙️", "Настройки", "Settings"]
+          ],
+          "screenMarkers": { "ru": ["Очистка", "Настройки"], "en": ["Cleaner", "Settings"] },
+          "itemTexts": {
+            "ru": ["Получать рекомендации"],
+            "en": ["Receive recommendations"],
+            "es": ["Recibir recomendaciones"],
+            "zh": ["接收推荐"],
+            "hi": ["सुझाव प्राप्त करें"],
+            "pt": ["Receber recomendações"],
+            "id": ["Terima rekomendasi"]
+          }
+        }
+      ],
       "title": {
         "ru": "Очистка — рекомендации",
         "en": "Cleaner recommendations",
@@ -1005,6 +1780,46 @@
     },
     {
       "id": "downloads",
+      "variants": [
+        {
+          "id": "miui12_14",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
+          "fallback": true,
+          "drillPath": [
+            ["⋮", "Ещё", "More", "Больше"],
+            ["Настройки", "Settings", "设置"]
+          ],
+          "screenMarkers": { "ru": ["Настройки"], "en": ["Settings"], "zh": ["设置"] },
+          "itemTexts": {
+            "ru": ["Получать рекомендации", "Показывать рекламу"],
+            "en": ["Receive recommendations", "Show ads"],
+            "es": ["Recibir recomendaciones", "Mostrar anuncios"],
+            "zh": ["接收推荐", "显示广告"],
+            "hi": ["सुझाव प्राप्त करें", "विज्ञापन दिखाए"],
+            "pt": ["Receber recomendações", "Mostrar anúncios"],
+            "id": ["Terima rekomendasi", "Tampilkan iklan"]
+          }
+        },
+        {
+          "id": "hyperos1_3",
+          "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
+          "fallback": false,
+          "drillPath": [
+            ["⋮", "Ещё", "More"],
+            ["Настройки", "Settings"]
+          ],
+          "screenMarkers": { "ru": ["Настройки"], "en": ["Settings"] },
+          "itemTexts": {
+            "ru": ["Получать рекомендации"],
+            "en": ["Receive recommendations"],
+            "es": ["Recibir recomendaciones"],
+            "zh": ["接收推荐"],
+            "hi": ["सुझाव प्राप्त करें"],
+            "pt": ["Receber recomendações"],
+            "id": ["Terima rekomendasi"]
+          }
+        }
+      ],
       "title": {
         "ru": "Загрузки — рекомендации",
         "en": "Downloads recommendations",
@@ -1075,6 +1890,53 @@
     },
     {
       "id": "themes",
+      "variants": [
+        {
+          "id": "miui12_14",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
+          "fallback": true,
+          "drillPath": [
+            ["Профиль", "Мой профиль", "Profile", "我的"],
+            ["⚙", "⚙️", "Настройки", "Settings"]
+          ],
+          "screenMarkers": {
+            "ru": ["Профиль", "Настройки"],
+            "en": ["Profile", "Settings"],
+            "zh": ["我的"]
+          },
+          "itemTexts": {
+            "ru": ["Показывать рекламу", "Персональные рекомендации"],
+            "en": ["Show ads", "Personalized recommendations"],
+            "es": ["Mostrar anuncios", "Recomendaciones personalizadas"],
+            "zh": ["显示广告", "个性化推荐"],
+            "hi": ["विज्ञापन दिखाएँ", "व्यक्तिगत सुझाव"],
+            "pt": ["Mostrar anúncios", "Recomendações personalizadas"],
+            "id": ["Tampilkan iklan", "Rekomendasi personal"]
+          }
+        },
+        {
+          "id": "hyperos1_3",
+          "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
+          "fallback": false,
+          "drillPath": [
+            ["Профиль", "Персонализация", "Profile", "我的"],
+            ["⚙", "️", "Настройки", "Settings"]
+          ],
+          "screenMarkers": {
+            "ru": ["Профиль", "Настройки"],
+            "en": ["Profile", "Settings"]
+          },
+          "itemTexts": {
+            "ru": ["Показывать рекламу", "Персональные рекомендации"],
+            "en": ["Show ads", "Personalized recommendations"],
+            "es": ["Mostrar anuncios"],
+            "zh": ["显示广告", "个性化推荐"],
+            "hi": ["विज्ञापन दिखाएँ"],
+            "pt": ["Mostrar anúncios"],
+            "id": ["Tampilkan iklan"]
+          }
+        }
+      ],
       "title": {
         "ru": "Темы — реклама",
         "en": "Themes ads",
@@ -1190,6 +2052,57 @@
         "com.mi.global.market"
       ],
       "launchPackage": "com.xiaomi.mipicks",
+      "variants": [
+        {
+          "id": "miui12_14",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
+          "fallback": true,
+          "control": "toggle",
+          "drillPath": [
+            ["Профиль", "Profile", "我的"],
+            ["Настройки", "Settings", "设置"],
+            ["Конфиденциальность", "Privacy", "隐私"]
+          ],
+          "screenMarkers": {
+            "ru": ["Конфиденциальность", "Настройки"],
+            "en": ["Privacy", "Settings"],
+            "zh": ["隐私"]
+          },
+          "itemTexts": {
+            "ru": ["Персональные рекомендации"],
+            "en": ["Personalized recommendations"],
+            "es": ["Recomendaciones personalizadas"],
+            "zh": ["个性化推荐"],
+            "hi": ["व्यक्तिगत सुझाव"],
+            "pt": ["Recomendações personalizadas"],
+            "id": ["Rekomendasi personal"]
+          }
+        },
+        {
+          "id": "hyperos1_3",
+          "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
+          "fallback": false,
+          "control": "toggle",
+          "drillPath": [
+            ["Профиль", "Profile", "我的"],
+            ["Настройки", "Settings"],
+            ["Конфиденциальность", "Privacy"]
+          ],
+          "screenMarkers": {
+            "ru": ["Конфиденциальность", "Настройки"],
+            "en": ["Privacy", "Settings"]
+          },
+          "itemTexts": {
+            "ru": ["Персональные рекомендации"],
+            "en": ["Personalized recommendations"],
+            "es": ["Recomendaciones personalizadas"],
+            "zh": ["个性化推荐"],
+            "hi": ["व्यक्तिगत सुझाव"],
+            "pt": ["Recomendações personalizadas"],
+            "id": ["Rekomendasi personal"]
+          }
+        }
+      ],
       "title": {
         "ru": "GetApps",
         "en": "GetApps",
@@ -1214,6 +2127,46 @@
     },
     {
       "id": "mivideo",
+      "variants": [
+        {
+          "id": "miui12_14",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
+          "fallback": true,
+          "drillPath": [
+            ["Профиль", "Profile", "我的", "Perfil"],
+            ["", "⚙️", "Настройки", "Settings"]
+          ],
+          "screenMarkers": { "ru": ["Настройки", "Профиль"], "en": ["Settings", "Profile"] },
+          "itemTexts": {
+            "ru": ["Онлайн-рекомендации", "Персональные рекомендации", "Push-уведомления"],
+            "en": ["Online recommendations", "Personal recommendations", "Push notifications"],
+            "es": ["Recomendaciones en línea", "Recomendaciones personales"],
+            "zh": ["在线推荐", "个性化推荐"],
+            "hi": ["ऑनलाइन सुझाव", "व्यक्तिगत सुझाव"],
+            "pt": ["Recomendações online", "Recomendações pessoais"],
+            "id": ["Rekomendasi online", "Rekomendasi pribadi"]
+          }
+        },
+        {
+          "id": "hyperos1_3",
+          "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
+          "fallback": false,
+          "drillPath": [
+            ["Профиль", "Profile", "我的"],
+            ["⚙", "⚙️", "Настройки", "Settings"]
+          ],
+          "screenMarkers": { "ru": ["Настройки", "Профиль"], "en": ["Settings", "Profile"] },
+          "itemTexts": {
+            "ru": ["Онлайн-рекомендации", "Персональные рекомендации"],
+            "en": ["Online recommendations", "Personal recommendations"],
+            "es": ["Recomendaciones en línea"],
+            "zh": ["在线推荐", "个性化推荐"],
+            "hi": ["नलाइन सुझाव"],
+            "pt": ["Recomendações online"],
+            "id": ["Rekomendasi online"]
+          }
+        }
+      ],
       "title": {
         "ru": "Mi Видео — рекомендации",
         "en": "Mi Video recommendations",
@@ -1307,6 +2260,48 @@
     },
     {
       "id": "shareme",
+      "variants": [
+        {
+          "id": "miui12_14",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
+          "fallback": true,
+          "drillPath": [
+            ["⋮", "Ещё", "More", "Больше"],
+            ["О приложении", "About", "关于"],
+            ["Справка и обратная связь", "Help & feedback"]
+          ],
+          "screenMarkers": { "ru": ["О приложении"], "en": ["About"], "zh": ["关于"] },
+          "itemTexts": {
+            "ru": ["Получать рекомендации"],
+            "en": ["Receive recommendations"],
+            "es": ["Recibir recomendaciones"],
+            "zh": ["接收推荐"],
+            "hi": ["सुझाव प्राप्त करें"],
+            "pt": ["Receber recomendações"],
+            "id": ["Terima rekomendasi"]
+          }
+        },
+        {
+          "id": "hyperos1_3",
+          "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
+          "fallback": false,
+          "drillPath": [
+            ["⋮", "Ещё", "More"],
+            ["О приложении", "About"],
+            ["Справка и обратная связь", "Help & feedback"]
+          ],
+          "screenMarkers": { "ru": ["О приложении"], "en": ["About"] },
+          "itemTexts": {
+            "ru": ["Получать рекомендации"],
+            "en": ["Receive recommendations"],
+            "es": ["Recibir recomendaciones"],
+            "zh": ["接收推荐"],
+            "hi": ["सुझाव प्राप्त करें"],
+            "pt": ["Receber recomendações"],
+            "id": ["Terima rekomendasi"]
+          }
+        }
+      ],
       "title": {
         "ru": "ShareMe — рекомендации",
         "en": "ShareMe recommendations",
@@ -1384,6 +2379,59 @@
     },
     {
       "id": "filemanager",
+      "variants": [
+        {
+          "id": "miui12_14",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
+          "fallback": true,
+          "control": "toggle",
+          "fallbackAction": "clear_data_decline",
+          "drillPath": [
+            ["☰", "", "Ещё", "More", "Больше"],
+            ["Настройки", "Settings"],
+            ["Информация", "О программе", "Info", "About"]
+          ],
+          "screenMarkers": {
+            "ru": ["Информация", "Настройки"],
+            "en": ["Info", "Settings"],
+            "zh": ["信息"]
+          },
+          "itemTexts": {
+            "ru": ["Получать рекомендации"],
+            "en": ["Receive recommendations"],
+            "es": ["Recibir recomendaciones"],
+            "zh": ["接收推荐"],
+            "hi": ["सुझाव प्राप्त करें"],
+            "pt": ["Receber recomendações"],
+            "id": ["Terima rekomendasi"]
+          }
+        },
+        {
+          "id": "hyperos1_3",
+          "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
+          "fallback": false,
+          "control": "toggle",
+          "fallbackAction": "clear_data_decline",
+          "drillPath": [
+            ["☰", "⋮", "Ещё", "More"],
+            ["Настройки", "Settings"],
+            ["Информация", "Info"]
+          ],
+          "screenMarkers": {
+            "ru": ["Информация", "Настройки"],
+            "en": ["Info", "Settings"]
+          },
+          "itemTexts": {
+            "ru": ["Получать рекомендации"],
+            "en": ["Receive recommendations"],
+            "es": ["Recibir recomendaciones"],
+            "zh": ["接收推荐"],
+            "hi": ["सुझाव प्राप्त करें"],
+            "pt": ["Receber recomendações"],
+            "id": ["Terima rekomendasi"]
+          }
+        }
+      ],
       "title": {
         "ru": "Проводник — рекомендации",
         "en": "File Manager recommendations",
@@ -1488,6 +2536,69 @@
         "com.android.personalassistant"
       ],
       "launchPackage": "com.mi.android.globalminusscreen",
+      "variants": [
+        {
+          "id": "miui12_14",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
+          "fallback": true,
+          "entry": "settings",
+          "control": "toggle",
+          "drillPath": [
+            ["Рабочий стол", "Главный экран", "Home screen"],
+            ["Лента виджетов", "Показывать предложения", "App Vault", "Show suggestions"]
+          ],
+          "screenMarkers": { "ru": ["Рабочий стол"], "en": ["Home screen"] },
+          "itemTexts": {
+            "ru": ["Лента виджетов", "Показывать предложения"],
+            "en": ["App Vault", "Show suggestions"],
+            "es": ["App Vault"],
+            "zh": ["小部件面板"],
+            "hi": ["विजेट फ़ीड"],
+            "pt": ["App Vault"],
+            "id": ["App Vault"]
+          }
+        },
+        {
+          "id": "hyperos2_3",
+          "os": { "family": "hyperos", "uiMin": 2, "uiMax": 3 },
+          "fallback": false,
+          "entry": "settings",
+          "control": "toggle",
+          "drillPath": [
+            ["Рабочий стол", "Home screen"],
+            ["Лента виджетов", "Показывать предложения", "App Vault"]
+          ],
+          "screenMarkers": { "ru": ["Рабочий стол"], "en": ["Home screen"] },
+          "itemTexts": {
+            "ru": ["Лента виджетов", "Показывать предложения"],
+            "en": ["App Vault", "Show suggestions"],
+            "es": ["App Vault"],
+            "zh": ["小部件面板"],
+            "hi": ["विजेट फ़ीड"],
+            "pt": ["App Vault"],
+            "id": ["App Vault"]
+          },
+          "extraTargets": [
+            {
+              "back": 0,
+              "drillPath": [
+                ["⋮", "Ещё", "More"],
+                ["Управление службами", "Manage services"]
+              ],
+              "itemTexts": {
+                "ru": ["Предложения", "Предложения приложений и рекламу"],
+                "en": ["Suggestions", "App suggestions and ads"],
+                "es": ["Sugerencias"],
+                "zh": ["建议"],
+                "hi": ["सुझाव"],
+                "pt": ["Sugestões"],
+                "id": ["Saran"]
+              },
+              "control": "toggle"
+            }
+          ]
+        }
+      ],
       "title": {
         "ru": "App Vault",
         "en": "App Vault",
@@ -1519,6 +2630,69 @@
         "com.android.personalassistant"
       ],
       "launchPackage": "com.mi.android.globalminusscreen",
+      "variants": [
+        {
+          "id": "miui12_14",
+          "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
+          "fallback": true,
+          "entry": "settings",
+          "control": "toggle",
+          "drillPath": [
+            ["Рабочий стол", "Главный экран", "Home screen"],
+            ["Лента виджетов", "Показывать предложения", "App Vault", "Show suggestions"]
+          ],
+          "screenMarkers": { "ru": ["Рабочий стол"], "en": ["Home screen"] },
+          "itemTexts": {
+            "ru": ["Лента виджетов", "Показывать предложения"],
+            "en": ["App Vault", "Show suggestions"],
+            "es": ["App Vault"],
+            "zh": ["小部件面板"],
+            "hi": ["विजेट फ़ीड"],
+            "pt": ["App Vault"],
+            "id": ["App Vault"]
+          }
+        },
+        {
+          "id": "hyperos2_3",
+          "os": { "family": "hyperos", "uiMin": 2, "uiMax": 3 },
+          "fallback": false,
+          "entry": "settings",
+          "control": "toggle",
+          "drillPath": [
+            ["Рабочий стол", "Home screen"],
+            ["Лента виджетов", "Показывать предложения", "App Vault"]
+          ],
+          "screenMarkers": { "ru": ["Рабочий стол"], "en": ["Home screen"] },
+          "itemTexts": {
+            "ru": ["Лента виджетов", "Показывать предложения"],
+            "en": ["App Vault", "Show suggestions"],
+            "es": ["App Vault"],
+            "zh": ["小部件面板"],
+            "hi": ["विजेट फ़ीड"],
+            "pt": ["App Vault"],
+            "id": ["App Vault"]
+          },
+          "extraTargets": [
+            {
+              "back": 0,
+              "drillPath": [
+                ["⋮", "Ещё", "More"],
+                ["Управление службами", "Manage services"]
+              ],
+              "itemTexts": {
+                "ru": ["Предложения", "Предложения приложений и рекламу"],
+                "en": ["Suggestions", "App suggestions and ads"],
+                "es": ["Sugerencias"],
+                "zh": ["建议"],
+                "hi": ["सुझाव"],
+                "pt": ["Sugestões"],
+                "id": ["Saran"]
+              },
+              "control": "toggle"
+            }
+          ]
+        }
+      ],
       "title": {
         "ru": "App Vault (о приложении)",
         "en": "App Vault (about)",

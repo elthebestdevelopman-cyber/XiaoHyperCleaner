@@ -278,6 +278,10 @@
     <string name="result_skipped">Dilewati: %d</string>
     <string name="result_failed">Dilindungi sistem: %d</string>
     <string name="result_notif_title">Notifikasi dimatikan:</string>
+    <string name="result_manual_title">Untuk hasil maksimal, lakukan manual</string>
+    <string name="result_manual_expand">tampilkan</string>
+    <string name="result_manual_collapse">sembunyikan</string>
+    <string name="result_manual_warning">Perhatian: </string>
     <string name="result_soft">Jika bermanfaat — ulasan atau dukungan sangat kami hargai.</string>
     <string name="result_rate">Beri nilai</string>
     <string name="result_support">Dukung</string>

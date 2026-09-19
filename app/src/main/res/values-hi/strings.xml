@@ -283,6 +283,10 @@
     <string name="result_support">समर्थन</string>
     <string name="result_share_log">लॉग साझा करें</string>
     <string name="result_close">ऐप खोलें</string>
+    <string name="result_manual_title">अधिकतम परिणाम के लिए यह मैन्युअल करें</string>
+    <string name="result_manual_expand">दिखाएँ</string>
+    <string name="result_manual_collapse">छिपाएँ</string>
+    <string name="result_manual_warning">ध्यान दें: </string>
     <string name="progress_format">%1$d%%</string>
     <string name="mock_notifications_label">सूचनाएं</string>
     <string name="overlay_recovering">ओवरले पुनर्स्थापित हो रहा है…</string>

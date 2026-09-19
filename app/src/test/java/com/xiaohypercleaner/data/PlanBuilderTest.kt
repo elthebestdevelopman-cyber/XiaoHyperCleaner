@@ -89,4 +89,66 @@ class PlanBuilderTest {
         assertFalse(plan.contains("getapps"))
         assertFalse(plan.contains("appvault_services"))
     }
+
+    @Test
+    fun `hyperos3 keeps security and cleaner steps in plan`() {
+        // Красный список не исключает UI-шаги: на HyperOS 3 Security = com.miui.securitycore.
+        install("com.miui.securitycore")
+        val hyperOs3 = RomProfile(
+            region = RomRegion.GLOBAL,
+            miuiVersion = "OS3.0.1.0",
+            hyperOsHint = true,
+            isTablet = false,
+            family = RomFamily.HYPEROS,
+            uiVersion = "3"
+        )
+
+        val plan = PlanBuilder.build(context, hyperOs3).map { it.id }
+
+        assertTrue("security_sys остаётся в плане", plan.contains("security_sys"))
+        assertTrue("cleaner остаётся в плане", plan.contains("cleaner"))
+    }
+
+    @Test
+    fun `destructive action over never touch package is forbidden`() {
+        val neverTouch = SemanticCatalog.neverTouchPackages()
+        assertTrue("красный список загружен", neverTouch.isNotEmpty())
+
+        assertTrue(
+            "disable com.miui.securitycore запрещён",
+            PlanBuilder.isForbiddenDestructive(
+                actionType = SimpleSteps.ActionType.TOGGLE,
+                destructiveAction = "disable",
+                packages = listOf("com.miui.securitycore"),
+                neverTouch = neverTouch
+            )
+        )
+        assertTrue(
+            "clear data over never-touch package запрещён",
+            PlanBuilder.isForbiddenDestructive(
+                actionType = SimpleSteps.ActionType.CLEAR_DATA_DECLINE,
+                destructiveAction = null,
+                packages = listOf("com.miui.daemon", "com.miui.securitycenter"),
+                neverTouch = neverTouch
+            )
+        )
+        assertFalse(
+            "обычный тумблер в приложении пакета разрешён",
+            PlanBuilder.isForbiddenDestructive(
+                actionType = SimpleSteps.ActionType.TOGGLE,
+                destructiveAction = null,
+                packages = listOf("com.miui.securitycore"),
+                neverTouch = neverTouch
+            )
+        )
+        assertFalse(
+            "clear data обычного приложения разрешён",
+            PlanBuilder.isForbiddenDestructive(
+                actionType = SimpleSteps.ActionType.CLEAR_DATA_DECLINE,
+                destructiveAction = null,
+                packages = listOf("com.mi.android.globalFileexplorer"),
+                neverTouch = neverTouch
+            )
+        )
+    }
 }

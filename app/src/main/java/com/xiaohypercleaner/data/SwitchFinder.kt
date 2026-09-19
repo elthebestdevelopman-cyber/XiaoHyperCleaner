@@ -52,10 +52,14 @@ object SwitchFinder {
     }
 
     /**
-     * Ищет переключатель по тексту/описанию (3 прохода + нечёткий последний рубеж):
+     * Ищет переключатель по тексту/описанию. Строгое правило: совпадение ключа
+     * обязано быть в text/desc самого switch ИЛИ в строке-контейнере, где лежит
+     * ровно один переключатель. Фолбэк «первый switch на экране» запрещён как
+     * класс — именно он давал ложные OK (bounds совпадали с чужим тумблером).
+     *
      * 1. сам переключатель с подходящим текстом;
-     * 2. подпись (TextView), рядом с которой лежит переключатель;
-     * 3. нечёткое совпадение текста (варианты прошивок/опечатки).
+     * 2. подпись (TextView), в строке которой ровно один переключатель;
+     * 3. нечёткое совпадение — тем же правилом строки.
      */
     fun findSwitch(
         root: AccessibilityNodeInfo?,
@@ -65,49 +69,96 @@ object SwitchFinder {
         NodeTree.findInTree(root) { isSwitchLike(it) && NodeTree.matchesAny(it, texts) }
             ?.let { return it }
 
-        val labelNode = NodeTree.findInTree(root) { !isSwitchLike(it) && NodeTree.matchesAny(it, texts) }
-        labelNode?.let { findSwitchNear(it)?.let { sw -> return sw } }
+        NodeTree.findInTree(root) { !isSwitchLike(it) && NodeTree.matchesAny(it, texts) }
+            ?.let { label -> findSwitchInRow(label)?.let { sw -> return sw } }
 
         NodeTree.findInTree(root) { isSwitchLike(it) && NodeTree.matchesAny(it, texts, fuzzy = true) }
             ?.let {
                 AppLog.w(TAG, "fuzzy switch match on node")
                 return it
             }
-        val fuzzyLabel = NodeTree.findInTree(root) { !isSwitchLike(it) && NodeTree.matchesAny(it, texts, fuzzy = true) }
-        fuzzyLabel?.let { fl ->
-            findSwitchNear(fl)?.let { sw ->
-                AppLog.w(TAG, "fuzzy label match next to switch")
-                return sw
+        NodeTree.findInTree(root) { !isSwitchLike(it) && NodeTree.matchesAny(it, texts, fuzzy = true) }
+            ?.let { label ->
+                findSwitchInRow(label)?.let { sw ->
+                    AppLog.w(TAG, "fuzzy label match next to switch")
+                    return sw
+                }
             }
-        }
         return null
     }
 
     /**
-     * Ищет переключатель рядом с текстовой подписью.
-     * Сначала — в поддереве ближайшего кликабельного предка (строка настройки):
-     * на экранах уведомлений/Карусели CheckBox вложен в sibling-контейнер
-     * (widget_frame), а не является прямым соседом подписи. Затем — соседи/вверх.
+     * Переключатель строки подписи: поднимаемся по предкам и в первом контейнере,
+     * где найден РОВНО ОДИН переключатель, возвращаем его. Контейнер с двумя и
+     * более переключателями — не строка настройки: переключать чужой тумблер
+     * запрещено, поиск отклоняется ([AppLog] логирует отказ).
      */
     fun findSwitchNear(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         if (isSwitchLike(node)) return node
-        NodeTree.clickableAncestorOrSelf(node)?.let { row ->
-            NodeTree.findInTree(row) { isSwitchLike(it) }?.let { return it }
-        }
-        var current: AccessibilityNodeInfo? = node
-        var depth = 0
-        while (current != null && depth < 4) {
-            val parent = current.parent
-            if (parent != null) {
-                for (i in 0 until parent.childCount) {
-                    val sibling = parent.getChild(i) ?: continue
-                    if (sibling === node) continue
-                    NodeTree.findInTree(sibling) { isSwitchLike(it) }?.let { return it }
-                }
+        return findSwitchInRow(node)
+    }
+
+    /** Максимальная глубина подъёма по предкам при поиске строки настройки. */
+    private const val MAX_ROW_DEPTH = 6
+
+    /** Лимит собранных переключателей: достаточно, чтобы различить 1 и «больше одного». */
+    private const val SWITCH_COLLECT_LIMIT = 2
+
+    private fun findSwitchInRow(label: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        // 1. Кликабельная строка подписи: в ней обязан быть ровно один тумблер,
+        //    и он должен принадлежать этой же строке.
+        val labelRow = NodeTree.clickableAncestorOrSelf(label)
+        if (labelRow != null) {
+            val switches = collectSwitches(labelRow)
+            if (switches.size > 1) {
+                AppLog.w(TAG, "ambiguous row: switches=${switches.size} — switch_not_found")
+                return null
             }
-            current = parent
+            switches.firstOrNull()?.let { candidate -> return acceptIfSameRow(candidate, labelRow) }
+        }
+
+        // 2. Строка без кликабельного предка: поднимаемся по предкам, принимая только
+        //    контейнер с РОВНО ОДНИМ тумблером, который принадлежит этому контейнеру.
+        var current: AccessibilityNodeInfo? = label.parent
+        var depth = 0
+        while (current != null && depth <= MAX_ROW_DEPTH) {
+            val switches = collectSwitches(current)
+            if (switches.size > 1) {
+                AppLog.w(TAG, "ambiguous row: switches=${switches.size} — switch_not_found")
+                return null
+            }
+            switches.firstOrNull()?.let { candidate -> return acceptIfSameRow(candidate, current) }
+            current = current.parent
             depth++
         }
         return null
+    }
+
+    /** Тумблер принимается, только если он лежит в том же контейнере, что и подпись. */
+    private fun acceptIfSameRow(
+        switchNode: AccessibilityNodeInfo,
+        row: AccessibilityNodeInfo
+    ): AccessibilityNodeInfo? {
+        val switchRow = NodeTree.clickableAncestorOrSelf(switchNode)
+        if (switchRow == null || switchRow === row) return switchNode
+        AppLog.w(TAG, "switch belongs to another row — switch_not_found")
+        return null
+    }
+
+    private fun collectSwitches(
+        node: AccessibilityNodeInfo,
+        limit: Int = SWITCH_COLLECT_LIMIT
+    ): List<AccessibilityNodeInfo> {
+        val result = ArrayList<AccessibilityNodeInfo>(limit)
+        fun walk(n: AccessibilityNodeInfo?, depth: Int) {
+            if (n == null || depth > NodeTree.DEFAULT_MAX_DEPTH || result.size >= limit) return
+            if (isSwitchLike(n)) {
+                result.add(n)
+                return
+            }
+            for (i in 0 until n.childCount) walk(n.getChild(i), depth + 1)
+        }
+        walk(node, 0)
+        return result
     }
 }

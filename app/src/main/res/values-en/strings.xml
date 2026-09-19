@@ -298,6 +298,10 @@
     <string name="result_skipped">Skipped (not on device): %d</string>
     <string name="result_failed">Couldn\'t complete (system-protected): %d</string>
     <string name="result_notif_title">Notifications turned off:</string>
+    <string name="result_manual_title">For the best result, do manually</string>
+    <string name="result_manual_expand">show</string>
+    <string name="result_manual_collapse">hide</string>
+    <string name="result_manual_warning">Caution: </string>
     <string name="result_soft">If it helped — a review or any support would be appreciated. It helps others find the app.</string>
     <string name="result_rate">Rate</string>
     <string name="result_support">Support</string>

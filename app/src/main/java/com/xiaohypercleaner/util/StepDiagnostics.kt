@@ -45,6 +45,7 @@ object StepDiagnostics {
             "DIAG run=$runId step=$stepId event=START idx=${index + 1}/$total " +
                 "pkg=${resolvedPkg ?: "-"} region=${profile.region} " +
                 "miui=${profile.miuiVersion} hyper=${profile.hyperOsHint} " +
+                "rom=${profile.family}/${profile.uiVersion ?: "unknown"} " +
                 "sdk=${Build.VERSION.SDK_INT} model=${Build.MODEL}"
         )
     }

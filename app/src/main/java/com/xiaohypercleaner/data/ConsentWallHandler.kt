@@ -11,10 +11,13 @@ import com.xiaohypercleaner.util.TextMatcher
  * (`interceptSystemDialogs`): welcome-стены и runtime-permission запросы.
  *
  * Правила (Аддендум B):
- * - welcome-маркеры → тап согласия → ПРОДОЛЖИТЬ шаг (≤ maxIterationsPerStep);
+ * - welcome-маркеры → (чекбоксы, если есть) → тап согласия → ПРОДОЛЖИТЬ шаг
+ *   (≤ maxIterationsPerStep);
  * - permission-запрос → deny по умолчанию (`consentPolicy`), allow только
  *   для `allowOverrides`/медиа-шагов;
- * - лог: `consent: kind=<welcome|permission> decision=<...> step=<id> text='...'`.
+ * - диалог-заглушка («Произошла ошибка сети» → «Понятно», «Нет, спасибо»)
+ *   закрывается ВНУТРИ цикла шага;
+ * - лог: `consent: kind=<welcome|permission|dismiss> decision=<...> step=<id> text='...'`.
  */
 object ConsentWallHandler {
 
@@ -28,6 +31,13 @@ object ConsentWallHandler {
     /** Мост нажатий: реализует SimpleRunner (поиск кликабельного узла по текстам). */
     interface TapBridge {
         suspend fun tapByTexts(texts: List<String>): Boolean
+
+        /**
+         * Тап по ВКЛЮЧЁННОЙ кнопке: на стенах с чекбоксами и на отсчётных диалогах
+         * кнопка согласия активна только после отметки обязательных пунктов/отсчёта.
+         * По умолчанию — обычный тап (обратная совместимость).
+         */
+        suspend fun tapEnabledByTexts(texts: List<String>): Boolean = tapByTexts(texts)
     }
 
     /**
@@ -49,9 +59,25 @@ object ConsentWallHandler {
         val welcomeMarkers = SemanticCatalog.welcomeMarkers()
         val permissionMarkers = SemanticCatalog.permissionMarkers()
 
+        // 1. Диалог-заглушка внутри шага («Произошла ошибка сети» → «Понятно»,
+        //    «Нет, спасибо» после выключения Карусели) — закрываем и продолжаем шаг.
+        val dismissTexts = SemanticCatalog.dismissTexts()
+        if (dismissTexts.isNotEmpty() && dismissDialogVisible(screenText, dismissTexts)) {
+            val tapped = bridge.tapByTexts(dismissTexts)
+            log(stepId, "dismiss", if (tapped) "closed" else "not_found", screenText)
+            if (tapped) return Outcome(true, "dismiss", "closed")
+        }
+
         if (welcomeMarkers.isNotEmpty() && welcomeMarkers.any { TextMatcher.normalizedContains(screenText, it) }) {
             val actions = (stepConsentTexts + SemanticCatalog.welcomeActions()).distinct()
-            val tapped = actions.isNotEmpty() && bridge.tapByTexts(actions)
+            // Стена с чекбоксами: сначала отмечаем «Выбрать все»/обязательные пункты,
+            // затем жмём кнопку (до отметки она неактивна).
+            val checkboxTexts = SemanticCatalog.checkboxTexts()
+            val checkboxVisible = checkboxTexts.isNotEmpty() &&
+                checkboxTexts.any { TextMatcher.normalizedContains(screenText, it) }
+            val checkboxTapped = checkboxVisible && bridge.tapByTexts(checkboxTexts)
+            if (checkboxTapped) log(stepId, "welcome", "checkbox_marked", screenText)
+            val tapped = actions.isNotEmpty() && bridge.tapEnabledByTexts(actions)
             log(stepId, "welcome", if (tapped) "accepted" else "no_action", screenText)
             return Outcome(tapped, "welcome", if (tapped) "accept" else "not_found")
         }
@@ -89,6 +115,13 @@ object ConsentWallHandler {
             handled++
         }
         return handled
+    }
+
+    private fun dismissDialogVisible(screenText: String, dismissTexts: List<String>): Boolean {
+        val markers = SemanticCatalog.dismissMarkers()
+        if (markers.isNotEmpty() && markers.any { TextMatcher.normalizedContains(screenText, it) }) return true
+        // «Нет, спасибо»/«Понятно» сами по себе — маркер диалога-заглушки.
+        return dismissTexts.any { TextMatcher.normalizedContains(screenText, it) }
     }
 
     private fun log(stepId: String, kind: String, decision: String, screenText: String) {

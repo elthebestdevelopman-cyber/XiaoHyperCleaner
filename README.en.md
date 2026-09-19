@@ -20,6 +20,7 @@
 - [Requirements](#-requirements)
 - [Installation](#-installation)
 - [Usage](#-usage)
+  - [What Still Needs Manual Work](#what-still-needs-manual-work)
 - [Project Structure](#-project-structure)
 - [Development](#-development)
 - [Testing](#-testing)
@@ -164,6 +165,25 @@ This is done **only once**. The app will prompt you to do this when needed.
 Before applying changes the app stores the original values and the actual state of every toggle, so
 rollback restores exactly what was on the device. There are no irreversible changes: when the
 firmware updates, disabled system components are restored by the system, and the run can be repeated.
+
+### What Still Needs Manual Work
+
+Some system places are never touched by the automation — go through them by hand. The same list
+opens on the result screen by tapping "For the best result, do manually":
+
+| Item | What to do |
+|---|---|
+| App scan on install | When installing from a store open the scan window → gear at the top right → turn off "Receive recommendations" (HyperOS 2/3: "Advanced settings"). |
+| Home folder suggestions | Open a home folder → tap its name (HyperOS 2/3: hold the folder → "Edit folder") → turn off "Recommended today". |
+| Search in HyperOS 3 | Swipe up for search → three dots next to the search field → "Settings" → turn off "App recommendations". |
+| HyperOS 3: wallpaper carousel service ⚠ | If lock-screen captions remain: Settings → Apps → All apps → "Wallpaper Carousel" → "Disable". It is a system app — disable consciously. |
+| Changing device region ⚠ | Changing the region erases some data and changes the set of system apps. We never do this automatically — only manually, consciously. |
+| System Daemon and Feedback services  | System Daemon (MiuiDaemon) and Feedback can be disabled manually, but we do not recommend it: notifications and sync may break. |
+| Private DNS | DNS is switched by our toggle in Simple mode (AdGuard DNS) — no manual change needed. |
+
+Red list: `com.miui.daemon`, `com.miui.guardprovider`, `com.miui.securitycore`,
+`com.xiaomi.simactivate.service` — the app never performs destructive operations on these packages
+(disable, clear data, force-stop); their screens and the toggles inside them stay available.
 
 ### Sharing Logs
 
@@ -343,20 +363,34 @@ app/src/test/java/com/xiaohypercleaner/
 
 ## 🧪 Testing
 
-### Unit Tests (65 tests)
+### Unit Tests (142 tests, 20 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
 ```
 
-| File                     | Tests | What is tested                            |
-|--------------------------|-------|-------------------------------------------|
-| `OptimizationEngineTest` | 10    | Optimization, rollback, DNS, transactions |
-| `AdbPortResolverTest`    | 5     | mDNS discovery, mergePorts                |
-| `RomProfileTest`         | 2     | ROM profiles                              |
-| `SimpleStepsTest`        | 5     | Simple mode steps                         |
-| `MainViewModelTest`      | 8     | UI logic (Robolectric)                    |
-| `LogMaskerTest`          | 15    | IP, token, path masking                   |
+| File                          | Tests | What is tested                                     |
+|-------------------------------|-------|----------------------------------------------------|
+| `OptimizationEngineTest`      | 11    | Optimization, rollback, DNS, transactions          |
+| `RestoreSnapshotTest`         | 3     | Rollback snapshot of original values               |
+| `AdbPortResolverTest`         | 5     | mDNS discovery, mergePorts                         |
+| `AdaptiveCatalogTest`         | 16    | Variant catalog, text merging                      |
+| `SemanticCatalogTest`         | 6     | Step semantics, target packages                    |
+| `SemanticVariantTest`         | 7     | OS variant selection (MIUI 13 / HyperOS 2)         |
+| `SemanticGateTest`            | 6     | Confidence gate                                    |
+| `PlanBuilderTest`             | 6     | Plan pre-filter + red list                         |
+| `ManualStepsTest`             | 4     | Manual checklist: 7-locale parity                  |
+| `SwitchFinderTest`            | 8     | Toggles, checked_before, foreign row rejection     |
+| `ConsentWallTest`             | 9     | Consent dialogs, checkboxes, dismiss               |
+| `SimpleRunnerMsaResumeTest`   | 5     | Drill resume + msa revoke confirmation             |
+| `SimpleRunnerClearDataTest`   | 2     | CLEAR_DATA_DECLINE without false success           |
+| `ScanOrchestratorTest`        | 4     | Navigation planning, cache                         |
+| `ActivityScannerTest`         | 8     | Package/activity visibility                        |
+| `RomProfileTest`              | 5     | ROM profile: region, family, version               |
+| `SimpleStepsTest`             | 5     | Simple mode step map                               |
+| `MainViewModelTest`           | 8     | UI logic (Robolectric)                             |
+| `LogMaskerTest`               | 15    | IP, token, path masking                            |
+| `TextMatcherTest`             | 9     | Text normalization and fuzzy matching              |
 
 ### Manual Testing
 

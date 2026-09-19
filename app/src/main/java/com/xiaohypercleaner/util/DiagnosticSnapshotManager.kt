@@ -178,6 +178,8 @@ object DiagnosticSnapshotManager {
                         )
                         put("ro.build.version.incremental", Build.VERSION.INCREMENTAL)
                         put("region", profile.regionCode)
+                        put("romFamily", profile.family.name)
+                        put("romUi", profile.uiVersion ?: "unknown")
                         put("catalogVariant", AdaptiveCatalog.currentVariant())
                     }
                 )

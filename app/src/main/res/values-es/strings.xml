@@ -308,6 +308,10 @@
     <string name="result_skipped">Omitidos (no en el dispositivo): %d</string>
     <string name="result_failed">No se pudo completar (protegido por el sistema): %d</string>
     <string name="result_notif_title">Notificaciones desactivadas:</string>
+    <string name="result_manual_title">Para un resultado máximo, hazlo a mano</string>
+    <string name="result_manual_expand">mostrar</string>
+    <string name="result_manual_collapse">ocultar</string>
+    <string name="result_manual_warning">Atención: </string>
     <string name="result_soft">Si te ayudó — una reseña o cualquier apoyo sería apreciado. Ayuda a otros a encontrar la app.</string>
     <string name="result_rate">Calificar</string>
     <string name="result_support">Apoyar</string>

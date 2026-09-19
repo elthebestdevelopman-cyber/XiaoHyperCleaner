@@ -27,7 +27,7 @@
   "uiSteps": {
     "msa": {
       "searchTexts": ["msa", "MSA", "Рекламные службы", "Ad services", "Рекламные услуги", "广告服务", "Servicios de anuncios", "विज्ञापन सेवाएँ", "Layanan iklan", "Serviços de anúncios"],
-      "drillPath": [["Конфиденциальность", "Privacy", "隐私", "Privacidad", "गोपनीयता", "Privacidade"], ["Рекламные службы", "Ad services", "广告服务", "Servicios de anuncios", "विज्ञापन सेवाएँ"]]
+      "drillPath": [["Пароли и безопасность", "Отпечатки, данные лица и защита устройства", "Экран блокировки и защита", "Биометрия и защита", "Passwords & security", "Fingerprints, face data & device security"], ["Доступ к личным данным", "Авторизация и отзыв", "Access to personal data", "Authorization & revocation"]]
     },
     "sys_recommendations": {
       "searchTexts": ["Получать рекомендации", "Receive recommendations", "接收推荐", "个性化推荐", "Recibir recomendaciones", "सिफ़ारिशें प्राप्त करें", "Terima rekomendasi", "Receber recomendações", "प्राप्त करें"],
@@ -110,9 +110,8 @@
       "uiSteps": {
         "msa": {
           "replaceDrillPath": true,
-          "skipDrill": true,
-          "drillPath": [],
-          "searchTexts": ["Разрешения", "Разрешения приложений", "Доступ к личным данным", "Authorization & revocation", "Access to personal data"]
+          "drillPath": [["Пароли и безопасность", "Отпечатки, данные лица и защита устройства", "Экран блокировки и защита", "Биометрия и защита", "Passwords & security", "Fingerprints, face data & device security"], ["Доступ к личным данным", "Авторизация и отзыв", "Access to personal data", "Authorization & revocation"]],
+          "searchTexts": ["msa", "MSA", "Доступ к личным данным", "Авторизация и отзыв", "Разрешения", "Разрешения приложений", "Access to personal data", "Authorization & revocation"]
         },
         "ads_personalization": {
           "replaceDrillPath": true,

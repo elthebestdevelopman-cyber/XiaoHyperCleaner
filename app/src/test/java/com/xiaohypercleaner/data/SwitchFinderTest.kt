@@ -106,6 +106,43 @@ class SwitchFinderTest {
     }
 
     @Test
+    fun `ambiguous row with two switches is rejected`() {
+        // Ложный OK как класс: в контейнере два тумблера — это не строка настройки,
+        // переключать «первый попавшийся» запрещено.
+        val label = node("android.widget.TextView", text = "Получать рекомендации")
+        val first = node("android.widget.Switch", checkable = true, checked = true)
+        val second = node("android.widget.Switch", checkable = true, checked = false)
+        val row = node("android.widget.LinearLayout", clickable = true, children = arrayOf(label, first, second))
+        val root = node("android.widget.FrameLayout", clickable = false, children = arrayOf(row))
+        link(row, label, first, second)
+        link(root, row)
+
+        assertNull(
+            "контейнер с двумя переключателями не является строкой настройки",
+            SwitchFinder.findSwitch(root, listOf("Получать рекомендации"))
+        )
+    }
+
+    @Test
+    fun `switch from another row is rejected`() {
+        // Реальный кейс ложного OK: подпись матчится в одной строке, а ближайший
+        // контейнер с тумблером — соседняя строка (чужой тумблер).
+        val label = node("android.widget.TextView", text = "Рекламные службы")
+        val labelRow = node("android.widget.LinearLayout", clickable = true, children = arrayOf(label))
+        val stranger = node("android.widget.Switch", checkable = true, checked = true, text = "Показывать пароли")
+        val strangerRow = node("android.widget.LinearLayout", clickable = true, children = arrayOf(stranger))
+        val screen = node("android.widget.FrameLayout", clickable = false, children = arrayOf(labelRow, strangerRow))
+        link(screen, labelRow, strangerRow)
+        link(labelRow, label)
+        link(strangerRow, stranger)
+
+        assertNull(
+            "тумблер чужой строки не должен быть выбран",
+            SwitchFinder.findSwitch(screen, listOf("Рекламные службы"))
+        )
+    }
+
+    @Test
     fun `describe captures checked_before label and bounds`() {
         val switch = node("android.widget.Switch", checked = false, text = "Карусель", checkable = true)
         Mockito.doAnswer { invocation ->

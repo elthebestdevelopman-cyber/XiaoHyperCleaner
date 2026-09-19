@@ -278,6 +278,10 @@
     <string name="result_skipped">Ignorados: %d</string>
     <string name="result_failed">Protegidos pelo sistema: %d</string>
     <string name="result_notif_title">Notificações desativadas:</string>
+    <string name="result_manual_title">Para o melhor resultado, faça manualmente</string>
+    <string name="result_manual_expand">mostrar</string>
+    <string name="result_manual_collapse">ocultar</string>
+    <string name="result_manual_warning">Atenção: </string>
     <string name="result_soft">Se foi útil — uma avaliação ou apoio será muito apreciado.</string>
     <string name="result_rate">Avaliar</string>
     <string name="result_support">Apoiar</string>

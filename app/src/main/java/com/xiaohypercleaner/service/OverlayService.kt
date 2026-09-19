@@ -27,6 +27,7 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.R
+import com.xiaohypercleaner.data.SemanticCatalog
 import com.xiaohypercleaner.ui.openUrl
 import com.xiaohypercleaner.util.AppLog
 
@@ -63,11 +64,17 @@ class OverlayService : Service() {
 
         /** Потолок строк в списке отключённых уведомлений на экране результатов. */
         private const val NOTIF_LIST_MAX = 8
+
+        /** Потолок строк ручной памятки на экране результатов. */
+        private const val MANUAL_LIST_MAX = 7
     }
 
     enum class PointerMode { TOP_RIGHT, BOTTOM_LIST, SWITCH_RIGHT, LIST_ITEM_CENTER, GENERIC_BOTTOM }
 
     private var wm: WindowManager? = null
+
+    /** Сколько пунктов ручной памятки показано на экране результатов (для лога). */
+    private var manualShown: Int = 0
     private var root: View? = null
     private var layoutParams: WindowManager.LayoutParams? = null
     private var isBlocking = true
@@ -282,6 +289,7 @@ class OverlayService : Service() {
         stopHeartbeat()
         hide()
         isBlocking = true
+        manualShown = 0
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
@@ -306,6 +314,9 @@ class OverlayService : Service() {
             }
         }
         layout.addView(bodyText(getString(R.string.result_soft), small = true).apply { setPadding(0, dp(10), 0, 0) }, llWrap())
+        // Ручная памятка: свёрнутый блок «Для максимального результата вручную» (≤7 строк).
+        val manualBlock = buildManualBlock()
+        if (manualBlock != null) layout.addView(manualBlock, llWrap().apply { topMargin = dp(10) })
         val row1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
         val btnParams = { LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
         row1.addView(textBtn(getString(R.string.result_rate)) { hide(); returnToApp(); openRate() }, btnParams())
@@ -320,8 +331,60 @@ class OverlayService : Service() {
         AppLog.i(
             TAG,
             "result shown: $completed/$total, failed=$failed, skipped=$skipped " +
-                "notif=${notifTitles.size}"
+                "notif=${notifTitles.size} manual=$manualShown"
         )
+    }
+
+    /**
+     * Сворачиваемый блок ручной памятки: свёрнут по умолчанию (список GONE), клик по
+     * строке-заголовку разворачивает тексты. Блок ничего не запускает сам и не меняет
+     * геометрию/поглощение тапов оверлея — окно и параметры остаются прежними.
+     */
+    private fun buildManualBlock(): View? {
+        SemanticCatalog.ensureLoaded(this)
+        val manual = SemanticCatalog.manualSteps().take(MANUAL_LIST_MAX)
+        if (manual.isEmpty()) return null
+
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val header = titleText("", 13f, bold = true)
+        val items = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+        }
+        manual.forEach { item ->
+            val prefix = if (item.warning) getString(R.string.result_manual_warning) else ""
+            items.addView(
+                titleText("$prefix${item.title}", 12f, bold = true),
+                llWrap().apply { topMargin = dp(6) }
+            )
+            items.addView(
+                bodyText(item.body, small = true).apply {
+                    gravity = Gravity.START
+                    textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+                },
+                llWrap().apply { topMargin = dp(1) }
+            )
+        }
+
+        var expanded = false
+        fun applyHeader() {
+            val action = getString(
+                if (expanded) R.string.result_manual_collapse else R.string.result_manual_expand
+            )
+            header.text = "${getString(R.string.result_manual_title)} $action"
+        }
+        applyHeader()
+        header.setOnClickListener {
+            expanded = !expanded
+            items.visibility = if (expanded) View.VISIBLE else View.GONE
+            applyHeader()
+            AppLog.i(TAG, "result manual block: expanded=$expanded items=${manual.size}")
+        }
+
+        box.addView(header, llWrap())
+        box.addView(items, llWrap())
+        manualShown = manual.size
+        return box
     }
 
     // ═══ HEARTBEAT ═══

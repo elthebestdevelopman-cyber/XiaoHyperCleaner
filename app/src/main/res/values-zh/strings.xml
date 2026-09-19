@@ -307,6 +307,10 @@
     <string name="result_skipped">已跳过（设备上不存在）：%d</string>
     <string name="result_failed">无法完成（系统保护）：%d</string>
     <string name="result_notif_title">已关闭通知：</string>
+    <string name="result_manual_title">为了最佳效果，请手动完成</string>
+    <string name="result_manual_expand">展开</string>
+    <string name="result_manual_collapse">收起</string>
+    <string name="result_manual_warning">注意：</string>
     <string name="result_soft">如果有帮助 — 欢迎评价或支持。这能帮助其他人找到这款应用。</string>
     <string name="result_rate">评价</string>
     <string name="result_support">支持</string>
