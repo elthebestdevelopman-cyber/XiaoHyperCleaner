@@ -4,6 +4,7 @@ import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OptimizationNotifier
 import kotlinx.coroutines.delay
+import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -15,13 +16,19 @@ import kotlin.time.Duration.Companion.milliseconds
  * `simpleToggleStates` — фактическое состояние простых тумблеров ТОЛЬКО в момент
  * включения/выключения шага (`checked_before`). Откат возвращает это состояние,
  * а не инверсию целевого значения; отсутствие поля (старый снапшот) → прежняя логика.
+ *
+ * `disabledPackages` — фактически отключённые Pro-прогоном пакеты (из транзакции).
+ * Ручное «Отменить оптимизацию» включает именно их, а не статический список:
+ * это обязательное условие для автономии (learned-действия откатываются по факту).
+ * Пустой список (старый снапшот) → прежняя логика со списком ServiceRegistry.
  */
 data class RestoreSnapshot(
     val settings: Map<String, String>,
     val dnsApplied: Boolean,
     val dnsMode: String?,
     val dnsHost: String?,
-    val simpleToggleStates: Map<String, Boolean> = emptyMap()
+    val simpleToggleStates: Map<String, Boolean> = emptyMap(),
+    val disabledPackages: List<String> = emptyList()
 ) {
     fun toJson(): String {
         val root = JSONObject()
@@ -34,6 +41,7 @@ data class RestoreSnapshot(
         val toggles = JSONObject()
         simpleToggleStates.forEach { (k, v) -> toggles.put(k, v) }
         root.put("simpleToggleStates", toggles)
+        root.put("disabledPackages", JSONArray(disabledPackages))
         return root.toString()
     }
 
@@ -49,12 +57,19 @@ data class RestoreSnapshot(
             root.optJSONObject("simpleToggleStates")?.let { obj ->
                 for (k in obj.keys()) toggles[k] = obj.optBoolean(k)
             }
+            val packages = mutableListOf<String>()
+            root.optJSONArray("disabledPackages")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    arr.optString(i).takeIf { it.isNotBlank() }?.let { packages.add(it) }
+                }
+            }
             RestoreSnapshot(
                 settings = map,
                 dnsApplied = root.optBoolean("dnsApplied", false),
                 dnsMode = root.optString("dnsMode").takeIf { it.isNotEmpty() && it != "null" },
                 dnsHost = root.optString("dnsHost").takeIf { it.isNotEmpty() && it != "null" },
-                simpleToggleStates = toggles
+                simpleToggleStates = toggles,
+                disabledPackages = packages
             )
         } catch (e: Exception) {
             null
@@ -284,16 +299,18 @@ class OptimizationEngine(
 
             // 2В: сохраняем оригиналы настроек/DNS для точного отката «как было».
             runCatching {
-                // checked_before простых тумблеров не теряем при повторном Pro-прогоне.
-                val previousToggles = runCatching { snapshotStore?.load()?.simpleToggleStates }
-                    .getOrNull().orEmpty()
+                // checked_before простых тумблеров и фактические отключения не теряем
+                // при повторном Pro-прогоне.
+                val previous = runCatching { snapshotStore?.load() }.getOrNull()
                 snapshotStore?.save(
                     RestoreSnapshot(
                         settings = transaction.appliedSettings.toMap(),
                         dnsApplied = transaction.enabledDns,
                         dnsMode = transaction.previousDnsMode,
                         dnsHost = transaction.previousDnsHost,
-                        simpleToggleStates = previousToggles
+                        simpleToggleStates = previous?.simpleToggleStates.orEmpty(),
+                        disabledPackages = (previous?.disabledPackages.orEmpty() + transaction.disabledPackages)
+                            .distinct()
                     )
                 )
             }.onFailure { AppLog.w(TAG, "Не удалось сохранить снапшот отката: ${it.message}") }
@@ -372,7 +389,12 @@ class OptimizationEngine(
         }
 
         callbacks.onProgress(AppConstants.PROGRESS_RESTORE_PACKAGES)
-        val servicesFailed = restoreServicesWithReport()
+        // Фактический перечень из снапшота авторитетен; пустой (старый снапшот) —
+        // прежняя логика со статическим списком ServiceRegistry.
+        val packagesToEnable = snapshot?.disabledPackages
+            ?.takeIf { it.isNotEmpty() }
+            ?: (ServiceRegistry.ANALYTICS_PACKAGES + ServiceRegistry.AD_SERVICES_PACKAGES)
+        val servicesFailed = restoreServicesWithReport(packagesToEnable)
         if (servicesFailed.isNotEmpty()) {
             failedActions.add("services_restore: ${servicesFailed.joinToString()}")
         }
@@ -782,10 +804,12 @@ class OptimizationEngine(
         }
     }
 
-    private suspend fun restoreServicesWithReport(): List<String> {
+    private suspend fun restoreServicesWithReport(
+        packages: List<String> = ServiceRegistry.ANALYTICS_PACKAGES + ServiceRegistry.AD_SERVICES_PACKAGES
+    ): List<String> {
         val failed = mutableListOf<String>()
 
-        for (pkg in ServiceRegistry.ANALYTICS_PACKAGES + ServiceRegistry.AD_SERVICES_PACKAGES) {
+        for (pkg in packages) {
             try {
                 val result = adb.executeCommand("pm enable $pkg")
                 if (result.isFailure) {

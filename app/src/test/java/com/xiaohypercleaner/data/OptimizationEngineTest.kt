@@ -404,4 +404,72 @@ class OptimizationEngineTest {
             report.verificationResult.failedItems.isEmpty()
         )
     }
+
+    /**
+     * Ручной откат включает ФАКТИЧЕСКИ отключённые пакеты из снапшота, а не
+     * статический список ServiceRegistry: без этого автономные Pro-действия
+     * не откатывались бы по факту.
+     */
+    @Test
+    fun restoreEnablesPersistedDisabledPackages() = runTest {
+        val store = FakeSnapshotStore()
+        store.saved = RestoreSnapshot(
+            settings = emptyMap(),
+            dnsApplied = false,
+            dnsMode = null,
+            dnsHost = null,
+            disabledPackages = listOf("com.example.custom.telemetry")
+        )
+
+        val fake = FakeAdb()
+        val ok = OptimizationEngine(fake, store).restore()
+
+        assertTrue("restore should succeed", ok)
+        assertTrue(
+            "должен быть включён пакет из снапшота",
+            fake.commands.any { it.contains("pm enable com.example.custom.telemetry") }
+        )
+        assertFalse(
+            "статический список при непустом снапшоте не трогаем",
+            fake.commands.any { it.contains("pm enable com.miui.analytics") }
+        )
+    }
+
+    @Test
+    fun restoreFallsBackToRegistryWhenSnapshotHasNoPackages() = runTest {
+        val store = FakeSnapshotStore()
+        store.saved = RestoreSnapshot(
+            settings = emptyMap(),
+            dnsApplied = false,
+            dnsMode = null,
+            dnsHost = null
+        )
+
+        val fake = FakeAdb()
+        val ok = OptimizationEngine(fake, store).restore()
+
+        assertTrue("restore should succeed", ok)
+        assertTrue(
+            "старый снапшот: откат по legacy-списку ServiceRegistry",
+            fake.commands.any { it.contains("pm enable com.miui.analytics") }
+        )
+    }
+
+    /** Снапшот после Pro-прогона обязан помнить фактические отключения. */
+    @Test
+    fun optimizePersistsDisabledPackagesForRollback() = runTest {
+        val store = FakeSnapshotStore()
+        val report = OptimizationEngine(FakeAdb(), store).optimize()
+
+        assertTrue("optimize should succeed", report.success)
+        assertTrue(
+            "снапшот должен помнить отключённые пакеты",
+            store.saved?.disabledPackages?.isNotEmpty() == true
+        )
+        assertEquals(
+            "список снапшота совпадает с отчётом прогона",
+            report.disabledPackages.toSet(),
+            store.saved?.disabledPackages?.toSet()
+        )
+    }
 }

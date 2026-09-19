@@ -59,4 +59,38 @@ class RestoreSnapshotTest {
 
         assertFalse(restored?.simpleToggleStates?.get("themes") ?: true)
     }
+
+    @Test
+    fun `disabled packages survive json round trip`() {
+        val snapshot = RestoreSnapshot(
+            settings = emptyMap(),
+            dnsApplied = false,
+            dnsMode = null,
+            dnsHost = null,
+            disabledPackages = listOf("com.miui.analytics", "com.miui.systemAdSolution")
+        )
+
+        val restored = RestoreSnapshot.fromJson(snapshot.toJson())
+
+        assertEquals(snapshot, restored)
+        assertEquals(
+            listOf("com.miui.analytics", "com.miui.systemAdSolution"),
+            restored?.disabledPackages
+        )
+    }
+
+    @Test
+    fun `legacy snapshot without disabled packages parses with empty list`() {
+        val legacy = """
+            {"settings":{},"dnsApplied":false,"dnsMode":null,"dnsHost":null,"simpleToggleStates":{"carousel":true}}
+        """.trimIndent()
+
+        val restored = RestoreSnapshot.fromJson(legacy)
+
+        assertTrue(
+            "старый снапшот: список пакетов пуст → откат по ServiceRegistry",
+            restored?.disabledPackages?.isEmpty() == true
+        )
+        assertEquals(true, restored?.simpleToggleStates?.get("carousel"))
+    }
 }
