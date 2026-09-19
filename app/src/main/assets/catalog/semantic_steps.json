@@ -85,7 +85,7 @@
         "en": "When installing from a store open the scan window → gear at the top right → turn off \"Receive recommendations\" (HyperOS 2/3: \"Advanced settings\").",
         "es": "Al instalar desde una tienda abra la ventana de análisis → engranaje arriba a la derecha → desactive \"Recibir recomendaciones\".",
         "zh": "从应用商店安装时打开扫描窗口 → 右上角齿轮 → 关闭“接收推荐”。",
-        "hi": "स्टोर से इंस्टॉल करते समय स्कैन विंडो खोलें → पर दाएँ गियर → “सि़ारिशें प्राप्त करें” बंद करें।",
+        "hi": "स्टोर से इंस्टॉल करते समय स्कैन विंडो खोलें → ऊपर दाएँ गियर → “सिफ़ारिशें प्राप्त करें” बंद करें।",
         "pt": "Ao instalar de uma loja abra a janela de verificação → engrenagem no topo à direita → desative \"Receber recomendações\".",
         "id": "Saat memasang dari toko buka jendela pemindaian → ikon roda di kanan atas → matikan \"Terima rekomendasi\"."
       }
@@ -129,7 +129,7 @@
         "en": "Swipe up for search → three dots next to the search field → \"Settings\" → turn off \"App recommendations\".",
         "es": "Deslice hacia arriba para buscar → tres puntos junto a la barra → \"Configuración\" → desactive \"Recomendaciones de apps\".",
         "zh": "上滑进入搜索 → 搜索框旁的三点 → “设置” → 关闭“应用推荐”。",
-        "hi": "खोज के लिए पर स्वाइप करें → खोज पट्टी के पास तीन बिंदु → “सेटिंग्स” → “ऐप सि़ारिशें” बंद करें।",
+        "hi": "खोज के लिए ऊपर स्वाइप करें → खोज पट्टी के पास तीन बिंदु → “सेटिंग्स” → “ऐप सिफ़ारिशें” बंद करें।",
         "pt": "Deslize para cima para buscar → três pontos ao lado da busca → \"Configurações\" → desative \"Recomendações de apps\".",
         "id": "Geser ke atas untuk mencari → tiga titik di samping kolom pencarian → \"Pengaturan\" → matikan \"Rekomendasi aplikasi\"."
       }
@@ -151,7 +151,7 @@
         "en": "If lock-screen captions remain: Settings → Apps → All apps → \"Wallpaper Carousel\" → \"Disable\". It is a system app — disable consciously.",
         "es": "Si quedan textos en la pantalla de bloqueo: Ajustes → Aplicaciones → Todas → \"Carrusel de fondos\" → \"Desactivar\". Es una app del sistema.",
         "zh": "若锁屏仍有文字：设置 → 应用 → 全部应用 → “壁纸轮播” → “停用”。这是系统应用，请谨慎操作。",
-        "hi": "अगर लॉक स्क्रीन पर टेक्स्ट रह गया: सेटिंग्स → ऐप्स → सभी प्स → “वॉलपेपर कैरोसेल” → “अक्षम करें”। यह सिस्टम ऐप है।",
+        "hi": "अगर लॉक स्क्रीन पर टेक्स्ट रह गया: सेटिंग्स → ऐप्स → सभी ऐप्स → “वॉलपेपर कैरोसेल” → “अक्षम करें”। यह सिस्टम ऐप है।",
         "pt": "Se restarem textos na tela de bloqueio: Configurações → Apps → Todos → \"Carrossel de papéis de parede\" → \"Desativar\". É um app do sistema.",
         "id": "Jika teks di layar kunci masih ada: Pengaturan → Aplikasi → Semua aplikasi → \"Karosel wallpaper\" → \"Nonaktifkan\". Ini aplikasi sistem."
       }
@@ -208,7 +208,7 @@
         "en": "Private DNS",
         "es": "DNS privado",
         "zh": "私人 DNS",
-        "hi": "निी DNS",
+        "hi": "निजी DNS",
         "pt": "DNS privado",
         "id": "DNS pribadi"
       },
@@ -273,7 +273,7 @@
         "en": "Revoke MSA",
         "es": "Revocar MSA",
         "zh": "撤销 MSA",
-        "hi": "MSA प्रत्याहरित करें",
+        "hi": "MSA प्रत्याहरण करें",
         "pt": "Revogar MSA",
         "id": "Cabut MSA"
       },
@@ -296,7 +296,7 @@
         ],
         "hi": [
           "msa",
-          "प्रत्याहरित करें"
+          "प्रत्याहरण करें"
         ],
         "pt": [
           "msa",
@@ -357,7 +357,7 @@
           "确定"
         ],
         "hi": [
-          "प्रत्याहरित करें",
+          "प्रत्याहरण करें",
           "ठीक है"
         ],
         "pt": [
@@ -1382,7 +1382,7 @@
             "en": ["Receive recommendations", "Personalized recommendations", "Show ads"],
             "es": ["Recibir recomendaciones", "Recomendaciones personalizadas"],
             "zh": ["接收推荐", "个性化推荐"],
-            "hi": ["सुझाव प्राप्त करें", "व्यक्तिगत सुाव"],
+            "hi": ["सुझाव प्राप्त करें", "व्यक्तिगत सुझाव"],
             "pt": ["Receber recomendações", "Recomendações personalizadas"],
             "id": ["Terima rekomendasi", "Rekomendasi personal"]
           }
@@ -1795,7 +1795,7 @@
             "en": ["Receive recommendations", "Show ads"],
             "es": ["Recibir recomendaciones", "Mostrar anuncios"],
             "zh": ["接收推荐", "显示广告"],
-            "hi": ["सुझाव प्राप्त करें", "विज्ञापन दिखाए"],
+            "hi": ["सुझाव प्राप्त करें", "विज्ञापन दिखाएँ"],
             "pt": ["Receber recomendações", "Mostrar anúncios"],
             "id": ["Terima rekomendasi", "Tampilkan iklan"]
           }
@@ -2161,7 +2161,7 @@
             "en": ["Online recommendations", "Personal recommendations"],
             "es": ["Recomendaciones en línea"],
             "zh": ["在线推荐", "个性化推荐"],
-            "hi": ["नलाइन सुझाव"],
+            "hi": ["ऑनलाइन सुझाव"],
             "pt": ["Recomendações online"],
             "id": ["Rekomendasi online"]
           }
