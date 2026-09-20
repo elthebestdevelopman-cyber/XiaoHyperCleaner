@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 214 тестов (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 217 тестов (полная таблица ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 тестов
 │   ├── OptimizationEngineTest.kt # 14 тестов
@@ -388,7 +388,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 214 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (214 тестов, 30 сьютов)
+### Unit-тесты (217 тестов, 30 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -412,7 +412,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 214 тест
 | `SimpleRunnerMsaResumeTest`   | 5      | Resume бурения + подтверждение отзыва msa          |
 | `SimpleRunnerMsaRevokeTest`   | 3      | Отзыв msa: кнопка диалога, отсчёт, подтверждение   |
 | `SimpleRunnerClearDataTest`   | 2      | CLEAR_DATA_DECLINE без ложных успехов              |
-| `SimpleRunnerFolderTest`      | 8      | Поиск папок рабочего стола (структурный признак)   |
+| `SimpleRunnerFolderTest`      | 11     | Поиск папок рабочего стола (структурный признак)   |
 | `SimpleRunnerInstallerTest`   | 3      | Настройки установщика, запрет установки APK        |
 | `SimpleRunnerScrollTest`      | 2      | Поиск контейнера прокрутки                         |
 | `SimpleRunnerDrillTest`       | 7      | Проверка уровней бурения (маршрут, меню, смена экрана) |

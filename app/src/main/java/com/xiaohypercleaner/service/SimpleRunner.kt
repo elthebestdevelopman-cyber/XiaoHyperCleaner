@@ -117,6 +117,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         /** Сколько папок рабочего стола перебираем, прежде чем признать шаг неприменимым. */
         private const val MAX_HOME_FOLDERS = 3
 
+        /** Предельная глубина обхода превью папки лаунчера (icon_container → preview → itemN). */
+        private const val FOLDER_PREVIEW_DEPTH = 3
+
         /** Долгий тап: контекстное меню папки (HyperOS 2/3 → «Изменить папку»). */
         private const val LONG_PRESS_MS = 800L
 
@@ -1760,27 +1763,48 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return found
     }
 
-    /** Папка лаунчера: класс или описание содержат folder, у узла есть подпись. */
+    /** Папка лаунчера: класс/описание содержат folder, у узла есть подпись. */
     internal fun isFolderCandidate(node: AccessibilityNodeInfo): Boolean {
         if (folderLabel(node).isBlank()) return false
+        if (isFolderGridCandidate(node)) return true
         val cls = node.className?.toString()?.lowercase(Locale.ROOT).orEmpty()
         if (cls.contains("folder")) return true
         val desc = node.contentDescription?.toString()?.lowercase(Locale.ROOT).orEmpty()
         return desc.contains("folder") || desc.contains("папка")
     }
 
-    /** Превью папки без явного класса: кликабельная ячейка с несколькими иконками. */
+    /**
+     * Превью папки лаунчера POCO/MIUI: контейнер `preview_icons_container` либо
+     * несколько элементов `itemN` внутри иконки. У иконки приложения превью-сетки нет
+     * (`icon_icon` + `cover`), поэтому признак различает их без класса/описания.
+     *
+     * Дамп рабочего стола POCO Launcher: папка с рекомендациями — обычный
+     * кликабельный `FrameLayout desc='Russia'` без слова «folder» в классе и описании,
+     * из-за чего она не попадала в первые пробы (`homeFolderCandidates` сортирует
+     * «похожие на папку» вперёд) и шаг `folder_recommendations` тратил лимит
+     * `MAX_FOLDER_PROBES` на обычные иконки (прогон rmua2sd7x: probes 1–6 = Проводник,
+     * Заметки, Календарь, ShareMe, Погода, Безопасность; папка так и не проверена).
+     */
     internal fun isFolderGridCandidate(node: AccessibilityNodeInfo): Boolean {
         if (!node.isClickable) return false
+        if (NodeTree.findInTree(node) { child ->
+                child.viewIdResourceName?.endsWith("preview_icons_container") == true
+            } != null
+        ) {
+            return true
+        }
+        var items = 0
         var icons = 0
         fun walk(n: AccessibilityNodeInfo?, depth: Int) {
-            if (n == null || depth > 2) return
+            if (n == null || depth > FOLDER_PREVIEW_DEPTH) return
+            val id = n.viewIdResourceName?.substringAfterLast('/').orEmpty()
+            if (id.startsWith("item")) items++
             val cls = n.className?.toString()?.lowercase(Locale.ROOT).orEmpty()
             if (cls.contains("imageview") && !n.contentDescription.isNullOrBlank()) icons++
             for (i in 0 until n.childCount) walk(n.getChild(i), depth + 1)
         }
         walk(node, 0)
-        return icons >= 2
+        return items >= 2 || icons >= 2
     }
 
     /** Подпись папки: текст узла, иначе описание (имя задаёт пользователь). */

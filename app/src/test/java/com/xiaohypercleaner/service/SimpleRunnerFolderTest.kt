@@ -1,6 +1,7 @@
 package com.xiaohypercleaner.service
 
 import android.view.accessibility.AccessibilityNodeInfo
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -120,6 +121,86 @@ class SimpleRunnerFolderTest {
         val icon = node("android.widget.FrameLayout", desc = "Russia", clickable = true, children = arrayOf(wrapper))
 
         assertTrue(runner.isHomeIconNode(icon))
+    }
+
+    @Test
+    fun `folder preview grid marks the cell as a folder candidate`() {
+        // Дамп рабочего стола POCO Launcher: папка с рекомендациями — кликабельный
+        // FrameLayout desc='Russia' БЕЗ слова «folder» в классе/описании. Единственный
+        // признак — сетка превью item1..itemN в preview_icons_container.
+        val item1 = node("android.widget.ImageView")
+        Mockito.`when`(item1.viewIdResourceName).thenReturn("com.miui.home:id/item1")
+        val item2 = node("android.widget.ImageView")
+        Mockito.`when`(item2.viewIdResourceName).thenReturn("com.miui.home:id/item2")
+        val preview = node("android.widget.LinearLayout", children = arrayOf(item1, item2))
+        Mockito.`when`(preview.viewIdResourceName).thenReturn("com.miui.home:id/preview_icons_container")
+        val container = node("android.widget.FrameLayout", children = arrayOf(preview))
+        Mockito.`when`(container.viewIdResourceName).thenReturn("com.miui.home:id/icon_container")
+        val title = node("android.widget.TextView", text = "Russia")
+        val folder = node(
+            "android.widget.FrameLayout",
+            desc = "Russia",
+            clickable = true,
+            children = arrayOf(container, title)
+        )
+
+        assertTrue("сетка превью — признак папки", runner.isFolderGridCandidate(folder))
+        assertTrue("папка без класса Folder должна быть кандидатом", runner.isFolderCandidate(folder))
+    }
+
+    @Test
+    fun `plain app icon with icon structure is not a folder candidate`() {
+        val cover = node("android.widget.ImageView")
+        val iconImage = node("android.widget.ImageView", children = arrayOf(cover))
+        val container = node("android.widget.FrameLayout", children = arrayOf(iconImage))
+        Mockito.`when`(container.viewIdResourceName).thenReturn("com.miui.home:id/icon_container")
+        val title = node("android.widget.TextView", text = "Камера")
+        val icon = node(
+            "android.widget.FrameLayout",
+            desc = "Камера",
+            clickable = true,
+            children = arrayOf(container, title)
+        )
+
+        assertFalse("иконка приложения — не папка", runner.isFolderCandidate(icon))
+        assertFalse(runner.isFolderGridCandidate(icon))
+    }
+
+    @Test
+    fun `folder with preview grid is probed before plain icons`() {
+        // Прогон rmua2sd7x: candidates=17, но первые 6 проб ушли на обычные иконки
+        // (Проводник, Заметки, Календарь, ShareMe, Погода, Безопасность), а папка
+        // с рекомендациями стояла 7-й и до неё дело не дошло. Папка обязана идти первой.
+        val plain = (1..3).map { i ->
+            val img = node("android.widget.ImageView", desc = "App$i")
+            node("android.widget.FrameLayout", desc = "App$i", clickable = true, children = arrayOf(img))
+        }
+        val items = (1..4).map { i ->
+            val item = node("android.widget.ImageView")
+            Mockito.`when`(item.viewIdResourceName).thenReturn("com.miui.home:id/item$i")
+            item
+        }
+        val preview = node("android.widget.LinearLayout", children = items.toTypedArray())
+        Mockito.`when`(preview.viewIdResourceName).thenReturn("com.miui.home:id/preview_icons_container")
+        val container = node("android.widget.FrameLayout", children = arrayOf(preview))
+        Mockito.`when`(container.viewIdResourceName).thenReturn("com.miui.home:id/icon_container")
+        val title = node("android.widget.TextView", text = "Russia")
+        val folder = node(
+            "android.widget.FrameLayout",
+            desc = "Russia",
+            clickable = true,
+            children = arrayOf(container, title)
+        )
+        val root = node("android.widget.FrameLayout", children = (plain + folder).toTypedArray())
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        val candidates = runner.homeFolderCandidates()
+
+        assertEquals(
+            "папка с превью-сеткой должна проверяться первой",
+            "Russia",
+            candidates.firstOrNull()?.contentDescription?.toString()
+        )
     }
 
     @Test

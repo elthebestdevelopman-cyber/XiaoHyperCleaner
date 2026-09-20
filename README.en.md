@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 30 suites, 214 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 30 suites, 217 tests (full table below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 tests
 │   ├── OptimizationEngineTest.kt # 14 tests
@@ -370,7 +370,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 suites, 214 tests (full ta
 
 ## 🧪 Testing
 
-### Unit Tests (214 tests, 30 suites)
+### Unit Tests (217 tests, 30 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -394,7 +394,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 suites, 214 tests (full ta
 | `SimpleRunnerMsaResumeTest`   | 5     | Drill resume + msa revoke confirmation             |
 | `SimpleRunnerMsaRevokeTest`   | 3     | msa revoke: dialog button, countdown, confirmation |
 | `SimpleRunnerClearDataTest`   | 2     | CLEAR_DATA_DECLINE without false success           |
-| `SimpleRunnerFolderTest`      | 8     | Home folder search (structural markers)            |
+| `SimpleRunnerFolderTest`      | 11    | Home folder search (structural markers)            |
 | `SimpleRunnerInstallerTest`   | 3     | Installer settings route, no APK install           |
 | `SimpleRunnerScrollTest`      | 2     | Scroll container lookup                            |
 | `SimpleRunnerDrillTest`       | 7     | Drill level verification (route, menu, screen change) |
