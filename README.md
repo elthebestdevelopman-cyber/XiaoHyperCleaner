@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 220 тестов (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 221 тестов (полная таблица ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 тестов
 │   ├── OptimizationEngineTest.kt # 14 тестов
@@ -388,7 +388,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 220 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (220 тестов, 30 сьютов)
+### Unit-тесты (221 тестов, 30 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -396,7 +396,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 220 тест
 
 | Файл                          | Тестов | Что проверяется                                    |
 |-------------------------------|--------|----------------------------------------------------|
-| `OptimizationEngineTest`      | 14     | Оптимизация, откат, DNS, транзакции                |
+| `OptimizationEngineTest`      | 15     | Оптимизация, откат, DNS, транзакции, канал отката  |
 | `RestoreSnapshotTest`         | 5      | Снапшот оригиналов для отката                      |
 | `AdbPortResolverTest`         | 5      | mDNS discovery, mergePorts                         |
 | `AdaptiveCatalogTest`         | 16     | Вариантный каталог, мердж текстов                  |

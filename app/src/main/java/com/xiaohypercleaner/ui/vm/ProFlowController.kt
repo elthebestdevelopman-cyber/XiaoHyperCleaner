@@ -402,31 +402,50 @@ class ProFlowController(
                 // checked_before читаем ДО Pro-restore: restore() очищает снапшот.
                 val checkedBeforeStates = prefs.getSimpleToggleStates()
 
-                // 1) ADB/Shizuku restore (Pro) — best effort
-                val adbOk = runCatching {
-                    deps.newEngine().restore(
-                        OptimizationEngine.Callbacks(
-                            onProgress = { p: Float -> update { it.copy(progress = p * 0.4f) } }
-                        )
-                    )
-                }.getOrDefault(false)
+                // Канал отката выбирается по ФАКТУ применения, а не «оба всегда»:
+                // Простой режим (тумблеры по checked_before) — через Accessibility,
+                // Pro (системные настройки/пакеты/DNS) — через ADB/Shizuku. Неприменимый
+                // канал не запускаем и не рапортуем его ошибку: прежняя логика всегда
+                // поднимала ADB, и на устройстве без ADB откат одного простого тумблера
+                // заканчивался «Не удалось подключиться для восстановления»
+                // (diag-dumps/after/xhc_share_1789926451487.log.txt, 00:46–00:47).
+                AppLog.i(TAG, "restoreOptimization: channels simple=${checkedBeforeStates.size}")
 
-                // 2) Simple Mode: откат тумблеров по сохранённому checked_before
-                val toggled = prefs.getSimpleToggledSteps()
-                var simpleOk = toggled.isEmpty()
-                if (toggled.isNotEmpty()) {
+                // 1) Простой режим: возврат тумблеров в значение на момент тумблера.
+                val simpleSteps = prefs.getSimpleToggledSteps()
+                var simpleOk = true
+                if (simpleSteps.isNotEmpty()) {
                     val svc = AdbEnablerService.instance
                     if (svc != null) {
-                        AppLog.i(TAG, "restoreOptimization: reversing ${toggled.size} simple toggles")
+                        AppLog.i(TAG, "restoreOptimization: reversing ${simpleSteps.size} simple toggles")
                         simpleOk = svc.reverseSimpleToggles(
-                            stepIds = toggled,
+                            stepIds = simpleSteps,
                             checkedBeforeStates = checkedBeforeStates,
-                            onProgress = { p -> update { it.copy(progress = 0.4f + p * 0.6f) } }
+                            onProgress = { p -> update { it.copy(progress = p) } }
                         )
                     } else {
                         AppLog.w(TAG, "restoreOptimization: accessibility offline, skip simple reverse")
                         simpleOk = false
                     }
+                } else {
+                    AppLog.i(TAG, "restoreOptimization: simple channel not needed")
+                }
+
+                // 2) Pro-канал: ADB/Shizuku-restore только при незакрытом снапшоте.
+                var adbOk = true
+                val engine = deps.newEngine()
+                val proPending = engine.hasPendingRestore()
+                if (proPending) {
+                    AppLog.i(TAG, "restoreOptimization: pro channel (ADB/Shizuku) has changes to revert")
+                    adbOk = runCatching {
+                        engine.restore(
+                            OptimizationEngine.Callbacks(
+                                onProgress = { p: Float -> update { it.copy(progress = p * 0.4f) } }
+                            )
+                        )
+                    }.getOrDefault(false)
+                } else {
+                    AppLog.i(TAG, "restoreOptimization: pro channel not needed (no pending snapshot)")
                 }
 
                 prefs.clearSimpleToggledSteps()
@@ -435,8 +454,8 @@ class ProFlowController(
                     it.copy(
                         isWorking = false,
                         isOptimized = false,
-                        // Успех если хоть один канал отработал, или откатывать было нечего
-                        restoreFailed = !adbOk && !simpleOk
+                        // Провал — только по тому каналу, который реально был нужен.
+                        restoreFailed = (simpleSteps.isNotEmpty() && !simpleOk) || (proPending && !adbOk)
                     )
                 }
             } catch (e: Exception) {

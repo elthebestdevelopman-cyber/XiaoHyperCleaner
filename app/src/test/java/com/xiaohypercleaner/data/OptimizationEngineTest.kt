@@ -162,6 +162,27 @@ private class FakeSnapshotStore : RestoreSnapshotStore {
 class OptimizationEngineTest {
 
     @Test
+    fun pendingRestoreReflectsOpenSnapshot() = runTest {
+        // Откат выбирает канал по факту применения: непустой снапшот = Pro что-то менял
+        // (нужен ADB/Shizuku), пустой — ADB-канал поднимать не надо, иначе откат одного
+        // простого тумблера падал с «Не удалось подключиться для восстановления».
+        val fake = FakeAdb()
+        val store = FakeSnapshotStore()
+        val engine = OptimizationEngine(fake, store)
+
+        assertFalse("без снапшота Pro-канал не нужен", engine.hasPendingRestore())
+
+        store.saved = RestoreSnapshot(
+            settings = mapOf("global:test_key" to "1"),
+            dnsApplied = false,
+            dnsMode = null,
+            dnsHost = null
+        )
+
+        assertTrue("непустой снапшот — Pro-канал нужен", engine.hasPendingRestore())
+    }
+
+    @Test
     fun optimizeDisablesAnalyticsServices() = runTest {
         val fake = FakeAdb()
         val engine = OptimizationEngine(fake)

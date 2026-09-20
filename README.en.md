@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 30 suites, 220 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 30 suites, 221 tests (full table below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 tests
 │   ├── OptimizationEngineTest.kt # 14 tests
@@ -370,7 +370,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 suites, 220 tests (full ta
 
 ## 🧪 Testing
 
-### Unit Tests (220 tests, 30 suites)
+### Unit Tests (221 tests, 30 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -378,7 +378,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 suites, 220 tests (full ta
 
 | File                          | Tests | What is tested                                     |
 |-------------------------------|-------|----------------------------------------------------|
-| `OptimizationEngineTest`      | 14    | Optimization, rollback, DNS, transactions          |
+| `OptimizationEngineTest`      | 15    | Optimization, rollback, DNS, transactions, channel |
 | `RestoreSnapshotTest`         | 5     | Rollback snapshot of original values               |
 | `AdbPortResolverTest`         | 5     | mDNS discovery, mergePorts                         |
 | `AdaptiveCatalogTest`         | 16    | Variant catalog, text merging                      |

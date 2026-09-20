@@ -358,6 +358,15 @@ class OptimizationEngine(
         }
     }
 
+    /**
+     * Есть ли незакрытый снапшот Pro-изменений: после успешного отката движок его
+     * очищает (`snapshotStore.clear()`), значит непустой снапшот = Pro что-то менял.
+     * Нужен, чтобы откат не поднимал ADB/Shizuku-канал, когда им ничего не менялось
+     * (Простой режим: тумблеры откатываются через Accessibility).
+     */
+    suspend fun hasPendingRestore(): Boolean =
+        runCatching { snapshotStore?.load() != null }.getOrDefault(false)
+
     suspend fun restore(callbacks: Callbacks = Callbacks()): Boolean {
         AppLog.i(TAG, "Запуск восстановления")
         OptimizationNotifier.setRunning()
