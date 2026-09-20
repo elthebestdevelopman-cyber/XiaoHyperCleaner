@@ -104,6 +104,44 @@ class SimpleRunnerDrillTest {
     )
 
     @Test
+    fun `header menu wins over list item menu`() = runTest {
+        // Музыка: `item_menu desc='Больше меню'` у каждой строки списка перехватывал тап
+        // раньше кнопки шапки `header_menu desc='Показать меню'` — меню не открывалось,
+        // шаг падал `drill_failed` на уровне 1 (прогон rmua2sd7x; дамп music_menu).
+        val itemMenu = node(description = "Больше меню", clickable = true, className = "android.widget.ImageView")
+        Mockito.`when`(itemMenu.viewIdResourceName).thenReturn("com.miui.player:id/item_menu")
+        val header = node(description = "Показать меню", clickable = true, className = "android.widget.ImageView")
+        Mockito.`when`(header.viewIdResourceName).thenReturn("com.miui.player:id/header_menu")
+        val main = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(itemMenu, header)
+        )
+        val menuScreen = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(node(text = "Настройки"), node(text = "Спящий режим"))
+        )
+        var current: AccessibilityNodeInfo = main
+        Mockito.`when`(service.rootInActiveWindow).thenAnswer { current }
+        // Меню трека экран не меняет, меню шапки — открывает экран с «Настройки».
+        Mockito.`when`(itemMenu.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true)
+        Mockito.`when`(header.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenAnswer {
+            current = menuScreen
+            true
+        }
+
+        val path = listOf(
+            listOf("☰", "", "Ещё", "More", "Больше"),
+            listOf("Настройки", "Settings"),
+            listOf("Расширенные настройки", "Advanced settings")
+        )
+
+        assertTrue(
+            "тап должен уйти в кнопку меню шапки, а не в «Больше меню» трека",
+            runner.drillIntoLevel(step("music_sys"), 0, path[0], path)
+        )
+    }
+
+    @Test
     fun `gear level is verified by its label not by the icon glyph`() = runTest {
         val profileTab = node(text = "Профиль", clickable = true)
         val screen1 = node(className = "android.widget.FrameLayout", children = arrayOf(profileTab))

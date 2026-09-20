@@ -95,6 +95,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // ═══════════════════════════════════════════════════════════════
         // П.4: Структурный поиск ⋮/⚙
         // ═══════════════════════════════════════════════════════════════
+        /**
+         * Кнопки-меню в шапке экрана. Отдельный список: в списках элементов встречается
+         * «Больше меню» (Музыка: `item_menu` у каждого трека) — общий overflow-поиск
+         * цеплял строку списка, тапал не туда, и меню шапки не открывалось
+         * (прогон rmua2sd7x: music_sys drill_failed на уровне 1).
+         */
+        private val HEADER_MENU_TEXTS = listOf(
+            "Показать меню", "Show menu", "Открыть меню", "Меню", "Menu"
+        )
+
         private val OVERFLOW_TEXTS = listOf(
             "⋮", "Ещё", "Еще", "Больше", "Меню",
             "⚙", "⚙️", "Настройки", "Настройка",
@@ -1604,6 +1614,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
     private suspend fun findAndTapOverflow(texts: List<String> = OVERFLOW_TEXTS): Boolean {
         val root = service.rootInActiveWindow ?: return false
 
+        // Шапка в приоритете: «Показать меню» (Музыка) важнее «Больше меню» у строки
+        // списка, иначе тап уходит в контекстное меню трека и уровень не открывается.
+        findHeaderMenu(root)?.let {
+            val tapped = tapNode(it); recycleNode(it); recycleNode(root); return tapped
+        }
         findClickableByText(root, texts)?.let {
             val tapped = tapNode(it); recycleNode(it); recycleNode(root); return tapped
         }
@@ -1616,6 +1631,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
         recycleNode(root)
         return performOverflowGesture()
     }
+
+    /** Кнопка меню в шапке: кликабельный узел с описанием вида «Показать меню». */
+    private fun findHeaderMenu(root: AccessibilityNodeInfo): AccessibilityNodeInfo? =
+        NodeTree.findInTree(root) { node ->
+            val id = node.viewIdResourceName.orEmpty()
+            val desc = node.contentDescription?.toString().orEmpty()
+            if (id.endsWith("item_menu")) return@findInTree false
+            desc.isNotBlank() && HEADER_MENU_TEXTS.any { TextMatcher.normalizedContains(desc, it) }
+        }
 
     private fun findOverflowByContentDescription(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         val result = mutableListOf<AccessibilityNodeInfo>()
