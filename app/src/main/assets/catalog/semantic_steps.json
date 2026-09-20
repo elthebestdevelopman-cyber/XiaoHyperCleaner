@@ -1377,6 +1377,7 @@
           "os": { "family": "miui", "uiMin": 13, "uiMax": 14 },
           "fallback": false,
           "drillPath": [
+            ["☰", "Показать меню", "Ещё", "More", "Больше"],
             ["Настройки", "Settings", "设置"],
             ["Расширенные настройки", "Advanced settings"]
           ],
@@ -1399,6 +1400,7 @@
           "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
           "fallback": false,
           "drillPath": [
+            ["☰", "Показать меню", "Ещё", "More", "Больше"],
             ["Настройки", "Settings"],
             ["Расширенные настройки", "Advanced settings"]
           ],
