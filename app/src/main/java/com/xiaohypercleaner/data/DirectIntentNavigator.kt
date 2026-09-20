@@ -60,9 +60,15 @@ object DirectIntentNavigator {
             return cached
         }
 
-        // Строим Intent'ы по ID шага
-        val intents = buildIntentsById(context, step, resolvedPackage, profile)
-            .filter { isIntentAvailable(context, it) }
+        // Строим Intent'ы по ID шага. Явная launcher-компонента из PackageManager
+        // идёт первой: неявный `MAIN + CATEGORY_LAUNCHER` не резолвится у части
+        // MIUI-приложений (GetApps — `com.xiaomi.mipicks`), и шаг оставался без
+        // рабочей точки входа (прогон rmu8qhjhi: бурение шло по сплэшу магазина).
+        val primary = (resolvedPackage ?: step.launchPackage)
+            ?.let { pmLauncherIntent(context, it) }
+        val intents =
+            (listOfNotNull(primary) + buildIntentsById(context, step, resolvedPackage, profile))
+                .filter { isIntentAvailable(context, it) }
 
         // Если ничего не нашли — fallback на общие настройки
         val result = if (intents.isEmpty()) {
@@ -480,6 +486,25 @@ object DirectIntentNavigator {
     }
 
     /**
+     * Launcher-интент с явной компонентой от PackageManager.
+     *
+     * Неявный `MAIN + CATEGORY_LAUNCHER` с `setPackage` у части MIUI-приложений не
+     * резолвится вообще (`No Activity found to handle Intent` для GetApps/mipicks),
+     * поэтому точку входа берём у самого PackageManager. `null` — launcher-активности
+     * у пакета нет (фоновые сервисы вроде MSA): такой пакет в этой цепочке бесполезен.
+     */
+    private fun pmLauncherIntent(context: Context, packageName: String): Intent? =
+        runCatching { context.packageManager.getLaunchIntentForPackage(packageName) }
+            .getOrNull()
+            ?.apply {
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_CLEAR_TASK
+                )
+            }
+
+    /**
      * Создаёт Intent для запуска приложения.
      * Используется для шагов внутри приложений (Браузер, Музыка, Темы и т.д.).
      */
@@ -533,11 +558,18 @@ object DirectIntentNavigator {
      */
     private fun isIntentAvailable(context: Context, intent: Intent): Boolean {
         return try {
-            val activities = context.packageManager.queryIntentActivities(
-                intent,
-                PackageManager.MATCH_DEFAULT_ONLY
-            )
-            val available = activities.isNotEmpty()
+            val pm = context.packageManager
+            val launcherPkg = launcherPackage(intent)
+            val available = if (launcherPkg != null) {
+                // Launcher-интенты не объявляют CATEGORY_DEFAULT, поэтому
+                // MATCH_DEFAULT_ONLY их не находит («Intent not available» для
+                // mipicks) и шаг-приложение терял свою точку входа. Доступность
+                // определяет PackageManager, а не фильтр по CATEGORY_DEFAULT.
+                pm.getLaunchIntentForPackage(launcherPkg) != null ||
+                    pm.queryIntentActivities(intent, 0).isNotEmpty()
+            } else {
+                pm.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY).isNotEmpty()
+            }
             if (!available) {
                 AppLog.d(
                     TAG,
@@ -549,6 +581,13 @@ object DirectIntentNavigator {
             AppLog.w(TAG, "isIntentAvailable failed: ${e.message}")
             false
         }
+    }
+
+    /** Пакет интента, если это запуск приложения (`MAIN` + `LAUNCHER` + `setPackage`). */
+    private fun launcherPackage(intent: Intent): String? {
+        val isLauncherIntent = intent.action == Intent.ACTION_MAIN &&
+            intent.categories?.contains(Intent.CATEGORY_LAUNCHER) == true
+        return if (isLauncherIntent) intent.`package` else null
     }
 
     /**

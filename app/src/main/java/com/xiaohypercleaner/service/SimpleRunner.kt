@@ -166,6 +166,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
         private const val UI_SETTLE_DELAY_MS = 900L
         private const val APP_LAUNCH_DELAY_MS = 2000L
         private const val CONTENT_WAIT_MS = 2500L
+
+        /**
+         * Готовность приложения после запуска: холодный старт MIUI-приложений
+         * (GetApps — WebView-магазин) не укладывается в фиксированные 2 c, из-за
+         * чего раннер сжигал бюджет на «App not ready» по всем кандидатам и
+         * стартовал бурение на сплэше (прогон rmu8qhjhi).
+         */
+        private const val APP_READY_WAIT_MS = 6_000L
+
+        /** Готовность экрана приложения перед бурением: подписи первого уровня маршрута. */
+        private const val APP_SCREEN_WAIT_MS = 6_000L
+        private const val APP_READY_POLL_MS = 400L
         private const val CONFIRM_RETRY_MS = 2500L
         private const val SWITCH_FALLBACK_SCROLLS = 4
 
@@ -460,17 +472,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 service.startActivity(intent)
                 screenOpened = true
                 if (isAppStep) {
-                    // Для app-шагов: проверяем что целевой пакет в foreground и дерево непустое
-                    delay(APP_LAUNCH_DELAY_MS)
-                    val root = service.rootInActiveWindow
-                    val fgPkg = root?.packageName?.toString()
-                    val hasTree = root != null && root.childCount > 0
-                    recycleNode(root)
-                    if (fgPkg == resolvedPkg && hasTree) {
-                        AppLog.i(TAG, "App launched: $fgPkg, tree=$hasTree")
+                    // Для app-шагов: ждём целевой пакет в foreground с непустым
+                    // деревом. Жёсткие 2 c не покрывали холодный старт MIUI.
+                    if (awaitForegroundApp(resolvedPkg, APP_READY_WAIT_MS)) {
+                        AppLog.i(TAG, "App launched: $resolvedPkg, tree=true")
                         break
                     }
-                    AppLog.w(TAG, "App not ready: fg=$fgPkg target=$resolvedPkg tree=$hasTree, retrying")
                     screenOpened = false
                 } else if (awaitEntryScreen(step, notifTarget, verifyTexts, CONTENT_WAIT_MS)) {
                     break
@@ -554,6 +561,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Resume: если интент уже открыл нужный экран, начинаем с текущего уровня
         // (совпадение с целью шага отменяет бурение вовсе).
         val startLevel = if (mergedDrillPath.isEmpty()) 0 else resumeDrillIndex(step, mergedDrillPath)
+        // Экран приложения готов к бурению только после загрузки его UI (GetApps:
+        // сплэш «Официальный магазин от Xiaomi» → магазин с нижней навигацией).
+        // Resume (startLevel>0) и шаги Настроек/CLEAR_DATA (App Info) не ждут:
+        // экран уже подтверждён интентом либо приложение шага не открывается.
+        if (isAppStep && mergedDrillPath.isNotEmpty()) {
+            awaitAppScreenReady(step, mergedDrillPath, APP_SCREEN_WAIT_MS, startLevel)
+        }
         var drillFailure: String? = null
         if (mergedDrillPath.isNotEmpty() && startLevel < mergedDrillPath.size) {
             if (startLevel > 0) AppLog.i(TAG, "drill: resume at level $startLevel for ${step.id}")
@@ -849,6 +863,77 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return texts.any { text ->
             text.isNotBlank() && TextMatcher.normalizedContains(screenText, text)
         }
+    }
+
+    // ─── Готовность приложения (после запуска и перед бурением) ───────────
+
+    /**
+     * Ждёт появления целевого пакета в foreground с непустым деревом.
+     *
+     * Единственное состояние, в котором приложение шага считается готовым к
+     * навигации; иначе раннер пробует следующий интент. Прежние жёсткие 2 c
+     * объявляли «App not ready» даже поднимающемуся приложению (GetApps: холодный
+     * старт ~4 c), и остаток бюджета уходил на перебор кандидатов.
+     */
+    private suspend fun awaitForegroundApp(targetPkg: String?, timeoutMs: Long): Boolean {
+        if (targetPkg == null) return false
+        val attempts = (timeoutMs / APP_READY_POLL_MS).toInt().coerceAtLeast(1)
+        var lastFg: String? = null
+        var lastTree = false
+        repeat(attempts) { attempt ->
+            if (cancelled) return false
+            val root = service.rootInActiveWindow
+            val fg = root?.packageName?.toString()
+            val hasTree = root != null && root.childCount > 0
+            recycleNode(root)
+            if (fg == targetPkg && hasTree) return true
+            lastFg = fg
+            lastTree = hasTree
+            if (attempt < attempts - 1) delay(APP_READY_POLL_MS)
+        }
+        AppLog.w(
+            TAG,
+            "App not ready after ${timeoutMs}ms: fg=$lastFg target=$targetPkg tree=$lastTree, retrying"
+        )
+        return false
+    }
+
+    /**
+     * Ждёт готовности экрана приложения по подписям первого уровня маршрута.
+     *
+     * Опрос, а не слепая пауза: как только уровень виден, бурение идёт сразу.
+     * Исчерпание бюджета не фатально — бурение продолжается как раньше (честный
+     * `drill_failed`), но факт ожидания виден в логе и диагностике.
+     * Resume (startLevel>0) ожидания не требует: экран уже подтверждён.
+     */
+    internal suspend fun awaitAppScreenReady(
+        step: SimpleSteps.Step,
+        path: List<List<String>>,
+        timeoutMs: Long,
+        startLevel: Int = 0
+    ): Boolean {
+        if (startLevel > 0 || path.isEmpty()) return true
+        val levelTexts = nextLevelVerificationTexts(path, startLevel)
+        if (levelTexts.isEmpty()) return true
+        val attempts = (timeoutMs / APP_READY_POLL_MS).toInt().coerceAtLeast(1)
+        repeat(attempts) { attempt ->
+            if (cancelled) return false
+            if (screenHasAny(levelTexts)) {
+                AppLog.i(
+                    TAG,
+                    "app entry: level '${levelTexts.first()}' visible after " +
+                        "~${attempt * APP_READY_POLL_MS}ms"
+                )
+                return true
+            }
+            if (attempt < attempts - 1) delay(APP_READY_POLL_MS)
+        }
+        AppLog.w(
+            TAG,
+            "app entry: '${levelTexts.first()}' not visible after ${timeoutMs}ms — drilling anyway"
+        )
+        StepDiagnostics.note(step.id, "ENTRY", "reason=timeout level=${levelTexts.first()}")
+        return false
     }
 
     /** Повторный поиск узла после горизонтальной прокрутки: вкладка может быть за краем. */
