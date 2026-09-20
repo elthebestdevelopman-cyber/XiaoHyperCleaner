@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 28 suites, 203 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 30 suites, 214 tests (full table below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 tests
 │   ├── OptimizationEngineTest.kt # 14 tests
@@ -370,7 +370,7 @@ app/src/test/java/com/xiaohypercleaner/          # 28 suites, 203 tests (full ta
 
 ## 🧪 Testing
 
-### Unit Tests (203 tests, 28 suites)
+### Unit Tests (214 tests, 30 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -389,13 +389,15 @@ app/src/test/java/com/xiaohypercleaner/          # 28 suites, 203 tests (full ta
 | `DirectIntentNavigatorTest`   | 2     | Step entry point: launcher component, visibility   |
 | `ManualStepsTest`             | 4     | Manual checklist: 7-locale parity                  |
 | `SwitchFinderTest`            | 14    | Toggles, checked_before, foreign row rejection     |
-| `ConsentWallTest`             | 20    | Dialogs: force-stop, default app, consent          |
+| `ConsentWallTest`             | 21    | Dialogs: force-stop, default app, consent          |
+| `ConsentPermissionTest`       | 3     | Permission request: deny by default, allow for target |
 | `SimpleRunnerMsaResumeTest`   | 5     | Drill resume + msa revoke confirmation             |
+| `SimpleRunnerMsaRevokeTest`   | 3     | msa revoke: dialog button, countdown, confirmation |
 | `SimpleRunnerClearDataTest`   | 2     | CLEAR_DATA_DECLINE without false success           |
 | `SimpleRunnerFolderTest`      | 8     | Home folder search (structural markers)            |
 | `SimpleRunnerInstallerTest`   | 3     | Installer settings route, no APK install           |
 | `SimpleRunnerScrollTest`      | 2     | Scroll container lookup                            |
-| `SimpleRunnerDrillTest`       | 4     | Drill level verification (route, menu)             |
+| `SimpleRunnerDrillTest`       | 7     | Drill level verification (route, menu, screen change) |
 | `SimpleRunnerApplicabilityTest` | 5   | Not applicable steps, notif_* entry                |
 | `SimpleRunnerAppEntryTest`    | 4     | App screen readiness before drilling              |
 | `ScanOrchestratorTest`        | 4     | Navigation planning, cache                         |
@@ -405,7 +407,7 @@ app/src/test/java/com/xiaohypercleaner/          # 28 suites, 203 tests (full ta
 | `SimpleStepsTest`             | 6     | Simple mode step map                               |
 | `MainViewModelTest`           | 8     | UI logic (Robolectric)                             |
 | `LogMaskerTest`               | 15    | IP, token, path masking                            |
-| `TextMatcherTest`             | 9     | Text normalization and fuzzy matching              |
+| `TextMatcherTest`             | 10    | Text normalization and fuzzy matching              |
 
 ### Manual Testing
 

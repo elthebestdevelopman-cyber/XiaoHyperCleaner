@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 28 сьютов, 203 теста (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 214 тестов (полная таблица ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 тестов
 │   ├── OptimizationEngineTest.kt # 14 тестов
@@ -388,7 +388,7 @@ app/src/test/java/com/xiaohypercleaner/          # 28 сьютов, 203 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (203 теста, 28 сьютов)
+### Unit-тесты (214 тестов, 30 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -407,13 +407,15 @@ app/src/test/java/com/xiaohypercleaner/          # 28 сьютов, 203 тест
 | `DirectIntentNavigatorTest`   | 2      | Точка входа шага: launcher-компонента, видимость   |
 | `ManualStepsTest`             | 4      | Ручная памятка: паритет 7 локалей                  |
 | `SwitchFinderTest`            | 14     | Тумблеры, checked_before, запрет чужой строки      |
-| `ConsentWallTest`             | 20     | Диалоги: force-stop, «по умолчанию», consent       |
+| `ConsentWallTest`             | 21     | Диалоги: force-stop, «по умолчанию», consent       |
+| `ConsentPermissionTest`       | 3      | Permission-запрос: deny по умолчанию, allow для цели |
 | `SimpleRunnerMsaResumeTest`   | 5      | Resume бурения + подтверждение отзыва msa          |
+| `SimpleRunnerMsaRevokeTest`   | 3      | Отзыв msa: кнопка диалога, отсчёт, подтверждение   |
 | `SimpleRunnerClearDataTest`   | 2      | CLEAR_DATA_DECLINE без ложных успехов              |
 | `SimpleRunnerFolderTest`      | 8      | Поиск папок рабочего стола (структурный признак)   |
 | `SimpleRunnerInstallerTest`   | 3      | Настройки установщика, запрет установки APK        |
 | `SimpleRunnerScrollTest`      | 2      | Поиск контейнера прокрутки                         |
-| `SimpleRunnerDrillTest`       | 4      | Проверка уровней бурения (маршрут, меню)           |
+| `SimpleRunnerDrillTest`       | 7      | Проверка уровней бурения (маршрут, меню, смена экрана) |
 | `SimpleRunnerApplicabilityTest` | 5    | Неприменимые шаги, вход notif_*                    |
 | `SimpleRunnerAppEntryTest`    | 4      | Готовность экрана приложения перед бурением        |
 | `ScanOrchestratorTest`        | 4      | Планирование навигации, кэш                        |
@@ -423,7 +425,7 @@ app/src/test/java/com/xiaohypercleaner/          # 28 сьютов, 203 тест
 | `SimpleStepsTest`             | 6      | Карта шагов Простого режима                        |
 | `MainViewModelTest`           | 8      | UI-логика (Robolectric)                            |
 | `LogMaskerTest`               | 15     | Маскировка IP, токенов, путей                      |
-| `TextMatcherTest`             | 9      | Нормализация и нечёткое сравнение текстов          |
+| `TextMatcherTest`             | 10     | Нормализация и нечёткое сравнение текстов          |
 
 ### Ручное тестирование
 
