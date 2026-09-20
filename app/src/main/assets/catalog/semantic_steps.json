@@ -778,8 +778,7 @@
           "fallback": true,
           "drillPath": [
             ["Пароли и безопасность", "Отпечатки, данные лица и защита устройства", "Экран блокировки и защита", "Passwords & security"],
-            ["Конфиденциальность", "Privacy", "隐私"],
-            ["Дополнительные настройки", "Additional settings"]
+            ["Конфиденциальность", "Privacy", "隐私"]
           ],
           "screenMarkers": { "ru": ["Конфиденциальность"], "en": ["Privacy"], "zh": ["隐私"] },
           "itemTexts": {
@@ -904,8 +903,8 @@
           ],
           "screenMarkers": { "ru": ["Карусель обоев"], "en": ["Wallpaper Carousel"], "zh": ["壁纸轮播"] },
           "itemTexts": {
-            "ru": ["Включить", "Карусель обоев"],
-            "en": ["Enable", "Wallpaper Carousel"],
+            "ru": ["Включить", "Карусель обоев", "Карусель экрана блокировки"],
+            "en": ["Enable", "Wallpaper Carousel", "Lock screen carousel"],
             "es": ["Activar", "Carrusel de fondos"],
             "zh": ["启用", "壁纸轮播"],
             "hi": ["सक्षम करें", "वॉलपेपर कैरोसेल"],

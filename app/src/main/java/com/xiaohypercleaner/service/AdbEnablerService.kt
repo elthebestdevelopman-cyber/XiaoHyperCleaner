@@ -380,7 +380,12 @@ class AdbEnablerService : AccessibilityService() {
                 // ИСПРАВЛЕНО (строка 295): В новом Result нет поля `skipped`.
                 // Если пакет не установлен, раннер возвращает reason="app_not_installed"
                 // ═══════════════════════════════════════════════════════════════
-                if (!result.success && (result.reason == "app_not_installed" || result.reason == "low_confidence")) {
+                // not_applicable: экрана/строк шага на этом устройстве нет вовсе —
+                // это skip, а не FAIL (иначе отчёт врёт, прогон rmu8qhjhi).
+                val skippedResult = result.reason == "app_not_installed" ||
+                    result.reason == "low_confidence" ||
+                    result.reason == SimpleRunner.NOT_APPLICABLE
+                if (!result.success && skippedResult) {
                     AppLog.i(TAG, "runSimpleStep: step ${step.id} skipped (${result.reason})")
                     OverlayController.updateStatus(
                         this, getString(R.string.automation_status_skip)

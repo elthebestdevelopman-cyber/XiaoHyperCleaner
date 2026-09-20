@@ -57,7 +57,11 @@ object SwitchFinder {
      * тумблером).
      *
      * 1. сам переключатель с подходящим текстом;
-     * 2. подпись (TextView) → тумблер ТОЙ ЖЕ строки;
+     * 2. подписи (TextView) → тумблер ТОЙ ЖЕ строки, перебором ВСЕХ совпавших
+     *    подписей: первый совпавший узел часто оказывается заголовком экрана или
+     *    подсказкой (msa: подсказка «…хотите отозвать разрешения…» совпадает с
+     *    confirm-текстом шага, а выше подъём упирается в список из 9 тумблеров —
+     *    прежний поиск сдавался на нём с `ambiguous row: switches=4`);
      * 3. нечёткое совпадение — тем же правилом строки.
      */
     fun findSwitch(
@@ -68,25 +72,39 @@ object SwitchFinder {
         NodeTree.findInTree(root) { isSwitchLike(it) && NodeTree.matchesAny(it, texts) }
             ?.let { return it }
 
-        NodeTree.findInTree(root) { !isSwitchLike(it) && NodeTree.matchesAny(it, texts) }
-            ?.let { label -> findSwitchInRow(label, texts)?.let { sw -> return sw } }
+        for (label in matchingLabels(root, texts, fuzzy = false)) {
+            findSwitchInRow(label, texts)?.let { sw -> return sw }
+        }
 
         NodeTree.findInTree(root) { isSwitchLike(it) && NodeTree.matchesAny(it, texts, fuzzy = true) }
             ?.let {
                 AppLog.w(TAG, "fuzzy switch match on node")
                 return it
             }
-        NodeTree.findInTree(root) { !isSwitchLike(it) && NodeTree.matchesAny(it, texts, fuzzy = true) }
-            ?.let { label ->
-                findSwitchInRow(label, texts)?.let { sw ->
-                    AppLog.w(TAG, "fuzzy label match next to switch")
-                    return sw
-                }
+        for (label in matchingLabels(root, texts, fuzzy = true)) {
+            findSwitchInRow(label, texts)?.let { sw ->
+                AppLog.w(TAG, "fuzzy label match next to switch")
+                return sw
             }
+        }
         // Диагностика прогона: видно, что именно не сошлось (файл/строку ищем по логу).
         AppLog.w(TAG, "switch not found for '${texts.firstOrNull()}' (texts=${texts.size})")
         return null
     }
+
+    /**
+     * Узлы-подписи (не тумблеры), совпавшие с искомыми текстами: кандидаты строк.
+     * Ограничение [LABEL_CANDIDATE_LIMIT] — против полного обхода большого списка.
+     */
+    private fun matchingLabels(
+        root: AccessibilityNodeInfo,
+        texts: List<String>,
+        fuzzy: Boolean
+    ): List<AccessibilityNodeInfo> =
+        NodeTree.findAllInTree(
+            root = root,
+            predicate = { !isSwitchLike(it) && NodeTree.matchesAny(it, texts, fuzzy) }
+        ).take(LABEL_CANDIDATE_LIMIT)
 
     /**
      * Переключатель строки подписи.
@@ -111,6 +129,9 @@ object SwitchFinder {
 
     /** Лимит собранных переключателей контейнера: строка MIUI отдаёт внешний + внутренний. */
     private const val SWITCH_COLLECT_LIMIT = 4
+
+    /** Сколько подписей-кандидатов проверяем на «тумблер этой строки». */
+    private const val LABEL_CANDIDATE_LIMIT = 12
 
     private fun findSwitchInRow(
         label: AccessibilityNodeInfo,
