@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 221 тестов (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 222 тестов (полная таблица ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 тестов
 │   ├── OptimizationEngineTest.kt # 14 тестов
@@ -388,7 +388,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 221 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (221 тестов, 30 сьютов)
+### Unit-тесты (222 тестов, 30 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -415,7 +415,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 221 тест
 | `SimpleRunnerFolderTest`      | 11     | Поиск папок рабочего стола (структурный признак)   |
 | `SimpleRunnerInstallerTest`   | 3      | Настройки установщика, запрет установки APK        |
 | `SimpleRunnerScrollTest`      | 2      | Поиск контейнера прокрутки                         |
-| `SimpleRunnerDrillTest`       | 8      | Проверка уровней бурения (маршрут, меню, альтернативные узлы) |
+| `SimpleRunnerDrillTest`       | 9      | Проверка уровней бурения (маршрут, меню шапки, альтернативные узлы) |
 | `SimpleRunnerApplicabilityTest` | 5    | Неприменимые шаги, вход notif_*                    |
 | `SimpleRunnerAppEntryTest`    | 4      | Готовность экрана приложения перед бурением        |
 | `ScanOrchestratorTest`        | 4      | Планирование навигации, кэш                        |

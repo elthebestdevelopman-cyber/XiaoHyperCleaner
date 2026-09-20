@@ -361,9 +361,18 @@ object SimpleSteps {
                 "Показывать рекомендуемый контент",
                 "Show recommended content"
             ),
+            // Точная строка снята с устройства (дамп music_advanced.xml, версия 6.4.20i-872):
+            // «Показывать рекомендации в интернете во время запуска». Короткая форма без
+            // «во время запуска» оставлена — совпадает по вхождению. Локали кроме ru/en —
+            // переводы, ждут подтверждения дампом на соответствующей прошивке.
             additionalToggles = listOf(
+                "Показывать рекомендации в интернете во время запуска",
+                "Show online recommendations on startup",
                 "Показывать рекомендации в интернете", "Show recommendations online",
-                "Персональные рекомендации", "Personalized recommendations"
+                "Персональные рекомендации", "Personalized recommendations",
+                "启动时显示在线推荐", "Mostrar recomendaciones en línea al iniciar",
+                "लॉन्च के समय ऑनलाइन सुझाव दिखाएअ", "Mostrar recomendações on-line na inicialização",
+                "Tampilkan rekomendasi online saat peluncuran"
             ),
             manualHintRu = "Музыка → ⚙ → Расширенные настройки → выключите показ рекомендаций.",
             manualHintEn = "Music → ⚙ → Advanced settings → turn off recommendations.",

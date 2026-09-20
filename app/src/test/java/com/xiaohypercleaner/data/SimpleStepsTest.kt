@@ -75,6 +75,25 @@ class SimpleStepsTest {
     }
 
     @Test
+    fun `music step includes online recommendations toggle for all locales`() {
+        // Владелец: «Показывать рекомендации в интернете во время запуска» — тоже в список
+        // отключения, с вариантами для всех локалей. ru-строка снята с устройства
+        // (дамп diag-dumps/adb-probe/music_advanced.xml), остальные — переводы.
+        val texts = SimpleSteps.ALL.first { it.id == "music_sys" }.additionalToggles
+
+        assertTrue(
+            "ru-строка устройства отсутствует",
+            texts.contains("Показывать рекомендации в интернете во время запуска")
+        )
+        assertTrue("en", texts.any { it.startsWith("Show online recommendations") })
+        assertTrue("zh", texts.any { it.startsWith("\u542f\u52a8\u65f6\u663e\u793a") })
+        assertTrue("es", texts.any { it.startsWith("Mostrar recomendaciones en l\u00ednea") })
+        assertTrue("pt", texts.any { it.startsWith("Mostrar recomenda\u00e7\u00f5es on-line") })
+        assertTrue("id", texts.any { it.startsWith("Tampilkan rekomendasi online") })
+        assertTrue("hi", texts.any { it.startsWith("\u0932\u0949\u0928\u094d\u091a") })
+    }
+
+    @Test
     fun `installer step targets installers and opens no install activity`() {
         val step = SimpleSteps.ALL.first { it.id == "installer_recommendations" }
 

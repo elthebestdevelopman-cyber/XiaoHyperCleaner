@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 30 suites, 221 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 30 suites, 222 tests (full table below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 tests
 │   ├── OptimizationEngineTest.kt # 14 tests
@@ -370,7 +370,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 suites, 221 tests (full ta
 
 ## 🧪 Testing
 
-### Unit Tests (221 tests, 30 suites)
+### Unit Tests (222 tests, 30 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -397,7 +397,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 suites, 221 tests (full ta
 | `SimpleRunnerFolderTest`      | 11    | Home folder search (structural markers)            |
 | `SimpleRunnerInstallerTest`   | 3     | Installer settings route, no APK install           |
 | `SimpleRunnerScrollTest`      | 2     | Scroll container lookup                            |
-| `SimpleRunnerDrillTest`       | 8     | Drill level verification (route, menu, alternative nodes) |
+| `SimpleRunnerDrillTest`       | 9     | Drill level verification (route, header menu, alternative nodes) |
 | `SimpleRunnerApplicabilityTest` | 5   | Not applicable steps, notif_* entry                |
 | `SimpleRunnerAppEntryTest`    | 4     | App screen readiness before drilling              |
 | `ScanOrchestratorTest`        | 4     | Navigation planning, cache                         |
