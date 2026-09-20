@@ -198,6 +198,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     /** Scroll-until-found для уровней drill: до 4 прокруток на уровень. */
     private const val DRILL_SCROLL_TRIES = 4
+
+    /** Повторы уровня drill после закрытия всплывшего диалога (permission целевого приложения). */
+    private const val DRILL_CONSENT_RETRIES = 2
         private const val FRESH_DEVICE_DISMISS_LIMIT = 3
 
         /** Гейт оверлея: ожидание восстановления окна (Аддендум A4). */
@@ -223,6 +226,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     @Volatile
     private var cancelled: Boolean = false
+
+    /**
+     * Последний провал уровня drill случился потому, что строки уровня НЕТ на экране
+     * (в отличие от «нашли, но тап не дал эффекта»). Признак неприменимости app-шага.
+     */
+    // internal — для тестируемости (SimpleRunnerDrillTest).
+    internal var lastDrillLevelNotFound: Boolean = false
     // lateinit: профиль устанавливается в run(). Прежний eager-detect был мёртвым:
     // результат перезаписывался в run() и никогда не читался, а на mock-сервисе
     // ронял конструктор (NPE на resources.configuration).
@@ -595,7 +605,19 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 if (cancelled) return Result(false, "cancelled")
                 // Навигационное действие — только при целостном оверлее.
                 if (!awaitOverlayReadyOrPause()) return Result(false, "overlay_lost")
-                if (!drillIntoLevel(step, levelIndex, mergedDrillPath[levelIndex])) {
+                var levelOk = drillIntoLevel(step, levelIndex, mergedDrillPath[levelIndex])
+                if (!levelOk) {
+                    // Поверх навигации мог встать диалог (runtime-permission целевого
+                    // приложения: Mi Браузер уперся в «Разрешить доступ к фото…»,
+                    // прогон rmua2sd7x): закрываем его и повторяем уровень.
+                    for (retry in 1..DRILL_CONSENT_RETRIES) {
+                        if (handleConsentWalls(step) == 0) break
+                        delay(UI_SETTLE_DELAY_MS)
+                        levelOk = drillIntoLevel(step, levelIndex, mergedDrillPath[levelIndex])
+                        if (levelOk) break
+                    }
+                }
+                if (!levelOk) {
                     drillFailure = "drill_failed"
                     break
                 }
@@ -630,6 +652,19 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 StepDiagnostics.note(
                     step.id, "APPLICABILITY",
                     "foreign_screen fg=${activePackage() ?: "-"} route=${mergedDrillPath.size}"
+                )
+                Result(false, NOT_APPLICABLE)
+            } else if (isAppStep && lastDrillLevelNotFound &&
+                activePackage().equals(resolvedPkg, ignoreCase = true)
+            ) {
+                // Приложение шага открыто, но строки последнего уровня маршрута на его
+                // экранах нет вовсе (GetApps 20.4.5: в «Настройках» нет раздела
+                // «Конфиденциальность») — настройки на этой версии нет: честное
+                // «неприменимо» вместо FAIL (инвариант: отчёт не должен врать).
+                AppLog.w(TAG, "step ${step.id}: уровень маршрута отсутствует у цели — шаг неприменим")
+                StepDiagnostics.note(
+                    step.id, "APPLICABILITY",
+                    "drill_level_absent fg=${activePackage() ?: "-"} route=${mergedDrillPath.size}"
                 )
                 Result(false, NOT_APPLICABLE)
             } else {
@@ -839,20 +874,57 @@ class SimpleRunner(private val service: AdbEnablerService) {
         ) ?: findAfterHorizontalScroll(levelTexts)
 
         if (node == null) {
+            // Уровень отсутствует на экране вовсе (GetApps: «Конфиденциальность» в
+            // настройках 20.4.5 нет) — это признак неприменимости шага, а не сбоя тапа.
+            lastDrillLevelNotFound = true
             AppLog.w(
                 TAG,
                 "Drill level '${levelTexts.firstOrNull()}' not found, screen=[${screenText.take(120)}]"
             )
             return false
         }
+        lastDrillLevelNotFound = false
 
         if (!tapNode(node)) {
             recycleNode(node); return false
         }
+        // Координаты тапа — для повторной попытки, если первый тап не дал эффекта.
+        val tappedRect = Rect().also { node.getBoundsInScreen(it) }
         recycleNode(node)
 
-        if (nextTexts.isEmpty()) return true
-        return awaitScreen(nextTexts)
+        if (nextTexts.isNotEmpty()) return awaitScreen(nextTexts)
+        // Последний уровень маршрута: подтверждаем ФАКТОМ смены экрана. Прежний
+        // `return true` без проверки давал «пройденный» уровень при несостоявшемся
+        // тапе (Загрузки: пункт «Настройки» в меню ⋮ не открыл экран, шаг пошёл
+        // искать тумблер в самом меню → switch_not_found, прогон rmua2sd7x).
+        if (screenChangedSince(screenText)) return true
+        AppLog.w(
+            TAG,
+            "drill: '${levelTexts.firstOrNull()}' tapped but screen unchanged — retap by coordinates"
+        )
+        if (tapAt(tappedRect.centerX(), tappedRect.centerY())) {
+            delay(UI_SETTLE_DELAY_MS)
+            if (screenChangedSince(screenText)) return true
+        }
+        return false
+    }
+
+    /** Экран изменился с момента снятия подписи [before] (для подтверждения уровня). */
+    private fun screenChangedSince(before: String): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val now = collectAllText(root)
+        recycleNode(root)
+        return now.isNotBlank() && now != before
+    }
+
+    /** Узел целиком внутри рабочего окна: тап по краю/под навбаром эффекта не даёт. */
+    private fun isFullyVisible(node: AccessibilityNodeInfo): Boolean {
+        val rect = Rect().also { node.getBoundsInScreen(it) }
+        if (rect.width() <= 0 || rect.height() <= 0) return false
+        val root = service.rootInActiveWindow ?: return false
+        val window = Rect().also { root.getBoundsInScreen(it) }
+        recycleNode(root)
+        return window.width() > 0 && window.height() > 0 && window.contains(rect)
     }
 
     /**
@@ -1332,14 +1404,45 @@ class SimpleRunner(private val service: AdbEnablerService) {
             return Result(false, "switch_not_found")
         }
 
-        val hit = SwitchFinder.describe(switchNode, mergedSearchTexts.first())
+        // Тумблер мог найтись ЗА нижней границей экрана (Mi Видео: строка «Онлайн-
+        // рекомендации» в самом низу, bounds уходят под навбар) — тап по невидимой
+        // области не переключает, шаг падал `verify_failed` (прогон rmua2sd7x).
+        val firstSwitch = switchNode ?: run {
+            recycleNode(currentRoot)
+            return Result(false, "switch_not_found")
+        }
+        var targetSwitch: AccessibilityNodeInfo = firstSwitch
+        for (attempt in 0 until SWITCH_FALLBACK_SCROLLS) {
+            if (isFullyVisible(targetSwitch)) break
+            if (cancelled) {
+                recycleNode(targetSwitch); recycleNode(currentRoot)
+                return Result(false, "cancelled")
+            }
+            AppLog.i(
+                TAG,
+                "switch: scroll to off-screen row attempt ${attempt + 1}/$SWITCH_FALLBACK_SCROLLS " +
+                    "for '${mergedSearchTexts.firstOrNull()}'"
+            )
+            scrollDownOnce()
+            val scrolledRoot = service.rootInActiveWindow ?: break
+            val again = findSwitchByText(scrolledRoot, mergedSearchTexts)
+            recycleNode(scrolledRoot)
+            if (again != null && again !== targetSwitch) {
+                recycleNode(targetSwitch)
+                targetSwitch = again
+            }
+        }
+
+        // Состояние читается у АКТУАЛЬНОГО узла (после прокрутки это может быть
+        // другой экземпляр той же строки).
+        val hit = SwitchFinder.describe(targetSwitch, mergedSearchTexts.first())
         val isChecked = hit.checkedBefore
         val text = hit.label
         val desc = hit.desc
         val bounds = hit.bounds
 
         if (isChecked == step.targetChecked) {
-            recycleNode(switchNode); recycleNode(currentRoot)
+            recycleNode(targetSwitch); recycleNode(currentRoot)
             // Уже в целевом состоянии: тумблить нечего, откат этот шаг не трогает.
             return Result(true, if (step.targetChecked) "already_done" else "already_off")
         }
@@ -1347,11 +1450,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // checked_before фиксируется в снапшоте отката в момент тумблера (блок 6).
         recordCheckedBefore(step.id, isChecked)
 
-        if (!tapNode(switchNode)) {
-            recycleNode(switchNode); recycleNode(currentRoot)
+        if (!tapNode(targetSwitch)) {
+            recycleNode(targetSwitch); recycleNode(currentRoot)
             return Result(false, "tap_failed")
         }
-        recycleNode(switchNode); recycleNode(currentRoot)
+        recycleNode(targetSwitch); recycleNode(currentRoot)
 
         delay(600)
         if (!verifySwitchState(step, mergedSearchTexts)) {

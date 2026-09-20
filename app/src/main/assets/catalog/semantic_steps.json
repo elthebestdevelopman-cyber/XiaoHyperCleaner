@@ -2,8 +2,8 @@
   "version": 1,
   "consentPolicy": {
     "welcomeMarkers": {
-      "ru": ["Добро пожаловать", "Условия использования", "Политика конфиденциальности", "Скачивание видео", "Загрузка видео", "Настройка браузера", "Выберите поисковую систему", "Быстрая настройка"],
-      "en": ["Welcome", "Terms of Service", "Privacy Policy", "Download videos", "Video download", "Set up your browser", "Choose a search engine", "Quick setup"],
+      "ru": ["Добро пожаловать", "Условия использования", "Условиями использования", "Условиях использования", "Политика конфиденциальности", "Политикой конфиденциальности", "Пользовательское соглашение", "Скачивание видео", "Загрузка видео", "Настройка браузера", "Выберите поисковую систему", "Быстрая настройка"],
+      "en": ["Welcome", "Terms of Service", "Terms of Use", "Privacy Policy", "User Agreement", "By continuing", "Download videos", "Video download", "Set up your browser", "Choose a search engine", "Quick setup"],
       "es": ["Bienvenido", "Términos de servicio", "Política de privacidad", "Descarga de vídeos", "Configuración del navegador", "Elige un motor de búsqueda"],
       "zh": ["欢迎", "服务条款", "隐私政策", "视频下载", "浏览器设置", "选择搜索引擎"],
       "hi": ["स्वागत है", "सेवा की शर्तें", "गोपनीयता नीति", "वीडियो डाउनलोड", "ब्राउज़र सेटअप", "खोज इंजन चुनें"],
@@ -1751,10 +1751,14 @@
       },
       "screenMarkers": {
         "ru": [
-          "Очистка"
+          "Очистка",
+          "РЕКОМЕНДАЦИИ",
+          "Загружать только по Wi-Fi"
         ],
         "en": [
-          "Cleaner"
+          "Cleaner",
+          "RECOMMENDATIONS",
+          "Download only over Wi-Fi"
         ],
         "es": [
           "Limpiador"

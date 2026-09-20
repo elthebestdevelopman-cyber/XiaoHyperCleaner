@@ -162,6 +162,67 @@ class SimpleRunnerDrillTest {
     }
 
     @Test
+    fun `last drill level is not passed when the screen did not change`() = runTest {
+        // Загрузки: пункт «Настройки» в меню ⋮ не открыл экран, но уровень считался
+        // пройденным (прежний `return true` без проверки) — тумблер искался в меню.
+        val row = node(text = "Настройки", clickable = true)
+        val screen = node(className = "android.widget.FrameLayout", children = arrayOf(row))
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(screen)
+        Mockito.`when`(row.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true)
+        Mockito.`when`(service.resources).thenReturn(RuntimeEnvironment.getApplication().resources)
+
+        val path = listOf(
+            listOf("⋮", "Ещё"),
+            listOf("Настройки", "Settings")
+        )
+
+        assertFalse(
+            "тап без смены экрана — уровень не пройден",
+            runner.drillIntoLevel(step("downloads"), 1, path[1], path)
+        )
+    }
+
+    @Test
+    fun `last drill level is passed when the screen changed`() = runTest {
+        val row = node(text = "Настройки", clickable = true)
+        val first =
+            node(className = "android.widget.FrameLayout", children = arrayOf(node(text = "Меню"), row))
+        val second = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(node(text = "Настройки"), node(text = "Получать рекомендации"))
+        )
+        var current: AccessibilityNodeInfo = first
+        Mockito.`when`(service.rootInActiveWindow).thenAnswer { current }
+        Mockito.`when`(row.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenAnswer {
+            current = second
+            true
+        }
+
+        val path = listOf(listOf("⋮"), listOf("Настройки", "Settings"))
+
+        assertTrue(
+            "смена экрана подтверждает последний уровень",
+            runner.drillIntoLevel(step("downloads"), 1, path[1], path)
+        )
+    }
+
+    @Test
+    fun `missing level text marks the step as not applicable`() = runTest {
+        // GetApps 20.4.5: раздела «Конфиденциальность» в настройках магазина нет —
+        // уровень отсутствует, шаг должен стать неприменимым, а не FAIL.
+        val screen = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(node(text = "Настройки"), node(text = "Уведомления"))
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(screen)
+
+        assertFalse(
+            runner.drillIntoLevel(step("getapps"), 2, listOf("Конфиденциальность", "Privacy"))
+        )
+        assertTrue("отсутствие уровня — признак неприменимости", runner.lastDrillLevelNotFound)
+    }
+
+    @Test
     fun `icon only level texts are not used for screen verification`() {
         val path = listOf(listOf("Профиль"), listOf("\u2699\uFE0F", "Настройки"))
 

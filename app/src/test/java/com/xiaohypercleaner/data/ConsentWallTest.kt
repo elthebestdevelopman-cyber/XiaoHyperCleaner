@@ -83,6 +83,30 @@ class ConsentWallTest {
     }
 
     @Test
+    fun `case inflected privacy wording is recognised as a welcome wall`() = runTest {
+        // MiDrop/ShareMe: «…ознакомьтесь и согласитесь с нашими Условиями
+        // использования и Политикой конфиденциальности» — маркеры в именительном
+        // падеже эту стену не ловили (прогон rmua2sd7x, shareme).
+        val node = screen(
+            "Переносить любые типы файлов Предже чем продолжить, ознакомьтесь и согласитесь " +
+                "с нашими Условиями использования и Политикой конфиденциальности. " +
+                "Согласиться Отклонить"
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
+
+        val outcome = withLocale("ru") {
+            ConsentWallHandler.handleOnce(service, bridge, "shareme")
+        }
+
+        assertTrue("стена должна распознаваться", outcome.handled)
+        assertEquals("welcome", outcome.kind)
+        assertTrue(
+            "тап идёт по кнопке согласия",
+            tappedTexts.any { it.equals("Согласиться", ignoreCase = true) }
+        )
+    }
+
+    @Test
     fun `welcome wall is accepted with policy action`() = runTest {
         val node = screen("Welcome to Themes Terms of Service")
         Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
