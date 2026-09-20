@@ -295,16 +295,18 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 26 suites, 197 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 28 suites, 203 tests (full table below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 tests
 │   ├── OptimizationEngineTest.kt # 14 tests
 │   ├── AdbPortResolverTest.kt    # 5 tests
+│   ├── DirectIntentNavigatorTest.kt # 2 tests (step entry point, launcher component)
 │   ├── RomProfileTest.kt         # 5 tests
 │   └── SimpleStepsTest.kt        # 6 tests
 ├── service/
 │   ├── SimpleRunnerDrillTest.kt  # 4 tests (drill level verification)
 │   ├── SimpleRunnerApplicabilityTest.kt # 5 tests (not applicable steps, notif_* entry)
+│   ├── SimpleRunnerAppEntryTest.kt # 4 tests (app screen readiness)
 │   └── SimpleRunnerClearDataTest.kt # 2 tests
 ├── ui/
 │   └── MainViewModelTest.kt      # 8 tests (Robolectric)
@@ -368,7 +370,7 @@ app/src/test/java/com/xiaohypercleaner/          # 26 suites, 197 tests (full ta
 
 ## 🧪 Testing
 
-### Unit Tests (197 tests, 26 suites)
+### Unit Tests (203 tests, 28 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -384,6 +386,7 @@ app/src/test/java/com/xiaohypercleaner/          # 26 suites, 197 tests (full ta
 | `SemanticVariantTest`         | 7     | OS variant selection (MIUI 13 / HyperOS 2)         |
 | `SemanticGateTest`            | 6     | Confidence gate                                    |
 | `PlanBuilderTest`             | 7     | Plan pre-filter + red list                         |
+| `DirectIntentNavigatorTest`   | 2     | Step entry point: launcher component, visibility   |
 | `ManualStepsTest`             | 4     | Manual checklist: 7-locale parity                  |
 | `SwitchFinderTest`            | 14    | Toggles, checked_before, foreign row rejection     |
 | `ConsentWallTest`             | 20    | Dialogs: force-stop, default app, consent          |
@@ -394,6 +397,7 @@ app/src/test/java/com/xiaohypercleaner/          # 26 suites, 197 tests (full ta
 | `SimpleRunnerScrollTest`      | 2     | Scroll container lookup                            |
 | `SimpleRunnerDrillTest`       | 4     | Drill level verification (route, menu)             |
 | `SimpleRunnerApplicabilityTest` | 5   | Not applicable steps, notif_* entry                |
+| `SimpleRunnerAppEntryTest`    | 4     | App screen readiness before drilling              |
 | `ScanOrchestratorTest`        | 4     | Navigation planning, cache                         |
 | `ScreenCrawlerTest`           | 6     | Screen crawler (diagnostics)                       |
 | `ActivityScannerTest`         | 8     | Package/activity visibility                        |

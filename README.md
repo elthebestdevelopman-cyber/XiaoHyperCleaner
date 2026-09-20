@@ -313,16 +313,18 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 26 сьютов, 197 тестов (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 28 сьютов, 203 теста (полная таблица ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 тестов
 │   ├── OptimizationEngineTest.kt # 14 тестов
 │   ├── AdbPortResolverTest.kt    # 5 тестов
+│   ├── DirectIntentNavigatorTest.kt # 2 теста (точка входа шага, launcher-компонента)
 │   ├── RomProfileTest.kt         # 5 тестов
 │   └── SimpleStepsTest.kt        # 6 тестов
 ├── service/
 │   ├── SimpleRunnerDrillTest.kt  # 4 теста (проверка уровней бурения)
 │   ├── SimpleRunnerApplicabilityTest.kt # 5 тестов (неприменимые шаги, вход notif_*)
+│   ├── SimpleRunnerAppEntryTest.kt # 4 теста (готовность экрана приложения)
 │   └── SimpleRunnerClearDataTest.kt # 2 теста
 ├── ui/
 │   └── MainViewModelTest.kt      # 8 тестов (Robolectric)
@@ -386,7 +388,7 @@ app/src/test/java/com/xiaohypercleaner/          # 26 сьютов, 197 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (197 тестов, 26 сьютов)
+### Unit-тесты (203 теста, 28 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -402,6 +404,7 @@ app/src/test/java/com/xiaohypercleaner/          # 26 сьютов, 197 тест
 | `SemanticVariantTest`         | 7      | Выбор вариантов по версии ОС (MIUI 13 / HyperOS 2) |
 | `SemanticGateTest`            | 6      | Гейт уверенности                                   |
 | `PlanBuilderTest`             | 7      | Префильтр плана + красный список                   |
+| `DirectIntentNavigatorTest`   | 2      | Точка входа шага: launcher-компонента, видимость   |
 | `ManualStepsTest`             | 4      | Ручная памятка: паритет 7 локалей                  |
 | `SwitchFinderTest`            | 14     | Тумблеры, checked_before, запрет чужой строки      |
 | `ConsentWallTest`             | 20     | Диалоги: force-stop, «по умолчанию», consent       |
@@ -412,6 +415,7 @@ app/src/test/java/com/xiaohypercleaner/          # 26 сьютов, 197 тест
 | `SimpleRunnerScrollTest`      | 2      | Поиск контейнера прокрутки                         |
 | `SimpleRunnerDrillTest`       | 4      | Проверка уровней бурения (маршрут, меню)           |
 | `SimpleRunnerApplicabilityTest` | 5    | Неприменимые шаги, вход notif_*                    |
+| `SimpleRunnerAppEntryTest`    | 4      | Готовность экрана приложения перед бурением        |
 | `ScanOrchestratorTest`        | 4      | Планирование навигации, кэш                        |
 | `ScreenCrawlerTest`           | 6      | Сканер экранов (диагностика)                       |
 | `ActivityScannerTest`         | 8      | Видимость пакетов и активностей                    |
