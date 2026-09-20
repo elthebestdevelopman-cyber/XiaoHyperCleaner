@@ -277,7 +277,17 @@ object DirectIntentNavigator {
             }
 
             "getapps" -> {
-                // GetApps — рекомендации (mipicks = фактический пакет магазина на Global)
+                // GetApps — рекомендации. Экран «Конфиденциальность» («гайка» в профиле)
+                // открывается напрямую экспортированной активностью (дамп устройства:
+                // com.xiaomi.market.ui.PrivacyPreferenceFragmentActivity, заголовок
+                // «Конфиденциальность», тумблер «Персональные рекомендации»), поэтому
+                // бурение «Профиль → Настройки → Конфиденциальность» не требуется.
+                // Первый узел «Настройки» в профиле ведёт на нативный MarketPreferenceActivity,
+                // где «Конфиденциальности» нет вовсе (прогон rmua2sd7x: drill_failed).
+                explicitActivity(
+                    "com.xiaomi.mipicks",
+                    "com.xiaomi.market.ui.PrivacyPreferenceFragmentActivity"
+                )?.let { intents.add(it) }
                 val pkg = resolvedPackage ?: "com.xiaomi.market"
                 intents.addAll(
                     listOf(
@@ -523,6 +533,16 @@ object DirectIntentNavigator {
     }
 
     /**
+     * Явная активность-экран настроек приложения (например, «Конфиденциальность» GetApps):
+     * проверяется через PackageManager и ставится первым интентом, когда drill по UI
+     * упирается в неоднозначные «Настройки» внутри приложения.
+     */
+    internal fun explicitActivity(packageName: String, className: String): Intent? =
+        Intent().setComponent(android.content.ComponentName(packageName, className)).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+
+    /**
      * Создаёт Intent для открытия экрана деталей приложения.
      * Используется для шагов CLEAR_DATA_DECLINE и уведомлений.
      */
@@ -560,15 +580,21 @@ object DirectIntentNavigator {
         return try {
             val pm = context.packageManager
             val launcherPkg = launcherPackage(intent)
-            val available = if (launcherPkg != null) {
+            val available = when {
+                // Явная компонента-экран настроек приложения: резолвится без фильтров,
+                // CATEGORY_DEFAULT у таких активностей нет (GetApps: PrivacyPreference…),
+                // и MATCH_DEFAULT_ONLY отбраковал бы рабочий интент.
+                intent.component != null ->
+                    pm.resolveActivity(intent, 0) != null ||
+                        pm.queryIntentActivities(intent, 0).isNotEmpty()
                 // Launcher-интенты не объявляют CATEGORY_DEFAULT, поэтому
                 // MATCH_DEFAULT_ONLY их не находит («Intent not available» для
                 // mipicks) и шаг-приложение терял свою точку входа. Доступность
                 // определяет PackageManager, а не фильтр по CATEGORY_DEFAULT.
-                pm.getLaunchIntentForPackage(launcherPkg) != null ||
-                    pm.queryIntentActivities(intent, 0).isNotEmpty()
-            } else {
-                pm.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY).isNotEmpty()
+                launcherPkg != null ->
+                    pm.getLaunchIntentForPackage(launcherPkg) != null ||
+                        pm.queryIntentActivities(intent, 0).isNotEmpty()
+                else -> pm.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY).isNotEmpty()
             }
             if (!available) {
                 AppLog.d(

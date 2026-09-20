@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 30 suites, 219 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 30 suites, 220 tests (full table below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 tests
 │   ├── OptimizationEngineTest.kt # 14 tests
@@ -370,7 +370,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 suites, 219 tests (full ta
 
 ## 🧪 Testing
 
-### Unit Tests (219 tests, 30 suites)
+### Unit Tests (220 tests, 30 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -386,7 +386,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 suites, 219 tests (full ta
 | `SemanticVariantTest`         | 7     | OS variant selection (MIUI 13 / HyperOS 2)         |
 | `SemanticGateTest`            | 6     | Confidence gate                                    |
 | `PlanBuilderTest`             | 7     | Plan pre-filter + red list                         |
-| `DirectIntentNavigatorTest`   | 2     | Step entry point: launcher component, visibility   |
+| `DirectIntentNavigatorTest`   | 3     | Step entry point: launcher, explicit settings screen |
 | `ManualStepsTest`             | 4     | Manual checklist: 7-locale parity                  |
 | `SwitchFinderTest`            | 14    | Toggles, checked_before, foreign row rejection     |
 | `ConsentWallTest`             | 21    | Dialogs: force-stop, default app, consent          |

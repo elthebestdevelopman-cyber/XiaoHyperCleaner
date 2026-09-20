@@ -81,6 +81,33 @@ class DirectIntentNavigatorTest {
     }
 
     @Test
+    fun `installed privacy activity leads the getapps intent chain`() {
+        // Дамп устройства: экран «Конфиденциальность» («гайка» в профиле) открывается
+        // напрямую экспортированной активностью PrivacyPreferenceFragmentActivity —
+        // она и должна идти первой, иначе drill упирается в нативный
+        // MarketPreferenceActivity без «Конфиденциальности» (прогон rmua2sd7x).
+        val shadowPm = Shadows.shadowOf(context.packageManager)
+        shadowPm.installPackage(PackageInfo().apply { packageName = "com.xiaomi.mipicks" })
+        val privacy = ComponentName(
+            "com.xiaomi.mipicks",
+            "com.xiaomi.market.ui.PrivacyPreferenceFragmentActivity"
+        )
+        shadowPm.addActivityIfNotPresent(privacy)
+
+        val intents = DirectIntentNavigator.buildIntentsForStep(
+            context,
+            getappsStep(),
+            "com.xiaomi.mipicks",
+            profile
+        )
+
+        assertTrue(
+            "первым интентом должен быть прямой вход на экран «Конфиденциальность»",
+            intents.firstOrNull()?.component == privacy
+        )
+    }
+
+    @Test
     fun `absent getapps package has no launcher entry`() {
         val intents = DirectIntentNavigator.buildIntentsForStep(
             context,
