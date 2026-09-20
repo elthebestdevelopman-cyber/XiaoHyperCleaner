@@ -31,6 +31,15 @@ class TextMatcherTest {
     }
 
     @Test
+    fun `yo and ye letters are the same sign`() {
+        // MIUI пишет «Еще» (Загрузки: ⋮), каталог — «Ещё»: без приведения
+        // подпись считалась отсутствующей (прогон rmua0pt7i, downloads).
+        assertTrue(TextMatcher.normalizedContains("Активные Завершенные Еще", "Ещё"))
+        assertTrue(TextMatcher.normalizedEquals("Ещё", "Еще"))
+        assertTrue(TextMatcher.normalizedContains("Устройство и ещё", "Еще"))
+    }
+
+    @Test
     fun `fuzzy match tolerates single typo`() {
         assertTrue(TextMatcher.isFuzzyMatch("реклама", "рекламв"))
         assertTrue(TextMatcher.isFuzzyMatch("Персонализация рекламы", "Персонализация рекламы"))

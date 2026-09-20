@@ -33,6 +33,9 @@ object TextMatcher {
         for (c in INVISIBLE) {
             s = s.replace(c.toString(), "")
         }
+        // «ё» и «е» — разные символы: MIUI пишет «Еще» (Загрузки: ⋮), каталог — «Ещё».
+        // Без приведения все такие подписи считались отсутствующими.
+        s = s.replace('\u0451', '\u0435')
         s = s.replace('\u00A0', ' ')
         s = s.replace(Regex("\\s+"), " ").trim()
         return s

@@ -148,6 +148,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         /** msa: максимум ожидания включённой кнопки отзыва, поллинг и пауза на сам отзыв. */
         private const val MSA_REVOKE_WAIT_MAX_MS = 11_000L
         private const val MSA_CONFIRM_POLL_MS = 500L
+
+        /** Отсчётный хвост кнопки MIUI: «(9 с)», «(9s)», «(9)» — кнопка ещё неактивна. */
+        private val COUNTDOWN_LABEL_REGEX = Regex("\\(\\s*\\d+\\s*(с|s)?\\s*\\)")
         private const val MSA_REVOKE_SETTLE_MS = 2_500L
 
         /** Фолбэк-действие варианта: очистка данных + отклонение приветствия. */
@@ -465,8 +468,24 @@ class SimpleRunner(private val service: AdbEnablerService) {
             "reason=${plan.scanReason} candidates=${plan.candidates.size} cached=${plan.fromCache}"
         )
         val intents = plan.orderedIntents()
+        // Для шагов-приложений первым идёт launcher-интент от PackageManager: только
+        // он открывает приложение стабильно (GetApps: внутренние активности сканера
+        // окно не поднимают, и 4 попытки × 6 c съедали бюджет шага — прогон rmua0pt7i,
+        // getapps → timeout). Остальная цепочка остаётся фолбэком.
+        val pmLauncher = if (isAppStep) {
+            resolvedPkg?.let { pkg ->
+                runCatching { service.packageManager.getLaunchIntentForPackage(pkg) }
+                    .getOrNull()
+                    ?.addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    )
+            }
+        } else {
+            null
+        }
+        val attemptIntents = if (pmLauncher != null) listOf(pmLauncher) + intents else intents
         var screenOpened = false
-        for (intent in intents) {
+        for (intent in attemptIntents) {
             if (cancelled) return Result(false, "cancelled")
             try {
                 service.startActivity(intent)
@@ -992,14 +1011,25 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val waitMs = SemanticCatalog.confirmWaitMs(step.id, step.confirmWaitMs)
             .takeIf { it > 0L }?.coerceAtMost(MSA_REVOKE_WAIT_MAX_MS) ?: MSA_REVOKE_WAIT_MAX_MS
         val tapped = withTimeoutOrNull(waitMs) {
+            var countdownLogged = false
             while (!cancelled) {
                 val root = service.rootInActiveWindow
-                val node = root?.let { findEnabledClickableByText(it, confirmTexts) }
+                val node = root?.let { findDialogConfirmButton(it, confirmTexts) }
                 if (root != null) recycleNode(root)
                 if (node != null) {
-                    val ok = tapNode(node)
-                    recycleNode(node)
-                    if (ok) return@withTimeoutOrNull true
+                    val label = buttonLabel(node)
+                    if (isCountdownLabel(label)) {
+                        // MIUI держит «Отозвать (N с)» неактивной до конца отсчёта:
+                        // тап в это время не нажимает кнопку (прогон rmua0pt7i).
+                        if (!countdownLogged) {
+                            AppLog.i(TAG, "msa: waiting for revoke countdown '$label'")
+                            countdownLogged = true
+                        }
+                    } else {
+                        val ok = tapNode(node)
+                        recycleNode(node)
+                        if (ok) return@withTimeoutOrNull true
+                    }
                 }
                 delay(MSA_CONFIRM_POLL_MS)
             }
@@ -1947,6 +1977,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
             stepConfirmTexts = confirmTextsFor(step),
             // Владелец диалога = пакет-цель шага: это диалог самого приложения.
             stepPackages = stepPackagesFor(step),
+            // Подписи приложений-целей: MIUI-контроллер разрешений просит доступ
+            // «приложению Проводник» — по подписи понимаем, что это доступ для
+            // шага, и разрешаем (иначе приложение не пускает дальше).
+            stepLabels = stepPackagesFor(step).mapNotNull { appLabel(it) },
             maxIterations = SemanticCatalog.maxConsentIterations(
                 step.id,
                 SemanticCatalog.maxConsentIterationsPolicy()
@@ -2005,14 +2039,47 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return step.copy(launchPackage = fromCatalog)
     }
 
-    /** Кнопка по тексту, доступная для нажатия (enabled) — для отсчётных диалогов msa. */
-    private fun findEnabledClickableByText(
+    /**
+     * Кнопка диалога по тексту — для отсчётных подтверждений (msa «Отозвать (N с)»).
+     *
+     * Прежний поиск брал первый узел, чей текст содержит confirm-текст, и им
+     * оказывалось СООБЩЕНИЕ диалога («…Отозвать разрешение?»): тап уходил по его
+     * координатам, кнопка не нажималась, шаг падал `revoke_not_confirmed`
+     * (прогон rmua0pt7i: экран всё ещё показывал «Отозвать (6 с)»).
+     *
+     * Порядок: кнопка с точной подписью (после снятия отсчётного хвоста) →
+     * кнопка по роли (class Button / id button1|button2|button3).
+     */
+    internal fun findDialogConfirmButton(
         root: AccessibilityNodeInfo?,
         texts: List<String>
     ): AccessibilityNodeInfo? {
         root ?: return null
-        val node = findInTree(root) { matchesAny(it, texts) && it.isEnabled } ?: return null
-        return clickableAncestorOrSelf(node) ?: node
+        val exact = NodeTree.findAllInTree(root, predicate = { node ->
+            node.isEnabled && isCountdownConfirmLabel(buttonLabel(node), texts)
+        }).firstOrNull()
+        if (exact != null) return clickableAncestorOrSelf(exact) ?: exact
+        val byRole = NodeTree.findAllInTree(root, predicate = { node ->
+            node.isEnabled && isDialogButtonNode(node) && matchesAny(node, texts)
+        }).firstOrNull()
+        return byRole?.let { clickableAncestorOrSelf(it) ?: it }
+    }
+
+    /** Подпись узла: text или contentDescription (MIUI часть кнопок подписывает только описанием). */
+    private fun buttonLabel(node: AccessibilityNodeInfo): String? =
+        node.text?.toString()?.takeIf { it.isNotBlank() }
+            ?: node.contentDescription?.toString()?.takeIf { it.isNotBlank() }
+
+    /** Отсчётный текст MIUI: «Отозвать (9 с)», «Revoke (9s)» — кнопка ещё неактивна. */
+    internal fun isCountdownLabel(label: String?): Boolean =
+        COUNTDOWN_LABEL_REGEX.containsMatchIn(TextMatcher.normalize(label))
+
+    /** Подпись кнопки совпадает с confirm-текстом после снятия отсчётного хвоста. */
+    internal fun isCountdownConfirmLabel(label: String?, texts: List<String>): Boolean {
+        if (label == null) return false
+        val stripped = COUNTDOWN_LABEL_REGEX.replace(TextMatcher.normalize(label), "").trim()
+        if (stripped.isEmpty()) return false
+        return texts.any { TextMatcher.normalize(it) == stripped }
     }
 
     private suspend fun tapSystemDialogButton(

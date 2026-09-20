@@ -111,7 +111,9 @@ object ConsentWallHandler {
         stepConsentTexts: List<String> = emptyList(),
         stepConfirmTexts: List<String> = emptyList(),
         stepPackages: List<String> = emptyList(),
-        isCancelled: () -> Boolean = { false }
+        isCancelled: () -> Boolean = { false },
+        /** Подписи приложений-целей шага: по ним узнаём адресата permission-запроса. */
+        stepLabels: List<String> = emptyList()
     ): Outcome {
         if (isCancelled()) return Outcome(false, "none", "cancelled")
         val root = service.rootInActiveWindow ?: return Outcome(false, "none", "no_window")
@@ -127,7 +129,8 @@ object ConsentWallHandler {
             stepId = stepId,
             stepConfirmTexts = stepConfirmTexts,
             stepConsentTexts = stepConsentTexts,
-            alertDialog = alertDialog
+            alertDialog = alertDialog,
+            stepLabels = stepLabels
         ) ?: return Outcome(false, "none", "no_dialog")
 
         if (action.kind == "welcome") {
@@ -186,7 +189,9 @@ object ConsentWallHandler {
         stepId: String,
         stepConfirmTexts: List<String>,
         stepConsentTexts: List<String>,
-        alertDialog: Boolean
+        alertDialog: Boolean,
+        /** Подписи приложений-целей шага («Проводник», «Музыка»): по ним узнаём адресата запроса. */
+        stepLabels: List<String> = emptyList()
     ): DialogAction? {
         if (ownsDialog(screenText, stepConfirmTexts)) return null
 
@@ -268,13 +273,21 @@ object ConsentWallHandler {
             )
         }
 
-        // 5. Runtime-permission: deny по умолчанию, allow только по политике.
+        // 5. Runtime-permission: deny по умолчанию, allow — по политике каталога
+        //    ИЛИ когда доступ запрашивают для приложения-цели шага: без этого
+        //    разрешения приложение не пускает дальше (Проводник: «Нет доступа к
+        //    файлам» — доступ к фото/мультимедиа был отклонён, прогон rmua0pt7i).
         if (permissionHit) {
-            val allow = SemanticCatalog.shouldAllow(stepId)
+            val forTargetApp = requestsAccessForStep(screenText, stepLabels)
+            val allow = SemanticCatalog.shouldAllow(stepId) || forTargetApp
             return DialogAction(
                 kind = "permission",
                 decision = if (allow) "allow" else "deny",
-                cause = if (allow) "allow_override" else "deny_default",
+                cause = when {
+                    SemanticCatalog.shouldAllow(stepId) -> "allow_override"
+                    forTargetApp -> "target_app"
+                    else -> "deny_default"
+                },
                 texts = if (allow) SemanticCatalog.allowTexts() else SemanticCatalog.denyTexts(),
                 markers = permissionMarkers
             )
@@ -307,7 +320,9 @@ object ConsentWallHandler {
         stepConfirmTexts: List<String> = emptyList(),
         stepPackages: List<String> = emptyList(),
         maxIterations: Int = SemanticCatalog.maxConsentIterationsPolicy(),
-        isCancelled: () -> Boolean = { false }
+        isCancelled: () -> Boolean = { false },
+        /** Подписи приложений-целей шага: по ним узнаём адресата permission-запроса. */
+        stepLabels: List<String> = emptyList()
     ): Int {
         var handled = 0
         val limit = maxIterations.coerceAtLeast(1)
@@ -318,7 +333,8 @@ object ConsentWallHandler {
         while (handled < limit) {
             if (isCancelled()) break
             val outcome = handleOnce(
-                service, bridge, stepId, stepConsentTexts, stepConfirmTexts, stepPackages, isCancelled
+                service, bridge, stepId, stepConsentTexts, stepConfirmTexts, stepPackages,
+                isCancelled, stepLabels
             )
             if (!outcome.handled) break
             handled++
@@ -356,6 +372,17 @@ object ConsentWallHandler {
             normalized.isNotEmpty() &&
                 normalized !in GENERIC_CONFIRM_TEXTS &&
                 TextMatcher.normalizedContains(screenText, text)
+        }
+
+    /**
+     * Запрос доступа адресован приложению-цели шага: в тексте диалога есть его
+     * подпись («Разрешить приложению Проводник доступ к фото и мультимедиа на
+     * устройстве?»). Такой запрос разрешаем — иначе целевой экран приложения
+     * недостижим, и шаг честно проваливается (Проводник: «Нет доступа к файлам»).
+     */
+    private fun requestsAccessForStep(screenText: String, stepLabels: List<String>): Boolean =
+        stepLabels.any { label ->
+            label.trim().length >= 3 && TextMatcher.normalizedContains(screenText, label)
         }
 
     private fun viewId(node: AccessibilityNodeInfo): String = node.viewIdResourceName ?: ""
