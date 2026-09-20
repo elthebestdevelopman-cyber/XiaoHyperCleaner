@@ -95,6 +95,8 @@
 - 🌙 **Тёмная тема** — следует за системной
 - 🗂 **Рекомендации в папках рабочего стола** — Простой режим открывает папку и выключает «Рекомендуемое сегодня» (лаунчер MIUI/HyperOS)
 - 🛡 **Проверка приложений при установке** — Простой режим открывает настройки установщика и выключает «Получать рекомендации» (APK не устанавливается)
+- **Неприменимый шаг — не падение** — если экрана или строк шага на устройстве нет вовсе (например, настройки другого лаунчера), шаг помечается неприменимым
+- **Уведомления — только на своём экране** — шаг отключения уведомлений подтверждает вход по подписи приложения и не трогает чужой экран
 
 ---
 
@@ -311,15 +313,17 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/
+app/src/test/java/com/xiaohypercleaner/          # 26 сьютов, 197 тестов (полная таблица ниже)
 ├── data/
-│   ├── AdaptiveCatalogTest.kt    # 9 тестов
-│   ├── OptimizationEngineTest.kt # 10 тестов
+│   ├── AdaptiveCatalogTest.kt    # 16 тестов
+│   ├── OptimizationEngineTest.kt # 14 тестов
 │   ├── AdbPortResolverTest.kt    # 5 тестов
-│   ├── RomProfileTest.kt         # 2 теста
-│   └── SimpleStepsTest.kt        # 5 тестов
+│   ├── RomProfileTest.kt         # 5 тестов
+│   └── SimpleStepsTest.kt        # 6 тестов
 ├── service/
-│   └── SimpleRunnerClearDataTest.kt # 2 теста
+│   ├── SimpleRunnerDrillTest.kt  # 4 теста (проверка уровней бурения)
+│   ├── SimpleRunnerApplicabilityTest.kt # 5 тестов (неприменимые шаги, вход notif_*)
+│   ── SimpleRunnerClearDataTest.kt # 2 теста
 ├── ui/
 │   └── MainViewModelTest.kt      # 8 тестов (Robolectric)
 └── util/
@@ -382,7 +386,7 @@ app/src/test/java/com/xiaohypercleaner/
 
 ## 🧪 Тестирование
 
-### Unit-тесты (183 теста, 24 сьюта)
+### Unit-тесты (197 тестов, 26 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -399,13 +403,15 @@ app/src/test/java/com/xiaohypercleaner/
 | `SemanticGateTest`            | 6      | Гейт уверенности                                   |
 | `PlanBuilderTest`             | 7      | Префильтр плана + красный список                   |
 | `ManualStepsTest`             | 4      | Ручная памятка: паритет 7 локалей                  |
-| `SwitchFinderTest`            | 11     | Тумблеры, checked_before, запрет чужой строки      |
+| `SwitchFinderTest`            | 14     | Тумблеры, checked_before, запрет чужой строки      |
 | `ConsentWallTest`             | 20     | Диалоги: force-stop, «по умолчанию», consent       |
 | `SimpleRunnerMsaResumeTest`   | 5      | Resume бурения + подтверждение отзыва msa          |
 | `SimpleRunnerClearDataTest`   | 2      | CLEAR_DATA_DECLINE без ложных успехов              |
-| `SimpleRunnerFolderTest`      | 6      | Поиск папок рабочего стола (структурный признак)   |
+| `SimpleRunnerFolderTest`      | 8      | Поиск папок рабочего стола (структурный признак)   |
 | `SimpleRunnerInstallerTest`   | 3      | Настройки установщика, запрет установки APK        |
 | `SimpleRunnerScrollTest`      | 2      | Поиск контейнера прокрутки                         |
+| `SimpleRunnerDrillTest`       | 4      | Проверка уровней бурения (маршрут, меню)           |
+| `SimpleRunnerApplicabilityTest` | 5    | Неприменимые шаги, вход notif_*                    |
 | `ScanOrchestratorTest`        | 4      | Планирование навигации, кэш                        |
 | `ScreenCrawlerTest`           | 6      | Сканер экранов (диагностика)                       |
 | `ActivityScannerTest`         | 8      | Видимость пакетов и активностей                    |

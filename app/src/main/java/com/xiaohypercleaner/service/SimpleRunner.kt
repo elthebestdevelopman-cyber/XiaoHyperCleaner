@@ -134,6 +134,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
             "com.miui.home", "com.mi.android.globallauncher", "com.miui.launcher", "com.mi.global.home"
         )
 
+        /** Префикс шагов управления уведомлениями приложений. */
+        private const val NOTIF_PREFIX = "notif_"
+
         /** Признаки активности настроек установщика (активности установки не входят). */
         private val INSTALLER_SETTINGS_KEYWORDS =
             listOf("settings", "preference", "recommend", "advanced", "scan")
@@ -165,6 +168,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
         private const val CONTENT_WAIT_MS = 2500L
         private const val CONFIRM_RETRY_MS = 2500L
         private const val SWITCH_FALLBACK_SCROLLS = 4
+
+        /**
+         * Шаг неприменим на этом устройстве: экрана/строк шага здесь нет вовсе.
+         * Отдельный исход (skip), а не FAIL — иначе отчёт врёт (POCO Launcher).
+         */
+        internal const val NOT_APPLICABLE = "not_applicable"
+
+        /** Поллинг проверки входного экрана (notif_*: подпись приложения). */
+        private const val ENTRY_POLL_MS = 250L
+
+        /** Variation selector эмодзи: «⚙» и «⚙️» — один и тот же уровень-меню. */
+        private const val EMOJI_VARIATION_SELECTOR = "\uFE0F"
 
     /** Scroll-until-found для уровней drill: до 4 прокруток на уровень. */
     private const val DRILL_SCROLL_TRIES = 4
@@ -200,6 +215,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     // П.6: Флаг переиспользования окна настроек
     private var canResumeSettings: Boolean = false
+
+    /** Подписи приложений для проверки входа notif_*-шагов (кэш на прогон). */
+    private val appLabelCache = HashMap<String, String>()
 
     // ─── Fresh-device state ───────────────────────────────────────────────
     private var freshDeviceDismisses = 0
@@ -369,6 +387,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // (ACTION_APP_NOTIFICATION_SETTINGS). Discovery-скан приложения здесь вреден:
         // его явная компонента открывала ленту App Vault вместо уведомлений (rmu8lzcu9).
         val notifStep = step.id.startsWith("notif_")
+        // Пакет-цель notif_*-шага: подпись приложения на экране уведомлений отличает
+        // целевой экран от чужого (MIUI 13: неоткрывшийся интент оставлял шаг на
+        // «Заблокированном экране», где ключевые слова шага тоже встречаются).
+        val notifTarget = if (notifStep) resolveNotifTarget(step) else null
         val settingsEntry = SemanticCatalog.entry(step.id) == ENTRY_SETTINGS || notifStep
         if (notifStep) {
             AppLog.i(TAG, "notif step ${step.id}: маршрут через экран уведомлений Настроек")
@@ -450,7 +472,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     }
                     AppLog.w(TAG, "App not ready: fg=$fgPkg target=$resolvedPkg tree=$hasTree, retrying")
                     screenOpened = false
-                } else if (awaitScreen(verifyTexts, timeoutMs = CONTENT_WAIT_MS)) {
+                } else if (awaitEntryScreen(step, notifTarget, verifyTexts, CONTENT_WAIT_MS)) {
                     break
                 } else {
                     AppLog.w(TAG, "Экран не подтверждён после интента, пробуем следующий")
@@ -562,8 +584,24 @@ class SimpleRunner(private val service: AdbEnablerService) {
             return executeClearDataDecline(step)
         }
 
+        // notif_*: экран уведомлений приложения подтверждается ДО тумблера. На чужом экране
+        // (неоткрывшийся интент) ключевые слова шага встречаются в другом месте, и по
+        // ошибке тумблится, например, «Показывать уведомления полностью» экрана блокировки.
+        if (notifStep && !verifyNotifEntry(step, notifTarget, verifyTexts)) {
+            return Result(false, NOT_APPLICABLE)
+        }
+
         val result = if (drillFailure != null) {
-            Result(false, drillFailure)
+            if (isForeignScreenForSettingsStep(step, resolvedPkg)) {
+                AppLog.w(TAG, "step ${step.id}: экран другого приложения — шаг неприменим")
+                StepDiagnostics.note(
+                    step.id, "APPLICABILITY",
+                    "foreign_screen fg=${activePackage() ?: "-"} route=${mergedDrillPath.size}"
+                )
+                Result(false, NOT_APPLICABLE)
+            } else {
+                Result(false, drillFailure)
+            }
         } else {
             findAndToggleSwitch(step)
         }
@@ -715,7 +753,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return false
     }
 
-    private suspend fun drillIntoLevel(
+    /**
+     * Навигация по одному уровню маршрута с ПРОВЕРКОЙ результата.
+     *
+     * Проверка идёт по «эффективному» маршруту (вариант ОС или legacy) и только по
+     * пригодным для поиска текстам: прежний `firstOrNull()` брал первый элемент
+     * уровня, а у уровней-меню («⚙️/Настройки») им оказывался иконочный или пустой
+     * текст — `awaitScreen` гарантированно падал, и шаг завершался `drill_failed`
+     * без единой строки в логе (прогон rmu8qhjhi: browser_sys, mivideo, security_sys,
+     * cleaner, downloads).
+     */
+    // internal — для тестируемости (SimpleRunnerDrillTest).
+    internal suspend fun drillIntoLevel(
         step: SimpleSteps.Step,
         levelIndex: Int,
         levelTexts: List<String>,
@@ -725,16 +774,37 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val screenText = collectAllText(root)
         recycleNode(root)
 
-        // Уровень-меню (⋮/«Ещё»/«Дополнительно») открывается структурным поиском
-        // overflow, в том числе по contentDescription.
-        val isMenuLevel = levelTexts.any { it.trim() in MENU_LEVEL_TEXTS }
-        if (isMenuLevel && findAndTapOverflow(levelTexts)) return true
+        val effectivePath = path.ifEmpty {
+            AdaptiveCatalog.mergeDrillPath(service, step.id, step.drillPath)
+        }
+        val nextTexts = nextLevelVerificationTexts(effectivePath, levelIndex + 1)
+
+        // Уровень-меню (/⚙/«Ещё»/«Дополнительно») открывается структурным поиском
+        // overflow, в том числе по contentDescription, и ПРОВЕРЯЕТСЯ по пунктам меню:
+        // прежний возврат true сразу после тапа продолжал маршрут с закрытого меню.
+        if (isMenuLevel(levelTexts)) {
+            if (!findAndTapOverflow(levelTexts)) return false
+            if (nextTexts.isEmpty() || awaitScreen(nextTexts)) return true
+            if (performOverflowGesture() && awaitScreen(nextTexts)) return true
+            AppLog.w(TAG, "drill: меню открыто, но '${nextTexts.first()}' не видно")
+            return false
+        }
+
+        // Уровень уже пройден: его подпись и следующий уровень видны одновременно
+        // (sys_recommendations: экран «Приложения» открыт интентом — «Приложения» в
+        // заголовке, «Все приложения» строкой ниже; повторный тап по одноимённому ряду
+        // уводит на другой экран и ломает маршрут).
+        if (nextTexts.isNotEmpty() && screenHasAny(levelTexts) && screenHasAny(nextTexts)) {
+            AppLog.i(TAG, "drill: уровень '${levelTexts.firstOrNull()}' уже пройден")
+            return true
+        }
 
         val node = findClickableByTextWithScroll(
             levelTexts,
             attempts = DRILL_SCROLL_TRIES,
-            logLabel = levelTexts.firstOrNull()
-        )
+            logLabel = levelTexts.firstOrNull { it.isNotBlank() }
+        ) ?: findAfterHorizontalScroll(levelTexts)
+
         if (node == null) {
             AppLog.w(
                 TAG,
@@ -748,11 +818,43 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
         recycleNode(node)
 
-        val effectivePath = path.ifEmpty {
-            AdaptiveCatalog.mergeDrillPath(service, step.id, step.drillPath)
+        if (nextTexts.isEmpty()) return true
+        return awaitScreen(nextTexts)
+    }
+
+    /**
+     * Тексты уровня, которые годятся как маркер экрана: иконочные (⋮/⚙️) и пустые
+     * отбрасываются — иначе проверка ждёт текст, которого на экране не бывает.
+     */
+    internal fun nextLevelVerificationTexts(path: List<List<String>>, fromIndex: Int): List<String> =
+        path.getOrNull(fromIndex).orEmpty().filter { isVerifiableText(it) }
+
+    /** Текст годится как маркер: содержит буквы/цифры (не иконочный глиф без подписи). */
+    internal fun isVerifiableText(text: String): Boolean =
+        text.trim().replace(EMOJI_VARIATION_SELECTOR, "").any { it.isLetterOrDigit() }
+
+    /** Уровень-меню: подпись overflow-кнопки MIUI (⋮/⚙/«Ещё»/«Дополнительно») или иконка. */
+    internal fun isMenuLevel(levelTexts: List<String>): Boolean =
+        levelTexts.any { text ->
+            val t = text.trim().replace(EMOJI_VARIATION_SELECTOR, "")
+            t.isEmpty() ||
+                MENU_LEVEL_TEXTS.any { it.replace(EMOJI_VARIATION_SELECTOR, "") == t }
         }
-        val nextTexts = effectivePath.getOrNull(levelIndex + 1)?.firstOrNull() ?: return true
-        return awaitScreen(listOf(nextTexts))
+
+    /** Есть ли хоть один из текстов где-нибудь на текущем экране. */
+    private fun screenHasAny(texts: List<String>): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val screenText = collectAllText(root)
+        recycleNode(root)
+        return texts.any { text ->
+            text.isNotBlank() && TextMatcher.normalizedContains(screenText, text)
+        }
+    }
+
+    /** Повторный поиск узла после горизонтальной прокрутки: вкладка может быть за краем. */
+    private suspend fun findAfterHorizontalScroll(texts: List<String>): AccessibilityNodeInfo? {
+        if (!scrollRightOnce()) return null
+        return findClickableByText(texts = texts)
     }
 
     /**
@@ -820,6 +922,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
         } ?: false
 
         if (!tapped) {
+            // Кнопки подтверждения нет вовсе: MIUI 13 отзывает доступ прямо по чекбоксу
+            // строки («Доступ к личным данным») — подтверждаем по состоянию тумблера,
+            // но только если тумблер реально найден (иначе экран чужой).
+            val stateRoot = service.rootInActiveWindow
+            val stateNode = stateRoot?.let { findSwitchByText(it, switchTexts) }
+            val stateOk = stateNode != null &&
+                SwitchFinder.isChecked(stateNode) == step.targetChecked
+            recycleNode(stateNode); recycleNode(stateRoot)
+            if (stateOk) {
+                AppLog.i(TAG, "msa: нет кнопки подтверждения, тумблер в целевом состоянии")
+                return true
+            }
             AppLog.w(TAG, "msa: revoke button not enabled within ${waitMs}ms (step=${step.id})")
             return false
         }
@@ -917,6 +1031,129 @@ class SimpleRunner(private val service: AdbEnablerService) {
             }
         }
         return false
+    }
+
+    // ── Применимость шага: вход notif_* и чужой экран ────────────────────
+
+    /**
+     * Пакет-цель notif_*-шага: подпись приложения на экране уведомлений — признак
+     * того, что открыт именно целевой экран, а не похожий чужой.
+     */
+    internal fun resolveNotifTarget(step: SimpleSteps.Step): String? {
+        val candidates =
+            (listOfNotNull(SemanticCatalog.launchPackage(step.id)) + candidatePackages(step))
+                .distinct()
+        return candidates.firstOrNull { isInstalled(it) } ?: candidates.firstOrNull()
+    }
+
+    /**
+     * Вход notif_*-шага подтверждён: открыт экран уведомлений целевого приложения.
+     * Если нет — повторяем собственный интент шага (EXTRA_APP_PACKAGE = цель): это
+     * тот же интент, что MIUI открывает по «Уведомления» в сведениях о приложении.
+     */
+    private suspend fun verifyNotifEntry(
+        step: SimpleSteps.Step,
+        notifTarget: String?,
+        keywords: List<String>
+    ): Boolean {
+        if (isAppNotificationScreen(notifTarget, keywords)) return true
+        AppLog.w(TAG, "notif entry: экран '${step.id}' не подтверждён — повтор интента")
+        StepDiagnostics.note(step.id, "NOTIF", "entry_retry pkg=${notifTarget ?: "-"}")
+        if (!retryNotifIntent(step, notifTarget)) {
+            StepDiagnostics.note(
+                step.id, "NOTIF", "entry_intent_unavailable pkg=${notifTarget ?: "-"}"
+            )
+            return false
+        }
+        val ok = awaitEntryScreen(step, notifTarget, keywords, CONTENT_WAIT_MS)
+        if (!ok) {
+            StepDiagnostics.note(
+                step.id, "NOTIF", "entry_not_verified pkg=${notifTarget ?: "-"}"
+            )
+        }
+        return ok
+    }
+
+    /** Интент шага для конкретного пакета (EXTRA_APP_PACKAGE) — повтор входа notif_*. */
+    private fun retryNotifIntent(step: SimpleSteps.Step, notifTarget: String?): Boolean {
+        notifTarget ?: return false
+        val intent = step.intents.firstOrNull {
+            it.getStringExtra(Settings.EXTRA_APP_PACKAGE) == notifTarget
+        } ?: return false
+        return runCatching {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            service.startActivity(intent)
+            true
+        }.onFailure { AppLog.w(TAG, "notif entry retry failed: ${it.message}") }
+            .getOrDefault(false)
+    }
+
+    /**
+     * Экран уведомлений приложения: есть маркеры шага И подпись целевого приложения.
+     * Вторая проверка обязательна — на «Заблокированном экране» MIUI ключевые слова
+     * шага тоже встречаются («Показывать уведомления полностью»), а подписи
+     * приложения там нет (прогон rmu8qhjhi: notif_appvault, notif_getapps).
+     */
+    internal fun isAppNotificationScreen(pkg: String?, keywords: List<String>): Boolean {
+        if (keywords.isEmpty()) return false
+        val root = service.rootInActiveWindow ?: return false
+        val screenText = collectAllText(root)
+        recycleNode(root)
+        if (keywords.none { TextMatcher.normalizedContains(screenText, it) }) return false
+        val label = appLabel(pkg)
+        return label.isBlank() || TextMatcher.normalizedContains(screenText, label)
+    }
+
+    /** Подпись приложения (кэш в пределах прогона): «Темы», «GetApps», «Лента виджетов». */
+    private fun appLabel(pkg: String?): String {
+        pkg ?: return ""
+        appLabelCache[pkg]?.let { return it }
+        val label = runCatching {
+            val pm = service.packageManager
+            pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+        }.getOrNull().orEmpty()
+        appLabelCache[pkg] = label
+        return label
+    }
+
+    /**
+     * Проверка входного экрана: для notif_* — экран уведомлений приложения, для
+     * остальных — любой из маркеров. Неподтверждённый вход дальше не разбирается.
+     */
+    private suspend fun awaitEntryScreen(
+        step: SimpleSteps.Step,
+        notifTarget: String?,
+        markers: List<String>,
+        timeoutMs: Long
+    ): Boolean {
+        val start = System.currentTimeMillis()
+        while (true) {
+            if (cancelled) return false
+            if (step.id.startsWith(NOTIF_PREFIX)) {
+                if (isAppNotificationScreen(notifTarget, markers)) return true
+            } else if (screenHasAny(markers)) {
+                return true
+            }
+            if (System.currentTimeMillis() - start >= timeoutMs) return false
+            delay(ENTRY_POLL_MS)
+        }
+    }
+
+    /**
+     * Шаг с маршрутом через Настройки оказался в чужом приложении (лаунчер вместо
+     * Настроек) и целевых строк там нет: экрана шага на этом устройстве не существует.
+     * Возвращаем `not_applicable` (skip), а не FAIL — отчёт не должен врать
+     * (home_suggestions/appvault_* на POCO Launcher, прогон rmu8qhjhi).
+     */
+    internal fun isForeignScreenForSettingsStep(
+        step: SimpleSteps.Step,
+        resolvedPkg: String?
+    ): Boolean {
+        if (resolvedPkg != null || step.launchPackage != null) return false
+        val fg = activePackage() ?: return false
+        if (fg == SETTINGS_PACKAGE) return false
+        val targets = searchTextsFor(step) + SemanticCatalog.itemTexts(step.id)
+        return targets.isNotEmpty() && !screenHasAny(targets)
     }
 
     // ─── Switch finding and toggling ──────────────────────────────────────
@@ -1169,15 +1406,19 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val gesture = GestureDescription.Builder()
             .addStroke(GestureDescription.StrokeDescription(path, 0, 50)).build()
         return suspendCancellableCoroutine { cont ->
-            service.dispatchGesture(gesture, object : AccessibilityService.GestureResultCallback() {
-                override fun onCompleted(g: GestureDescription?) {
-                    if (cont.isActive) cont.resume(true)
-                }
+            // Жест не отправлен — сразу false, иначе шаг висит до общего таймаута
+            // (callback в этом случае никогда не вызывается).
+            val dispatched =
+                service.dispatchGesture(gesture, object : AccessibilityService.GestureResultCallback() {
+                    override fun onCompleted(g: GestureDescription?) {
+                        if (cont.isActive) cont.resume(true)
+                    }
 
-                override fun onCancelled(g: GestureDescription?) {
-                    if (cont.isActive) cont.resume(false)
-                }
-            }, null)
+                    override fun onCancelled(g: GestureDescription?) {
+                        if (cont.isActive) cont.resume(false)
+                    }
+                }, null)
+            if (!dispatched && cont.isActive) cont.resume(false)
         }
     }
 
@@ -1869,8 +2110,40 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * поиск тумблеров не прокручивали экран вовсе — «Приложения» на корне Настроек
      * и тумблеры ниже сгиба не находились (прогон rmu8lzcu9).
      */
-    internal fun findScrollableContainer(root: AccessibilityNodeInfo): AccessibilityNodeInfo? =
-        NodeTree.findInTree(root) { it.isScrollable }
+    internal fun findScrollableContainer(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val containers = NodeTree.findAllInTree(root, predicate = { it.isScrollable })
+        if (containers.isEmpty()) return null
+        // Предпочитаем вертикальный контейнер (основной список), а не строку вкладок:
+        // на экране Тем первым в дереве идёт горизонтальный таб-стрип, и прокрутка
+        // уходила в него (прогон rmu8qhjhi).
+        val vertical = containers.firstOrNull { c ->
+            val r = Rect().also { c.getBoundsInScreen(it) }
+            r.height() > r.width()
+        }
+        return vertical ?: containers.first()
+    }
+
+    /**
+     * Прокрутка вправо горизонтального контейнера: вкладка цели может быть за правым
+     * краем (Темы: вкладка «Профиль» — прогон rmu8qhjhi). Вертикальные контейнеры
+     * не трогаются.
+     */
+    private suspend fun scrollRightOnce(): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val containers = NodeTree.findAllInTree(root, predicate = { it.isScrollable })
+        val horizontal = containers.firstOrNull { c ->
+            val r = Rect().also { c.getBoundsInScreen(it) }
+            r.width() > r.height() * 2
+        }
+        val scrolled = horizontal?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true
+        containers.forEach { recycleNode(it) }
+        recycleNode(root)
+        if (scrolled) {
+            AppLog.i(TAG, "scroll: container right")
+            delay(400)
+        }
+        return scrolled
+    }
 
     /**
      * Прокрутка экрана вниз. Контейнер прокручивается action'ом, а если его нет —

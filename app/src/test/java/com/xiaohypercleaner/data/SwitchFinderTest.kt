@@ -278,4 +278,41 @@ class SwitchFinderTest {
             SwitchFinder.findSwitch(root, listOf("Персонализированная реклама"))
         )
     }
+
+    @Test
+    fun `switch is found when the first matching label is a title or a hint`() {
+        // Реальный кейс msa (дамп прогона rmu8qhjhi): тексты шага совпадают и с
+        // заголовком экрана, и с подсказкой внизу списка, и с подписью строки.
+        // Прежний поиск останавливался на ПЕРВОМ совпавшем узле: от заголовка он
+        // поднимался к контейнеру всего списка и сдавался с `ambiguous row`.
+        val title = node("android.widget.TextView", text = "Доступ к личным данным")
+        val rowLabel = node("android.widget.TextView", text = "msa")
+        val checkbox = node("android.widget.CheckBox", checked = true, checkable = true)
+        val row = node(
+            "android.widget.LinearLayout",
+            clickable = true,
+            children = arrayOf(rowLabel, checkbox)
+        )
+        val hint = node(
+            "android.widget.TextView",
+            text = "Для обеспечения безопасности аккаунта выполните вход, если вы хотите отозвать разрешения"
+        )
+        val list = node("android.widget.ListView", children = arrayOf(title, row, hint))
+        val root = node("android.widget.FrameLayout", children = arrayOf(list))
+        link(root, list)
+        link(list, title, row, hint)
+        link(row, rowLabel, checkbox)
+        withBounds(title, 193, 133, 887, 209)
+        withBounds(rowLabel, 253, 278, 825, 345)
+        withBounds(checkbox, 866, 251, 1000, 388)
+        withBounds(row, 80, 251, 1000, 388)
+        withBounds(hint, 80, 2131, 1000, 2242)
+        withBounds(list, 0, 251, 1080, 2270)
+
+        assertEquals(
+            "тумблер строки «msa» должен находиться несмотря на совпавшие заголовок и подсказку",
+            checkbox,
+            SwitchFinder.findSwitch(root, listOf("Доступ к личным данным", "Отозвать", "msa"))
+        )
+    }
 }

@@ -79,6 +79,8 @@ required manual console commands:
 - 🌙 **Dark theme** — follows system settings
 - 🗂 **Home folder suggestions** — Simple mode opens a folder and turns off "Recommended today" (MIUI/HyperOS launcher)
 -  **App scan on install** — Simple mode opens the installer settings and turns off "Receive recommendations" (no APK is installed)
+- **Not applicable is not a failure** — if the screen or rows of a step do not exist on the device (e.g. another launcher's settings), the step is marked as not applicable
+- **Notifications only on the app's own screen** — the notification step verifies the entry by the app label and never touches a foreign screen
 
 ---
 
@@ -295,13 +297,15 @@ app/src/main/res/
 
 app/src/test/java/com/xiaohypercleaner/
 ├── data/
-│   ├── AdaptiveCatalogTest.kt    # 9 tests
-│   ├── OptimizationEngineTest.kt # 10 tests
+│   ├── AdaptiveCatalogTest.kt    # 16 tests
+│   ├── OptimizationEngineTest.kt # 14 tests
 │   ├── AdbPortResolverTest.kt    # 5 tests
-│   ├── RomProfileTest.kt         # 2 tests
-│   └── SimpleStepsTest.kt        # 5 tests
+│   ├── RomProfileTest.kt         # 5 tests
+│   └── SimpleStepsTest.kt        # 6 tests
 ├── service/
-│   └── SimpleRunnerClearDataTest.kt # 2 tests
+│   └── SimpleRunnerDrillTest.kt  # 4 tests (drill level verification)
+│   ├── SimpleRunnerApplicabilityTest.kt # 5 tests (not applicable steps, notif_* entry)
+SimpleRunnerClearDataTest.kt # 2 tests
 ├── ui/
 │   └── MainViewModelTest.kt      # 8 tests (Robolectric)
 └── util/
@@ -364,7 +368,7 @@ app/src/test/java/com/xiaohypercleaner/
 
 ## 🧪 Testing
 
-### Unit Tests (183 tests, 24 suites)
+### Unit Tests (197 tests, 26 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -381,13 +385,15 @@ app/src/test/java/com/xiaohypercleaner/
 | `SemanticGateTest`            | 6     | Confidence gate                                    |
 | `PlanBuilderTest`             | 7     | Plan pre-filter + red list                         |
 | `ManualStepsTest`             | 4     | Manual checklist: 7-locale parity                  |
-| `SwitchFinderTest`            | 11    | Toggles, checked_before, foreign row rejection     |
+| `SwitchFinderTest`            | 14    | Toggles, checked_before, foreign row rejection     |
 | `ConsentWallTest`             | 20    | Dialogs: force-stop, default app, consent          |
 | `SimpleRunnerMsaResumeTest`   | 5     | Drill resume + msa revoke confirmation             |
 | `SimpleRunnerClearDataTest`   | 2     | CLEAR_DATA_DECLINE without false success           |
-| `SimpleRunnerFolderTest`      | 6     | Home folder search (structural markers)            |
+| `SimpleRunnerFolderTest`      | 8     | Home folder search (structural markers)            |
 | `SimpleRunnerInstallerTest`   | 3     | Installer settings route, no APK install           |
 | `SimpleRunnerScrollTest`      | 2     | Scroll container lookup                            |
+| `SimpleRunnerDrillTest`       | 4     | Drill level verification (route, menu)             |
+| `SimpleRunnerApplicabilityTest` | 5   | Not applicable steps, notif_* entry                |
 | `ScanOrchestratorTest`        | 4     | Navigation planning, cache                         |
 | `ScreenCrawlerTest`           | 6     | Screen crawler (diagnostics)                       |
 | `ActivityScannerTest`         | 8     | Package/activity visibility                        |
