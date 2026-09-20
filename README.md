@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 217 тестов (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 219 тестов (полная таблица ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 тестов
 │   ├── OptimizationEngineTest.kt # 14 тестов
@@ -388,7 +388,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 217 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (217 тестов, 30 сьютов)
+### Unit-тесты (219 тестов, 30 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -415,7 +415,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 217 тест
 | `SimpleRunnerFolderTest`      | 11     | Поиск папок рабочего стола (структурный признак)   |
 | `SimpleRunnerInstallerTest`   | 3      | Настройки установщика, запрет установки APK        |
 | `SimpleRunnerScrollTest`      | 2      | Поиск контейнера прокрутки                         |
-| `SimpleRunnerDrillTest`       | 7      | Проверка уровней бурения (маршрут, меню, смена экрана) |
+| `SimpleRunnerDrillTest`       | 8      | Проверка уровней бурения (маршрут, меню, альтернативные узлы) |
 | `SimpleRunnerApplicabilityTest` | 5    | Неприменимые шаги, вход notif_*                    |
 | `SimpleRunnerAppEntryTest`    | 4      | Готовность экрана приложения перед бурением        |
 | `ScanOrchestratorTest`        | 4      | Планирование навигации, кэш                        |
@@ -423,7 +423,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 217 тест
 | `ActivityScannerTest`         | 8      | Видимость пакетов и активностей                    |
 | `RomProfileTest`              | 5      | Профиль ROM: регион, family, версия                |
 | `SimpleStepsTest`             | 6      | Карта шагов Простого режима                        |
-| `MainViewModelTest`           | 8      | UI-логика (Robolectric)                            |
+| `MainViewModelTest`           | 9      | UI-логика, отчёт «уже выключено» (Robolectric)     |
 | `LogMaskerTest`               | 15     | Маскировка IP, токенов, путей                      |
 | `TextMatcherTest`             | 10     | Нормализация и нечёткое сравнение текстов          |
 

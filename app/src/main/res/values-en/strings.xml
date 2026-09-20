@@ -298,6 +298,7 @@
     <string name="result_skipped">Skipped (not on device): %d</string>
     <string name="result_failed">Couldn\'t complete (system-protected): %d</string>
     <string name="result_notif_title">Notifications turned off:</string>
+    <string name="result_already_off_title">Already off (verified):</string>
     <string name="result_manual_title">For the best result, do manually</string>
     <string name="result_manual_expand">show</string>
     <string name="result_manual_collapse">hide</string>

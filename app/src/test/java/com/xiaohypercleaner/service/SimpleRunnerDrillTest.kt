@@ -1,5 +1,6 @@
 package com.xiaohypercleaner.service
 
+import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.data.AdaptiveCatalog
 import com.xiaohypercleaner.data.RomFamily
@@ -220,6 +221,52 @@ class SimpleRunnerDrillTest {
             runner.drillIntoLevel(step("getapps"), 2, listOf("Конфиденциальность", "Privacy"))
         )
         assertTrue("отсутствие уровня — признак неприменимости", runner.lastDrillLevelNotFound)
+    }
+
+    @Test
+    fun `second level node is tried when the first opens a wrong screen`() = runTest {
+        // GetApps: в профиле несколько подписей «Настройки» — первая открывает нативные
+        // настройки магазина (без «Конфиденциальности»), вторая («гайка») — нужный экран.
+        val wrongScreen = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(node(text = "Настройки"), node(text = "Уведомления"))
+        )
+        val rightScreen = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(
+                node(text = "Настройки"),
+                node(text = "Конфиденциальность"),
+                node(text = "Персональные рекомендации")
+            )
+        )
+        val first = node(text = "Настройки", clickable = true)
+        val second = node(text = "Настройки", clickable = true)
+        val base = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(node(text = "Профиль"), first, second)
+        )
+        var current: AccessibilityNodeInfo = base
+        Mockito.`when`(service.rootInActiveWindow).thenAnswer { current }
+        Mockito.`when`(first.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenAnswer {
+            current = wrongScreen
+            true
+        }
+        Mockito.`when`(second.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenAnswer {
+            current = rightScreen
+            true
+        }
+        Mockito.`when`(service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK))
+            .thenAnswer {
+                current = base
+                true
+            }
+
+        val path = listOf(listOf("Профиль"), listOf("Настройки"), listOf("Конфиденциальность"))
+
+        assertTrue(
+            "альтернативный узел уровня должен быть опробован",
+            runner.drillIntoLevel(step("getapps"), 1, path[1], path)
+        )
     }
 
     @Test

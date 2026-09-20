@@ -47,6 +47,20 @@ class MainViewModelTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
+    fun `already off steps are collected once as verified state`() {
+        // Отчёт должен различать «выключено сейчас» и «было выключено»: пользователь
+        // просит видеть фактическое состояние тумблеров (GetApps: рекомендации уже off).
+        vm.simpleController.noteAlreadyOff("getapps")
+        vm.simpleController.noteAlreadyOff("getapps")
+        vm.simpleController.noteAlreadyOff("cleaner")
+
+        assertEquals(
+            listOf("getapps", "cleaner"),
+            vm.simpleController.snapshot.alreadyOffStepIds
+        )
+    }
+
+    @Test
     fun `initial state is clean`() {
         val state = vm.state.value
 

@@ -65,7 +65,13 @@ class SimpleModeController(
         val failedStepIds: List<String> = emptyList(),
         val skippedStepIds: List<String> = emptyList(),
         /** Реально переключённые notif_*-шаги: список для экрана результатов (Аддендум C3). */
-        val notifToggledStepIds: List<String> = emptyList()
+        val notifToggledStepIds: List<String> = emptyList(),
+        /**
+         * Шаги, где тумблер УЖЕ был в целевом состоянии (reason=already_off/already_done):
+         * ничего не меняли, но состояние проверено — пользователь должен видеть разницу
+         * между «выключено сейчас» и «было выключено».
+         */
+        val alreadyOffStepIds: List<String> = emptyList()
     )
 
     val isActive: Boolean get() = state.active
@@ -83,6 +89,8 @@ class SimpleModeController(
     private fun checkOverlay(): Boolean = Settings.canDrawOverlays(context)
 
     private var state: SimpleModeState = SimpleModeState()
+    /** Снимок состояния контроллера (тесты отчёта: какие шаги проверены как «уже выключено»). */
+    internal val snapshot: SimpleModeState get() = state
     private var isAccessibilityEnabled: Boolean = checkAccessibility()
     private var isOverlayGranted: Boolean = checkOverlay()
     private var stepAttempt: Int = 1
@@ -96,6 +104,7 @@ class SimpleModeController(
     private val failedIds: MutableList<String> = mutableListOf()
     private val skippedIds: MutableList<String> = mutableListOf()
     private val notifToggledIds: MutableList<String> = mutableListOf()
+    private val alreadyOffIds: MutableList<String> = mutableListOf()
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private var restrictedLocation: RestrictedLocation = RestrictedLocation.UNKNOWN
@@ -172,6 +181,7 @@ class SimpleModeController(
         failedIds.clear()
         skippedIds.clear()
         notifToggledIds.clear()
+        alreadyOffIds.clear()
         stepAttempt = 1
         stepsStarted = false
         restrictedLocation = RestrictedLocation.UNKNOWN
@@ -393,7 +403,7 @@ class SimpleModeController(
     }
 
     /** Локализованное имя notif_*-шага для экрана результатов. */
-    private fun notifStepTitle(id: String): String {
+    private fun stepTitle(id: String): String {
         val legacy = SimpleSteps.ALL.firstOrNull { it.id == id }
         val fallback = when (Locale.getDefault().language) {
             "ru" -> legacy?.titleRu ?: id
@@ -540,6 +550,18 @@ class SimpleModeController(
         setState { copy(notifToggledStepIds = notifToggledIds.toList()) }
     }
 
+    /**
+     * Регистрирует шаг, тумблер которого УЖЕ был в целевом состоянии: робот ничего
+     * не менял, но факт проверен в снапшоте отката. Раздел «уже выключено» на экране
+     * результатов — чтобы пользователь видел состояние, а не догадывался.
+     */
+    fun noteAlreadyOff(stepId: String) {
+        if (alreadyOffIds.contains(stepId)) return
+        alreadyOffIds.add(stepId)
+        AppLog.i(TAG, "already off: step=$stepId total=${alreadyOffIds.size}")
+        setState { copy(alreadyOffStepIds = alreadyOffIds.toList()) }
+    }
+
     private fun scheduleAdvance() {
         autoFlowJob?.cancel()
         autoFlowJob = scope.launch {
@@ -577,7 +599,8 @@ class SimpleModeController(
             }
             OverlayController.showResult(
                 context, finalCompleted, applicable, failedIds.size, skippedIds.size,
-                notifToggledIds.map { notifStepTitle(it) }
+                notifToggledIds.map { stepTitle(it) },
+                alreadyOffIds.map { stepTitle(it) }
             )
             return
         }
@@ -748,6 +771,7 @@ class SimpleModeController(
         failedIds.clear()
         skippedIds.clear()
         notifToggledIds.clear()
+        alreadyOffIds.clear()
         stepAttempt = 1
         stepsStarted = false
         SimplePlan.reset()

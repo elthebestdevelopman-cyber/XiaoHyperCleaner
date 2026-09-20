@@ -287,6 +287,7 @@
     <string name="result_skipped">Пропущено (нет на устройстве): %d</string>
     <string name="result_failed">Не получилось (защищено системой): %d</string>
     <string name="result_notif_title">Уведомления отключены:</string>
+    <string name="result_already_off_title">Уже было выключено (проверено):</string>
     <string name="result_manual_title">Для максимального результата вручную</string>
     <string name="result_manual_expand">показать</string>
     <string name="result_manual_collapse">скрыть</string>

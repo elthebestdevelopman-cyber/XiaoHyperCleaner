@@ -57,6 +57,7 @@ class OverlayService : Service() {
         const val EXTRA_FAILED = "failed"
         const val EXTRA_SKIPPED = "skipped"
         const val EXTRA_NOTIF_STEPS = "notif_steps"
+        const val EXTRA_ALREADY_OFF_STEPS = "already_off_steps"
         private const val HEARTBEAT_INTERVAL_MS = 500L
 
         /** Каждый N-й удар heartbeat пишет alive-строку в лог (2 с при 500 мс). */
@@ -172,7 +173,8 @@ class OverlayService : Service() {
                 intent.getIntExtra(EXTRA_TOTAL, 0),
                 intent.getIntExtra(EXTRA_FAILED, 0),
                 intent.getIntExtra(EXTRA_SKIPPED, 0),
-                intent.getStringExtra(EXTRA_NOTIF_STEPS).orEmpty()
+                intent.getStringExtra(EXTRA_NOTIF_STEPS).orEmpty(),
+                intent.getStringExtra(EXTRA_ALREADY_OFF_STEPS).orEmpty()
             )
         }
         return START_NOT_STICKY
@@ -284,7 +286,8 @@ class OverlayService : Service() {
         total: Int,
         failed: Int,
         skipped: Int,
-        notifSteps: String
+        notifSteps: String,
+        alreadyOffSteps: String
     ) {
         stopHeartbeat()
         hide()
@@ -310,6 +313,18 @@ class OverlayService : Service() {
                 llWrap().apply { topMargin = dp(10) }
             )
             notifTitles.forEach { title ->
+                layout.addView(bodyText("• $title", small = true), llWrap().apply { topMargin = dp(2) })
+            }
+        }
+        // «Уже выключено»: состояние проверено, но менять было нечего — важно отличать
+        // от «выключено сейчас» (запрос владельца: точно знать, что отключено).
+        val alreadyOffTitles = alreadyOffSteps.split('\n').filter { it.isNotBlank() }.take(NOTIF_LIST_MAX)
+        if (alreadyOffTitles.isNotEmpty()) {
+            layout.addView(
+                titleText(getString(R.string.result_already_off_title), 14f, bold = true),
+                llWrap().apply { topMargin = dp(10) }
+            )
+            alreadyOffTitles.forEach { title ->
                 layout.addView(bodyText("• $title", small = true), llWrap().apply { topMargin = dp(2) })
             }
         }

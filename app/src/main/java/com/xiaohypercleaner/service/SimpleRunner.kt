@@ -202,6 +202,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
     /** Scroll-until-found для уровней drill: до 4 прокруток на уровень. */
     private const val DRILL_SCROLL_TRIES = 4
 
+    /** Сколько совпавших узлов уровня пробуем, прежде чем признать уровень непройденным. */
+    private const val DRILL_LEVEL_ATTEMPTS = 3
+
     /** Повторы уровня drill после закрытия всплывшего диалога (permission целевого приложения). */
     private const val DRILL_CONSENT_RETRIES = 2
         private const val FRESH_DEVICE_DISMISS_LIMIT = 3
@@ -870,15 +873,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
             return true
         }
 
-        val node = findClickableByTextWithScroll(
-            levelTexts,
-            attempts = DRILL_SCROLL_TRIES,
-            logLabel = levelTexts.firstOrNull { it.isNotBlank() }
-        ) ?: findAfterHorizontalScroll(levelTexts)
+        val candidates = levelCandidates(levelTexts)
 
-        if (node == null) {
-            // Уровень отсутствует на экране вовсе (GetApps: «Конфиденциальность» в
-            // настройках 20.4.5 нет) — это признак неприменимости шага, а не сбоя тапа.
+        if (candidates.isEmpty()) {
+            // Уровень отсутствует на экране вовсе (GetApps: раздела «Конфиденциальность»
+            // в нативных настройках 20.4.5 нет) — признак неприменимости, а не сбоя тапа.
             lastDrillLevelNotFound = true
             AppLog.w(
                 TAG,
@@ -888,28 +887,70 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
         lastDrillLevelNotFound = false
 
-        if (!tapNode(node)) {
-            recycleNode(node); return false
+        // Перебор совпавших узлов уровня: на экране бывает НЕСКОЛЬКО подписей «Настройки»,
+        // и первая ведёт не туда (GetApps: профиль → нативные настройки магазина вместо
+        // «гайки» с экраном «Конфиденциальность» → шаг падал drill_failed, прогон rmua2sd7x).
+        var attempt = 0
+        for (candidate in candidates) {
+            attempt++
+            if (attempt > 1 && !returnToDrillBase(screenText)) break
+            val rect = Rect().also { candidate.getBoundsInScreen(it) }
+            val tapped = tapNode(candidate)
+            recycleNode(candidate)
+            if (!tapped) continue
+            if (levelLanded(nextTexts, screenText)) return true
+            if (tapAt(rect.centerX(), rect.centerY())) {
+                delay(UI_SETTLE_DELAY_MS)
+                if (levelLanded(nextTexts, screenText)) return true
+            }
         }
-        // Координаты тапа — для повторной попытки, если первый тап не дал эффекта.
-        val tappedRect = Rect().also { node.getBoundsInScreen(it) }
-        recycleNode(node)
-
-        if (nextTexts.isNotEmpty()) return awaitScreen(nextTexts)
-        // Последний уровень маршрута: подтверждаем ФАКТОМ смены экрана. Прежний
-        // `return true` без проверки давал «пройденный» уровень при несостоявшемся
-        // тапе (Загрузки: пункт «Настройки» в меню ⋮ не открыл экран, шаг пошёл
-        // искать тумблер в самом меню → switch_not_found, прогон rmua2sd7x).
-        if (screenChangedSince(screenText)) return true
         AppLog.w(
             TAG,
-            "drill: '${levelTexts.firstOrNull()}' tapped but screen unchanged — retap by coordinates"
+            "drill: '${levelTexts.firstOrNull()}' not passed after $attempt attempt(s) " +
+                "(screen=[${screenText.take(80)}])"
         )
-        if (tapAt(tappedRect.centerX(), tappedRect.centerY())) {
-            delay(UI_SETTLE_DELAY_MS)
-            if (screenChangedSince(screenText)) return true
-        }
         return false
+    }
+
+    /** Уровень пройден: виден следующий уровень либо экран фактически сменился. */
+    private suspend fun levelLanded(nextTexts: List<String>, baseScreenText: String): Boolean =
+        if (nextTexts.isNotEmpty()) awaitScreen(nextTexts) else screenChangedSince(baseScreenText)
+
+    /**
+     * Кандидаты-узлы уровня: первый — обычным путём (scroll-until-found и
+     * горизонтальный скролл), затем остальные совпавшие кликабельные подписи.
+     */
+    private suspend fun levelCandidates(levelTexts: List<String>): List<AccessibilityNodeInfo> {
+        val primary = findClickableByTextWithScroll(
+            levelTexts,
+            attempts = DRILL_SCROLL_TRIES,
+            logLabel = levelTexts.firstOrNull { it.isNotBlank() }
+        ) ?: findAfterHorizontalScroll(levelTexts)
+        val root = service.rootInActiveWindow ?: return listOfNotNull(primary)
+        val all = NodeTree.findAllInTree(root = root, predicate = { node ->
+            node.isClickable && NodeTree.matchesAny(node, levelTexts)
+        })
+        recycleNode(root)
+        val result = ArrayList<AccessibilityNodeInfo>(DRILL_LEVEL_ATTEMPTS)
+        if (primary != null) result.add(primary)
+        for (node in all) {
+            if (result.size >= DRILL_LEVEL_ATTEMPTS) { recycleNode(node); continue }
+            if (result.none { it === node || it == node }) result.add(node) else recycleNode(node)
+        }
+        return result
+    }
+
+    /** Возврат на исходный экран уровня после неудачной попытки альтернативного узла. */
+    private suspend fun returnToDrillBase(baseScreenText: String): Boolean {
+        if (!screenChangedSince(baseScreenText)) return true
+        AppLog.i(TAG, "drill: возврат назад после альтернативного узла уровня")
+        pressBack()
+        delay(UI_SETTLE_DELAY_MS)
+        return !screenChangedSince(baseScreenText)
+    }
+
+    private suspend fun pressBack() {
+        runCatching { service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK) }
     }
 
     /** Экран изменился с момента снятия подписи [before] (для подтверждения уровня). */

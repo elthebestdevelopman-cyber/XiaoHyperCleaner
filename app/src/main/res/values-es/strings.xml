@@ -308,6 +308,7 @@
     <string name="result_skipped">Omitidos (no en el dispositivo): %d</string>
     <string name="result_failed">No se pudo completar (protegido por el sistema): %d</string>
     <string name="result_notif_title">Notificaciones desactivadas:</string>
+    <string name="result_already_off_title">Ya estaba desactivado (verificado):</string>
     <string name="result_manual_title">Para un resultado máximo, hazlo a mano</string>
     <string name="result_manual_expand">mostrar</string>
     <string name="result_manual_collapse">ocultar</string>

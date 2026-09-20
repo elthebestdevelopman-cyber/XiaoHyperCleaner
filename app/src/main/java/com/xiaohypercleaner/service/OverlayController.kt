@@ -124,13 +124,15 @@ object OverlayController {
         total: Int,
         failed: Int,
         skipped: Int,
-        notifSteps: List<String> = emptyList()
+        notifSteps: List<String> = emptyList(),
+        /** Шаги, где тумблер уже был выключен: ничего не меняли, но состояние проверено. */
+        alreadyOffSteps: List<String> = emptyList()
     ) {
         endPhase()
         AppLog.i(
             TAG,
             "showResult: $completed/$total, failed=$failed, skipped=$skipped " +
-                "notif=${notifSteps.size} caller=${callerName()}"
+                "notif=${notifSteps.size} alreadyOff=${alreadyOffSteps.size} caller=${callerName()}"
         )
         ctx.startService(
             intent(ctx, OverlayService.ACTION_RESULT)
@@ -139,6 +141,7 @@ object OverlayController {
                 .putExtra(OverlayService.EXTRA_FAILED, failed)
                 .putExtra(OverlayService.EXTRA_SKIPPED, skipped)
                 .putExtra(OverlayService.EXTRA_NOTIF_STEPS, notifSteps.joinToString("\n"))
+                .putExtra(OverlayService.EXTRA_ALREADY_OFF_STEPS, alreadyOffSteps.joinToString("\n"))
         )
     }
 

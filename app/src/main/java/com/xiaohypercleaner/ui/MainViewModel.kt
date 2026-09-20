@@ -112,6 +112,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
             }
+            // Уже выключено: состояние проверено, менять нечего — показываем отдельным
+            // разделом на экране результатов, чтобы пользователь знал фактическую картину.
+            if (success && (reason == "already_off" || reason == "already_done")) {
+                _state.value.simpleStep?.step?.id?.let { simpleController.noteAlreadyOff(it) }
+            }
             onSimpleStepResult(success)
         }
 

@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 30 suites, 217 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 30 suites, 219 tests (full table below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 tests
 │   ├── OptimizationEngineTest.kt # 14 tests
@@ -370,7 +370,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 suites, 217 tests (full ta
 
 ## 🧪 Testing
 
-### Unit Tests (217 tests, 30 suites)
+### Unit Tests (219 tests, 30 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -397,7 +397,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 suites, 217 tests (full ta
 | `SimpleRunnerFolderTest`      | 11    | Home folder search (structural markers)            |
 | `SimpleRunnerInstallerTest`   | 3     | Installer settings route, no APK install           |
 | `SimpleRunnerScrollTest`      | 2     | Scroll container lookup                            |
-| `SimpleRunnerDrillTest`       | 7     | Drill level verification (route, menu, screen change) |
+| `SimpleRunnerDrillTest`       | 8     | Drill level verification (route, menu, alternative nodes) |
 | `SimpleRunnerApplicabilityTest` | 5   | Not applicable steps, notif_* entry                |
 | `SimpleRunnerAppEntryTest`    | 4     | App screen readiness before drilling              |
 | `ScanOrchestratorTest`        | 4     | Navigation planning, cache                         |
@@ -405,7 +405,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 suites, 217 tests (full ta
 | `ActivityScannerTest`         | 8     | Package/activity visibility                        |
 | `RomProfileTest`              | 5     | ROM profile: region, family, version               |
 | `SimpleStepsTest`             | 6     | Simple mode step map                               |
-| `MainViewModelTest`           | 8     | UI logic (Robolectric)                             |
+| `MainViewModelTest`           | 9     | UI logic, already-off report (Robolectric)         |
 | `LogMaskerTest`               | 15    | IP, token, path masking                            |
 | `TextMatcherTest`             | 10    | Text normalization and fuzzy matching              |
 
