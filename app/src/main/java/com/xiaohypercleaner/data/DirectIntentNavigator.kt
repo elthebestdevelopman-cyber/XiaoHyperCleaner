@@ -173,18 +173,6 @@ object DirectIntentNavigator {
                 )
             }
 
-            "home_suggestions" -> {
-                // Предложения на рабочем столе
-                intents.addAll(
-                    listOf(
-                        miuiIntent("miui.intent.action.HOME_SETTINGS"),
-                        settingsIntent("android.settings.HOME_SETTINGS"),
-                        settingsIntent(Settings.ACTION_HOME_SETTINGS),
-                        settingsIntent(Settings.ACTION_SETTINGS)
-                    )
-                )
-            }
-
             // ═══════════════════════════════════════════════════════════
             // БЛОК Б: ВНУТРИ ПРИЛОЖЕНИЙ
             // ═══════════════════════════════════════════════════════════
@@ -228,11 +216,15 @@ object DirectIntentNavigator {
             }
 
             "security_sys" -> {
-                // Безопасность — рекомендации
-                val pkg = resolvedPackage ?: "com.miui.securitycenter"
+                // Безопасность — рекомендации: целевой экран («РЕКОМЕНДАЦИИ → Получать
+                // рекомендации», «Загружать только по Wi-Fi») — это
+                // com.miui.securityscan.ui.settings.SettingsActivity. Он объявлен с действием
+                // miui.intent.action.APP_SETTINGS (дамп sec_settings_gear) — тем же, которым
+                // ходит путь «Настройки → Приложения → Системные приложения», поэтому drill
+                // «гайка» больше не обязателен.
+                intents.addAll(securitySettingsIntents())
                 intents.addAll(
                     listOf(
-                        launchIntent(pkg),
                         launchIntent("com.miui.securitycenter"),
                         launchIntent("com.miui.securitycore")
                     )
@@ -240,25 +232,49 @@ object DirectIntentNavigator {
             }
 
             "cleaner" -> {
-                // Очистка — рекомендации
-                val pkg = resolvedPackage ?: "com.miui.securitycenter"
+                // Очистка — рекомендации: СВОЙ экран в СВОЁМ пакете
+                // (com.miui.cleaner/com.miui.optimizecenter.settings.SettingsActivity,
+                // «Настройки очистки», блок «РЕКОМЕНДАЦИИ»; дамп sec_cleaner). Прежний
+                // resolvedPackage = com.miui.securitycenter вёл в Безопасность — чужой экран
+                // с теми же строками (прогон rmua2sd7x: cleaner упал на маркерах чужого
+                // экрана, security_sys искал тумблер там, где его нет).
+                intents.addAll(cleanerSettingsIntents())
                 intents.addAll(
                     listOf(
-                        launchIntent(pkg),
+                        launchIntent("com.miui.cleaner"),
                         launchIntent("com.miui.securitycenter"),
-                        launchIntent("com.miui.cleaner")
+                        launchIntent("com.miui.securitycore")
                     )
                 )
             }
 
             "downloads" -> {
-                // Загрузки — рекомендации
+                // Загрузки — рекомендации. Экран настроек («Получать рекомендации»,
+                // «Отзыв согласия»; дамп dl_settings) открывается из ⋮ → «Настройки»,
+                // поэтому точкой входа служит сам список Загрузок: неявный
+                // VIEW_DOWNLOADS даёт диалог выбора («Загрузки» / «Файлы»), а с явным
+                // пакетом и компонентой резолвится однозначно.
+                intents.addAll(downloadListIntents())
                 val pkg = resolvedPackage ?: "com.android.providers.downloads.ui"
                 intents.addAll(
                     listOf(
                         launchIntent(pkg),
-                        launchIntent("com.android.providers.downloads.ui"),
                         launchIntent("com.miui.android.downloads")
+                    )
+                )
+            }
+
+            "home_suggestions" -> {
+                // Лента виджетов (App Vault) — настройки лаунчера. У POCO Launcher
+                // (com.mi.android.globallauncher, дамп home_settings_desktop) это
+                // «Рабочий стол» → «Включить Ленту виджетов»; в системных Настройках
+                // пункта «Рабочий стол» на POCO нет, поэтому входим прямо в настройки
+                // лаунчера. Путь MIUI Home остаётся через drill в каталоге.
+                intents.addAll(launcherSettingsIntents())
+                intents.addAll(
+                    listOf(
+                        miuiIntent("miui.intent.action.HOME_SETTINGS"),
+                        settingsIntent(Settings.ACTION_HOME_SETTINGS)
                     )
                 )
             }
@@ -284,10 +300,12 @@ object DirectIntentNavigator {
                 // бурение «Профиль → Настройки → Конфиденциальность» не требуется.
                 // Первый узел «Настройки» в профиле ведёт на нативный MarketPreferenceActivity,
                 // где «Конфиденциальности» нет вовсе (прогон rmua2sd7x: drill_failed).
-                explicitActivity(
-                    "com.xiaomi.mipicks",
-                    "com.xiaomi.market.ui.PrivacyPreferenceFragmentActivity"
-                )?.let { intents.add(it) }
+                intents.add(
+                    explicitActivity(
+                        "com.xiaomi.mipicks",
+                        "com.xiaomi.market.ui.PrivacyPreferenceFragmentActivity"
+                    )
+                )
                 val pkg = resolvedPackage ?: "com.xiaomi.market"
                 intents.addAll(
                     listOf(
@@ -537,10 +555,71 @@ object DirectIntentNavigator {
      * проверяется через PackageManager и ставится первым интентом, когда drill по UI
      * упирается в неоднозначные «Настройки» внутри приложения.
      */
-    internal fun explicitActivity(packageName: String, className: String): Intent? =
+    internal fun explicitActivity(packageName: String, className: String): Intent =
         Intent().setComponent(android.content.ComponentName(packageName, className)).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
+
+    /**
+     * Экран «Настройки безопасности» (`com.miui.securitycenter`): точка входа — действие
+     * `APP_SETTINGS` (по нему же открывается из системных Настроек → Приложения →
+     * Системные приложения), плюс спец-действие и явная активность как страховка.
+     */
+    internal fun securitySettingsIntents(): List<Intent> = listOf(
+        // Внимание: `miui.intent.action.APP_SETTINGS` из фильтра этой активности НЕ
+        // резолвится неявным интентом (в фильтре нет CATEGORY_DEFAULT — проверено
+        // `am start -a` на устройстве: "unable to resolve"). Пригодны спец-действие и
+        // явная компонента.
+        actionIntent("com.miui.securitycenter.action.SECURITYCENTER_SETTINGS", "com.miui.securitycenter"),
+        explicitActivity(
+            "com.miui.securitycenter",
+            "com.miui.securityscan.ui.settings.SettingsActivity"
+        )
+    )
+
+    /**
+     * Экран «Настройки очистки» (`com.miui.cleaner`): действие
+     * `GARBAGE_CLEANUP_SETTINGS` + явная активность. Отдельный пакет — отдельный тумблер
+     * «Получать рекомендации» (одноимённая строка есть и в Безопасности).
+     */
+    internal fun cleanerSettingsIntents(): List<Intent> = listOf(
+        actionIntent("com.miui.securitycenter.action.GARBAGE_CLEANUP_SETTINGS", "com.miui.cleaner"),
+        explicitActivity("com.miui.cleaner", "com.miui.optimizecenter.settings.SettingsActivity")
+    )
+
+    /** Intent по действию с явным пакетом (без MAIN/LAUNCHER). */
+    private fun actionIntent(action: String, packageName: String): Intent =
+        Intent(action).setPackage(packageName).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+
+    /**
+     * Список Загрузок (`com.android.providers.downloads.ui`): неявный VIEW_DOWNLOADS
+     * показывает диалог «Что использовать?» («Загрузки» / «Файлы», дамп resolver_now),
+     * поэтому пакет задан явно, а компонента `DownloadList` — страховка.
+     */
+    internal fun downloadListIntents(): List<Intent> = listOf(
+        actionIntent("android.intent.action.VIEW_DOWNLOADS", "com.android.providers.downloads.ui"),
+        explicitActivity(
+            "com.android.providers.downloads.ui",
+            "com.android.providers.downloads.ui.DownloadList"
+        )
+    )
+
+    /**
+     * Настройки лаунчера: у POCO Launcher (`com.mi.android.globallauncher`, дамп
+     * home_settings_desktop) — действие `com.mi.android.globallauncher.Setting` и
+     * `HomeSettingsActivity`; у MIUI Home — та же активность в `com.miui.home`.
+     * Пункта «Рабочий стол» в системных Настройках на POCO нет.
+     */
+    internal fun launcherSettingsIntents(): List<Intent> = listOf(
+        actionIntent("com.mi.android.globallauncher.Setting", "com.mi.android.globallauncher"),
+        explicitActivity(
+            "com.mi.android.globallauncher",
+            "com.miui.home.settings.HomeSettingsActivity"
+        ),
+        explicitActivity("com.miui.home", "com.miui.home.settings.HomeSettingsActivity")
+    )
 
     /**
      * Создаёт Intent для открытия экрана деталей приложения.

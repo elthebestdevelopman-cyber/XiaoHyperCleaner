@@ -412,7 +412,7 @@
             ["Прочие настройки", "Additional settings", "Advanced settings"]
           ],
           "screenMarkers": {
-            "ru": ["Прочие настройки", "Приложения"],
+            "ru": ["Прочие настройки", "Приложения", "Приложения по умолчанию", "Сбросить настройки приложений"],
             "en": ["Additional settings", "Apps"],
             "zh": ["其他设置"],
             "es": ["Ajustes adicionales"]
@@ -438,7 +438,7 @@
             ["Прочие настройки", "Additional settings"]
           ],
           "screenMarkers": {
-            "ru": ["Прочие настройки", "Приложения"],
+            "ru": ["Прочие настройки", "Приложения", "Приложения по умолчанию", "Сбросить настройки приложений"],
             "en": ["Additional settings", "Apps"],
             "zh": ["其他设置"]
           },
@@ -1015,14 +1015,14 @@
           "fallback": true,
           "drillPath": [
             ["Главный экран", "Рабочий стол", "Home screen"],
-            ["Лента виджетов", "App Vault"]
+            ["Лента виджетов", "Включить Ленту виджетов", "App Vault"]
           ],
           "screenMarkers": {
-            "ru": ["Главный экран", "Лента виджетов"],
+            "ru": ["Главный экран", "Лента виджетов", "Включить Ленту виджетов"],
             "en": ["Home screen", "App Vault"]
           },
           "itemTexts": {
-            "ru": ["Лента виджетов"],
+            "ru": ["Лента виджетов", "Включить Ленту виджетов"],
             "en": ["App Vault"],
             "es": ["App Vault"],
             "zh": ["小部件面板"],
@@ -1037,14 +1037,14 @@
           "fallback": false,
           "drillPath": [
             ["Рабочий стол", "Home screen"],
-            ["Лента виджетов", "Показывать предложения", "App Vault", "Show suggestions"]
+            ["Лента виджетов", "Показывать предложения", "Включить Ленту виджетов", "App Vault", "Show suggestions"]
           ],
           "screenMarkers": {
-            "ru": ["Рабочий стол", "Лента виджетов"],
+            "ru": ["Рабочий стол", "Лента виджетов", "Включить Ленту виджетов"],
             "en": ["Home screen", "App Vault"]
           },
           "itemTexts": {
-            "ru": ["Лента виджетов", "Показывать предложения"],
+            "ru": ["Лента виджетов", "Показывать предложения", "Включить Ленту виджетов"],
             "en": ["App Vault", "Show suggestions"],
             "es": ["App Vault", "Mostrar sugerencias"],
             "zh": ["小部件面板", "显示建议"],
@@ -1059,11 +1059,11 @@
           "fallback": false,
           "drillPath": [
             ["Рабочий стол", "Home screen"],
-            ["Лента виджетов", "App Vault"]
+            ["Лента виджетов", "Включить Ленту виджетов", "App Vault"]
           ],
-          "screenMarkers": { "ru": ["Рабочий стол"], "en": ["Home screen"] },
+          "screenMarkers": { "ru": ["Рабочий стол", "Включить Ленту виджетов"], "en": ["Home screen"] },
           "itemTexts": {
-            "ru": ["Лента виджетов", "Показывать предложения"],
+            "ru": ["Лента виджетов", "Показывать предложения", "Включить Ленту виджетов"],
             "en": ["App Vault", "Show suggestions"],
             "es": ["App Vault"],
             "zh": ["小部件面板"],
@@ -1078,11 +1078,11 @@
           "fallback": false,
           "drillPath": [
             ["Рабочий стол", "Home screen"],
-            ["Лента виджетов", "Показывать предложения", "App Vault"]
+            ["Лента виджетов", "Показывать предложения", "Включить Ленту виджетов", "App Vault"]
           ],
-          "screenMarkers": { "ru": ["Рабочий стол"], "en": ["Home screen"] },
+          "screenMarkers": { "ru": ["Рабочий стол", "Включить Ленту виджетов"], "en": ["Home screen"] },
           "itemTexts": {
-            "ru": ["Лента виджетов", "Показывать предложения"],
+            "ru": ["Лента виджетов", "Показывать предложения", "Включить Ленту виджетов"],
             "en": ["App Vault", "Show suggestions"],
             "es": ["App Vault", "Mostrar sugerencias"],
             "zh": ["小部件面板", "显示建议"],
@@ -1192,7 +1192,7 @@
             ["Дополнительные настройки", "Additional settings", "更多设置"]
           ],
           "screenMarkers": {
-            "ru": ["Дополнительные настройки", "Профиль"],
+            "ru": ["Дополнительные настройки", "Профиль", "Показывать рекламу", "Разрешить JavaScript"],
             "en": ["Additional settings", "Profile"],
             "zh": ["更多设置"]
           },
@@ -1232,7 +1232,7 @@
             ["Дополнительные настройки", "Additional settings"]
           ],
           "screenMarkers": {
-            "ru": ["Дополнительные настройки", "Профиль"],
+            "ru": ["Дополнительные настройки", "Профиль", "Показывать рекламу", "Разрешить JavaScript"],
             "en": ["Additional settings", "Profile"]
           },
           "itemTexts": {
@@ -1536,7 +1536,7 @@
           "fallback": true,
           "drillPath": [["⚙", "️", "Настройки", "Settings", "设置"]],
           "screenMarkers": {
-            "ru": ["Настройки"],
+            "ru": ["Передача данных", "Антиспам", "Управление питанием"],
             "en": ["Settings"],
             "zh": ["设置"]
           },
@@ -1559,7 +1559,7 @@
           "os": { "family": "miui", "uiMin": 13, "uiMax": 14 },
           "fallback": false,
           "drillPath": [["⚙", "⚙️", "Настройки", "Settings"]],
-          "screenMarkers": { "ru": ["Настройки"], "en": ["Settings"] },
+          "screenMarkers": { "ru": ["Передача данных", "Антиспам", "Управление питанием"], "en": ["Settings"] },
           "itemTexts": {
             "ru": ["Получать рекомендации"],
             "en": ["Receive recommendations"],
@@ -1578,7 +1578,7 @@
           "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
           "fallback": false,
           "drillPath": [["⚙", "⚙️", "Настройки", "Settings"]],
-          "screenMarkers": { "ru": ["Настройки"], "en": ["Settings"] },
+          "screenMarkers": { "ru": ["Передача данных", "Антиспам", "Управление питанием"], "en": ["Settings"] },
           "itemTexts": {
             "ru": ["Получать рекомендации"],
             "en": ["Receive recommendations"],
@@ -1681,7 +1681,7 @@
             ["Очистка", "Cleaner", "清理", "Cleanup"],
             ["⚙", "⚙️", "Настройки", "Settings", "设置"]
           ],
-          "screenMarkers": { "ru": ["Очистка", "Настройки"], "en": ["Cleaner", "Settings"], "zh": ["清理"] },
+          "screenMarkers": { "ru": ["Очистка", "Настройки", "НАПОМИНАНИЯ ОБ ОЧИСТКЕ", "Расписание проверки"], "en": ["Cleaner", "Settings"], "zh": ["清理"] },
           "itemTexts": {
             "ru": ["Получать рекомендации"],
             "en": ["Receive recommendations"],
@@ -1700,7 +1700,7 @@
             ["Очистка", "Cleaner", "清理"],
             ["⚙", "⚙️", "Настройки", "Settings"]
           ],
-          "screenMarkers": { "ru": ["Очистка", "Настройки"], "en": ["Cleaner", "Settings"] },
+          "screenMarkers": { "ru": ["Очистка", "Настройки", "НАПОМИНАНИЯ ОБ ОЧИСТКЕ", "Расписание проверки"], "en": ["Cleaner", "Settings"] },
           "itemTexts": {
             "ru": ["Получать рекомендации"],
             "en": ["Receive recommendations"],
@@ -1753,9 +1753,9 @@
       },
       "screenMarkers": {
         "ru": [
-          "Очистка",
-          "РЕКОМЕНДАЦИИ",
-          "Загружать только по Wi-Fi"
+          "НАПОМИНАНИЯ ОБ ОЧИСТКЕ",
+          "Расписание проверки",
+          "Проверять память"
         ],
         "en": [
           "Cleaner",
@@ -1789,7 +1789,11 @@
         "pt",
         "id"
       ],
-      "launchPackage": "com.miui.securitycenter"
+      "requiredPackages": [
+        "com.miui.cleaner",
+        "com.miui.securitycenter"
+      ],
+      "launchPackage": "com.miui.cleaner"
     },
     {
       "id": "downloads",
@@ -1802,7 +1806,7 @@
             ["⋮", "Ещё", "More", "Больше"],
             ["Настройки", "Settings", "设置"]
           ],
-          "screenMarkers": { "ru": ["Настройки"], "en": ["Settings"], "zh": ["设置"] },
+          "screenMarkers": { "ru": ["Настройки", "Отзыв согласия", "Получать рекомендации"], "en": ["Settings"], "zh": ["设置"] },
           "itemTexts": {
             "ru": ["Получать рекомендации", "Показывать рекламу"],
             "en": ["Receive recommendations", "Show ads"],
@@ -1821,7 +1825,7 @@
             ["⋮", "Ещё", "More"],
             ["Настройки", "Settings"]
           ],
-          "screenMarkers": { "ru": ["Настройки"], "en": ["Settings"] },
+          "screenMarkers": { "ru": ["Настройки", "Отзыв согласия", "Получать рекомендации"], "en": ["Settings"] },
           "itemTexts": {
             "ru": ["Получать рекомендации"],
             "en": ["Receive recommendations"],

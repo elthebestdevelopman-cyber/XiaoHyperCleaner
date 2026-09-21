@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageInfo
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -119,6 +120,94 @@ class DirectIntentNavigatorTest {
         assertFalse(
             "неустановленный магазин не должен давать интент-призрак",
             intents.any { it.`package` == "com.xiaomi.mipicks" }
+        )
+    }
+
+    @Test
+    fun `security settings chain leads to the security settings screen`() {
+        // Дамп устройства: экран настроек Безопасности объявлен под
+        // SECURITYCENTER_SETTINGS. `miui.intent.action.APP_SETTINGS` там без
+        // CATEGORY_DEFAULT и неявным интентом не резолвится вовсе
+        // (`am start -a` → "unable to resolve"), поэтому в цепочке его быть не должно.
+        val intents = DirectIntentNavigator.securitySettingsIntents()
+
+        assertEquals(
+            "первым должен идти вход на экран настроек Безопасности",
+            "com.miui.securitycenter.action.SECURITYCENTER_SETTINGS",
+            intents.first().action
+        )
+        assertTrue(
+            "страховкой остаётся явная компонента экрана настроек",
+            intents.any {
+                it.component == ComponentName(
+                    "com.miui.securitycenter",
+                    "com.miui.securityscan.ui.settings.SettingsActivity"
+                )
+            }
+        )
+        assertFalse(
+            "APP_SETTINGS нерезолвим неявным интентом и вводит шаг в заблуждение",
+            intents.any { it.action == "miui.intent.action.APP_SETTINGS" }
+        )
+    }
+
+    @Test
+    fun `cleaner chain stays inside the cleaner package`() {
+        // Дамп устройства: «Настройки очистки» — это com.miui.cleaner, а не экран
+        // Безопасности с одноимённой строкой «Получать рекомендации».
+        val intents = DirectIntentNavigator.cleanerSettingsIntents()
+
+        assertEquals(
+            "очистка открывается своим действием",
+            "com.miui.securitycenter.action.GARBAGE_CLEANUP_SETTINGS",
+            intents.first().action
+        )
+        assertEquals("com.miui.cleaner", intents.first().`package`)
+        assertTrue(
+            "Безопасность в цепочке очистки — это чужой экран с теми же строками",
+            intents.none {
+                it.`package` == "com.miui.securitycenter" ||
+                    it.component?.packageName == "com.miui.securitycenter"
+            }
+        )
+    }
+
+    @Test
+    fun `downloads chain pins the list instead of asking the user`() {
+        // Неявный VIEW_DOWNLOADS показывает диалог «Что использовать?»
+        // («Загрузки» / «Файлы», дамп resolver_now) — пакет задаём явно.
+        val intents = DirectIntentNavigator.downloadListIntents()
+
+        assertEquals("android.intent.action.VIEW_DOWNLOADS", intents.first().action)
+        assertEquals("com.android.providers.downloads.ui", intents.first().`package`)
+        assertTrue(
+            "страховкой остаётся явная компонента списка загрузок",
+            intents.any {
+                it.component == ComponentName(
+                    "com.android.providers.downloads.ui",
+                    "com.android.providers.downloads.ui.DownloadList"
+                )
+            }
+        )
+    }
+
+    @Test
+    fun `launcher settings lead the home suggestions chain`() {
+        // POCO Launcher: настройки лаунчера живут в отдельном пакете
+        // (com.mi.android.globallauncher, дамп home_settings_desktop), пункта
+        // «Рабочий стол» в системных Настройках на POCO нет.
+        val intents = DirectIntentNavigator.launcherSettingsIntents()
+
+        assertEquals("com.mi.android.globallauncher.Setting", intents.first().action)
+        assertEquals("com.mi.android.globallauncher", intents.first().`package`)
+        assertTrue(
+            "настройки POCO Launcher открываются через HomeSettingsActivity",
+            intents.any {
+                it.component == ComponentName(
+                    "com.mi.android.globallauncher",
+                    "com.miui.home.settings.HomeSettingsActivity"
+                )
+            }
         )
     }
 }
