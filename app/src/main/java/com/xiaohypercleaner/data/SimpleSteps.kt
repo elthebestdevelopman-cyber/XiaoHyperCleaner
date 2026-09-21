@@ -259,41 +259,44 @@ object SimpleSteps {
             )
         ),
 
-        // П.6: Блокировка экрана → Карусель обоев (2 тумблера)
+        // П.6: Карусель обоев — оставляем только свои обои.
+        // Своё приложение (com.miui.android.fashiongallery) открывается экспортированным
+        // действием настроек, а режим выбирается на под-экране «Настройки Карусели обоев»
+        // (дампы carousel_setting_act и owner_screen3): сначала включаем «Пользовательские
+        // обои», затем выключаем «Только рекомендации» — без выбранного режима карусель
+        // остаётся пустой. «Проведите вправо…» и мобильные обновления выключаются
+        // extraTargets каталога (возврат назад на главный экран карусели).
         Step(
             id = "carousel",
             titleRu = "Карусель обоев",
             titleEn = "Wallpaper Carousel",
-            descRu = "Выключаем карусель обоев и обновление через мобильный интернет.",
-            descEn = "Turning off Wallpaper Carousel and mobile updates.",
+            descRu = "Оставляем карусель со своими обоями: рекомендации, свайп-лента и обновления выключаются.",
+            descEn = "Keeping the carousel with your own wallpapers: recommendations, swipe feed and updates are off.",
             intents = listOf(settingsRoot()),
-            // Не используем короткие «Вкл»/Enable — ложно матчат любые тумблеры на экране блокировки.
             searchTexts = listOf(
                 "Карусель обоев",
-                // Точные строки экрана «Карусель обоев» (SettingActivity приложения карусели,
-                // дамп carousel_setting_act): по ним resume определяет, что экран уже целевой.
-                "Карусель экрана блокировки",
-                "Настройки экрана блокировки",
+                // Точные строки под-экрана режима (LoopSettingActivity, дамп owner_screen3):
+                // по ним resume/onTargetScreen понимают, что экран уже целевой.
+                "Настройки Карусели обоев",
+                "Текущий режим",
+                "Пользовательские обои",
                 "Wallpaper Carousel",
                 "Wallpaper carousel",
-                "Lock screen carousel",
                 "Glance"
             ),
-            additionalToggles = listOf(
-                // Доступ к ленте историй/инструментам свайпом по экрану блокировки — та же
-                // промо-подача, что и карусель (дамп carousel_setting_act, checked=true).
-                "Проведите вправо по Экрану блокировки",
-                "Swipe right on the Lock screen",
-                "Обновлять через мобильный Интернет",
-                "Update via mobile network",
-                "Обновлять через мобильные данные",
-                "Update over mobile data"
-            ),
-            manualHintRu = "Настройки → Блокировка экрана → Карусель обоев → выключите всё.",
-            manualHintEn = "Settings → Lock screen → Wallpaper Carousel → turn everything off.",
+            // Цель шага — включённый режим «Пользовательские обои»; остальные тумблеры
+            // выключают extraTargets каталога (у каждой цели своё целевое состояние).
+            targetChecked = true,
+            manualHintRu = "Карусель обоев → «Настройки Карусели обоев» → включите «Пользовательские обои» " +
+                    "и выключите «Только рекомендации».",
+            manualHintEn = "Wallpaper Carousel → carousel settings → turn on \"Personal wallpapers\" " +
+                    "and turn off \"Recommendations only\".",
             drillPath = listOf(
-                listOf("Блокировка экрана", "Lock screen"),
-                listOf("Карусель обоев", "Wallpaper Carousel", "Glance")
+                listOf(
+                    "Настройки Карусели обоев",
+                    "Carousel settings",
+                    "Wallpaper Carousel settings"
+                )
             )
         ),
 

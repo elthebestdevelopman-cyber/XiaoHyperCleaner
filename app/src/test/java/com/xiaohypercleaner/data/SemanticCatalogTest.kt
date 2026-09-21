@@ -99,6 +99,37 @@ class SemanticCatalogTest {
     }
 
     @Test
+    fun `carousel step declares the personal wallpapers mode and its extra targets`() {
+        // Владелец: карусель остаётся, но только со своими обоями — включаем «Пользовательские
+        // обои» и выключаем рекомендации, свайп-ленту и мобильные обновления (дампы
+        // carousel_setting_act / owner_screen3).
+        val variants = SemanticCatalog.step("carousel")?.variants.orEmpty()
+        assertTrue("варианты карусели объявлены", variants.isNotEmpty())
+        variants.forEach { variant ->
+            assertTrue(
+                "${variant.id}: тумблер режима",
+                variant.itemTexts["ru"].orEmpty().any { it.contains("Пользовательские обои") }
+            )
+            assertTrue(
+                "${variant.id}: маркеры экрана режима",
+                variant.screenMarkers["ru"].orEmpty().any { it.contains("Текущий режим") }
+            )
+            val switchOff = variant.extraTargets
+                .filter { !it.targetChecked }
+                .mapNotNull { it.itemTexts["ru"]?.firstOrNull() }
+            assertTrue("${variant.id}: рекомендации выключаются", switchOff.contains("Только рекомендации"))
+            assertTrue(
+                "${variant.id}: свайп-лента выключается",
+                switchOff.contains("Проведите вправо по Экрану блокировки")
+            )
+            assertTrue(
+                "${variant.id}: мобильные обновления выключаются",
+                switchOff.contains("Обновлять через мобильный Интернет")
+            )
+        }
+    }
+
+    @Test
     fun `consent policy declares dialog markers and media overrides`() {
         assertTrue(
             "маркеры force-stop есть в каталоге",

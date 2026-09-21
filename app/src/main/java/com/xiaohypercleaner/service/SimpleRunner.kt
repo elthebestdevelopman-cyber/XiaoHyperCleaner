@@ -1224,7 +1224,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val switch = findSwitchByText(root, target.itemTexts)
         if (switch != null) {
             val checked = SwitchFinder.isChecked(switch)
-            val tapped = if (checked == step.targetChecked) true else tapNode(switch)
+            // Цель может требовать включения (carousel: «Пользовательские обои»), поэтому
+            // целевое состояние берём у цели, а не у шага.
+            val tapped = if (checked == target.targetChecked) true else tapNode(switch)
             recycleNode(switch); recycleNode(root)
             delay(600)
             if (tapped) {

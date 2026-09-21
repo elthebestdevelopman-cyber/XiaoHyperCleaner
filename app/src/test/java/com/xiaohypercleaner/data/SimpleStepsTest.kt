@@ -69,6 +69,10 @@ class SimpleStepsTest {
         val carousel = SimpleSteps.ALL.first { it.id == "carousel" }
         assertTrue(carousel.searchTexts.any { it.contains("Карусель") || it.contains("Carousel") })
         assertFalse(carousel.searchTexts.any { it.equals("Вкл", ignoreCase = true) })
+        // Владелец: карусель остаётся, но переключается в режим «Пользовательские обои»,
+        // поэтому шаг ВКЛЮЧАЕТ тумблер (остальные его тумблеры гасят extraTargets каталога).
+        assertTrue("цель шага — включённый режим", carousel.targetChecked)
+        assertTrue(carousel.searchTexts.contains("Настройки Карусели обоев"))
 
         assertTrue(home.requiredPackages.contains("com.miui.home"))
         assertTrue(home.requiredPackages.contains("com.mi.android.globallauncher"))

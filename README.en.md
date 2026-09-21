@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 30 suites, 229 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 30 suites, 230 tests (full table below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 tests
 │   ├── OptimizationEngineTest.kt # 14 tests
@@ -370,7 +370,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 suites, 229 tests (full ta
 
 ## 🧪 Testing
 
-### Unit Tests (229 tests, 30 suites)
+### Unit Tests (230 tests, 30 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -382,7 +382,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 suites, 229 tests (full ta
 | `RestoreSnapshotTest`         | 5     | Rollback snapshot of original values               |
 | `AdbPortResolverTest`         | 5     | mDNS discovery, mergePorts                         |
 | `AdaptiveCatalogTest`         | 16    | Variant catalog, text merging                      |
-| `SemanticCatalogTest`         | 10    | Step semantics, packages, dialog policy            |
+| `SemanticCatalogTest`         | 11    | Step semantics, packages, dialog policy            |
 | `SemanticVariantTest`         | 7     | OS variant selection (MIUI 13 / HyperOS 2)         |
 | `SemanticGateTest`            | 6     | Confidence gate                                    |
 | `PlanBuilderTest`             | 7     | Plan pre-filter + red list                         |

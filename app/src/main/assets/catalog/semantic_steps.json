@@ -920,38 +920,76 @@
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
           "drillPath": [
-            ["Блокировка экрана", "Lock screen", "锁屏"],
-            ["Карусель обоев", "Wallpaper Carousel", "Glance", "壁纸轮播"]
+            ["Настройки Карусели обоев", "Carousel settings", "Wallpaper Carousel settings"]
           ],
-          "screenMarkers": { "ru": ["Карусель экрана блокировки", "Настройки экрана блокировки", "Карусель обоев"], "en": ["Lock screen carousel", "Lock screen settings", "Wallpaper Carousel"], "zh": ["壁纸轮播"] },
+          "screenMarkers": { "ru": ["Текущий режим", "Пользовательские обои", "Карусель обоев"], "en": ["Current mode", "Personal wallpapers", "Wallpaper Carousel"], "zh": ["壁纸轮播"] },
           "itemTexts": {
-            "ru": ["Включить", "Карусель обоев", "Карусель экрана блокировки"],
-            "en": ["Enable", "Wallpaper Carousel", "Lock screen carousel"],
-            "es": ["Activar", "Carrusel de fondos"],
-            "zh": ["启用", "壁纸轮播"],
-            "hi": ["सक्षम करें", "वॉलपेपर कैरोसेल"],
-            "pt": ["Ativar", "Carrossel de papéis de parede"],
-            "id": ["Aktifkan", "Karosel wallpaper"]
-          }
+            "ru": ["Пользовательские обои"],
+            "en": ["Personal wallpapers"],
+            "es": ["Fondos personalizados"],
+            "zh": ["自定义壁纸"],
+            "hi": ["व्यक्तिगत वॉलपेपर"],
+            "pt": ["Papéis de parede personalizados"],
+            "id": ["Wallpaper pribadi"]
+          },
+          "extraTargets": [
+            {
+              "back": 0,
+              "drillPath": [],
+              "itemTexts": { "ru": ["Только рекомендации"], "en": ["Recommendations only"] },
+              "control": "toggle"
+            },
+            {
+              "back": 1,
+              "drillPath": [],
+              "itemTexts": { "ru": ["Проведите вправо по Экрану блокировки"], "en": ["Swipe right on the Lock screen"] },
+              "control": "toggle"
+            },
+            {
+              "back": 0,
+              "drillPath": [],
+              "itemTexts": { "ru": ["Обновлять через мобильный Интернет"], "en": ["Update via mobile network"] },
+              "control": "toggle"
+            }
+          ]
         },
         {
           "id": "hyperos1_3",
           "os": { "family": "hyperos", "uiMin": 1, "uiMax": 3 },
           "fallback": false,
           "drillPath": [
-            ["Блокировка экрана", "Lock screen"],
-            ["Карусель обоев", "Wallpaper Carousel"]
+            ["Настройки Карусели обоев", "Carousel settings"]
           ],
-          "screenMarkers": { "ru": ["Карусель экрана блокировки", "Настройки экрана блокировки", "Карусель обоев"], "en": ["Lock screen carousel", "Lock screen settings", "Wallpaper Carousel"] },
+          "screenMarkers": { "ru": ["Текущий режим", "Пользовательские обои", "Карусель обоев"], "en": ["Current mode", "Personal wallpapers", "Wallpaper Carousel"] },
           "itemTexts": {
-            "ru": ["Включить", "Карусель экрана блокировки", "Проведите вправо по Экрану блокировки"],
-            "en": ["Enable", "Lock screen carousel", "Swipe right on the Lock screen"],
-            "es": ["Activar"],
-            "zh": ["启用"],
-            "hi": ["सक्षम करें"],
-            "pt": ["Ativar"],
-            "id": ["Aktifkan"]
-          }
+            "ru": ["Пользовательские обои"],
+            "en": ["Personal wallpapers"],
+            "es": ["Fondos personalizados"],
+            "zh": ["自定义壁纸"],
+            "hi": ["व्यक्तिगत वॉलपेपर"],
+            "pt": ["Papéis de parede personalizados"],
+            "id": ["Wallpaper pribadi"]
+          },
+          "extraTargets": [
+            {
+              "back": 0,
+              "drillPath": [],
+              "itemTexts": { "ru": ["Только рекомендации"], "en": ["Recommendations only"] },
+              "control": "toggle"
+            },
+            {
+              "back": 1,
+              "drillPath": [],
+              "itemTexts": { "ru": ["Проведите вправо по Экрану блокировки"], "en": ["Swipe right on the Lock screen"] },
+              "control": "toggle"
+            },
+            {
+              "back": 0,
+              "drillPath": [],
+              "itemTexts": { "ru": ["Обновлять через мобильный Интернет"], "en": ["Update via mobile network"] },
+              "control": "toggle"
+            }
+          ]
         }
       ],
       "title": {

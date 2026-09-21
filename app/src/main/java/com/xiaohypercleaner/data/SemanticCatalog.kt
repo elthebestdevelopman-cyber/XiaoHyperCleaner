@@ -105,7 +105,9 @@ object SemanticCatalog {
         val back: Int,
         val drillPath: List<List<String>>,
         val itemTexts: Map<String, List<String>>,
-        val control: ActionType?
+        val control: ActionType?,
+        /** Целевое состояние тумблера цели: по умолчанию выключить (как раньше). */
+        val targetChecked: Boolean = false
     )
 
     /** Выбранный вариант шага + признак применения фолбэка (для лога `rom: variant=`). */
@@ -259,7 +261,9 @@ object SemanticCatalog {
         val back: Int,
         val drillPath: List<List<String>>,
         val itemTexts: List<String>,
-        val control: ActionType
+        val control: ActionType,
+        /** Целевое состояние тумблера цели (включается, если true). */
+        val targetChecked: Boolean = false
     )
 
     /** Авторитетный drillPath варианта: заменяет legacy-путь при явном совпадении ОС. */
@@ -276,7 +280,8 @@ object SemanticCatalog {
                 back = target.back.coerceAtLeast(0),
                 drillPath = target.drillPath,
                 itemTexts = localizedTexts(target.itemTexts),
-                control = target.control ?: ActionType.TOGGLE
+                control = target.control ?: ActionType.TOGGLE,
+                targetChecked = target.targetChecked
             )
         }
 
@@ -567,7 +572,8 @@ object SemanticCatalog {
                     back = o.optInt("back", 0),
                     drillPath = parseDrillPath(o.optJSONArray("drillPath")),
                     itemTexts = parseListMap(o.optJSONObject("itemTexts")),
-                    control = o.optString("control").takeIf { it.isNotEmpty() }?.let { ActionType.from(it) }
+                    control = o.optString("control").takeIf { it.isNotEmpty() }?.let { ActionType.from(it) },
+                    targetChecked = o.optBoolean("target", false)
                 )
             )
         }
