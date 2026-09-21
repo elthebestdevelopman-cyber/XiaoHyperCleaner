@@ -923,7 +923,7 @@
             ["Блокировка экрана", "Lock screen", "锁屏"],
             ["Карусель обоев", "Wallpaper Carousel", "Glance", "壁纸轮播"]
           ],
-          "screenMarkers": { "ru": ["Карусель обоев"], "en": ["Wallpaper Carousel"], "zh": ["壁纸轮播"] },
+          "screenMarkers": { "ru": ["Карусель экрана блокировки", "Настройки экрана блокировки", "Карусель обоев"], "en": ["Lock screen carousel", "Lock screen settings", "Wallpaper Carousel"], "zh": ["壁纸轮播"] },
           "itemTexts": {
             "ru": ["Включить", "Карусель обоев", "Карусель экрана блокировки"],
             "en": ["Enable", "Wallpaper Carousel", "Lock screen carousel"],
@@ -942,10 +942,10 @@
             ["Блокировка экрана", "Lock screen"],
             ["Карусель обоев", "Wallpaper Carousel"]
           ],
-          "screenMarkers": { "ru": ["Карусель обоев"], "en": ["Wallpaper Carousel"] },
+          "screenMarkers": { "ru": ["Карусель экрана блокировки", "Настройки экрана блокировки", "Карусель обоев"], "en": ["Lock screen carousel", "Lock screen settings", "Wallpaper Carousel"] },
           "itemTexts": {
-            "ru": ["Включить"],
-            "en": ["Enable"],
+            "ru": ["Включить", "Карусель экрана блокировки", "Проведите вправо по Экрану блокировки"],
+            "en": ["Enable", "Lock screen carousel", "Swipe right on the Lock screen"],
             "es": ["Activar"],
             "zh": ["启用"],
             "hi": ["सक्षम करें"],

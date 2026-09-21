@@ -210,4 +210,23 @@ class DirectIntentNavigatorTest {
             }
         )
     }
+
+    @Test
+    fun `carousel chain opens the wallpaper carousel settings`() {
+        // POCO/MIUI 13: пункта «Карусель обоев» в «Блокировке экрана» нет вовсе, зато у
+        // приложения карусели есть экспортированное действие настроек (дамп carousel_setting_act).
+        val intents = DirectIntentNavigator.carouselSettingsIntents()
+
+        assertEquals("com.miui.android.fashiongallery.setting.SETTING", intents.first().action)
+        assertEquals("com.miui.android.fashiongallery", intents.first().`package`)
+        assertTrue(
+            "страховкой остаётся явная компонента экрана настроек карусели",
+            intents.any {
+                it.component == ComponentName(
+                    "com.miui.android.fashiongallery",
+                    "com.miui.cw.feature.ui.setting.SettingActivity"
+                )
+            }
+        )
+    }
 }

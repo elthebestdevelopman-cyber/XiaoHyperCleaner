@@ -176,7 +176,12 @@ object DirectIntentNavigator {
             }
 
             "carousel" -> {
-                // Карусель обоев
+                // Карусель обоев. На POCO/MIUI 13 пункта «Карусель обоев» в «Блокировке экрана»
+                // нет вовсе (дамп lockscreen), зато у приложения карусели есть экспортированное
+                // действие настроек: оно открывает экран с тумблерами «Карусель экрана блокировки»,
+                // «Проведите вправо…», «Обновлять через мобильный Интернет»
+                // (com.miui.cw.feature.ui.setting.SettingActivity, дамп carousel_setting_act).
+                intents.addAll(carouselSettingsIntents())
                 intents.addAll(
                     listOf(
                         miuiIntent("miui.intent.action.WALLPAPER_CAROUSEL"),
@@ -632,6 +637,25 @@ object DirectIntentNavigator {
             "com.miui.home.settings.HomeSettingsActivity"
         ),
         explicitActivity("com.miui.home", "com.miui.home.settings.HomeSettingsActivity")
+    )
+
+    /**
+     * Настройки карусели обоев (`com.miui.android.fashiongallery`): экспортированное действие
+     * `com.miui.android.fashiongallery.setting.SETTING` открывает
+     * `com.miui.cw.feature.ui.setting.SettingActivity` — экран с тумблерами «Карусель экрана
+     * блокировки», «Проведите вправо по Экрану блокировки», «Обновлять через мобильный Интернет»
+     * (дамп carousel_setting_act). Пункта «Карусель обоев» в «Блокировке экрана» на POCO/MIUI 13
+     * нет (дамп lockscreen), поэтому прямой вход — основной, а drill остаётся фолбэком.
+     */
+    internal fun carouselSettingsIntents(): List<Intent> = listOf(
+        actionIntent(
+            "com.miui.android.fashiongallery.setting.SETTING",
+            "com.miui.android.fashiongallery"
+        ),
+        explicitActivity(
+            "com.miui.android.fashiongallery",
+            "com.miui.cw.feature.ui.setting.SettingActivity"
+        )
     )
 
     /**

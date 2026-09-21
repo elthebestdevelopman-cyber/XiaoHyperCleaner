@@ -270,11 +270,20 @@ object SimpleSteps {
             // Не используем короткие «Вкл»/Enable — ложно матчат любые тумблеры на экране блокировки.
             searchTexts = listOf(
                 "Карусель обоев",
+                // Точные строки экрана «Карусель обоев» (SettingActivity приложения карусели,
+                // дамп carousel_setting_act): по ним resume определяет, что экран уже целевой.
+                "Карусель экрана блокировки",
+                "Настройки экрана блокировки",
                 "Wallpaper Carousel",
                 "Wallpaper carousel",
+                "Lock screen carousel",
                 "Glance"
             ),
             additionalToggles = listOf(
+                // Доступ к ленте историй/инструментам свайпом по экрану блокировки — та же
+                // промо-подача, что и карусель (дамп carousel_setting_act, checked=true).
+                "Проведите вправо по Экрану блокировки",
+                "Swipe right on the Lock screen",
                 "Обновлять через мобильный Интернет",
                 "Update via mobile network",
                 "Обновлять через мобильные данные",

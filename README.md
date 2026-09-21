@@ -313,12 +313,12 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 228 тестов (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 229 тестов (полная таблица ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 тестов
 │   ├── OptimizationEngineTest.kt # 14 тестов
 │   ├── AdbPortResolverTest.kt    # 5 тестов
-│   ├── DirectIntentNavigatorTest.kt # 7 тестов (точка входа шага, цепочки интентов)
+│   ├── DirectIntentNavigatorTest.kt # 8 тестов (точка входа шага, цепочки интентов)
 │   ├── RomProfileTest.kt         # 5 тестов
 │   └── SimpleStepsTest.kt        # 6 тестов
 ├── service/
@@ -388,7 +388,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 228 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (228 тестов, 30 сьютов)
+### Unit-тесты (229 тестов, 30 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -404,7 +404,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 228 тест
 | `SemanticVariantTest`         | 7      | Выбор вариантов по версии ОС (MIUI 13 / HyperOS 2) |
 | `SemanticGateTest`            | 6      | Гейт уверенности                                   |
 | `PlanBuilderTest`             | 7      | Префильтр плана + красный список                   |
-| `DirectIntentNavigatorTest`   | 7      | Точка входа шага: launcher, прямые экраны настроек   |
+| `DirectIntentNavigatorTest`   | 8      | Точка входа шага: launcher, прямые экраны настроек   |
 | `ManualStepsTest`             | 4      | Ручная памятка: паритет 7 локалей                  |
 | `SwitchFinderTest`            | 14     | Тумблеры, checked_before, запрет чужой строки      |
 | `ConsentWallTest`             | 21     | Диалоги: force-stop, «по умолчанию», consent       |
