@@ -137,8 +137,15 @@ object DirectIntentNavigator {
             }
 
             "ads_personalization" -> {
-                // Персонализация рекламы.
-                // На MIUI Global 13 «Рекламные службы» открывает ACTION_PRIVACY_SETTINGS.
+                // MIUI «Конфиденциальность» (Settings$PrivacySettingsActivity) содержит пункт
+                // «Рекламные службы» (дамп owner_07); раньше на этой прошивке шаг был неприменим,
+                // потому что интенты AD_SERVICES_SETTINGS не резолвятся вовсе.
+                intents.add(
+                    explicitActivity(
+                        "com.android.settings",
+                        "com.android.settings.Settings\$PrivacySettingsActivity"
+                    )
+                )
                 intents.addAll(
                     listOf(
                         miuiIntent("miui.intent.action.AD_SERVICES_SETTINGS"),
@@ -151,7 +158,17 @@ object DirectIntentNavigator {
             }
 
             "ux_program" -> {
-                // Программа улучшения качества
+                // MIUI «Конфиденциальность» = Settings$PrivacySettingsActivity: блок
+                // «ПРОГРАММА УЛУЧШЕНИЯ КАЧЕСТВА» → «Участвовать в Программе улучшения качества»
+                // (дамп owner_07, проверено `am start` компонентой). Маршрут «Пароли и
+                // безопасность → Конфиденциальность» на POCO/MIUI 13 отсутствует, из-за чего
+                // шаг был неприменим (прогон rmubgvwm5).
+                intents.add(
+                    explicitActivity(
+                        "com.android.settings",
+                        "com.android.settings.Settings\$PrivacySettingsActivity"
+                    )
+                )
                 intents.addAll(
                     listOf(
                         miuiIntent("miui.intent.action.USER_EXPERIENCE_PROGRAM"),
