@@ -229,7 +229,11 @@ object ConsentWallHandler {
         }
 
         // 2. Диалог-заглушка внутри шага («Произошла ошибка сети» → «Понятно»).
-        if (dismissTexts.isNotEmpty() && dismissDialogVisible(screenText, dismissTexts, dismissMarkers)) {
+        //    Только когда это НЕ системный alert-диалог: иначе общая кнопка «Отмена»
+        //    перехватывала «Установить … по умолчанию?» и kind уезжал с dialog на dismiss.
+        if (!alertDialog && dismissTexts.isNotEmpty() &&
+            dismissDialogVisible(screenText, dismissTexts, dismissMarkers)
+        ) {
             return DialogAction("dismiss", "closed", "network", dismissTexts, alertMarkers)
         }
 

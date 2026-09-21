@@ -250,6 +250,15 @@ object SimpleSteps {
             manualHintRu = "Настройки → Конфиденциальность → «Использование и диагностика» → выключите.",
             manualHintEn = "Settings → Privacy → Usage & diagnostics → turn off.",
             drillPath = listOf(
+                // Интент открывает Privacy Dashboard, но он же может не сработать (экран
+                // недоступен из фона) — поэтому маршрут полный от корня Настроек
+                // (прогон rmubgvwm5: с одним уровнем шаг падал drill_failed).
+                listOf(
+                    "Конфиденциальность",
+                    "Privacy",
+                    "隐私",
+                    "Privacidad"
+                ),
                 listOf(
                     "Использование и диагностика",
                     "Usage & diagnostics",

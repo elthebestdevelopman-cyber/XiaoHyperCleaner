@@ -875,11 +875,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
             return false
         }
 
-        // Уровень уже пройден: его подпись и следующий уровень видны одновременно
+        // Уже пройденный уровень: подпись уровня и следующий уровень видны одновременно
         // (sys_recommendations: экран «Приложения» открыт интентом — «Приложения» в
         // заголовке, «Все приложения» строкой ниже; повторный тап по одноимённому ряду
         // уводит на другой экран и ломает маршрут).
-        if (nextTexts.isNotEmpty() && screenHasAny(levelTexts) && screenHasAny(nextTexts)) {
+        // Только для ПЕРВОГО уровня: дальше подпись уровня может совпасть с пунктом уже
+        // открытого меню — downloads: «Настройки» внутри overflow-меню ⋮ считалось
+        // пройденным, тап не делался и шаг падал switch_not_found (прогон rmubgvwm5).
+        if (levelIndex == 0 && nextTexts.isNotEmpty() &&
+            screenHasAny(levelTexts) && screenHasAny(nextTexts)
+        ) {
             AppLog.i(TAG, "drill: уровень '${levelTexts.firstOrNull()}' уже пройден")
             return true
         }
@@ -925,7 +930,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     /** Уровень пройден: виден следующий уровень либо экран фактически сменился. */
     private suspend fun levelLanded(nextTexts: List<String>, baseScreenText: String): Boolean =
-        if (nextTexts.isNotEmpty()) awaitScreen(nextTexts) else screenChangedSince(baseScreenText)
+        if (nextTexts.isNotEmpty()) {
+            // Переход засчитывается и по смене экрана: тексты следующего уровня бывают
+            // видны только после полной отрисовки/скролла, и шаг ошибочно сообщал
+            // «not passed after 1 attempt» при фактически открытом экране
+            // (sys_recommendations, прогон rmubgvwm5).
+            awaitScreen(nextTexts) || screenChangedSince(baseScreenText)
+        } else {
+            screenChangedSince(baseScreenText)
+        }
 
     /**
      * Кандидаты-узлы уровня: первый — обычным путём (scroll-until-found и

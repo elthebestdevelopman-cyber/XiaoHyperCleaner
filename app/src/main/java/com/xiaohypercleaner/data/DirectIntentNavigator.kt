@@ -165,14 +165,11 @@ object DirectIntentNavigator {
             "google_diagnostics" -> {
                 // Google «Использование и диагностика»: GMS-активность не exported
                 // (`am start -a com.google.android.gms.usagereporting.GOOGLE_SETTINGS` →
-                // permission denial), поэтому экран открываем через системные Настройки —
-                // Privacy Dashboard, где этот пункт и находится.
-                intents.addAll(
-                    listOf(
-                        settingsIntent(Settings.ACTION_PRIVACY_SETTINGS),
-                        settingsIntent(Settings.ACTION_SETTINGS)
-                    )
-                )
+                // permission denial). Идём через корень системных Настроек: Privacy Dashboard
+                // как интент не подтверждает целевой экран (логика входа требует текст шага,
+                // а он на GMS-экране) и шаг уходил в SETTINGS — прогон rmubgvwm5, drill_failed.
+                // Полный drillPath [Конфиденциальность] → [Использование и диагностика] надёжнее.
+                intents.add(settingsIntent(Settings.ACTION_SETTINGS))
             }
 
             "carousel" -> {

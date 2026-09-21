@@ -62,6 +62,9 @@
         <package android:name="com.android.thememanager" />
         <package android:name="com.miui.thememanager" />
         <package android:name="com.mi.thememanager" />
+        <!-- Карусель обоев: без queries её интент настроек отбраковывается
+             (прогон rmubgvwm5: "Intent not available … / com.miui.android.fashiongallery") -->
+        <package android:name="com.miui.android.fashiongallery" />
 
         <!-- Каталоги и маркетплейсы -->
         <package android:name="com.xiaomi.market" />
