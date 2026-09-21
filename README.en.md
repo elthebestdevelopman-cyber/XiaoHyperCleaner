@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 30 suites, 222 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 30 suites, 223 tests (full table below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 tests
 │   ├── OptimizationEngineTest.kt # 14 tests
@@ -370,7 +370,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 suites, 222 tests (full ta
 
 ## 🧪 Testing
 
-### Unit Tests (222 tests, 30 suites)
+### Unit Tests (223 tests, 30 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -404,7 +404,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 suites, 222 tests (full ta
 | `ScreenCrawlerTest`           | 6     | Screen crawler (diagnostics)                       |
 | `ActivityScannerTest`         | 8     | Package/activity visibility                        |
 | `RomProfileTest`              | 5     | ROM profile: region, family, version               |
-| `SimpleStepsTest`             | 6     | Simple mode step map                               |
+| `SimpleStepsTest`             | 7     | Simple mode step map, extra toggles                |
 | `MainViewModelTest`           | 9     | UI logic, already-off report (Robolectric)         |
 | `LogMaskerTest`               | 15    | IP, token, path masking                            |
 | `TextMatcherTest`             | 10    | Text normalization and fuzzy matching              |

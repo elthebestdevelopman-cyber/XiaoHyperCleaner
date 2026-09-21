@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 222 тестов (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 223 тестов (полная таблица ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 тестов
 │   ├── OptimizationEngineTest.kt # 14 тестов
@@ -388,7 +388,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 222 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (222 тестов, 30 сьютов)
+### Unit-тесты (223 тестов, 30 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -422,7 +422,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 222 тест
 | `ScreenCrawlerTest`           | 6      | Сканер экранов (диагностика)                       |
 | `ActivityScannerTest`         | 8      | Видимость пакетов и активностей                    |
 | `RomProfileTest`              | 5      | Профиль ROM: регион, family, версия                |
-| `SimpleStepsTest`             | 6      | Карта шагов Простого режима                        |
+| `SimpleStepsTest`             | 7      | Карта шагов Простого режима, доп. тумблеры          |
 | `MainViewModelTest`           | 9      | UI-логика, отчёт «уже выключено» (Robolectric)     |
 | `LogMaskerTest`               | 15     | Маскировка IP, токенов, путей                      |
 | `TextMatcherTest`             | 10     | Нормализация и нечёткое сравнение текстов          |
