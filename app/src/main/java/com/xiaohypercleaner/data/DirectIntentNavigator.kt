@@ -154,10 +154,12 @@ object DirectIntentNavigator {
             }
 
             "ux_program" -> {
-                // Программа улучшения качества (MIUI-экран «Конфиденциальность», дамп owner_07:
-                // блок «ПРОГРАММА УЛУЧШЕНИЯ КАЧЕСТВА» → «Участвовать в Программе улучшения
-                // качества»). Своей экспортированной активности у экрана нет, поэтому путь —
-                // drill «Пароли и безопасность → Конфиденциальность» (см. каталог).
+                // Программа улучшения качества + MIUI-«Использование и диагностика». Экран —
+                // системные Настройки, общий хост `com.android.settings/.SubSettings` с
+                // фрагментом SecuritySettings (дамп owner_19_privacy.xml): своей экспортированной
+                // активности нет, поэтому вход — drill «Пароли и безопасность → Конфиденциальность»
+                // (каталог). Под-экран диагностики `com.android.settings.UsageAndDiagnosticsActivity`
+                // тоже не exported (проверено `am start`) — вторая цель идёт drill'ом (extraTargets).
                 intents.addAll(
                     listOf(
                         miuiIntent("miui.intent.action.USER_EXPERIENCE_PROGRAM"),

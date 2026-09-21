@@ -818,7 +818,20 @@
             "hi": ["उपयोगकर्ता अनुभव कार्यक्रम"],
             "pt": ["Programa de experiência"],
             "id": ["Program Pengalaman Pengguna"]
-          }
+          },
+          "extraTargets": [
+            {
+              "back": 0,
+              "drillPath": [
+                ["Использование и диагностика", "Usage & diagnostics", "Usage and diagnostics"]
+              ],
+              "itemTexts": {
+                "ru": ["Использование и диагностика"],
+                "en": ["Usage & diagnostics", "Usage and diagnostics"]
+              },
+              "control": "toggle"
+            }
+          ]
         },
         {
           "id": "hyperos1_3",
@@ -838,7 +851,20 @@
             "hi": ["उपयोगकर्ता अनुभव कार्यक्रम"],
             "pt": ["Programa de experiência"],
             "id": ["Program Pengalaman Pengguna"]
-          }
+          },
+          "extraTargets": [
+            {
+              "back": 0,
+              "drillPath": [
+                ["Использование и диагностика", "Usage & diagnostics", "Usage and diagnostics"]
+              ],
+              "itemTexts": {
+                "ru": ["Использование и диагностика"],
+                "en": ["Usage & diagnostics", "Usage and diagnostics"]
+              },
+              "control": "toggle"
+            }
+          ]
         }
       ],
       "title": {
