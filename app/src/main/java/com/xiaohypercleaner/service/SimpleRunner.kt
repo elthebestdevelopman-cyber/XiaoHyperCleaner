@@ -641,6 +641,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 delay(UI_SETTLE_DELAY_MS)
                 // Диалоги могут появиться после любого навигационного действия.
                 handleConsentWalls(step)
+                // Целевой экран может быть достигнут раньше конца маршрута: Музыка —
+                // ☰ → «Настройки» открывает экран сразу с тумблерами, а уровень
+                // «Расширенные настройки» на этой версии отсутствует (дамп owner_03:
+                // заголовок «Аккаунт и настройки»), прежний код падал drill_failed.
+                if (onTargetScreen(step)) {
+                    AppLog.i(TAG, "drill: target screen reached at level $levelIndex for ${step.id}")
+                    StepDiagnostics.note(step.id, "DRILL", "target_reached level=$levelIndex")
+                    break
+                }
             }
         } else if (mergedDrillPath.isNotEmpty()) {
             AppLog.i(TAG, "drill skipped: already on target screen for ${step.id}")
