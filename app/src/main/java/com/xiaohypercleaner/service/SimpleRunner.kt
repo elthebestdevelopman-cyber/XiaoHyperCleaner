@@ -141,7 +141,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         private const val MAX_INSTALLER_CANDIDATES = 5
 
         /** Сколько иконок рабочего стола проверяем на «это папка», прежде чем сдаться. */
-        private const val MAX_FOLDER_PROBES = 6
+        private const val MAX_FOLDER_PROBES = 3
 
         /** Пакеты-лаунчеры MIUI: папки рабочего стола есть только в них. */
         private val LAUNCHER_PACKAGES = listOf(
@@ -1815,6 +1815,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
             }
             leaveFolderEditor()
             if (result != null) return result
+            if (editorOpened) {
+                // Редактор папки открылся, но тумблера рекомендаций в нём нет: значит
+                // рекомендации в папках уже выключены (владелец: после отключения
+                // msa/персонализации чекбокс из папки исчез) — честное «неприменимо»
+                // вместо перебора остальных иконок (прогон rmubgvwm5).
+                AppLog.i(TAG, "folder: editor has no suggestions switch ('$label')")
+                StepDiagnostics.note(step.id, "APPLICABILITY", "folder_switch_absent name='$label'")
+                return Result(false, NOT_APPLICABLE)
+            }
             AppLog.i(TAG, "folder: no switch in '$label' — next candidate")
         }
         return Result(false, "switch_not_found")
@@ -1977,8 +1986,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
     private fun isFolderEditorVisible(markers: List<String>): Boolean {
         val root = service.rootInActiveWindow ?: return false
         val text = collectAllText(root)
+        // Признак редактора папки POCO/MIUI — поле переименования rename_edit
+        // (тап по названию папки): маркеров каталога на этом экране может не быть вовсе,
+        // из-за чего шаг считал редактор неоткрытым (прогон rmubgvwm5).
+        val renamed = NodeTree.findAllInTree(root, predicate = { node ->
+            node.viewIdResourceName?.endsWith("rename_edit") == true
+        })
+        val byId = renamed.isNotEmpty()
+        renamed.forEach { recycleNode(it) }
         recycleNode(root)
-        return markers.isNotEmpty() && markers.any { TextMatcher.normalizedContains(text, it) }
+        return byId || (markers.isNotEmpty() && markers.any { TextMatcher.normalizedContains(text, it) })
     }
 
     /**
