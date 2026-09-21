@@ -1552,12 +1552,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
         recycleNode(targetSwitch); recycleNode(currentRoot)
 
         delay(600)
+        // Диалог подтверждения появляется сразу после тапа («Отключение Ленты виджетов:
+        // Вы не сможете использовать Ленту виджетов… Отключить её?» — дамп owner_06).
+        // Подтверждаем ДО проверки состояния, иначе verify не видит переключения и шаг
+        // уходит в retry → verify_failed.
+        tapConfirmIfNeeded(step)
         if (!verifySwitchState(step, mergedSearchTexts)) {
             val retryRoot = service.rootInActiveWindow ?: return Result(false, "no_root_window")
             val retryNode = findSwitchByText(retryRoot, mergedSearchTexts)
             if (retryNode != null) tapNode(retryNode)
             recycleNode(retryNode); recycleNode(retryRoot)
             delay(600)
+            tapConfirmIfNeeded(step)
             if (!verifySwitchState(step, mergedSearchTexts)) return Result(false, "verify_failed")
         }
 
@@ -1624,6 +1630,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     /** Тапает кнопку подтверждения диалога, если он появился (confirmTexts шага). */
     private suspend fun tapConfirmIfNeeded(step: SimpleSteps.Step) {
+        // У DELAYED_CONFIRM (msa) свой путь: кнопка активируется только после отсчёта,
+        // здесь она не кликабельна и только жгла бы повторы.
+        if (SemanticCatalog.sequenceKind(step.id) == SemanticCatalog.SequenceKind.DELAYED_CONFIRM) return
         val mergedConfirmTexts = confirmTextsFor(step)
         if (mergedConfirmTexts.isEmpty()) return
         val waitMs = SemanticCatalog.confirmWaitMs(step.id, step.confirmWaitMs)

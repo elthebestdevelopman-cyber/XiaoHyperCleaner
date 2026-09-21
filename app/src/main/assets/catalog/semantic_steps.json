@@ -1108,6 +1108,15 @@
       ]
     },    {
       "id": "home_suggestions",
+      "confirmTexts": {
+        "ru": ["Отключить", "Выключить"],
+        "en": ["Turn off", "Disable"],
+        "es": ["Desactivar", "Apagar"],
+        "zh": ["关闭", "停用"],
+        "hi": ["बंद करें"],
+        "pt": ["Desligar", "Desativar"],
+        "id": ["Matikan", "Nonaktifkan"]
+      },
       "variants": [
         {
           "id": "miui12_12_5",
