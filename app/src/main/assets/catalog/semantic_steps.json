@@ -227,6 +227,28 @@
         "pt": "O DNS é alterado pelo nosso interruptor no modo Simples (AdGuard DNS) — nada manual.",
         "id": "DNS diubah oleh tombol kami di mode Sederhana (AdGuard DNS) — tidak perlu manual."
       }
+    },
+    {
+      "id": "ads_identity_google",
+      "warning": true,
+      "title": {
+        "ru": "Идентификатор для персонализации (Google)",
+        "en": "Personalization identifier (Google)",
+        "es": "Identificador de personalización (Google)",
+        "zh": "个性化标识符（Google）",
+        "hi": "वैयक्तिकरण पहचानकर्ता (Google)",
+        "pt": "Identificador de personalização (Google)",
+        "id": "Pengenal personalisasi (Google)"
+      },
+      "body": {
+        "ru": "Вручную: Настройки → Конфиденциальность → раздел о персонализации → «Сбросить идентификатор» (жёстче — «Удалить идентификатор»). Приложение не делает это само: удаление необратимо и влияет на все приложения.",
+        "en": "Manually: Settings → Privacy → personalization section → \"Reset ID\" (stricter: \"Delete ID\"). The app does not do it itself: deletion is irreversible and affects all apps.",
+        "es": "Manual: Ajustes → Privacidad → sección de personalización → «Restablecer identificador» (más estricto: «Eliminar identificador»). La app no lo hace sola: la eliminación es irreversible y afecta a todas las apps.",
+        "zh": "手动：设置 → 隐私 → 个性化部分 → “重置标识符”（更彻底：“删除标识符”）。应用不会自动执行：删除不可逆且会影响所有应用。",
+        "hi": "मैन्युअल: सेटिंग्स → गोपनीयता → वैयक्तिकरण अनुभाग → “पहचानकर्ता रीसेट करें” (कड़ा: “पहचानकर्ता हटाएँ”)। ऐप इसे स्वतः नहीं करता: हटाना अपरिवर्तनीय है और सभी ऐप्स को प्रभावित करता है।",
+        "pt": "Manual: Ajustes → Privacidade → secção de personalização → «Redefinir identificador» (mais rígido: «Eliminar identificador»). O app não faz isso sozinho: a eliminação é irreversível e afeta todos os apps.",
+        "id": "Manual: Setelan → Privasi → bagian personalisasi → \"Setel ulang pengenal\" (lebih tegas: \"Hapus pengenal\"). Aplikasi tidak melakukannya sendiri: penghapusan tidak dapat dibatalkan dan memengaruhi semua aplikasi."
+      }
     }
   ],
   "neverTouchPackages": [

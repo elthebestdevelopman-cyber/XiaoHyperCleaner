@@ -28,7 +28,8 @@ class ManualStepsTest {
         "hyperos3_carousel_disable",
         "region_change",
         "daemon_warning",
-        "dns_pointer"
+        "dns_pointer",
+        "ads_identity_google"
     )
 
     @Before
@@ -61,10 +62,17 @@ class ManualStepsTest {
     }
 
     @Test
-    fun `warning items are exactly the three risky ones`() {
+    fun `warning items are exactly the risky ones`() {
         val warnings = SemanticCatalog.manualSteps().filter { it.warning }.map { it.id }
         assertEquals(
-            listOf("hyperos3_carousel_disable", "region_change", "daemon_warning"),
+            listOf(
+                "hyperos3_carousel_disable",
+                "region_change",
+                "daemon_warning",
+                // Сброс/удаление идентификатора персонализации необратим и влияет на все
+                // приложения — автоматизация этого не делает, только памятка.
+                "ads_identity_google"
+            ),
             warnings
         )
     }
