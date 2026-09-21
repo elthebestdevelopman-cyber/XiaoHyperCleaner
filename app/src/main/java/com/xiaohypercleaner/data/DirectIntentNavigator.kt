@@ -162,6 +162,19 @@ object DirectIntentNavigator {
                 )
             }
 
+            "google_diagnostics" -> {
+                // Google «Использование и диагностика»: GMS-активность не exported
+                // (`am start -a com.google.android.gms.usagereporting.GOOGLE_SETTINGS` →
+                // permission denial), поэтому экран открываем через системные Настройки —
+                // Privacy Dashboard, где этот пункт и находится.
+                intents.addAll(
+                    listOf(
+                        settingsIntent(Settings.ACTION_PRIVACY_SETTINGS),
+                        settingsIntent(Settings.ACTION_SETTINGS)
+                    )
+                )
+            }
+
             "carousel" -> {
                 // Карусель обоев
                 intents.addAll(

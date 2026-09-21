@@ -36,7 +36,7 @@ class SemanticCatalogTest {
 
     @Test
     fun `catalog loads all steps`() {
-        assertEquals(28, SemanticCatalog.all().size)
+        assertEquals(29, SemanticCatalog.all().size)
     }
 
     @Test
@@ -79,6 +79,23 @@ class SemanticCatalogTest {
     fun `steps without packages stay empty`() {
         assertTrue(SemanticCatalog.requiredPackages("msa").isEmpty())
         assertFalse(SemanticCatalog.keywords("msa").isEmpty())
+    }
+
+    @Test
+    fun `google diagnostics declares its own labels for every locale`() {
+        // Шаг закрывает Google-канал программы улучшения (MIUI-пункт «Программа улучшения
+        // качества» на POCO/MIUI 13 отсутствует — дамп ux_owner_screen). Регресс: без
+        // подписей и маркеров во всех локалях шаг молча уходил в skipped(low_confidence).
+        val original = Locale.getDefault()
+        try {
+            SemanticCatalog.LOCALES.forEach { lang ->
+                Locale.setDefault(Locale(lang))
+                assertTrue("$lang: подпись тумблера", SemanticCatalog.itemTexts("google_diagnostics").isNotEmpty())
+                assertTrue("$lang: маркеры экрана", SemanticCatalog.screenMarkers("google_diagnostics").isNotEmpty())
+            }
+        } finally {
+            Locale.setDefault(original)
+        }
     }
 
     @Test

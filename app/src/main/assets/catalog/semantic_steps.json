@@ -1007,6 +1007,46 @@
       ]
     },
     {
+      "id": "google_diagnostics",
+      "title": {
+        "ru": "Использование и диагностика (Google)",
+        "en": "Google usage & diagnostics",
+        "es": "Uso y diagnóstico de Google",
+        "zh": "Google 使用情况与诊断",
+        "hi": "Google उपयोग और निदान",
+        "pt": "Uso e diagnóstico do Google",
+        "id": "Penggunaan & diagnostik Google"
+      },
+      "keywords": {
+        "ru": ["Использование и диагностика"],
+        "en": ["Usage & diagnostics", "Usage and diagnostics"],
+        "es": ["Uso y diagnóstico"],
+        "zh": ["使用情况与诊断"],
+        "hi": ["उपयोग और निदान"],
+        "pt": ["Uso e diagnóstico"],
+        "id": ["Penggunaan & diagnostik"]
+      },
+      "screenMarkers": {
+        "ru": ["Использование и диагностика", "Помогите сделать устройства Android ещё лучше"],
+        "en": ["Usage & diagnostics", "Help make Android better"],
+        "es": ["Uso y diagnóstico"],
+        "zh": ["使用情况与诊断"],
+        "hi": ["उपयोग और निदान"],
+        "pt": ["Uso e diagnóstico"],
+        "id": ["Penggunaan & diagnostik"]
+      },
+      "actionType": "toggle",
+      "safe": true,
+      "localeCoverage": [
+        "ru",
+        "en",
+        "es",
+        "zh",
+        "hi",
+        "pt",
+        "id"
+      ]
+    },    {
       "id": "home_suggestions",
       "variants": [
         {

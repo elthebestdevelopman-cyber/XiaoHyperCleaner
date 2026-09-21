@@ -229,6 +229,36 @@ object SimpleSteps {
             drillPath = listOf(SEC, PRIVACY)
         ),
 
+        // П.3c: Google «Использование и диагностика» — Google-канал программы улучшения
+        // («Помогите сделать устройства Android ещё лучше»). MIUI-пункта «Программа улучшения
+        // качества» на POCO/MIUI 13 нет (полный прокрут Настроек — дамп ux_owner_screen), а этот
+        // экран есть: системные Настройки → «Конфиденциальность» → «Использование и диагностика».
+        // GMS-активность не exported (`am start`: permission denial), поэтому входим через
+        // системные Настройки, а не прямым интентом.
+        Step(
+            id = "google_diagnostics",
+            titleRu = "Использование и диагностика (Google)",
+            titleEn = "Google usage & diagnostics",
+            descRu = "Отключаем отправку диагностических данных Google.",
+            descEn = "Turning off Google diagnostic data reporting.",
+            intents = listOf(settingsRoot()),
+            searchTexts = listOf(
+                "Использование и диагностика",
+                "Usage & diagnostics",
+                "Usage and diagnostics"
+            ),
+            manualHintRu = "Настройки → Конфиденциальность → «Использование и диагностика» → выключите.",
+            manualHintEn = "Settings → Privacy → Usage & diagnostics → turn off.",
+            drillPath = listOf(
+                listOf(
+                    "Использование и диагностика",
+                    "Usage & diagnostics",
+                    "Usage and diagnostics",
+                    "Google 使用情况与诊断"
+                )
+            )
+        ),
+
         // П.6: Блокировка экрана → Карусель обоев (2 тумблера)
         Step(
             id = "carousel",

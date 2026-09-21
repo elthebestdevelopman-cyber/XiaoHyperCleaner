@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 227 тестов (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 228 тестов (полная таблица ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 тестов
 │   ├── OptimizationEngineTest.kt # 14 тестов
@@ -388,7 +388,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 227 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (227 тестов, 30 сьютов)
+### Unit-тесты (228 тестов, 30 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -400,7 +400,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 227 тест
 | `RestoreSnapshotTest`         | 5      | Снапшот оригиналов для отката                      |
 | `AdbPortResolverTest`         | 5      | mDNS discovery, mergePorts                         |
 | `AdaptiveCatalogTest`         | 16     | Вариантный каталог, мердж текстов                  |
-| `SemanticCatalogTest`         | 9      | Семантика шагов, пакеты-цели, политика диалогов    |
+| `SemanticCatalogTest`         | 10     | Семантика шагов, пакеты-цели, политика диалогов    |
 | `SemanticVariantTest`         | 7      | Выбор вариантов по версии ОС (MIUI 13 / HyperOS 2) |
 | `SemanticGateTest`            | 6      | Гейт уверенности                                   |
 | `PlanBuilderTest`             | 7      | Префильтр плана + красный список                   |

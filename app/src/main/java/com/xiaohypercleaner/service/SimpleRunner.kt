@@ -84,7 +84,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // П.6: Возобновляемые шаги (не требуют сброса настроек)
         // ═══════════════════════════════════════════════════════════════
         private val SETTINGS_RESUMABLE_STEPS = setOf(
-            "msa", "sys_recommendations", "ads_personalization", "ux_program", "carousel"
+            "msa", "sys_recommendations", "ads_personalization", "ux_program",
+            "google_diagnostics", "carousel"
         )
 
         // ═══════════════════════════════════════════════════════════════
