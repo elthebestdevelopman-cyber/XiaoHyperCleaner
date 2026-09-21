@@ -137,15 +137,11 @@ object DirectIntentNavigator {
             }
 
             "ads_personalization" -> {
-                // MIUI «Конфиденциальность» (Settings$PrivacySettingsActivity) содержит пункт
-                // «Рекламные службы» (дамп owner_07); раньше на этой прошивке шаг был неприменим,
-                // потому что интенты AD_SERVICES_SETTINGS не резолвятся вовсе.
-                intents.add(
-                    explicitActivity(
-                        "com.android.settings",
-                        "com.android.settings.Settings\$PrivacySettingsActivity"
-                    )
-                )
+                // Персонализация рекламы.
+                // На MIUI-«Конфиденциальности» (дамп owner_07) пункт «Рекламные службы» ведёт
+                // на com.android.settings.ad.AdServiceSettings с тумблером «Персонализированная
+                // реклама» (дамп owner_08); своей экспортированной активности у экрана нет,
+                // поэтому путь — drill (см. каталог).
                 intents.addAll(
                     listOf(
                         miuiIntent("miui.intent.action.AD_SERVICES_SETTINGS"),
@@ -158,17 +154,10 @@ object DirectIntentNavigator {
             }
 
             "ux_program" -> {
-                // MIUI «Конфиденциальность» = Settings$PrivacySettingsActivity: блок
-                // «ПРОГРАММА УЛУЧШЕНИЯ КАЧЕСТВА» → «Участвовать в Программе улучшения качества»
-                // (дамп owner_07, проверено `am start` компонентой). Маршрут «Пароли и
-                // безопасность → Конфиденциальность» на POCO/MIUI 13 отсутствует, из-за чего
-                // шаг был неприменим (прогон rmubgvwm5).
-                intents.add(
-                    explicitActivity(
-                        "com.android.settings",
-                        "com.android.settings.Settings\$PrivacySettingsActivity"
-                    )
-                )
+                // Программа улучшения качества (MIUI-экран «Конфиденциальность», дамп owner_07:
+                // блок «ПРОГРАММА УЛУЧШЕНИЯ КАЧЕСТВА» → «Участвовать в Программе улучшения
+                // качества»). Своей экспортированной активности у экрана нет, поэтому путь —
+                // drill «Пароли и безопасность → Конфиденциальность» (см. каталог).
                 intents.addAll(
                     listOf(
                         miuiIntent("miui.intent.action.USER_EXPERIENCE_PROGRAM"),

@@ -313,12 +313,12 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 231 тестов (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 230 тестов (полная таблица ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 тестов
 │   ├── OptimizationEngineTest.kt # 14 тестов
 │   ├── AdbPortResolverTest.kt    # 5 тестов
-│   ├── DirectIntentNavigatorTest.kt # 9 тестов (точка входа шага, цепочки интентов)
+│   ├── DirectIntentNavigatorTest.kt # 8 тестов (точка входа шага, цепочки интентов)
 │   ├── RomProfileTest.kt         # 5 тестов
 │   └── SimpleStepsTest.kt        # 6 тестов
 ├── service/
@@ -388,7 +388,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 231 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (231 тестов, 30 сьютов)
+### Unit-тесты (230 тестов, 30 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest

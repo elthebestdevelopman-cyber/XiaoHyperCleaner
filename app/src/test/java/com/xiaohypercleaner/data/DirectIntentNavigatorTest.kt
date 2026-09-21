@@ -212,31 +212,6 @@ class DirectIntentNavigatorTest {
     }
 
     @Test
-    fun `ux program chain opens the miui privacy settings screen`() {
-        // MIUI «Конфиденциальность» = com.android.settings.Settings$PrivacySettingsActivity:
-        // там блок «ПРОГРАММА УЛУЧШЕНИЯ КАЧЕСТВА» → «Участвовать в Программе улучшения
-        // качества» (дамп owner_07). Маршрут «Пароли и безопасность → Конфиденциальность»
-        // на POCO/MIUI 13 отсутствует, и шаг был неприменим (прогон rmubgvwm5).
-        val privacy = ComponentName(
-            "com.android.settings",
-            "com.android.settings.Settings\$PrivacySettingsActivity"
-        )
-        Shadows.shadowOf(context.packageManager).addActivityIfNotPresent(privacy)
-
-        val intents = DirectIntentNavigator.buildIntentsForStep(
-            context,
-            SimpleSteps.ALL.first { it.id == "ux_program" },
-            null,
-            profile
-        )
-
-        assertTrue(
-            "в цепочке шага должен быть прямой вход на MIUI-«Конфиденциальность»",
-            intents.any { it.component == privacy }
-        )
-    }
-
-    @Test
     fun `carousel chain opens the wallpaper carousel settings`() {
         // POCO/MIUI 13: пункта «Карусель обоев» в «Блокировке экрана» нет вовсе, зато у
         // приложения карусели есть экспортированное действие настроек (дамп carousel_setting_act).

@@ -598,10 +598,13 @@
             ["Рекламные службы", "Ad services", "广告服务", "Servicios de anuncios", "Layanan iklan", "Serviços de anúncios"]
           ],
           "screenMarkers": {
-            "ru": ["Рекламные службы", "Конфиденциальность"],
-            "en": ["Ad services", "Privacy"],
-            "zh": ["广告服务"],
-            "es": ["Servicios de anuncios"]
+            "ru": ["Рекламные службы", "Конфиденциальность", "Персонализированная реклама"],
+            "en": ["Ad services", "Privacy", "Personalized ads"],
+            "zh": ["广告服务", "个性化广告"],
+            "es": ["Servicios de anuncios", "Anuncios personalizados"],
+            "hi": ["वैयक्तिकृत विज्ञापन"],
+            "pt": ["Anúncios personalizados"],
+            "id": ["Iklan yang dipersonalisasi"]
           },
           "itemTexts": {
             "ru": ["Персонализированная реклама", "Персонализация рекламы"],
@@ -632,9 +635,13 @@
             ["Рекламные службы", "Ad services", "广告服务"]
           ],
           "screenMarkers": {
-            "ru": ["Рекламные службы"],
-            "en": ["Ad services"],
-            "zh": ["广告服务"]
+            "ru": ["Рекламные службы", "Персонализированная реклама"],
+            "en": ["Ad services", "Personalized ads"],
+            "zh": ["广告服务", "个性化广告"],
+            "es": ["Servicios de anuncios", "Anuncios personalizados"],
+            "hi": ["वैयक्तिकृत विज्ञापन"],
+            "pt": ["Anúncios personalizados"],
+            "id": ["Iklan yang dipersonalisasi"]
           },
           "itemTexts": {
             "ru": ["Персонализированная реклама"],

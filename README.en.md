@@ -295,12 +295,12 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 30 suites, 231 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 30 suites, 230 tests (full table below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 16 tests
 │   ├── OptimizationEngineTest.kt # 14 tests
 │   ├── AdbPortResolverTest.kt    # 5 tests
-│   ├── DirectIntentNavigatorTest.kt # 9 tests (step entry point, intent chains)
+│   ├── DirectIntentNavigatorTest.kt # 8 tests (step entry point, intent chains)
 │   ├── RomProfileTest.kt         # 5 tests
 │   └── SimpleStepsTest.kt        # 6 tests
 ├── service/
@@ -370,7 +370,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 suites, 231 tests (full ta
 
 ## 🧪 Testing
 
-### Unit Tests (231 tests, 30 suites)
+### Unit Tests (230 tests, 30 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
