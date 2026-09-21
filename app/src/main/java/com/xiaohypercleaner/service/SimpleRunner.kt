@@ -911,13 +911,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
             attempt++
             if (attempt > 1 && !returnToDrillBase(screenText)) break
             val rect = Rect().also { candidate.getBoundsInScreen(it) }
+            // База для проверки «экран сменился» — текст НЕПОСРЕДСТВЕННО перед тапом:
+            // screenText снят до прокруток поиска кандидатов, и один только скролл давал
+            // ложное «уровень пройден» (ux_program: прокрутили главный список Настроек
+            // вместо тапа, шаг ушёл искать тумблер и падал switch_not_found, прогон rmubgvwm5).
+            val beforeTapText = currentScreenText()
             val tapped = tapNode(candidate)
             recycleNode(candidate)
             if (!tapped) continue
-            if (levelLanded(nextTexts, screenText)) return true
+            if (levelLanded(nextTexts, beforeTapText)) return true
             if (tapAt(rect.centerX(), rect.centerY())) {
                 delay(UI_SETTLE_DELAY_MS)
-                if (levelLanded(nextTexts, screenText)) return true
+                if (levelLanded(nextTexts, beforeTapText)) return true
             }
         }
         AppLog.w(
@@ -1418,7 +1423,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val mergedSearchTexts = searchTextsFor(step)
         if (mergedSearchTexts.isEmpty()) return Result(false, "no_switch")
 
-        if (!awaitScreen(mergedSearchTexts)) return Result(false, "switch_not_found")
+        if (!awaitScreen(mergedSearchTexts)) {
+            // Экран шага не открылся: если маркеров целевого экрана тоже нет, это не провал
+            // автоматизации, а отсутствие настройки на прошивке (ux_program: пункта
+            // «Программа улучшения качества» нет вовсе — прогон rmubgvwm5, отчёт врал FAIL).
+            val markers = SemanticCatalog.screenMarkers(step.id)
+            if (markers.isEmpty() || screenHasAny(markers)) {
+                return Result(false, "switch_not_found")
+            }
+            AppLog.w(TAG, "step ${step.id}: экран шага не открылся, маркеров нет — шаг неприменим")
+            StepDiagnostics.note(step.id, "APPLICABILITY", "screen_markers_absent")
+            return Result(false, NOT_APPLICABLE)
+        }
 
         var currentRoot: AccessibilityNodeInfo? =
             service.rootInActiveWindow ?: return Result(false, "no_root_window")
@@ -2531,6 +2547,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     /** Сбор текста экрана вынесен в [NodeTree]. */
     private fun collectAllText(node: AccessibilityNodeInfo?): String = NodeTree.collectText(node)
+
+    /** Актуальный текст активного экрана (проверка смены экрана после тапа). */
+    private fun currentScreenText(): String {
+        val root = service.rootInActiveWindow ?: return ""
+        val text = collectAllText(root)
+        recycleNode(root)
+        return text
+    }
 
     /**
      * Текст экрана без тулбара (`action_bar*`): заголовок «Конфиденциальность» не
