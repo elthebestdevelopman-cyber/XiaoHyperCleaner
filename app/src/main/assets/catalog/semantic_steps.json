@@ -1,14 +1,14 @@
-{
+﻿{
   "version": 1,
   "consentPolicy": {
     "welcomeMarkers": {
-      "ru": ["Добро пожаловать", "Условия использования", "Условиями использования", "Условиях использования", "Политика конфиденциальности", "Политикой конфиденциальности", "Пользовательское соглашение", "Скачивание видео", "Загрузка видео", "Настройка браузера", "Выберите поисковую систему", "Быстрая настройка"],
-      "en": ["Welcome", "Terms of Service", "Terms of Use", "Privacy Policy", "User Agreement", "By continuing", "Download videos", "Video download", "Set up your browser", "Choose a search engine", "Quick setup"],
-      "es": ["Bienvenido", "Términos de servicio", "Política de privacidad", "Descarga de vídeos", "Configuración del navegador", "Elige un motor de búsqueda"],
-      "zh": ["欢迎", "服务条款", "隐私政策", "视频下载", "浏览器设置", "选择搜索引擎"],
-      "hi": ["स्वागत है", "सेवा की शर्तें", "गोपनीयता नीति", "वीडियो डाउनलोड", "ब्राउज़र सेटअप", "खोज इंजन चुनें"],
-      "pt": ["Bem-vindo", "Termos de Serviço", "Política de Privacidade", "Download de vídeos", "Configuração do navegador", "Escolha um mecanismo de busca"],
-      "id": ["Selamat datang", "Ketentuan Layanan", "Kebijakan Privasi", "Unduh video", "Pengaturan browser", "Pilih mesin pencari"]
+      "ru": ["Добро пожаловать", "Условия использования", "Условиями использования", "Условиях использования", "Политика конфиденциальности", "Политикой конфиденциальности", "Пользовательское соглашение", "Скачивание видео", "Загрузка видео", "Настройка браузера", "Выберите поисковую систему", "Быстрая настройка", "Глобальная лента контента"],
+      "en": ["Welcome", "Terms of Service", "Terms of Use", "Privacy Policy", "User Agreement", "By continuing", "Download videos", "Video download", "Set up your browser", "Choose a search engine", "Quick setup", "Global content feed"],
+      "es": ["Bienvenido", "Términos de servicio", "Política de privacidad", "Descarga de vídeos", "Configuración del navegador", "Elige un motor de búsqueda", "Feed de contenido global"],
+      "zh": ["欢迎", "服务条款", "隐私政策", "视频下载", "浏览器设置", "选择搜索引擎", "全球内容源"],
+      "hi": ["स्वागत है", "सेवा की शर्तें", "गोपनीयता नीति", "वीडियो डाउनलोड", "ब्राउज़र सेटअप", "खोज इंजन चुनें", "वैश्विक सामग्री फ़ीड"],
+      "pt": ["Bem-vindo", "Termos de Serviço", "Política de Privacidade", "Download de vídeos", "Configuração do navegador", "Escolha um mecanismo de busca", "Feed de conteúdo global"],
+      "id": ["Selamat datang", "Ketentuan Layanan", "Kebijakan Privasi", "Unduh video", "Pengaturan browser", "Pilih mesin pencari", "Feed konten global"]
     },
     "welcomeActions": {
       "ru": ["Согласиться", "Принять", "Принять и продолжить", "Согласен", "Еще", "Ещё", "Далее", "Продолжить"],
@@ -1350,15 +1350,15 @@
           "extraTargets": [
             {
               "back": 1,
-              "drillPath": [["Конфиденциальность", "Privacy", "隐私"]],
+              "drillPath": [["Безопасность", "Security", "安全"]],
               "itemTexts": {
-                "ru": ["Персональные рекомендации", "Персонализированные услуги"],
-                "en": ["Personalized recommendations", "Personalized services"],
-                "es": ["Recomendaciones personalizadas"],
-                "zh": ["个性化推荐"],
-                "hi": ["व्यक्तिगत सुझाव"],
-                "pt": ["Recomendações personalizadas"],
-                "id": ["Rekomendasi personal"]
+                "ru": ["Персонализация услуг"],
+                "en": ["Personalized services"],
+                "es": ["Personalización de servicios"],
+                "zh": ["个性化服务"],
+                "hi": ["व्यक्तिगत सेवाएं"],
+                "pt": ["Personalização de serviços"],
+                "id": ["Personalisasi layanan"]
               },
               "control": "toggle"
             }
@@ -1389,15 +1389,15 @@
           "extraTargets": [
             {
               "back": 1,
-              "drillPath": [["Конфиденциальность", "Privacy"]],
+              "drillPath": [["Безопасность", "Security"]],
               "itemTexts": {
-                "ru": ["Персональные рекомендации"],
-                "en": ["Personalized recommendations"],
-                "es": ["Recomendaciones personalizadas"],
-                "zh": ["个性化推荐"],
-                "hi": ["व्यक्तिगत सुझाव"],
-                "pt": ["Recomendações personalizadas"],
-                "id": ["Rekomendasi personal"]
+                "ru": ["Персонализация услуг"],
+                "en": ["Personalized services"],
+                "es": ["Personalización de servicios"],
+                "zh": ["个性化服务"],
+                "hi": ["व्यक्तिगत सेवाएं"],
+                "pt": ["Personalização de serviços"],
+                "id": ["Personalisasi layanan"]
               },
               "control": "toggle"
             }
