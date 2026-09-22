@@ -574,6 +574,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
         if (!screenOpened) return Result(false, "no_screen_opened")
 
         delay(if (step.launchPackage != null) APP_LAUNCH_DELAY_MS else UI_SETTLE_DELAY_MS)
+        // Закрытие видеорекламы при запуске приложения (Mi Music, GetApps и др.).
+        // Реклама блокирует доступ к настройкам — ищем крестик или кнопку "Пропустить".
+        if (step.launchPackage != null) {
+            ConsentWallHandler.dismissVideoAdsUntilSettled(service, step.id)
+        }
         // Единая точка входа для системных диалогов (welcome/permission/dismiss, Аддендум B)
         val consentHandled = handleConsentWalls(step)
         if (consentHandled > 0 && !isForegroundTarget(step, resolvedPkg)) {

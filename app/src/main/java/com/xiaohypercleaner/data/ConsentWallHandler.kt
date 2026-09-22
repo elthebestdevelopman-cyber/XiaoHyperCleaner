@@ -37,6 +37,45 @@ object ConsentWallHandler {
     /** Пауза перед проверкой «диалог закрылся» (тап уже отправлен). */
     private const val VERIFY_DELAY_MS = 250L
 
+    /** Максимальное число попыток закрытия видеорекламы при запуске приложения. */
+    private const val MAX_AD_DISMISS_ATTEMPTS = 3
+
+    /** Задержка между попытками закрытия рекламы (реклама может показывать несколько роликов). */
+    private const val AD_DISMISS_DELAY_MS = 1500L
+
+    /**
+     * ID крестика закрытия видеорекламы в приложениях Xiaomi (Mi Music и др.).
+     * Яндекс.Реклама (Columbus) показывает полноэкранные ролики с крестиком в правом верхнем углу.
+     */
+    private val AD_CLOSE_BUTTON_IDS = listOf(
+        "columbus_end_card_close",
+        "iv_close",
+        "close_button",
+        "btn_close"
+    )
+
+    /**
+     * Тексты кнопок закрытия/пропуска видеорекламы.
+     * Некоторые рекламы показывают кнопку "Пропустить" или "Следующий" вместо крестика.
+     */
+    private val AD_SKIP_TEXTS = listOf(
+        "Пропустить", "Skip", "Skip ad", "Пропустить рекламу",
+        "Следующий", "Next", "Далее"
+    )
+
+    /**
+     * Пакеты и активности видеорекламы, которые блокируют запуск приложения.
+     * При обнаружении — попытка закрытия через BACK, иначе — пропуск шага
+     * с пометкой "ad_blocked" (Mi Music и другие приложения с Яндекс.Рекламой).
+     */
+    private val AD_ACTIVITY_PATTERNS = listOf(
+        "com.yandex.mobile.ads",
+        "com.google.android.gms.ads",
+        "com.applovin",
+        "com.ironsource",
+        "com.unity3d.ads"
+    )
+
     /**
      * Отрицательные кнопки системных alert-диалогов. Робот закрывает диалог и
      * продолжает шаг: «Установить по умолчанию» (Отмена), отчёт о сбое (Отмена),
@@ -429,6 +468,111 @@ object ConsentWallHandler {
             @Suppress("DEPRECATION")
             runCatching { node.recycle() }
         }
+    }
+
+    /**
+     * Закрытие видеорекламы при запуске приложения.
+     *
+     * Некоторые приложения (Mi Music, GetApps) показывают полноэкранную видеорекламу
+     * при холодном старте. Реклама блокирует доступ к настройкам. Функция ищет крестик
+     * (columbus_end_card_close) или кнопку "Пропустить" и закрывает рекламу до 3 раз
+     * (реклама может показывать несколько роликов подряд).
+     *
+     * @param service AccessibilityService для доступа к дереву UI
+     * @param stepId ID шага для логирования
+     * @return Количество закрытых рекламных экранов
+     */
+    suspend fun dismissVideoAdsUntilSettled(
+        service: AccessibilityService,
+        stepId: String
+    ): Int {
+        var dismissed = 0
+        repeat(MAX_AD_DISMISS_ATTEMPTS) { attempt ->
+            if (!isVideoAdScreen(service)) return@repeat
+            val closed = dismissVideoAdOnce(service, stepId, attempt + 1)
+            if (!closed) return@repeat
+            dismissed++
+            delay(AD_DISMISS_DELAY_MS)
+        }
+        if (dismissed > 0) {
+            AppLog.i(TAG, "ad: dismissed $dismissed video ad(s) for step=$stepId")
+        }
+        return dismissed
+    }
+
+    /** Проверка: текущий экран — видеореклама (пакет содержит рекламные SDK или текст "РЕКЛАМА"). */
+    private fun isVideoAdScreen(service: AccessibilityService): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val pkg = root.packageName?.toString() ?: ""
+        val text = NodeTree.collectText(root)
+
+        // Проверка 1: пакет содержит рекламный SDK
+        val isAdPackage = AD_ACTIVITY_PATTERNS.any { pattern ->
+            pkg.contains(pattern, ignoreCase = true)
+        }
+
+        // Проверка 2: на экране есть маркер "РЕКЛАМА" (Яндекс.Реклама показывает его всегда)
+        val hasAdMarker = text.contains("РЕКЛАМА", ignoreCase = true) ||
+            text.contains("AD", ignoreCase = false) ||
+            text.contains("广告", ignoreCase = false)
+
+        // Проверка 3: есть ID рекламного контейнера
+        val hasAdContainer = NodeTree.findInTree(root) { node ->
+            val id = viewId(node)
+            id.contains("adContainer", ignoreCase = true) ||
+                id.contains("columbus", ignoreCase = true) ||
+                id.contains("adsPlace", ignoreCase = true)
+        } != null
+
+        recycle(root)
+        return isAdPackage || (hasAdMarker && hasAdContainer)
+    }
+
+    /** Одна попытка закрытия видеорекламы: поиск крестика или кнопки "Пропустить". */
+    private suspend fun dismissVideoAdOnce(
+        service: AccessibilityService,
+        stepId: String,
+        attempt: Int
+    ): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+
+        // Попытка 1: найти крестик по ID
+        val closeButton = AD_CLOSE_BUTTON_IDS.firstNotNullOfOrNull { targetId ->
+            NodeTree.findInTree(root) { node ->
+                viewId(node).endsWith(targetId, ignoreCase = true) && node.isClickable
+            }
+        }
+
+        if (closeButton != null) {
+            val tapped = closeButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            recycle(closeButton)
+            recycle(root)
+            AppLog.i(TAG, "ad: attempt=$attempt tapped close button for step=$stepId success=$tapped")
+            return tapped
+        }
+
+        // Попытка 2: найти кнопку "Пропустить"/"Следующий" по тексту
+        val skipButton = NodeTree.findInTree(root) { node ->
+            val nodeText = node.text?.toString() ?: ""
+            val nodeDesc = node.contentDescription?.toString() ?: ""
+            val matches = AD_SKIP_TEXTS.any { skipText ->
+                nodeText.equals(skipText, ignoreCase = true) ||
+                    nodeDesc.equals(skipText, ignoreCase = true)
+            }
+            matches && node.isClickable
+        }
+
+        if (skipButton != null) {
+            val tapped = skipButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            recycle(skipButton)
+            recycle(root)
+            AppLog.i(TAG, "ad: attempt=$attempt tapped skip button for step=$stepId success=$tapped")
+            return tapped
+        }
+
+        recycle(root)
+        AppLog.w(TAG, "ad: attempt=$attempt no close button found for step=$stepId")
+        return false
     }
 }
 

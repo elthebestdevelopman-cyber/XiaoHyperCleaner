@@ -1497,21 +1497,20 @@
           "fallback": true,
           "drillPath": [
             ["☰", "", "Ещё", "More", "Больше"],
-            ["Настройки", "Settings"],
-            ["Расширенные настройки", "Advanced settings"]
+            ["Настройки", "Settings"]
           ],
           "screenMarkers": {
-            "ru": ["Расширенные настройки", "Настройки", "Аккаунт и настройки", "Дополнительные настройки", "Показывать рекламу"],
-            "en": ["Advanced settings", "Settings"]
+            "ru": ["Аккаунт и настройки", "Дополнительные настройки", "Показывать рекламу"],
+            "en": ["Account and settings", "Settings"]
           },
           "itemTexts": {
-            "ru": ["Показывать рекламу", "Получать рекомендации", "Разрешить постоянные уведомления"],
-            "en": ["Show ads", "Receive recommendations", "Allow persistent notifications"],
-            "es": ["Mostrar anuncios", "Recibir recomendaciones"],
-            "zh": ["显示广告", "接收推荐"],
-            "hi": ["विज्ञापन दिखाएँ", "सुझाव प्राप्त करें"],
-            "pt": ["Mostrar anúncios", "Receber recomendações"],
-            "id": ["Tampilkan iklan", "Terima rekomendasi"]
+            "ru": ["Показывать рекламу", "Показывать рекомендации в Интернете во время запуска", "Персональные рекомендации", "Сервисы онлайн-контента"],
+            "en": ["Show ads", "Show recommendations on the Internet during startup", "Personal recommendations", "Online content services"],
+            "es": ["Mostrar anuncios", "Mostrar recomendaciones en Internet durante el inicio", "Recomendaciones personales", "Servicios de contenido en línea"],
+            "zh": ["显示广告", "启动时在互联网上显示推荐", "个性化推荐", "在线内容服务"],
+            "hi": ["विज्ञापन दिखाएँ", "स्टार्टअप पर इंटरनेट पर अनुशंसाएँ दिखाएँ", "व्यक्तिगत अनुशंसाएँ", "ऑनलाइन सामग्री सेवाएँ"],
+            "pt": ["Mostrar anúncios", "Mostrar recomendações na Internet durante a inicialização", "Recomendações pessoais", "Serviços de conteúdo online"],
+            "id": ["Tampilkan iklan", "Tampilkan rekomendasi di Internet saat startup", "Rekomendasi pribadi", "Layanan konten online"]
           }
         },
         {
@@ -1520,21 +1519,20 @@
           "fallback": false,
           "drillPath": [
             ["☰", "Показать меню", "Ещё", "More", "Больше"],
-            ["Настройки", "Settings", "设置"],
-            ["Расширенные настройки", "Advanced settings"]
+            ["Настройки", "Settings", "设置"]
           ],
           "screenMarkers": {
-            "ru": ["Расширенные настройки", "Настройки", "Аккаунт и настройки", "Дополнительные настройки", "Показывать рекламу"],
-            "en": ["Advanced settings", "Settings"]
+            "ru": ["Аккаунт и настройки", "Дополнительные настройки", "Показывать рекламу"],
+            "en": ["Account and settings", "Settings"]
           },
           "itemTexts": {
-            "ru": ["Получать рекомендации", "Персональные рекомендации", "Показывать рекламу"],
-            "en": ["Receive recommendations", "Personalized recommendations", "Show ads"],
-            "es": ["Recibir recomendaciones", "Recomendaciones personalizadas"],
-            "zh": ["接收推荐", "个性化推荐"],
-            "hi": ["सुझाव प्राप्त करें", "व्यक्तिगत सुझाव"],
-            "pt": ["Receber recomendações", "Recomendações personalizadas"],
-            "id": ["Terima rekomendasi", "Rekomendasi personal"]
+            "ru": ["Показывать рекламу", "Показывать рекомендации в Интернете во время запуска", "Персональные рекомендации", "Сервисы онлайн-контента"],
+            "en": ["Show ads", "Show recommendations on the Internet during startup", "Personal recommendations", "Online content services"],
+            "es": ["Mostrar anuncios", "Mostrar recomendaciones en Internet durante el inicio", "Recomendaciones personales", "Servicios de contenido en línea"],
+            "zh": ["显示广告", "启动时在互联网上显示推荐", "个性化推荐", "在线内容服务"],
+            "hi": ["विज्ञापन दिखाएँ", "स्टार्टअप पर इंटरनेट पर अनुशंसाएँ दिखाएँ", "व्यक्तिगत अनुशंसाएँ", "ऑनलाइन सामग्री सेवाएँ"],
+            "pt": ["Mostrar anúncios", "Mostrar recomendações na Internet durante a inicialização", "Recomendações pessoais", "Serviços de conteúdo online"],
+            "id": ["Tampilkan iklan", "Tampilkan rekomendasi di Internet saat startup", "Rekomendasi pribadi", "Layanan konten online"]
           }
         },
         {
@@ -1543,21 +1541,20 @@
           "fallback": false,
           "drillPath": [
             ["☰", "Показать меню", "Ещё", "More", "Больше"],
-            ["Настройки", "Settings"],
-            ["Расширенные настройки", "Advanced settings"]
+            ["Настройки", "Settings"]
           ],
           "screenMarkers": {
-            "ru": ["Расширенные настройки", "Настройки", "Аккаунт и настройки", "Дополнительные настройки", "Показывать рекламу"],
-            "en": ["Advanced settings", "Settings"]
+            "ru": ["Аккаунт и настройки", "Дополнительные настройки", "Показывать рекламу"],
+            "en": ["Account and settings", "Settings"]
           },
           "itemTexts": {
-            "ru": ["Получать рекомендации", "Персональные рекомендации"],
-            "en": ["Receive recommendations", "Personalized recommendations"],
-            "es": ["Recibir recomendaciones"],
-            "zh": ["接收推荐", "个性化推荐"],
-            "hi": ["सुझाव प्राप्त करें"],
-            "pt": ["Receber recomendações"],
-            "id": ["Terima rekomendasi"]
+            "ru": ["Показывать рекламу", "Показывать рекомендации в Интернете во время запуска", "Персональные рекомендации", "Сервисы онлайн-контента"],
+            "en": ["Show ads", "Show recommendations on the Internet during startup", "Personal recommendations", "Online content services"],
+            "es": ["Mostrar anuncios", "Mostrar recomendaciones en Internet durante el inicio", "Recomendaciones personales", "Servicios de contenido en línea"],
+            "zh": ["显示广告", "启动时在互联网上显示推荐", "个性化推荐", "在线内容服务"],
+            "hi": ["विज्ञापन दिखाएँ", "स्टार्टअप पर इंटरनेट पर अनुशंसाएँ दिखाएँ", "व्यक्तिगत अनुशंसाएँ", "ऑनलाइन सामग्री सेवाएँ"],
+            "pt": ["Mostrar anúncios", "Mostrar recomendações na Internet durante a inicialização", "Recomendações pessoais", "Serviços de conteúdo online"],
+            "id": ["Tampilkan iklan", "Tampilkan rekomendasi di Internet saat startup", "Rekomendasi pribadi", "Layanan konten online"]
           }
         }
       ],
@@ -1602,25 +1599,39 @@
       },
       "screenMarkers": {
         "ru": [
-          "Расширенные настройки"
+          "Аккаунт и настройки",
+          "Расширенные настройки",
+          "Показывать рекламу"
         ],
         "en": [
-          "Advanced settings"
+          "Account and settings",
+          "Advanced settings",
+          "Show ads"
         ],
         "es": [
-          "Configuración avanzada"
+          "Cuenta y ajustes",
+          "Configuración avanzada",
+          "Mostrar anuncios"
         ],
         "zh": [
-          "高级设置"
+          "账户和设置",
+          "高级设置",
+          "显示广告"
         ],
         "hi": [
-          "उन्नत सेटिंग्स"
+          "खाता और सेटिंग्स",
+          "उन्नत सेटिंग्स",
+          "विज्ञापन दिखाएँ"
         ],
         "pt": [
-          "Configurações avançadas"
+          "Conta e configurações",
+          "Configurações avançadas",
+          "Mostrar anúncios"
         ],
         "id": [
-          "Pengaturan lanjutan"
+          "Akun dan pengaturan",
+          "Pengaturan lanjutan",
+          "Tampilkan iklan"
         ]
       },
       "actionType": "toggle",
