@@ -49,22 +49,22 @@
       "id": ["Pilih semua", "Saya setuju dengan semua", "(wajib)", "wajib"]
     },
     "dismissMarkers": {
-      "ru": ["Произошла ошибка сети", "Ошибка сети", "Нет подключения к сети", "Вам нравится Mi Браузер?", "Оцените приложение", "Ярлыки функций доступны сейчас", "Приложение не отвечает"],
-      "en": ["Network error occurred", "Network error", "No network connection", "Do you like Mi Browser?", "Rate the app", "Feature shortcuts are available now", "App isn't responding"],
-      "es": ["Se produjo un error de red", "Error de red"],
-      "zh": ["网络错误", "发生网络错误"],
-      "hi": ["नेटवर्क त्रुटि", "नेटवर्क त्रुटि हुई"],
-      "pt": ["Ocorreu um erro de rede", "Erro de rede"],
-      "id": ["Terjadi kesalahan jaringan", "Kesalahan jaringan"]
+      "ru": ["Произошла ошибка сети", "Ошибка сети", "Нет подключения к сети", "Вам нравится Mi Браузер?", "Оцените приложение", "Ярлыки функций доступны сейчас", "Приложение не отвечает", "РЕКЛАМА"],
+      "en": ["Network error occurred", "Network error", "No network connection", "Do you like Mi Browser?", "Rate the app", "Feature shortcuts are available now", "App isn't responding", "AD"],
+      "es": ["Se produjo un error de red", "Error de red", "ANUNCIO"],
+      "zh": ["网络错误", "发生网络错误", "广告"],
+      "hi": ["नेटवर्क त्रुटि", "नेटवर्क त्रुटि हुई", "विज्ञापन"],
+      "pt": ["Ocorreu um erro de rede", "Erro de rede", "ANÚNCIO"],
+      "id": ["Terjadi kesalahan jaringan", "Kesalahan jaringan", "IKLAN"]
     },
     "dismissTexts": {
-      "ru": ["Нет, спасибо", "Понятно", "Закрыть", "Отмена", "Позже", "OK"],
-      "en": ["No, thanks", "No thanks", "Got it", "Close", "Cancel", "Later", "OK"],
-      "es": ["No, gracias", "Entendido", "Cerrar"],
-      "zh": ["不用了，谢谢", "知道了", "关闭"],
-      "hi": ["नहीं, धन्यवाद", "समझ गया", "बंद करें"],
-      "pt": ["Não, obrigado", "Entendi", "Fechar"],
-      "id": ["Tidak, terima kasih", "Mengerti", "Tutup"]
+      "ru": ["Нет, спасибо", "Понятно", "Закрыть", "Отмена", "Позже", "OK", "Вернуться в приложение"],
+      "en": ["No, thanks", "No thanks", "Got it", "Close", "Cancel", "Later", "OK", "Return to app"],
+      "es": ["No, gracias", "Entendido", "Cerrar", "Volver a la aplicación"],
+      "zh": ["不用了，谢谢", "知道了", "关闭", "返回应用"],
+      "hi": ["नहीं, धन्यवाद", "समझ गया", "बंद करें", "ऐप पर वापस जाएं"],
+      "pt": ["Não, obrigado", "Entendi", "Fechar", "Voltar ao app"],
+      "id": ["Tidak, terima kasih", "Mengerti", "Tutup", "Kembali ke aplikasi"]
     },
     "forceStopMarkers": {
       "ru": ["Закрыть принудительно?", "Закрыть принудительно", "Принудительное закрытие"],
