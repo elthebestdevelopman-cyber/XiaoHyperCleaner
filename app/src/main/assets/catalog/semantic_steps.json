@@ -3301,13 +3301,13 @@
         "id": ["Direkomendasikan hari ini", "Rekomendasi", "Edit folder", "Nama folder"]
       },
       "screenMarkers": {
-        "ru": ["Рекомендуемое сегодня", "Изменить папку", "Название папки"],
-        "en": ["Recommended today", "Edit folder", "Folder name"],
-        "es": ["Recomendado hoy", "Editar carpeta", "Nombre de la carpeta"],
-        "zh": ["今日推荐", "编辑文件夹", "文件夹名称"],
-        "hi": ["आज के लिए अनुशंसित", "फ़ोल्डर संपादित करें", "फ़ोल्डर नाम"],
-        "pt": ["Recomendado hoje", "Editar pasta", "Nome da pasta"],
-        "id": ["Direkomendasikan hari ini", "Edit folder", "Nama folder"]
+        "ru": ["Рекомендации"],
+        "en": ["Recommendations"],
+        "es": ["Recomendaciones"],
+        "zh": ["推荐"],
+        "hi": ["अनुशंसाएँ"],
+        "pt": ["Recomendações"],
+        "id": ["Rekomendasi"]
       },
       "overflowMenuLabels": {
         "ru": ["Изменить папку", "Переименовать"],
@@ -3337,13 +3337,13 @@
           "fallback": true,
           "control": "toggle",
           "screenMarkers": {
-            "ru": ["Рекомендуемое сегодня", "Название папки"],
-            "en": ["Recommended today", "Folder name"],
-            "es": ["Recomendado hoy", "Nombre de la carpeta"],
-            "zh": ["今日推荐", "文件夹名称"],
-            "hi": ["आज के लिए अनुशंसित", "फ़ोल्डर नाम"],
-            "pt": ["Recomendado hoje", "Nome da pasta"],
-            "id": ["Direkomendasikan hari ini", "Nama folder"]
+            "ru": ["Рекомендации"],
+            "en": ["Recommendations"],
+            "es": ["Recomendaciones"],
+            "zh": ["推荐"],
+            "hi": ["अनुशंसाएँ"],
+            "pt": ["Recomendações"],
+            "id": ["Rekomendasi"]
           },
           "itemTexts": {
             "ru": ["Рекомендуемое сегодня", "Рекомендации"],
@@ -3361,13 +3361,13 @@
           "fallback": false,
           "control": "toggle",
           "screenMarkers": {
-            "ru": ["Рекомендуемое сегодня", "Изменить папку"],
-            "en": ["Recommended today", "Edit folder"],
-            "es": ["Recomendado hoy", "Editar carpeta"],
-            "zh": ["今日推荐", "编辑文件夹"],
-            "hi": ["आज के लिए अनुशंसित", "फ़ोल्डर संपादित करें"],
-            "pt": ["Recomendado hoje", "Editar pasta"],
-            "id": ["Direkomendasikan hari ini", "Edit folder"]
+            "ru": ["Рекомендации"],
+            "en": ["Recommendations"],
+            "es": ["Recomendaciones"],
+            "zh": ["推荐"],
+            "hi": ["अनुशंसाएँ"],
+            "pt": ["Recomendações"],
+            "id": ["Rekomendasi"]
           },
           "itemTexts": {
             "ru": ["Рекомендуемое сегодня"],
