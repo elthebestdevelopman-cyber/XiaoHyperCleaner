@@ -179,7 +179,7 @@ class AdaptiveCatalogTest {
     }
 
     @Test
-    fun `global_ru replaces drill path for overridden steps`() {
+    fun `global_ru merges drill path for ads_personalization`() {
         withLocale("ru") {
             AdaptiveCatalog.selectVariant(context, globalProfile())
 
@@ -187,8 +187,8 @@ class AdaptiveCatalogTest {
                 context, "ads_personalization", listOf(listOf("DEFAULT_CN_LEVEL"))
             )
 
-            // replaceDrillPath=true: базовый CN-путь отбрасывается целиком.
-            assertFalse(merged.any { it == listOf("DEFAULT_CN_LEVEL") })
+            // replaceDrillPath убран: базовый путь мерджится с каталожным.
+            assertTrue(merged.any { it == listOf("DEFAULT_CN_LEVEL") })
             assertTrue(merged.any { level -> level.any { it == "Реклама" } })
         }
     }

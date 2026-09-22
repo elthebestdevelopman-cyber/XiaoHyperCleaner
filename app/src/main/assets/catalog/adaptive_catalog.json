@@ -114,7 +114,6 @@
           "searchTexts": ["msa", "MSA", "Доступ к личным данным", "Авторизация и отзыв", "Разрешения", "Разрешения приложений", "Access to personal data", "Authorization & revocation"]
         },
         "ads_personalization": {
-          "replaceDrillPath": true,
           "drillPath": [["Реклама", "Ads", "Ad services", "Рекламные службы"]],
           "searchTexts": ["Реклама", "Персонализация рекламы", "Рекламные службы", "Ads personalization", "Ad services"],
           "tapFallbackTexts": ["Удалить рекламный идентификатор", "Delete advertising ID", "Отключить персонализацию рекламы", "Opt out of Ads Personalization"],
