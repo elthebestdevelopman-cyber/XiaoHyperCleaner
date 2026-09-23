@@ -186,4 +186,45 @@ class SemanticCatalogTest {
             Locale.setDefault(original)
         }
     }
+@Test
+    fun `shareme screen with ad personalization passes the gate`() {
+        // Дамп прогона rmuecq65x: экран «Справка и обратная связь» с тумблером
+        // «Персонализация рекламы» — прежние keywords/маркеры экран не пропускали
+        // (low_confidence), хотя переключатель на нём был.
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale("ru"))
+            val decision = SemanticGate.decide(
+                keywords = SemanticCatalog.keywords("shareme"),
+                screenText = "Назад Справка и обратная связь Персонализация рекламы",
+                screenMarkers = SemanticCatalog.screenMarkers("shareme"),
+                switchFound = true,
+                hasTapFallback = false
+            )
+            assertTrue("гейт должен пропустить экран ShareMe: ${decision.detail}", decision.act)
+        } finally {
+            Locale.setDefault(original)
+        }
+    }
+
+    @Test
+    fun `music sys ads screen passes the gate under advanced settings`() {
+        // Дамп прогона rmuecq65x: тумблеры Музыки живут под «Расширенными настройками»,
+        // а маркеры промежуточного экрана «Аккаунт и настройки» прерывали drill до
+        // раскрытия секции (low_confidence при видимом экране настроек).
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale("ru"))
+            val decision = SemanticGate.decide(
+                keywords = SemanticCatalog.keywords("music_sys"),
+                screenText = "Расширенные настройки Показывать рекламу Персональные рекомендации",
+                screenMarkers = SemanticCatalog.screenMarkers("music_sys"),
+                switchFound = true,
+                hasTapFallback = false
+            )
+            assertTrue("гейт должен пропустить экран рекламы Музыки: ${decision.detail}", decision.act)
+        } finally {
+            Locale.setDefault(original)
+        }
+    }
 }

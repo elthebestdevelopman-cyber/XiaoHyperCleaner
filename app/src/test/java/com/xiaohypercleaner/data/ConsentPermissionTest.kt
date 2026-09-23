@@ -70,6 +70,27 @@ class ConsentPermissionTest {
     }
 
     @Test
+    fun `modern permission buttons are covered for the step app`() = runTest {
+        // Android 11+: кнопки диалога — «ПРИ ИСПОЛЬЗОВАНИИ ПРИЛОЖЕНИЯ» / «ТОЛЬКО В ЭТОТ РАЗ».
+        // Прежний набор текстов («Разрешить») их не находил: browser_sys падал drill_failed
+        // на запросе «Разрешить приложению Mi Браузер записывать аудио?» (прогон rmuecq65x).
+        val action = classify(
+            screenText = "Разрешить приложению Mi Браузер записывать аудио? " +
+                "ПРИ ИСПОЛЬЗОВАНИИ ПРИЛОЖЕНИЯ ТОЛЬКО В ЭТОТ РАЗ ЗАПРЕТИТЬ",
+            stepId = "browser_sys",
+            labels = listOf("Mi Браузер")
+        )
+
+        assertEquals("permission", action?.kind)
+        assertEquals("allow", action?.decision)
+        assertTrue(
+            "подпись кнопки «ПРИ ИСПОЛЬЗОВАНИИ ПРИЛОЖЕНИЯ» должна быть в allowTexts",
+            action?.texts.orEmpty()
+                .any { it.equals("При использовании приложения", ignoreCase = true) }
+        )
+    }
+
+    @Test
     fun `permission for a foreign app stays denied`() = runTest {
         val action = classify(
             screenText = "Разрешить приложению Камера доступ к местоположению? ЗАПРЕТИТЬ РАЗРЕШИТЬ",

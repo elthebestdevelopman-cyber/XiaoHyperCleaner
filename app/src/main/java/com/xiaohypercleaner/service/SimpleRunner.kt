@@ -633,7 +633,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     // приложения: Mi Браузер уперся в «Разрешить доступ к фото…»,
                     // прогон rmua2sd7x): закрываем его и повторяем уровень.
                     for (retry in 1..DRILL_CONSENT_RETRIES) {
-                        if (handleConsentWalls(step) == 0) break
+                        var progressed = handleConsentWalls(step) > 0
+                        // MIUI-interstitial (Темы/GetApps: 2ГИС) кнопки закрытия в дереве
+                        // не имеет — классификатор диалогов его не ведёт, закрываем BACK.
+                        if (!progressed) {
+                            progressed = ConsentWallHandler.dismissVideoAdsUntilSettled(
+                                service, step.id
+                            ) > 0
+                        }
+                        if (!progressed) break
                         delay(UI_SETTLE_DELAY_MS)
                         levelOk = drillIntoLevel(step, levelIndex, mergedDrillPath[levelIndex])
                         if (levelOk) break
@@ -686,7 +694,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 )
                 Result(false, NOT_APPLICABLE)
             } else if (isAppStep && lastDrillLevelNotFound &&
-                activePackage().equals(resolvedPkg, ignoreCase = true)
+                activePackage().equals(resolvedPkg, ignoreCase = true) &&
+                // Экран занят рекламой (Темы: интерстишл 2ГИС) — это не «экрана нет»:
+                // честный drill_failed вместо ложного not_applicable.
+                !ConsentWallHandler.isAdScreenNow(service)
             ) {
                 // Приложение шага открыто, но строки последнего уровня маршрута на его
                 // экранах нет вовсе (GetApps 20.4.5: в «Настройках» нет раздела

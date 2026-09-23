@@ -30,12 +30,17 @@
     },
     "defaultDecision": "deny",
     "denyTexts": {
-      "ru": ["Запретить"], "en": ["Deny", "Don’t allow"], "es": ["Denegar"],
+      "ru": ["Запретить"], "en": ["Deny", "Don’t allow", "Don't allow"], "es": ["Denegar"],
       "zh": ["拒绝"], "hi": ["अस्वीकार करें"], "pt": ["Negar"], "id": ["Tolak"]
     },
     "allowTexts": {
-      "ru": ["Разрешить"], "en": ["Allow"], "es": ["Permitir"],
-      "zh": ["允许"], "hi": ["अनुमति दें"], "pt": ["Permitir"], "id": ["Izinkan"]
+      "ru": ["Разрешить", "При использовании приложения", "Только в этот раз"],
+      "en": ["Allow", "While using the app", "Only this time"],
+      "es": ["Permitir", "Mientras se usa la aplicación", "Solo esta vez"],
+      "zh": ["允许", "使用应用时", "仅限这一次"],
+      "hi": ["अनुमति दें", "ऐप का उपयोग करते समय", "केवल इस बार"],
+      "pt": ["Permitir", "Ao usar o aplicativo", "Apenas desta vez"],
+      "id": ["Izinkan", "Saat aplikasi digunakan", "Hanya kali ini"]
     },
     "allowOverrides": ["music_sys", "mivideo"],
     "maxIterationsPerStep": 5,
@@ -1497,11 +1502,12 @@
           "fallback": true,
           "drillPath": [
             ["☰", "", "Ещё", "More", "Больше"],
-            ["Настройки", "Settings"]
+            ["Настройки", "Settings"],
+            ["Расширенные настройки", "Advanced settings"]
           ],
           "screenMarkers": {
-            "ru": ["Аккаунт и настройки", "Дополнительные настройки", "Показывать рекламу"],
-            "en": ["Account and settings", "Settings"]
+            "ru": ["Показывать рекламу", "Персональные рекомендации"],
+            "en": ["Show ads", "Personal recommendations"]
           },
           "itemTexts": {
             "ru": ["Показывать рекламу", "Показывать рекомендации в Интернете во время запуска", "Персональные рекомендации", "Сервисы онлайн-контента"],
@@ -1519,11 +1525,12 @@
           "fallback": false,
           "drillPath": [
             ["☰", "Показать меню", "Ещё", "More", "Больше"],
-            ["Настройки", "Settings", "设置"]
+            ["Настройки", "Settings", "设置"],
+            ["Расширенные настройки", "Advanced settings"]
           ],
           "screenMarkers": {
-            "ru": ["Аккаунт и настройки", "Дополнительные настройки", "Показывать рекламу"],
-            "en": ["Account and settings", "Settings"]
+            "ru": ["Показывать рекламу", "Персональные рекомендации"],
+            "en": ["Show ads", "Personal recommendations"]
           },
           "itemTexts": {
             "ru": ["Показывать рекламу", "Показывать рекомендации в Интернете во время запуска", "Персональные рекомендации", "Сервисы онлайн-контента"],
@@ -1541,11 +1548,12 @@
           "fallback": false,
           "drillPath": [
             ["☰", "Показать меню", "Ещё", "More", "Больше"],
-            ["Настройки", "Settings"]
+            ["Настройки", "Settings"],
+            ["Расширенные настройки", "Advanced settings"]
           ],
           "screenMarkers": {
-            "ru": ["Аккаунт и настройки", "Дополнительные настройки", "Показывать рекламу"],
-            "en": ["Account and settings", "Settings"]
+            "ru": ["Показывать рекламу", "Персональные рекомендации"],
+            "en": ["Show ads", "Personal recommendations"]
           },
           "itemTexts": {
             "ru": ["Показывать рекламу", "Показывать рекомендации в Интернете во время запуска", "Персональные рекомендации", "Сервисы онлайн-контента"],
@@ -1599,39 +1607,32 @@
       },
       "screenMarkers": {
         "ru": [
-          "Аккаунт и настройки",
-          "Расширенные настройки",
-          "Показывать рекламу"
+          "Показывать рекламу",
+          "Персональные рекомендации"
         ],
         "en": [
-          "Account and settings",
-          "Advanced settings",
-          "Show ads"
+          "Show ads",
+          "Personal recommendations"
         ],
         "es": [
-          "Cuenta y ajustes",
-          "Configuración avanzada",
-          "Mostrar anuncios"
+          "Mostrar anuncios",
+          "Recomendaciones personales"
         ],
         "zh": [
-          "账户和设置",
-          "高级设置",
-          "显示广告"
+          "显示广告",
+          "个性化推荐"
         ],
         "hi": [
-          "खाता और सेटिंग्स",
-          "उन्नत सेटिंग्स",
-          "विज्ञापन दिखाएँ"
+          "विज्ञापन दिखाएँ",
+          "व्यक्तिगत अनुशंसाएँ"
         ],
         "pt": [
-          "Conta e configurações",
-          "Configurações avançadas",
-          "Mostrar anúncios"
+          "Mostrar anúncios",
+          "Recomendações pessoais"
         ],
         "id": [
-          "Akun dan pengaturan",
-          "Pengaturan lanjutan",
-          "Tampilkan iklan"
+          "Tampilkan iklan",
+          "Rekomendasi pribadi"
         ]
       },
       "actionType": "toggle",
@@ -2056,7 +2057,16 @@
         "pt",
         "id"
       ],
-      "launchPackage": "com.android.providers.downloads.ui"
+      "launchPackage": "com.android.providers.downloads.ui",
+      "confirmTexts": {
+        "ru": ["Отключить"],
+        "en": ["Turn off", "Disable"],
+        "es": ["Desactivar"],
+        "zh": ["关闭"],
+        "hi": ["बंद करें"],
+        "pt": ["Desativar"],
+        "id": ["Matikan"]
+      }
     },
     {
       "id": "themes",
@@ -2440,15 +2450,15 @@
             ["О приложении", "About", "关于"],
             ["Справка и обратная связь", "Help & feedback"]
           ],
-          "screenMarkers": { "ru": ["О приложении"], "en": ["About"], "zh": ["关于"] },
+          "screenMarkers": { "ru": ["О приложении", "Справка и обратная связь", "Персонализация рекламы"], "en": ["About", "Help & feedback", "Ad personalization"], "zh": ["关于"] },
           "itemTexts": {
-            "ru": ["Получать рекомендации"],
-            "en": ["Receive recommendations"],
-            "es": ["Recibir recomendaciones"],
-            "zh": ["接收推荐"],
-            "hi": ["सुझाव प्राप्त करें"],
-            "pt": ["Receber recomendações"],
-            "id": ["Terima rekomendasi"]
+            "ru": ["Получать рекомендации", "Персонализация рекламы"],
+            "en": ["Receive recommendations", "Ad personalization"],
+            "es": ["Recibir recomendaciones", "Personalización de anuncios"],
+            "zh": ["接收推荐", "广告个性化"],
+            "hi": ["सुझाव प्राप्त करें", "विज्ञापन वैयक्तिकरण"],
+            "pt": ["Receber recomendações", "Personalização de anúncios"],
+            "id": ["Terima rekomendasi", "Personalisasi iklan"]
           }
         },
         {
@@ -2460,15 +2470,15 @@
             ["О приложении", "About"],
             ["Справка и обратная связь", "Help & feedback"]
           ],
-          "screenMarkers": { "ru": ["О приложении"], "en": ["About"] },
+          "screenMarkers": { "ru": ["О приложении", "Справка и обратная связь", "Персонализация рекламы"], "en": ["About", "Help & feedback", "Ad personalization"] },
           "itemTexts": {
-            "ru": ["Получать рекомендации"],
-            "en": ["Receive recommendations"],
-            "es": ["Recibir recomendaciones"],
-            "zh": ["接收推荐"],
-            "hi": ["सुझाव प्राप्त करें"],
-            "pt": ["Receber recomendações"],
-            "id": ["Terima rekomendasi"]
+            "ru": ["Получать рекомендации", "Персонализация рекламы"],
+            "en": ["Receive recommendations", "Ad personalization"],
+            "es": ["Recibir recomendaciones", "Personalización de anuncios"],
+            "zh": ["接收推荐", "广告个性化"],
+            "hi": ["सुझाव प्राप्त करें", "विज्ञापन वैयक्तिकरण"],
+            "pt": ["Receber recomendações", "Personalização de anúncios"],
+            "id": ["Terima rekomendasi", "Personalisasi iklan"]
           }
         }
       ],
@@ -2483,25 +2493,32 @@
       },
       "keywords": {
         "ru": [
-          "Получать рекомендации"
+          "Получать рекомендации",
+          "Персонализация рекламы"
         ],
         "en": [
-          "Receive recommendations"
+          "Receive recommendations",
+          "Ad personalization"
         ],
         "es": [
-          "Recibir recomendaciones"
+          "Recibir recomendaciones",
+          "Personalización de anuncios"
         ],
         "zh": [
-          "接收推荐"
+          "接收推荐",
+          "广告个性化"
         ],
         "hi": [
-          "सुझाव प्राप्त करें"
+          "सुझाव प्राप्त करें",
+          "विज्ञापन वैयक्तिकरण"
         ],
         "pt": [
-          "Receber recomendações"
+          "Receber recomendações",
+          "Personalização de anúncios"
         ],
         "id": [
-          "Terima rekomendasi"
+          "Terima rekomendasi",
+          "Personalisasi iklan"
         ]
       },
       "screenMarkers": {

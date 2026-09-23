@@ -63,6 +63,16 @@ object ConsentWallHandler {
         "Следующий", "Next", "Далее"
     )
 
+    /** Маркеры рекламного экрана (Яндекс.Реклама, MIUI-getapps-реклама). */
+    private val AD_MARKERS = listOf(
+        "РЕКЛАМА", "ANUNCIO", "ANÚNCIO", "广告", "IKLAN", "विज्ञापन", "Reklama"
+    )
+
+    /** Кнопки-призывы рекламного экрана (MIUI-interstitial без рекламного контейнера). */
+    private val AD_CTA_TEXTS = listOf(
+        "Скачать", "Установить", "Подробнее", "Download", "Install", "Learn more"
+    )
+
     /**
      * Пакеты и активности видеорекламы, которые блокируют запуск приложения.
      * При обнаружении — попытка закрытия через BACK, иначе — пропуск шага
@@ -500,7 +510,7 @@ object ConsentWallHandler {
         return dismissed
     }
 
-    /** Проверка: текущий экран — видеореклама (пакет содержит рекламные SDK или текст "РЕКЛАМА"). */
+    /** Проверка: текущий экран — реклама (пакет рекламного SDK, маркер «РЕКЛАМА» + контейнер/CTA). */
     private fun isVideoAdScreen(service: AccessibilityService): Boolean {
         val root = service.rootInActiveWindow ?: return false
         val pkg = root.packageName?.toString() ?: ""
@@ -511,10 +521,9 @@ object ConsentWallHandler {
             pkg.contains(pattern, ignoreCase = true)
         }
 
-        // Проверка 2: на экране есть маркер "РЕКЛАМА" (Яндекс.Реклама показывает его всегда)
-        val hasAdMarker = text.contains("РЕКЛАМА", ignoreCase = true) ||
-            text.contains("AD", ignoreCase = false) ||
-            text.contains("广告", ignoreCase = false)
+        // Проверка 2: на экране есть маркер рекламы («РЕКЛАМА · 16+» Яндекс.Рекламы и MIUI-рекламы)
+        val hasAdMarker = AD_MARKERS.any { text.contains(it, ignoreCase = true) } ||
+            text.contains("AD ·", ignoreCase = false)
 
         // Проверка 3: есть ID рекламного контейнера
         val hasAdContainer = NodeTree.findInTree(root) { node ->
@@ -524,9 +533,16 @@ object ConsentWallHandler {
                 id.contains("adsPlace", ignoreCase = true)
         } != null
 
+        // Проверка 4: MIUI-interstitial без рекламного контейнера (Темы/GetApps: 2ГИС) —
+        // маркер «РЕКЛАМА · 16+» плюс кнопка-призыв вместо крестика в дереве.
+        val hasAdCta = AD_CTA_TEXTS.any { text.contains(it, ignoreCase = true) }
+
         recycle(root)
-        return isAdPackage || (hasAdMarker && hasAdContainer)
+        return isAdPackage || (hasAdMarker && (hasAdContainer || hasAdCta))
     }
+
+    /** Текущий экран — реклама. Для вызывающей стороны (гейт неприменимости шага). */
+    fun isAdScreenNow(service: AccessibilityService): Boolean = isVideoAdScreen(service)
 
     /** Одна попытка закрытия видеорекламы: поиск крестика или кнопки "Пропустить". */
     private suspend fun dismissVideoAdOnce(
@@ -571,8 +587,11 @@ object ConsentWallHandler {
         }
 
         recycle(root)
-        AppLog.w(TAG, "ad: attempt=$attempt no close button found for step=$stepId")
-        return false
+        // Попытка 3: MIUI-interstitial без крестика и без кнопки «Пропустить» в дереве
+        // (Темы/GetApps: 2ГИС). Закрываем системным BACK — он возвращает в приложение.
+        val backed = service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+        AppLog.i(TAG, "ad: attempt=$attempt pressed BACK for step=$stepId success=$backed")
+        return backed
     }
 }
 
