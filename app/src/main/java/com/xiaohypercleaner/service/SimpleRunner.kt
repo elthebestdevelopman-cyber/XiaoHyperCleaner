@@ -77,7 +77,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
             "cleaner" to SECURITY_CLEANER_TIMEOUT_MS,
             // Перебор кандидатов-папок и активностей установщика: шаги дольше базовых.
             "folder_recommendations" to 34_000L,
-            "installer_recommendations" to 26_000L
+            "installer_recommendations" to 26_000L,
+            // Mi Music: три уровня drill (☰ → «Настройки» → «Расширенные настройки»), целевые
+            // тумблеры лежат в разделе ниже сгиба — к бюджету добавляются прокрутки (rmuef7nbf).
+            "music_sys" to 26_000L
         )
 
         // ═══════════════════════════════════════════════════════════════
@@ -893,9 +896,27 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // overflow, в том числе по contentDescription, и ПРОВЕРЯЕТСЯ по пунктам меню:
         // прежний возврат true сразу после тапа продолжал маршрут с закрытого меню.
         if (isMenuLevel(levelTexts)) {
-            if (!findAndTapOverflow(levelTexts)) return false
+            var tapPoint: Pair<Int, Int>? = null
+            if (!findAndTapOverflow(levelTexts, { x, y -> tapPoint = x to y })) return false
             if (nextTexts.isEmpty() || awaitScreen(nextTexts)) return true
-            if (performOverflowGesture() && awaitScreen(nextTexts)) return true
+            // Уровень-меню открывает список, а следующий пункт бывает НИЖЕ сгиба (Mi Браузер:
+            // «Дополнительные настройки» лежат в разделе «Прочее» под лентой настроек — прогон
+            // rmuef7nbf: awaitScreen пункт не видел, drill уходил в слепые тапы по позиции,
+            // которые открыли чужое приложение). Прокрутку пробуем только на экране со
+            // списком: на поповере прокручивать нечего.
+            if (hasScrollableScreen() && scrollUntilScreenHasAny(nextTexts)) return true
+            // MIUI не всегда реагирует на ACTION_CLICK: шестерёнка Mi Браузера открывает
+            // настройки только тапом по центру узла (проверено на устройстве), а слепой тап
+            // угла уходил в голосовой ввод (прогоны rmuef7nbf, rmuei6lp7).
+            tapPoint?.let { (x, y) ->
+                if (tapAt(x, y)) {
+                    delay(UI_SETTLE_DELAY_MS)
+                    if (nextTexts.isEmpty() || awaitScreen(nextTexts)) return true
+                    if (hasScrollableScreen() && scrollUntilScreenHasAny(nextTexts)) return true
+                }
+            }
+            val packageBeforeGesture = activePackage()
+            if (performOverflowGesture(packageBeforeGesture) && awaitScreen(nextTexts)) return true
             AppLog.w(TAG, "drill: меню открыто, но '${nextTexts.first()}' не видно")
             return false
         }
@@ -1043,6 +1064,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
             t.isEmpty() ||
                 MENU_LEVEL_TEXTS.any { it.replace(EMOJI_VARIATION_SELECTOR, "") == t }
         }
+
+    /** Текст уровня — только символ-иконка (шестерёнка/три точки/гамбургер), без слов. */
+    private fun isGlyphOnly(text: String): Boolean {
+        val t = text.replace(EMOJI_VARIATION_SELECTOR, "").trim()
+        return t.isNotEmpty() && t.none { it.isLetterOrDigit() || it.isWhitespace() }
+    }
 
     /** Есть ли хоть один из текстов где-нибудь на текущем экране. */
     private fun screenHasAny(texts: List<String>): Boolean {
@@ -1452,13 +1479,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
             // Экран шага не открылся: если маркеров целевого экрана тоже нет, это не провал
             // автоматизации, а отсутствие настройки на прошивке (ux_program: пункта
             // «Программа улучшения качества» нет вовсе — прогон rmubgvwm5, отчёт врал FAIL).
+            // Целевые строки могли оказаться ниже сгиба (Mi Music: тумблеры рекламы живут
+            // в разделе «Дополнительные настройки» экрана «Расширенные настройки» — прогон
+            // rmueebsvu, шаг зря объявлялся not_applicable), поэтому сначала прокручиваем.
             val markers = SemanticCatalog.screenMarkers(step.id)
-            if (markers.isEmpty() || screenHasAny(markers)) {
-                return Result(false, "switch_not_found")
+            if (!scrollUntilScreenHasAny(mergedSearchTexts + markers)) {
+                if (markers.isEmpty() || screenHasAny(markers)) {
+                    return Result(false, "switch_not_found")
+                }
+                AppLog.w(TAG, "step ${step.id}: экран шага не открылся, маркеров нет — шаг неприменим")
+                StepDiagnostics.note(step.id, "APPLICABILITY", "screen_markers_absent")
+                return Result(false, NOT_APPLICABLE)
             }
-            AppLog.w(TAG, "step ${step.id}: экран шага не открылся, маркеров нет — шаг неприменим")
-            StepDiagnostics.note(step.id, "APPLICABILITY", "screen_markers_absent")
-            return Result(false, NOT_APPLICABLE)
         }
 
         var currentRoot: AccessibilityNodeInfo? =
@@ -1593,16 +1625,23 @@ class SimpleRunner(private val service: AdbEnablerService) {
             tapConfirmIfNeeded(step)
         }
 
-        // П.3: Дополнительные переключатели
+        // П.3: Дополнительные переключатели. В списке лежат переводы одной и той же строки
+        // на все локали: поиск тумблера по отсутствующей на экране подписи — это полный
+        // обход дерева на каждую локаль (Mi Music: 5 бесполезных проходов ≈ 4 с из бюджета
+        // шага, прогон rmuef7nbf — шаг завершился timeout). Фильтруем по тексту экрана.
         val mergedAdditionalToggles =
             AdaptiveCatalog.mergeAdditionalToggles(service, step.id, step.additionalToggles)
-        for (toggleText in mergedAdditionalToggles) {
-            if (cancelled) break
-            val addRoot = service.rootInActiveWindow ?: continue
-            val addNode = findSwitchByText(addRoot, listOf(toggleText))
-            if (addNode != null && SwitchFinder.isChecked(addNode) != step.targetChecked) tapNode(addNode)
-            recycleNode(addNode); recycleNode(addRoot)
-            delay(400)
+        if (mergedAdditionalToggles.isNotEmpty()) {
+            val screenText = currentScreenText()
+            for (toggleText in mergedAdditionalToggles) {
+                if (cancelled) break
+                if (!TextMatcher.normalizedContains(screenText, toggleText)) continue
+                val addRoot = service.rootInActiveWindow ?: continue
+                val addNode = findSwitchByText(addRoot, listOf(toggleText))
+                if (addNode != null && SwitchFinder.isChecked(addNode) != step.targetChecked) tapNode(addNode)
+                recycleNode(addNode); recycleNode(addRoot)
+                delay(400)
+            }
         }
 
         // Вариант каталога может требовать второй экран (Браузер: «Показывать рекламу»
@@ -1677,22 +1716,51 @@ class SimpleRunner(private val service: AdbEnablerService) {
     // ═════════════════════════════════════════════════════════════════════
     // П.4: Структурный поиск ⋮/⚙ (4 уровня)
     // ═════════════════════════════════════════════════════════════════════
-    private suspend fun findAndTapOverflow(texts: List<String> = OVERFLOW_TEXTS): Boolean {
+    /**
+     * Открывает уровень-меню (⋮/⚙/☰). Возвращает true, если тап отправлен;
+     * [onTapped] получает центр нажатого узла — вызывающий повторяет тап координатой,
+     * если MIUI проигнорировал ACTION_CLICK (шестерёнка Mi Браузера открывала настройки
+     * только тапом по центру: ручная проверка (846,197) на устройстве).
+     */
+    private suspend fun findAndTapOverflow(
+        texts: List<String> = OVERFLOW_TEXTS,
+        onTapped: (Int, Int) -> Unit = { _, _ -> }
+    ): Boolean {
         val root = service.rootInActiveWindow ?: return false
+
+        suspend fun tap(node: AccessibilityNodeInfo): Boolean {
+            val rect = Rect().also { node.getBoundsInScreen(it) }
+            val tapped = tapNode(node)
+            if (tapped) onTapped(rect.centerX(), rect.centerY())
+            return tapped
+        }
 
         // Шапка в приоритете: «Показать меню» (Музыка) важнее «Больше меню» у строки
         // списка, иначе тап уходит в контекстное меню трека и уровень не открывается.
         findHeaderMenu(root)?.let {
-            val tapped = tapNode(it); recycleNode(it); recycleNode(root); return tapped
+            val tapped = tap(it); recycleNode(it); recycleNode(root); return tapped
+        }
+        // Точное совпадение подписи уровня — до поиска по вхождению: шестерёнка Mi Браузера
+        // описана ровно «Настройки», а поиск по вхождению цеплял первое похожее слово
+        // (строка ленты/поисковая строка) и тап уходил в голосовой ввод вместо настроек
+        // (прогон rmuehut5w: drill_failed в com.google.android.tts).
+        findExactClickableByText(root, texts)?.let {
+            val tapped = tap(it); recycleNode(it); recycleNode(root); return tapped
+        }
+        // Символьная иконка уровня-меню («⚙», «⋮», «☰») — точнее слова: на экране профиля
+        // Mi Браузера «Настройки» встречается и в ленте, тап уходил не в меню настроек
+        // (прогон rmuef7nbf: drill ушёл мимо настроек браузера).
+        findClickableByText(root, texts.filter { isGlyphOnly(it) })?.let {
+            val tapped = tap(it); recycleNode(it); recycleNode(root); return tapped
         }
         findClickableByText(root, texts)?.let {
-            val tapped = tapNode(it); recycleNode(it); recycleNode(root); return tapped
+            val tapped = tap(it); recycleNode(it); recycleNode(root); return tapped
         }
         findOverflowByContentDescription(root)?.let {
-            val tapped = tapNode(it); recycleNode(it); recycleNode(root); return tapped
+            val tapped = tap(it); recycleNode(it); recycleNode(root); return tapped
         }
         findOverflowByPosition(root)?.let {
-            val tapped = tapNode(it); recycleNode(it); recycleNode(root); return tapped
+            val tapped = tap(it); recycleNode(it); recycleNode(root); return tapped
         }
         recycleNode(root)
         return performOverflowGesture()
@@ -1742,12 +1810,26 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
     }
 
-    private suspend fun performOverflowGesture(): Boolean {
+    /**
+     * Слепой тап по позиции в правом верхнем углу. [stayInPackage] — пакет экрана до тапа:
+     * если тап открыл чужое приложение (Mi Браузер → голосовой ввод Google TTS, прогон
+     * rmuef7nbf), уровень не продолжается на чужом экране — шаг честно уходит в drill_failed
+     * вместо ложной работы в другом приложении.
+     */
+    private suspend fun performOverflowGesture(stayInPackage: String? = null): Boolean {
         val dm = service.resources.displayMetrics
         for ((fx, fy) in OVERFLOW_GESTURE_POINTS) {
             if (cancelled) return false
             if (tapAt((dm.widthPixels * fx).toInt(), (dm.heightPixels * fy).toInt())) {
-                delay(UI_SETTLE_DELAY_MS); return true
+                delay(UI_SETTLE_DELAY_MS)
+                if (stayInPackage != null) {
+                    val now = activePackage()
+                    if (now != null && !now.equals(stayInPackage, ignoreCase = true)) {
+                        AppLog.w(TAG, "overflow gesture: экран сменился на '$now' — уровень прерван")
+                        return false
+                    }
+                }
+                return true
             }
         }
         return false
@@ -2505,6 +2587,22 @@ class SimpleRunner(private val service: AdbEnablerService) {
     private fun clickableAncestorOrSelf(node: AccessibilityNodeInfo): AccessibilityNodeInfo? =
         NodeTree.clickableAncestorOrSelf(node)
 
+    /** Кликабельный узел, чьи text/contentDescription ТОЧНО равны одной из подписей уровня. */
+    private fun findExactClickableByText(
+        root: AccessibilityNodeInfo,
+        texts: List<String>
+    ): AccessibilityNodeInfo? {
+        val node = NodeTree.findInTree(root) { n ->
+            val text = n.text?.toString()
+            val desc = n.contentDescription?.toString()
+            texts.any { t ->
+                t.isNotBlank() &&
+                    (TextMatcher.normalizedEquals(text, t) || TextMatcher.normalizedEquals(desc, t))
+            } && clickableAncestorOrSelf(n) != null
+        }
+        return node?.let { clickableAncestorOrSelf(it) }
+    }
+
     private fun findClickableByText(
         root: AccessibilityNodeInfo? = service.rootInActiveWindow,
         texts: List<String>
@@ -2550,6 +2648,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return vertical ?: containers.first()
     }
 
+    /** Есть ли на экране прокручиваемый контейнер (список настроек, а не поповер). */
+    private fun hasScrollableScreen(): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val container = findScrollableContainer(root)
+        recycleNode(container)
+        recycleNode(root)
+        return container != null
+    }
+
     /**
      * Прокрутка вправо горизонтального контейнера: вкладка цели может быть за правым
      * краем (Темы: вкладка «Профиль» — прогон rmu8qhjhi). Вертикальные контейнеры
@@ -2584,6 +2691,21 @@ class SimpleRunner(private val service: AdbEnablerService) {
         if (!byContainer) swipeUp()
         AppLog.i(TAG, "scroll: ${if (byContainer) "container" else "gesture"} down")
         delay(400)
+    }
+
+    /**
+     * Прокрутка вниз до появления любой из строк [texts]: тумблер или маркер целевого
+     * экрана мог оказаться ниже сгиба (Mi Music: «Показывать рекламу» в разделе
+     * «Дополнительные настройки»). Возвращает true, если строка появилась на экране.
+     */
+    private suspend fun scrollUntilScreenHasAny(texts: List<String>): Boolean {
+        if (texts.isEmpty()) return false
+        repeat(SWITCH_FALLBACK_SCROLLS) {
+            if (cancelled) return false
+            scrollDownOnce()
+            if (screenHasAny(texts)) return true
+        }
+        return false
     }
 
     /** Ожидание экрана вынесено в [ComponentVerifier] (маркеры + нечёткий рубеж). */

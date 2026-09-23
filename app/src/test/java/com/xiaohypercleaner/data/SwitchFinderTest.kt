@@ -315,4 +315,43 @@ class SwitchFinderTest {
             SwitchFinder.findSwitch(root, listOf("Доступ к личным данным", "Отозвать", "msa"))
         )
     }
+
+    @Test
+    fun `primary target text wins over a secondary row that is earlier in the tree`() {
+        // Реальный кейс Mi Music (прогон rmuef7nbf): у шага несколько целевых строк, и
+        // второстепенная («Сервисы онлайн-контента», включена) шла в дереве ПЕРВОЙ.
+        // Поиск «первый совпавший узел дерева» возвращал чужой включённый тумблер: шаг
+        // тумблил не ту строку и уходил в timeout вместо already_off по главной цели.
+        val secondaryWrapper = node(
+            "android.widget.Switch", checked = true, desc = "Сервисы онлайн-контента",
+            clickable = true, checkable = true
+        )
+        val primaryWrapper = node(
+            "android.widget.Switch", checked = false, desc = "Показывать рекламу",
+            clickable = true, checkable = true
+        )
+        val list = node(
+            "androidx.recyclerview.widget.RecyclerView",
+            clickable = false,
+            children = arrayOf(secondaryWrapper, primaryWrapper)
+        )
+        val root = node("android.widget.FrameLayout", clickable = false, children = arrayOf(list))
+        link(root, list)
+        link(list, secondaryWrapper, primaryWrapper)
+        withBounds(secondaryWrapper, 0, 2039, 1080, 2193)
+        withBounds(primaryWrapper, 0, 826, 1080, 980)
+        withBounds(list, 0, 245, 1080, 2270)
+
+        val found = SwitchFinder.findSwitch(
+            root,
+            listOf("Показывать рекламу", "Сервисы онлайн-контента")
+        )
+
+        assertEquals(
+            "главная цель шага (первый текст) приоритетнее вторичной строки",
+            primaryWrapper,
+            found
+        )
+        assertFalse("состояние читается у целевой строки", SwitchFinder.isChecked(found!!))
+    }
 }

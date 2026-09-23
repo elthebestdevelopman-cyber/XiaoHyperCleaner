@@ -5,6 +5,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.NodeTree
+import com.xiaohypercleaner.util.TextMatcher
 
 /**
  * Поиск переключателей (Switch/CheckBox/RadioButton/ToggleButton) в дереве
@@ -69,8 +70,18 @@ object SwitchFinder {
         texts: List<String>
     ): AccessibilityNodeInfo? {
         root ?: return null
-        NodeTree.findInTree(root) { isSwitchLike(it) && NodeTree.matchesAny(it, texts) }
-            ?.let { return it }
+        // Приоритет задаёт ПОРЯДОК текстов: первый текст описывает главную цель шага, а не
+        // «первый совпавший узел дерева» — на экране Mi Music второстепенная строка шага
+        // («Сервисы онлайн-контента», включена) уводила поиск на чужой тумблер, шаг тумблил
+        // не ту строку и уходил в timeout (прогон rmuef7nbf).
+        // Строки, отсутствующие на экране, отсеиваются одной сборкой текста: в списке
+        // шага лежат ещё и переводы на остальные локали, обход на каждую из них — лишний.
+        val screenText = NodeTree.collectText(root)
+        val present = texts.filter { it.isNotBlank() && TextMatcher.normalizedContains(screenText, it) }
+        for (text in present.ifEmpty { texts }) {
+            NodeTree.findInTree(root) { isSwitchLike(it) && NodeTree.matchesAny(it, listOf(text)) }
+                ?.let { return it }
+        }
 
         for (label in matchingLabels(root, texts, fuzzy = false)) {
             findSwitchInRow(label, texts)?.let { sw -> return sw }
