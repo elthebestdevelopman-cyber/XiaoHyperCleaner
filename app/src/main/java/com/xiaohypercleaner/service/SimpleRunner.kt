@@ -198,16 +198,6 @@ class SimpleRunner(private val service: AdbEnablerService) {
         /** Готовность экрана приложения перед бурением: подписи первого уровня маршрута. */
         private const val APP_SCREEN_WAIT_MS = 6_000L
         private const val APP_READY_POLL_MS = 400L
-
-        /**
-         * Сколько guarded-BACK попыток возврата на главную допускается при входе в
-         * приложение. Раундов ожидания на одну больше: после последнего BACK экран
-         * ещё раз опрашивается.
-         */
-        private const val APP_ENTRY_BACK_RECOVERIES = 2
-
-        /** Пауза после возврата на главную страницу приложения: экран перерисовывается. */
-        private const val APP_ENTRY_RECOVER_DELAY_MS = 1_200L
         private const val CONFIRM_RETRY_MS = 2500L
         private const val SWITCH_FALLBACK_SCROLLS = 4
 
@@ -1165,10 +1155,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * `drill_failed`), но факт ожидания виден в логе и диагностике.
      * Resume (startLevel>0) ожидания не требует: экран уже подтверждён.
      *
-     * Бюджет делится на раунды, между которыми экран возвращается на главную
-     * guarded BACK: Mi Браузер открывается контентной лентой без нижней навигации,
-     * подписи «Профиль» на ней нет — шаг честно падал в `not_applicable` (прогон
-     * rmueihkd3), хотя BACK с ленты возвращает главную.
+     * Возврат на главную страницу через BACK пробовали (Mi Браузер открывается
+     * контентной лентой без нижней навигации, прогон rmueihkd3) и **отвергли** по
+     * устройству: на Mi Browser BACK открывает диалог «Очистить историю перед
+     * выходом?», уровня не даёт и оставляет шаг в модальном состоянии (прогон
+     * rmufufh56). «Профиль» на ленте недостижим — шаг остаётся честным
+     * `not_applicable`; нужен маршрут через UI браузера (разведка экрана), а не BACK.
      */
     internal suspend fun awaitAppScreenReady(
         step: SimpleSteps.Step,
@@ -1179,15 +1171,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         if (startLevel > 0 || path.isEmpty()) return true
         val levelTexts = nextLevelVerificationTexts(path, startLevel)
         if (levelTexts.isEmpty()) return true
-        val rounds = APP_ENTRY_BACK_RECOVERIES + 1
-        val roundMs = (timeoutMs / rounds).coerceAtLeast(APP_READY_POLL_MS * 4)
-        var backedOff = false
-        for (round in 0 until rounds) {
-            if (awaitScreenTexts(levelTexts, roundMs)) return true
-            if (round == rounds - 1) break
-            if (!recoverAppEntryHome(step, afterBack = backedOff)) break
-            backedOff = true
-        }
+        if (awaitScreenTexts(levelTexts, timeoutMs)) return true
         AppLog.w(
             TAG,
             "app entry: '${levelTexts.first()}' not visible after ${timeoutMs}ms — drilling anyway"
@@ -1211,45 +1195,6 @@ class SimpleRunner(private val service: AdbEnablerService) {
             if (attempt < attempts - 1) delay(APP_READY_POLL_MS)
         }
         return false
-    }
-
-    /**
-     * Возврат на главную страницу приложения, если оно открылось не на ней.
-     *
-     * Действие guarded: BACK только пока foreground остаётся целевым пакетом и дерево
-     * экрана уже отрисовано (BACK по сплэшу закрыл бы приложение). Больше одного BACK
-     * не делаем — на главной странице он закрыл бы приложение; уход из приложения
-     * компенсируется одним launcher-интентом, чтобы шаг не остался без экрана.
-     */
-    private suspend fun recoverAppEntryHome(step: SimpleSteps.Step, afterBack: Boolean): Boolean {
-        val target = step.launchPackage ?: return false
-        val fg = activePackage()
-        if (fg == null || !fg.equals(target, ignoreCase = true)) {
-            // Приложения нет в foreground: либо его закрыл наш BACK, либо открылся чужой
-            // экран. Поднимаем интентом только после собственного BACK, иначе не трогаем.
-            if (!afterBack) return false
-            return relaunchAppEntry(step, target)
-        }
-        if (afterBack || currentScreenText().isBlank()) return false
-        AppLog.i(TAG, "app entry: guarded BACK to home for '${step.id}' fg=$fg")
-        StepDiagnostics.note(step.id, "ENTRY", "back_home pkg=$fg")
-        pressBack()
-        delay(APP_ENTRY_RECOVER_DELAY_MS)
-        return true
-    }
-
-    /** Один relaunch приложения шага: guarded BACK мог закрыть его (главная была открыта). */
-    private suspend fun relaunchAppEntry(step: SimpleSteps.Step, target: String): Boolean {
-        val launch = runCatching { service.packageManager.getLaunchIntentForPackage(target) }
-            .getOrNull() ?: return false
-        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        val ok = runCatching { service.startActivity(launch) }.isSuccess
-        if (ok) {
-            AppLog.i(TAG, "app entry: relaunch '${step.id}' after BACK left the app")
-            StepDiagnostics.note(step.id, "ENTRY", "relaunch pkg=$target")
-            delay(APP_READY_WAIT_MS)
-        }
-        return ok
     }
 
     /** Повторный поиск узла после горизонтальной прокрутки: вкладка может быть за краем. */

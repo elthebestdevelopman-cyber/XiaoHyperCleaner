@@ -1,6 +1,5 @@
 package com.xiaohypercleaner.service
 
-import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.data.AdaptiveCatalog
 import com.xiaohypercleaner.data.RomFamily
@@ -65,13 +64,11 @@ class SimpleRunnerAppEntryTest {
     private fun node(
         text: String? = null,
         className: String? = null,
-        packageName: String? = null,
         vararg children: AccessibilityNodeInfo
     ): AccessibilityNodeInfo {
         val n = Mockito.mock(AccessibilityNodeInfo::class.java)
         if (text != null) Mockito.`when`(n.text).thenReturn(text)
         if (className != null) Mockito.`when`(n.className).thenReturn(className)
-        if (packageName != null) Mockito.`when`(n.packageName).thenReturn(packageName)
         Mockito.`when`(n.childCount).thenReturn(children.size)
         children.forEachIndexed { i, c -> Mockito.`when`(n.getChild(i)).thenReturn(c) }
         children.forEach { Mockito.`when`(it.parent).thenReturn(n) }
@@ -148,54 +145,5 @@ class SimpleRunnerAppEntryTest {
                 timeoutMs = 2_000L
             )
         )
-    }
-
-    /**
-     * Mi Браузер открывается контентной лентой без нижней навигации: подписи первого
-     * уровня («Профиль») на ней нет, и шаг падал в `not_applicable` (прогон rmueihkd3).
-     * Один guarded BACK возвращает главную страницу, по которой вход подтверждается.
-     */
-    @Test
-    fun `content feed gets exactly one guarded BACK to the app home`() = runTest {
-        val feed = node(
-            text = "Опасные приложения найдены? Проверить",
-            className = "android.webkit.WebView",
-            packageName = "com.mi.globalbrowser"
-        )
-        val home = node(
-            className = "android.widget.FrameLayout",
-            packageName = "com.mi.globalbrowser",
-            children = arrayOf(node(text = "Профиль", className = "android.widget.TextView"))
-        )
-        var polls = 0
-        Mockito.`when`(service.rootInActiveWindow).thenAnswer { if (polls++ < 6) feed else home }
-
-        val ready = runner.awaitAppScreenReady(
-            step("browser_sys").copy(launchPackage = "com.mi.globalbrowser"),
-            listOf(listOf("Профиль", "Profile"), listOf("Настройки", "Settings")),
-            timeoutMs = 2_400L
-        )
-
-        assertTrue("возврат на главную обязан подтвердиться по первому уровню", ready)
-        Mockito.verify(service, Mockito.times(1))
-            .performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
-    }
-
-    /** Чужой экран на входе в приложение BACK не трогаем: уход из приложения недопустим. */
-    @Test
-    fun `foreign screen during app entry is never backed out`() = runTest {
-        val foreign = node(text = "Рабочий стол", packageName = "com.miui.home")
-        Mockito.`when`(service.rootInActiveWindow).thenReturn(foreign)
-
-        assertFalse(
-            "экран другого приложения — не повод нажимать BACK",
-            runner.awaitAppScreenReady(
-                step("browser_sys").copy(launchPackage = "com.mi.globalbrowser"),
-                listOf(listOf("Профиль", "Profile")),
-                timeoutMs = 1_200L
-            )
-        )
-        Mockito.verify(service, Mockito.never())
-            .performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
     }
 }
