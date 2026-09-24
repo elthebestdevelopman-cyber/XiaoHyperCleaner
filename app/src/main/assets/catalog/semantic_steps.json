@@ -1835,7 +1835,7 @@
             ["Очистка", "Cleaner", "清理", "Cleanup"],
             ["⚙", "⚙️", "Настройки", "Settings", "设置"]
           ],
-          "screenMarkers": { "ru": ["Очистка", "Настройки", "НАПОМИНАНИЯ ОБ ОЧИСТКЕ", "Расписание проверки"], "en": ["Cleaner", "Settings"], "zh": ["清理"] },
+          "screenMarkers": { "ru": ["Очистка", "Настройки", "НАПОМИНАНИЯ ОБ ОЧИСТКЕ", "Расписание проверки", "РЕКОМЕНДАЦИИ", "Загружать только по Wi-Fi"], "en": ["Cleaner", "Settings", "RECOMMENDATIONS", "Download only over Wi-Fi"], "zh": ["清理"] },
           "itemTexts": {
             "ru": ["Получать рекомендации"],
             "en": ["Receive recommendations"],
@@ -1854,7 +1854,7 @@
             ["Очистка", "Cleaner", "清理"],
             ["⚙", "⚙️", "Настройки", "Settings"]
           ],
-          "screenMarkers": { "ru": ["Очистка", "Настройки", "НАПОМИНАНИЯ ОБ ОЧИСТКЕ", "Расписание проверки"], "en": ["Cleaner", "Settings"] },
+          "screenMarkers": { "ru": ["Очистка", "Настройки", "НАПОМИНАНИЯ ОБ ОЧИСТКЕ", "Расписание проверки", "РЕКОМЕНДАЦИИ", "Загружать только по Wi-Fi"], "en": ["Cleaner", "Settings", "RECOMMENDATIONS", "Download only over Wi-Fi"] },
           "itemTexts": {
             "ru": ["Получать рекомендации"],
             "en": ["Receive recommendations"],
