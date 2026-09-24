@@ -338,8 +338,19 @@ class SimpleRunner(private val service: AdbEnablerService) {
     internal var overlayGateRequired: Boolean = true
 
     /**
+     * Канал отката ([overlayGateRequired] = false): окна прогресса нет, и уход на рабочий
+     * стол запрещён — приложение-инициатор обязано остаться видимым (MainActivity в
+     * foreground), иначе MIUI блокирует запуск приложения шага как фоновый и откат
+     * упирается в `App not ready … fg=com.mi.android.globallauncher` (прогон rmuftmq29:
+     * reverse `music_sys` → timeout). В обычном прогоне рабочий стол нужен: оверлей
+     * остаётся верхним окном и навигация начинается с известной точки.
+     */
+    // internal — для тестируемости (SimpleRunnerOverlayGateTest).
+    internal fun needsHomeBeforeAppLaunch(): Boolean = overlayGateRequired
+
+    /**
      * [requireOverlay] = false запускает шаг вне Простого режима (канал отката):
-     * навигация выполняется без проверки окна прогресса.
+     * навигация выполняется без проверки окна прогресса и без ухода на рабочий стол.
      */
     fun run(
         step: SimpleSteps.Step,
@@ -494,7 +505,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // П.6: Умный сброс настроек
         if (step.launchPackage == null) {
             if (!canResumeSettings) resetSettingsToRoot()
-        } else {
+        } else if (needsHomeBeforeAppLaunch()) {
             resetToHome()
             delay(300)
         }

@@ -64,4 +64,24 @@ class SimpleRunnerOverlayGateTest {
             runner.awaitOverlayReadyOrPause()
         )
     }
+
+    /**
+     * Откат выполняется при видимой MainActivity: уход на рабочий стол уводил
+     * приложение-инициатор из foreground, и MIUI блокировала запуск приложения шага
+     * (`App not ready … fg=com.mi.android.globallauncher`, reverse `music_sys`).
+     */
+    @Test
+    fun `app launch of the rollback channel stays on the launching activity`() {
+        assertTrue(
+            "обычный прогон: старт приложения шага идёт с рабочего стола",
+            runner.needsHomeBeforeAppLaunch()
+        )
+
+        runner.overlayGateRequired = false
+
+        assertFalse(
+            "канал отката: инициатор остаётся в foreground — без ухода на рабочий стол",
+            runner.needsHomeBeforeAppLaunch()
+        )
+    }
 }
