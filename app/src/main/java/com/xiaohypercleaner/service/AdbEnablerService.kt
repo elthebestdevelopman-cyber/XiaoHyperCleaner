@@ -461,7 +461,9 @@ class AdbEnablerService : AccessibilityService() {
                 // ИСПРАВЛЕНО (строки 354, 355): Новая сигнатура run()
                 // ═══════════════════════════════════════════════════════════════
                 var stepSuccess = false
-                simpleRunner.run(reverse, profile) { result ->
+                // Канал отката идёт БЕЗ окна прогресса: гейт оверлея здесь не применим,
+                // иначе каждый шаг отката падал overlay_lost (прогоны rmuebpgnr, rmueihkd3).
+                simpleRunner.run(reverse, profile, requireOverlay = false) { result ->
                     stepSuccess = result.success
                 }
                 while (SimpleRunner.isRunning) {

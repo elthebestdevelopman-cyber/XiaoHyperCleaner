@@ -198,6 +198,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
         /** Готовность экрана приложения перед бурением: подписи первого уровня маршрута. */
         private const val APP_SCREEN_WAIT_MS = 6_000L
         private const val APP_READY_POLL_MS = 400L
+
+        /**
+         * Сколько guarded-BACK попыток возврата на главную допускается при входе в
+         * приложение. Раундов ожидания на одну больше: после последнего BACK экран
+         * ещё раз опрашивается.
+         */
+        private const val APP_ENTRY_BACK_RECOVERIES = 2
+
+        /** Пауза после возврата на главную страницу приложения: экран перерисовывается. */
+        private const val APP_ENTRY_RECOVER_DELAY_MS = 1_200L
         private const val CONFIRM_RETRY_MS = 2500L
         private const val SWITCH_FALLBACK_SCROLLS = 4
 
@@ -315,9 +325,31 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     // ─── Public API ───────────────────────────────────────────────────────
-    fun run(step: SimpleSteps.Step, profile: RomProfile, callback: (Result) -> Unit) {
+
+    /**
+     * Гейт целостности оверлея: в обычном прогоне Простого режима окно прогресса
+     * обязано быть на экране, в канале отката ([AdbEnablerService.reverseSimpleToggles])
+     * его нет вовсе — окно прогресса показывает MainActivity, а не раннер, и прежний
+     * безусловный гейт фейлил каждый шаг отката `overlay_lost` (прогоны rmuebpgnr,
+     * rmueihkd3: `reverseSimpleToggles done: 0/11`, «Не удалось подключиться для
+     * восстановления»). Задаётся на время прогона параметром [run].
+     */
+    // internal — для тестируемости (SimpleRunnerOverlayGateTest).
+    internal var overlayGateRequired: Boolean = true
+
+    /**
+     * [requireOverlay] = false запускает шаг вне Простого режима (канал отката):
+     * навигация выполняется без проверки окна прогресса.
+     */
+    fun run(
+        step: SimpleSteps.Step,
+        profile: RomProfile,
+        requireOverlay: Boolean = true,
+        callback: (Result) -> Unit
+    ) {
         cancel()
         cancelled = false
+        overlayGateRequired = requireOverlay
         isRunning = true
         currentStepId = step.id
         lastFailureReason = null
@@ -1121,6 +1153,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * Исчерпание бюджета не фатально — бурение продолжается как раньше (честный
      * `drill_failed`), но факт ожидания виден в логе и диагностике.
      * Resume (startLevel>0) ожидания не требует: экран уже подтверждён.
+     *
+     * Бюджет делится на раунды, между которыми экран возвращается на главную
+     * guarded BACK: Mi Браузер открывается контентной лентой без нижней навигации,
+     * подписи «Профиль» на ней нет — шаг честно падал в `not_applicable` (прогон
+     * rmueihkd3), хотя BACK с ленты возвращает главную.
      */
     internal suspend fun awaitAppScreenReady(
         step: SimpleSteps.Step,
@@ -1131,18 +1168,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
         if (startLevel > 0 || path.isEmpty()) return true
         val levelTexts = nextLevelVerificationTexts(path, startLevel)
         if (levelTexts.isEmpty()) return true
-        val attempts = (timeoutMs / APP_READY_POLL_MS).toInt().coerceAtLeast(1)
-        repeat(attempts) { attempt ->
-            if (cancelled) return false
-            if (screenHasAny(levelTexts)) {
-                AppLog.i(
-                    TAG,
-                    "app entry: level '${levelTexts.first()}' visible after " +
-                        "~${attempt * APP_READY_POLL_MS}ms"
-                )
-                return true
-            }
-            if (attempt < attempts - 1) delay(APP_READY_POLL_MS)
+        val rounds = APP_ENTRY_BACK_RECOVERIES + 1
+        val roundMs = (timeoutMs / rounds).coerceAtLeast(APP_READY_POLL_MS * 4)
+        var backedOff = false
+        for (round in 0 until rounds) {
+            if (awaitScreenTexts(levelTexts, roundMs)) return true
+            if (round == rounds - 1) break
+            if (!recoverAppEntryHome(step, afterBack = backedOff)) break
+            backedOff = true
         }
         AppLog.w(
             TAG,
@@ -1150,6 +1183,62 @@ class SimpleRunner(private val service: AdbEnablerService) {
         )
         StepDiagnostics.note(step.id, "ENTRY", "reason=timeout level=${levelTexts.first()}")
         return false
+    }
+
+    /** Опрос подписей уровня: время до появления видно в логе (готовность экрана приложения). */
+    private suspend fun awaitScreenTexts(texts: List<String>, timeoutMs: Long): Boolean {
+        val attempts = (timeoutMs / APP_READY_POLL_MS).toInt().coerceAtLeast(1)
+        repeat(attempts) { attempt ->
+            if (cancelled) return false
+            if (screenHasAny(texts)) {
+                AppLog.i(
+                    TAG,
+                    "app entry: level '${texts.first()}' visible after ~${attempt * APP_READY_POLL_MS}ms"
+                )
+                return true
+            }
+            if (attempt < attempts - 1) delay(APP_READY_POLL_MS)
+        }
+        return false
+    }
+
+    /**
+     * Возврат на главную страницу приложения, если оно открылось не на ней.
+     *
+     * Действие guarded: BACK только пока foreground остаётся целевым пакетом и дерево
+     * экрана уже отрисовано (BACK по сплэшу закрыл бы приложение). Больше одного BACK
+     * не делаем — на главной странице он закрыл бы приложение; уход из приложения
+     * компенсируется одним launcher-интентом, чтобы шаг не остался без экрана.
+     */
+    private suspend fun recoverAppEntryHome(step: SimpleSteps.Step, afterBack: Boolean): Boolean {
+        val target = step.launchPackage ?: return false
+        val fg = activePackage()
+        if (fg == null || !fg.equals(target, ignoreCase = true)) {
+            // Приложения нет в foreground: либо его закрыл наш BACK, либо открылся чужой
+            // экран. Поднимаем интентом только после собственного BACK, иначе не трогаем.
+            if (!afterBack) return false
+            return relaunchAppEntry(step, target)
+        }
+        if (afterBack || currentScreenText().isBlank()) return false
+        AppLog.i(TAG, "app entry: guarded BACK to home for '${step.id}' fg=$fg")
+        StepDiagnostics.note(step.id, "ENTRY", "back_home pkg=$fg")
+        pressBack()
+        delay(APP_ENTRY_RECOVER_DELAY_MS)
+        return true
+    }
+
+    /** Один relaunch приложения шага: guarded BACK мог закрыть его (главная была открыта). */
+    private suspend fun relaunchAppEntry(step: SimpleSteps.Step, target: String): Boolean {
+        val launch = runCatching { service.packageManager.getLaunchIntentForPackage(target) }
+            .getOrNull() ?: return false
+        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val ok = runCatching { service.startActivity(launch) }.isSuccess
+        if (ok) {
+            AppLog.i(TAG, "app entry: relaunch '${step.id}' after BACK left the app")
+            StepDiagnostics.note(step.id, "ENTRY", "relaunch pkg=$target")
+            delay(APP_READY_WAIT_MS)
+        }
+        return ok
     }
 
     /** Повторный поиск узла после горизонтальной прокрутки: вкладка может быть за краем. */
@@ -1879,6 +1968,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         if (candidates.isEmpty()) return Result(false, "folder_not_found")
 
         var probed = 0
+        var foldersOpened = 0
         for (candidate in candidates) {
             if (probed >= MAX_FOLDER_PROBES) break
             probed++
@@ -1915,6 +2005,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 continue
             }
             AppLog.i(TAG, "folder: popup opened for '$label'")
+            foldersOpened++
 
             val editorOpened = openFolderEditor(
                 folderLabel = label,
@@ -1941,6 +2032,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 return Result(false, NOT_APPLICABLE)
             }
             AppLog.i(TAG, "folder: no switch in '$label' — next candidate")
+        }
+        if (foldersOpened > 0) {
+            // Папка открылась, но тумблера рекомендаций в ней нет ни в поповере, ни в
+            // редакторе: после отключения рекомендаций поставщика (msa/персонализация)
+            // блок «Рекомендуемое сегодня» пропадает из папки вовсе (владелец: папка
+            // «Russia», POCO X3 Pro/MIUI 13, прогоны rmuehut5w и rmueihkd3) — честное
+            // «неприменимо» вместо FAIL: отчёт не должен врать.
+            AppLog.i(TAG, "folder: no suggestions switch in $foldersOpened opened folder(s)")
+            StepDiagnostics.note(
+                step.id, "APPLICABILITY", "folder_switch_absent folders=$foldersOpened"
+            )
+            return Result(false, NOT_APPLICABLE)
         }
         return Result(false, "switch_not_found")
     }
@@ -2832,8 +2935,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
     /**
      * Гейт оверлея (Аддендум A4): ждёт до 2 с восстановления окна прогресса.
      * Не восстановилось — ставит статус «пауза» и сообщает false (шаг не выполняем).
+     * В канале отката гейт выключен ([overlayGateRequired] = false): окна прогресса
+     * там нет по замыслу.
      */
-    private suspend fun awaitOverlayReadyOrPause(): Boolean {
+    // internal — для тестируемости (SimpleRunnerOverlayGateTest).
+    internal suspend fun awaitOverlayReadyOrPause(): Boolean {
+        if (!overlayGateRequired) return true
         if (OverlayController.isOverlaySolid()) return true
         var waited = 0L
         while (waited < OVERLAY_GATE_WAIT_MS && !OverlayController.isOverlaySolid()) {
