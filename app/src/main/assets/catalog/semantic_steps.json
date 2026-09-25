@@ -1718,10 +1718,7 @@
             "hi": ["सुझाव प्राप्त करें"],
             "pt": ["Receber recomendações"],
             "id": ["Terima rekomendasi"]
-          },
-          "extraTargets": [
-            { "back": 1, "drillPath": [["Очистка", "Cleaner", "清理"]], "itemTexts": { "ru": ["Получать рекомендации"], "en": ["Receive recommendations"], "es": ["Recibir recomendaciones"], "zh": ["接收推荐"], "hi": ["सुझाव प्राप्त करें"], "pt": ["Receber recomendações"], "id": ["Terima rekomendasi"] }, "control": "toggle" }
-          ]
+          }
         },
         {
           "id": "hyperos1_3",
