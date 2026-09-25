@@ -137,7 +137,7 @@
         },
         "music_sys": {
           "replaceDrillPath": true,
-          "drillPath": [["☰", "Показать меню", "Show menu", "Menu"], ["Настройки", "Settings"]],
+          "drillPath": [["☰", "Показать меню", "Show menu", "Menu"], ["Настройки", "Settings"], ["Расширенные настройки", "Advanced settings"]],
           "searchTexts": ["Показывать рекламу", "Персональные рекомендации", "Сервисы онлайн-контента", "Аккаунт и настройки"]
         }
       },
