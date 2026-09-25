@@ -7,6 +7,23 @@ android {
     namespace = "com.xiaohypercleaner"
     compileSdk = 37
 
+    // Ключ владельца: нужен, чтобы ставить сборку ПОВЕРХ уже установленного APK
+    // (debug-ключ AS даёт INSTALL_FAILED_UPDATE_INCOMPATIBLE). Секреты — только из
+    // окружения: XHC_KEYSTORE_PATH, XHC_STORE_PASSWORD, XHC_KEY_PASSWORD,
+    // необязательный XHC_KEY_ALIAS (по умолчанию xiaohypercleaner).
+    val ownerKeystore = System.getenv("XHC_KEYSTORE_PATH")
+        ?.takeIf { it.isNotBlank() && file(it).exists() }
+    signingConfigs {
+        if (ownerKeystore != null) {
+            create("owner") {
+                storeFile = file(ownerKeystore)
+                storePassword = System.getenv("XHC_STORE_PASSWORD")
+                keyAlias = System.getenv("XHC_KEY_ALIAS") ?: "xiaohypercleaner"
+                keyPassword = System.getenv("XHC_KEY_PASSWORD")
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.xiaohypercleaner"
         minSdk = 29
@@ -26,6 +43,9 @@ android {
         }
         debug {
             isMinifyEnabled = false
+            // Ключ владельца, если он задан в окружении: установка поверх его сборки.
+            signingConfig =
+                signingConfigs.findByName("owner") ?: signingConfigs.getByName("debug")
         }
     }
 
