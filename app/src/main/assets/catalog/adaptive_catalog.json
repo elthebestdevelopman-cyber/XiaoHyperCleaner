@@ -131,7 +131,7 @@
           "drillPath": [["Приложения", "Apps", "Applications"], ["Ещё", "More", "Дополнительно", "More options", "⋮"]]
         }
       },
-      "disabledSteps": ["installer_recommendations", "appvault_services", "appvault_about", "ux_program"]
+      "disabledSteps": []
     }
   }
 }
