@@ -30,6 +30,15 @@ import com.xiaohypercleaner.util.AppLog
  * - Все Intent'ы проверяются через resolveActivity() — не запускаем несуществующие
  * - FLAG_ACTIVITY_NEW_TASK добавляется автоматически
  * - FLAG_ACTIVITY_CLEAR_TOP для предотвращения дублирования стека
+ *
+ * РЕЕСТР «NOT_EXPORTED = только drill» (пробы 2026-09-26, `docs/diag/intent_probe_report.md`):
+ * цели закрыты для стороннего актора, вход только UI-бурением —
+ * `google_diagnostics` (обе цели: действие GMS и CollapseUsageReportingActivity),
+ * `ux_program` (`UsageAndDiagnosticsActivity`), `music_sys` (`MusicSettings`),
+ * `downloads` (`InterSettingActivity`), `installer_recommendations` (`SettingsActivity`),
+ * `security_sys` (`optimizemanage.settings.SettingsActivity`),
+ * `getapps` (`PrivacyPreferenceFragmentActivity` — на устройстве mipicks 602-16.4.4.0
+ * первая позиция коммита f35595c не подтвердилась).
  */
 object DirectIntentNavigator {
 
@@ -103,81 +112,64 @@ object DirectIntentNavigator {
             // ═══════════════════════════════════════════════════════════
 
             "msa" -> {
-                // MSA — отзыв доступа к личным данным (Authorization & revocation).
-                // MIUI-экран «Разрешения» приложения (APP_PERM_EDITOR) первичен:
-                // ACTION_PRIVACY_SETTINGS на Global 13 уводил на «О приложении»/Privacy.
-                val msaPkg = resolvedPackage ?: "com.miui.msa.global"
-                intents.addAll(
-                    listOf(
-                        Intent("miui.intent.action.APP_PERM_EDITOR").apply {
-                            putExtra("extra_package_name", msaPkg)
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        },
-                        miuiIntent("miui.intent.action.AD_SERVICES_SETTINGS"),
-                        settingsIntent(Settings.ACTION_PRIVACY_SETTINGS),
-                        miuiIntent("miui.intent.action.PRIVACY_SETTINGS"),
-                        appDetailsIntent(msaPkg),
-                        appDetailsIntent("com.miui.msa.global"),
-                        appDetailsIntent("com.miui.msa.core")
-                    )
-                )
+                // MSA — отзыв доступа к личным данным. Пробы 2026-09-26: APP_PERM_EDITOR
+                // с extra_package_name=msa открывает настройки Безопасности (WRONG_SCREEN),
+                // miui AD_SERVICES_SETTINGS — NO_RESOLVE, miui PRIVACY_SETTINGS —
+                // WRONG_SCREEN (PrivacySafetyActivity). Зелёных интентов нет вовсе —
+                // шаг идёт только drill'ом (каталог: «Пароли и безопасность» →
+                // «Доступ к личным данным»).
+                AppLog.i(TAG, "msa: no verified direct intents — drill only")
             }
 
             "sys_recommendations" -> {
-                // Системные рекомендации — через поиск настроек или напрямую.
-                // На Global RU рекомендации/реклама живут в Конфиденциальность -> Реклама.
+                // Системные рекомендации. Проба p_sysrec_seccenter (2026-09-26): явная
+                // компонента `com.miui.appmanager.AppManagerSettings` в securitycenter
+                // экспортирована, открывает экран с тумблером «Получать рекомендации»
+                // (verdict OK) — вход уровня 1 без бурения «Приложения → Ещё».
+                // Фолбэк — «Все приложения» системных Настроек (verdict OK); miui
+                // SYSTEM_RECOMMENDATIONS и aosp SYSTEM_RECOMMENDATIONS_SETTINGS —
+                // NO_RESOLVE (убраны).
                 intents.addAll(
                     listOf(
-                        miuiIntent("miui.intent.action.SYSTEM_RECOMMENDATIONS"),
-                        settingsIntent("android.settings.SYSTEM_RECOMMENDATIONS_SETTINGS"),
-                        settingsIntent(Settings.ACTION_PRIVACY_SETTINGS),
-                        settingsIntent(Settings.ACTION_SETTINGS)
+                        explicitActivity(
+                            "com.miui.securitycenter",
+                            "com.miui.appmanager.AppManagerSettings"
+                        ),
+                        settingsIntent("android.settings.APPLICATION_SETTINGS")
                     )
                 )
             }
 
             "ads_personalization" -> {
-                // Персонализация рекламы.
-                // На MIUI-«Конфиденциальности» (дамп owner_07) пункт «Рекламные службы» ведёт
-                // на com.android.settings.ad.AdServiceSettings с тумблером «Персонализированная
-                // реклама» (дамп owner_08); своей экспортированной активности у экрана нет,
-                // поэтому путь — drill (см. каталог).
-                intents.addAll(
-                    listOf(
-                        miuiIntent("miui.intent.action.AD_SERVICES_SETTINGS"),
-                        settingsIntent(Settings.ACTION_PRIVACY_SETTINGS),
-                        miuiIntent("miui.intent.action.PRIVACY_SETTINGS"),
-                        settingsIntent("android.settings.AD_SERVICES_SETTINGS"),
-                        appDetailsIntent("com.miui.systemAdSolution")
+                // Персонализация рекламы. Проба p_ads_comp_adservice (2026-09-26): явная
+                // компонента `com.android.settings.ad.AdServiceSettings` открывает целевой
+                // экран («Персонализированная реклама», verdict OK). Действия
+                // AD_SERVICES_SETTINGS (miui/aosp) — NO_RESOLVE, miui PRIVACY_SETTINGS —
+                // WRONG_SCREEN: в цепочке только зелёная компонента.
+                intents.add(
+                    explicitActivity(
+                        "com.android.settings",
+                        "com.android.settings.ad.AdServiceSettings"
                     )
                 )
             }
 
             "ux_program" -> {
-                // Программа улучшения качества + MIUI-«Использование и диагностика». Экран —
-                // системные Настройки, общий хост `com.android.settings/.SubSettings` с
-                // фрагментом SecuritySettings (дамп owner_19_privacy.xml): своей экспортированной
-                // активности нет, поэтому вход — drill «Пароли и безопасность → Конфиденциальность»
-                // (каталог). Под-экран диагностики `com.android.settings.UsageAndDiagnosticsActivity`
-                // тоже не exported (проверено `am start`) — вторая цель идёт drill'ом (extraTargets).
-                intents.addAll(
-                    listOf(
-                        miuiIntent("miui.intent.action.USER_EXPERIENCE_PROGRAM"),
-                        miuiIntent("miui.intent.action.DIAGNOSTIC_SETTINGS"),
-                        settingsIntent("android.settings.USER_EXPERIENCE_PROGRAM"),
-                        settingsIntent(Settings.ACTION_PRIVACY_SETTINGS)
-                    )
-                )
+                // Программа улучшения качества + MIUI-«Использование и диагностика».
+                // Пробы 2026-09-26: miui USER_EXPERIENCE_PROGRAM и DIAGNOSTIC_SETTINGS,
+                // aosp USER_EXPERIENCE_PROGRAM — NO_RESOLVE; UsageAndDiagnosticsActivity —
+                // NOT_EXPORTED (только drill). Зелёных интентов нет: вход — drill каталога
+                // («Пароли и безопасность» → «Конфиденциальность» → «Дополнительные настройки»).
+                AppLog.i(TAG, "ux_program: no verified direct intents — drill only")
             }
 
             "google_diagnostics" -> {
-                // Google «Использование и диагностика»: GMS-активность не exported
-                // (`am start -a com.google.android.gms.usagereporting.GOOGLE_SETTINGS` →
-                // permission denial). Идём через корень системных Настроек: Privacy Dashboard
-                // как интент не подтверждает целевой экран (логика входа требует текст шага,
-                // а он на GMS-экране) и шаг уходил в SETTINGS — прогон rmubgvwm5, drill_failed.
-                // Полный drillPath [Конфиденциальность] → [Использование и диагностика] надёжнее.
-                intents.add(settingsIntent(Settings.ACTION_SETTINGS))
+                // Google «Использование и диагностика». Пробы 2026-09-26: действие
+                // com.google.android.gms.usagereporting.GOOGLE_SETTINGS и компонента
+                // CollapseUsageReportingActivity — NOT_EXPORTED (только drill).
+                // Вход — «Конфиденциальность» системных Настроек (это единственный шаг,
+                // где PRIVACY_SETTINGS оставлен), дальше drill [Использование и диагностика].
+                intents.add(settingsIntent(Settings.ACTION_PRIVACY_SETTINGS))
             }
 
             "carousel" -> {
@@ -187,13 +179,9 @@ object DirectIntentNavigator {
                 // «Проведите вправо…», «Обновлять через мобильный Интернет»
                 // (com.miui.cw.feature.ui.setting.SettingActivity, дамп carousel_setting_act).
                 intents.addAll(carouselSettingsIntents())
-                intents.addAll(
-                    listOf(
-                        miuiIntent("miui.intent.action.WALLPAPER_CAROUSEL"),
-                        settingsIntent("android.settings.LOCK_SCREEN_SETTINGS"),
-                        settingsIntent(Settings.ACTION_SETTINGS)
-                    )
-                )
+                // WALLPAPER_CAROUSEL / LOCK_SCREEN_SETTINGS / ACTION_SETTINGS убраны:
+                // пробами 2026-09-26 они не подтверждены, а зелёные точки входа шага —
+                // действие SETTING и компонента SettingActivity (verdict OK).
             }
 
             // ═══════════════════════════════════════════════════════════
@@ -201,14 +189,17 @@ object DirectIntentNavigator {
             // ═══════════════════════════════════════════════════════════
 
             "browser_sys" -> {
-                // Mi Браузер — настройки рекомендаций
+                // Mi Браузер. Пробы 2026-09-26: компонента BrowserSettingsActivity и
+                // действие com.android.browser.OPEN_SETTINGS открывают «Основные настройки»
+                // (verdict OK) — они первые; miui APP_SETTINGS — NO_RESOLVE (убран).
+                // Launcher-интенты остаются фолбэком входа в приложение.
                 val pkg = resolvedPackage ?: "com.mi.globalbrowser"
                 intents.addAll(
                     listOf(
+                        explicitActivity(pkg, "com.android.browser.BrowserSettingsActivity"),
+                        actionIntent("com.android.browser.OPEN_SETTINGS", pkg),
                         launchIntent(pkg),
-                        launchIntent("com.mi.globalbrowser"),
-                        launchIntent("com.android.browser"),
-                        launchIntent("com.miui.browser")
+                        launchIntent("com.mi.globalbrowser")
                     )
                 )
             }
@@ -288,18 +279,12 @@ object DirectIntentNavigator {
             }
 
             "home_suggestions" -> {
-                // Лента виджетов (App Vault) — настройки лаунчера. У POCO Launcher
-                // (com.mi.android.globallauncher, дамп home_settings_desktop) это
-                // «Рабочий стол» → «Включить Ленту виджетов»; в системных Настройках
-                // пункта «Рабочий стол» на POCO нет, поэтому входим прямо в настройки
-                // лаунчера. Путь MIUI Home остаётся через drill в каталоге.
+                // Лента виджетов (App Vault) — настройки лаунчера POCO. Пробы 2026-09-26:
+                // действие `com.mi.android.globallauncher.Setting` и компонента
+                // `com.mi.android.globallauncher/com.miui.home.settings.HomeSettingsActivity`
+                // открывают «Рабочий стол» (verdict OK); miui HOME_SETTINGS и com.miui.home —
+                // NO_RESOLVE, android.settings.HOME_SETTINGS не проверялся — убраны.
                 intents.addAll(launcherSettingsIntents())
-                intents.addAll(
-                    listOf(
-                        miuiIntent("miui.intent.action.HOME_SETTINGS"),
-                        settingsIntent(Settings.ACTION_HOME_SETTINGS)
-                    )
-                )
             }
 
             "themes" -> {
@@ -323,12 +308,10 @@ object DirectIntentNavigator {
                 // бурение «Профиль → Настройки → Конфиденциальность» не требуется.
                 // Первый узел «Настройки» в профиле ведёт на нативный MarketPreferenceActivity,
                 // где «Конфиденциальности» нет вовсе (прогон rmua2sd7x: drill_failed).
-                intents.add(
-                    explicitActivity(
-                        "com.xiaomi.mipicks",
-                        "com.xiaomi.market.ui.PrivacyPreferenceFragmentActivity"
-                    )
-                )
+                // PrivacyPreferenceFragmentActivity убрана: проба p_getapps_privacy
+                // (2026-09-26) — NOT_EXPORTED на устройстве (mipicks 602-16.4.4.0),
+                // первая позиция коммита f35595c не подтвердилась. Остаётся drill по UI
+                // и launcher-интент ниже.
                 val pkg = resolvedPackage ?: "com.xiaomi.market"
                 intents.addAll(
                     listOf(
@@ -517,16 +500,6 @@ object DirectIntentNavigator {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * Создаёт Intent с action MIUI.
-     * Используется для специфичных MIUI экранов настроек.
-     */
-    private fun miuiIntent(action: String): Intent {
-        return Intent(action).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        }
-    }
-
-    /**
      * Создаёт Intent с action Android Settings.
      * Используется для общих Android экранов настроек.
      */
@@ -622,11 +595,11 @@ object DirectIntentNavigator {
      * поэтому пакет задан явно, а компонента `DownloadList` — страховка.
      */
     internal fun downloadListIntents(): List<Intent> = listOf(
-        actionIntent("android.intent.action.VIEW_DOWNLOADS", "com.android.providers.downloads.ui"),
         explicitActivity(
             "com.android.providers.downloads.ui",
             "com.android.providers.downloads.ui.DownloadList"
-        )
+        ),
+        actionIntent("android.intent.action.VIEW_DOWNLOADS", "com.android.providers.downloads.ui")
     )
 
     /**
@@ -640,8 +613,7 @@ object DirectIntentNavigator {
         explicitActivity(
             "com.mi.android.globallauncher",
             "com.miui.home.settings.HomeSettingsActivity"
-        ),
-        explicitActivity("com.miui.home", "com.miui.home.settings.HomeSettingsActivity")
+        )
     )
 
     /**

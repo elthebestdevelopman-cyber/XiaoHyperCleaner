@@ -82,11 +82,10 @@ class DirectIntentNavigatorTest {
     }
 
     @Test
-    fun `installed privacy activity leads the getapps intent chain`() {
-        // Дамп устройства: экран «Конфиденциальность» («гайка» в профиле) открывается
-        // напрямую экспортированной активностью PrivacyPreferenceFragmentActivity —
-        // она и должна идти первой, иначе drill упирается в нативный
-        // MarketPreferenceActivity без «Конфиденциальности» (прогон rmua2sd7x).
+    fun `privacy activity is not used as getapps entry (not exported on device)`() {
+        // Проба p_getapps_privacy (2026-09-26, mipicks 602-16.4.4.0): экран
+        // «Конфиденциальность» существует, но для стороннего актора НЕ exported
+        // (Permission Denial) — точкой входа не используется, вход остаётся drill'ом.
         val shadowPm = Shadows.shadowOf(context.packageManager)
         shadowPm.installPackage(PackageInfo().apply { packageName = "com.xiaomi.mipicks" })
         val privacy = ComponentName(
@@ -102,9 +101,9 @@ class DirectIntentNavigatorTest {
             profile
         )
 
-        assertTrue(
-            "первым интентом должен быть прямой вход на экран «Конфиденциальность»",
-            intents.firstOrNull()?.component == privacy
+        assertFalse(
+            "неэкспортированная активность не должна быть точкой входа шага",
+            intents.any { it.component == privacy }
         )
     }
 
@@ -178,15 +177,19 @@ class DirectIntentNavigatorTest {
         // («Загрузки» / «Файлы», дамп resolver_now) — пакет задаём явно.
         val intents = DirectIntentNavigator.downloadListIntents()
 
-        assertEquals("android.intent.action.VIEW_DOWNLOADS", intents.first().action)
-        assertEquals("com.android.providers.downloads.ui", intents.first().`package`)
+        assertEquals(
+            "явная компонента списка идёт первой (проба p_dl_comp_list, verdict OK)",
+            ComponentName(
+                "com.android.providers.downloads.ui",
+                "com.android.providers.downloads.ui.DownloadList"
+            ),
+            intents.first().component
+        )
         assertTrue(
-            "страховкой остаётся явная компонента списка загрузок",
+            "VIEW_DOWNLOADS с явным пакетом остаётся вторым входом (verdict OK, без диалога выбора)",
             intents.any {
-                it.component == ComponentName(
-                    "com.android.providers.downloads.ui",
-                    "com.android.providers.downloads.ui.DownloadList"
-                )
+                it.action == "android.intent.action.VIEW_DOWNLOADS" &&
+                    it.`package` == "com.android.providers.downloads.ui"
             }
         )
     }
