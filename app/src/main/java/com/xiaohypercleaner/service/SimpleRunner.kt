@@ -69,7 +69,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
         private const val APP_VERY_LONG_PATH_TIMEOUT_MS = 32_000L
         private const val HYPEROS_MULTIPLIER = 1.3f
         private const val MSA_TIMEOUT_MS = 40_000L
-        private const val SECURITY_CLEANER_TIMEOUT_MS = 22_500L
+        private const val SECURITY_CLEANER_TIMEOUT_MS = 30_000L
+
+        /**
+         * Settings/GMS-маршруты: навигация до целевого тумблера, сам тумблер и
+         * подтверждение не укладывались в базовые 16 с — тумблеры фактически
+         * выключались, а шаг рапортовал timeout (прогон rmuh2vb1r: ads_personalization,
+         * security_sys, google_diagnostics — checked=false в снапшотах).
+         */
+        private const val SETTINGS_LONG_TIMEOUT_MS = 30_000L
 
         private val SPECIAL_TIMEOUTS = mapOf(
             "msa" to MSA_TIMEOUT_MS,
@@ -80,7 +88,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
             "installer_recommendations" to 26_000L,
             // Mi Music: три уровня drill (☰ → «Настройки» → «Расширенные настройки»), целевые
             // тумблеры лежат в разделе ниже сгиба — к бюджету добавляются прокрутки (rmuef7nbf).
-            "music_sys" to 26_000L
+            "music_sys" to 26_000L,
+            // Settings/GMS-шаги: тот же бюджет, что у security_sys — успевают дойти до
+            // тумблера и подтвердить его состояние.
+            "sys_recommendations" to SETTINGS_LONG_TIMEOUT_MS,
+            "ads_personalization" to SETTINGS_LONG_TIMEOUT_MS,
+            "ux_program" to SETTINGS_LONG_TIMEOUT_MS,
+            "google_diagnostics" to SETTINGS_LONG_TIMEOUT_MS,
+            "home_suggestions" to SETTINGS_LONG_TIMEOUT_MS,
+            "themes" to SETTINGS_LONG_TIMEOUT_MS,
+            "mivideo" to SETTINGS_LONG_TIMEOUT_MS,
+            "browser_sys" to SETTINGS_LONG_TIMEOUT_MS,
+            "carousel" to SETTINGS_LONG_TIMEOUT_MS
         )
 
         // ═══════════════════════════════════════════════════════════════
@@ -138,7 +157,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         private const val LONG_PRESS_MS = 800L
 
         /** Пауза после открытия папки: поповер анимируется. */
-        private const val FOLDER_OPEN_DELAY_MS = 700L
+        private const val FOLDER_OPEN_DELAY_MS = 500L
 
         /** Сколько активностей установщика пробуем, прежде чем признать шаг неприменимым. */
         private const val MAX_INSTALLER_CANDIDATES = 5
@@ -164,7 +183,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         /** msa: максимум ожидания включённой кнопки отзыва, поллинг и пауза на сам отзыв. */
         private const val MSA_REVOKE_WAIT_MAX_MS = 11_000L
-        private const val MSA_CONFIRM_POLL_MS = 500L
+        private const val MSA_CONFIRM_POLL_MS = 350L
 
         /** Отсчётный хвост кнопки MIUI: «(9 с)», «(9s)», «(9)» — кнопка ещё неактивна. */
         private val COUNTDOWN_LABEL_REGEX = Regex("\\(\\s*\\d+\\s*(с|s)?\\s*\\)")
@@ -183,9 +202,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // ═══════════════════════════════════════════════════════════════
         // Общие константы
         // ═══════════════════════════════════════════════════════════════
-        private const val UI_SETTLE_DELAY_MS = 900L
-        private const val APP_LAUNCH_DELAY_MS = 2000L
-        private const val CONTENT_WAIT_MS = 2500L
+        // Ускорение прогона (владелец: «быстрее открывать экраны, быстрее листать»):
+        // паузы после навигации сокращены, ожидания остались опросными и растут сами.
+        private const val UI_SETTLE_DELAY_MS = 450L
+        private const val APP_LAUNCH_DELAY_MS = 1200L
+        private const val CONTENT_WAIT_MS = 1600L
 
         /**
          * Готовность приложения после запуска: холодный старт MIUI-приложений
@@ -193,12 +214,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
          * чего раннер сжигал бюджет на «App not ready» по всем кандидатам и
          * стартовал бурение на сплэше (прогон rmu8qhjhi).
          */
-        private const val APP_READY_WAIT_MS = 6_000L
+        private const val APP_READY_WAIT_MS = 4_000L
 
         /** Готовность экрана приложения перед бурением: подписи первого уровня маршрута. */
-        private const val APP_SCREEN_WAIT_MS = 6_000L
-        private const val APP_READY_POLL_MS = 400L
-        private const val CONFIRM_RETRY_MS = 2500L
+        private const val APP_SCREEN_WAIT_MS = 4_000L
+        private const val APP_READY_POLL_MS = 250L
+        /** Повторное чтение состояния тумблера: MIUI применяет его с задержкой. */
+        private const val SWITCH_VERIFY_ATTEMPTS = 3
+        private const val SWITCH_VERIFY_RETRY_DELAY_MS = 600L
+        private const val CONFIRM_RETRY_MS = 1500L
         private const val SWITCH_FALLBACK_SCROLLS = 4
 
         /**
@@ -208,7 +232,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         internal const val NOT_APPLICABLE = "not_applicable"
 
         /** Поллинг проверки входного экрана (notif_*: подпись приложения). */
-        private const val ENTRY_POLL_MS = 250L
+        private const val ENTRY_POLL_MS = 200L
 
         /** Variation selector эмодзи: «⚙» и «⚙️» — один и тот же уровень-меню. */
         private const val EMOJI_VARIATION_SELECTOR = "\uFE0F"
@@ -226,6 +250,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         /** Гейт оверлея: ожидание восстановления окна (Аддендум A4). */
         private const val OVERLAY_GATE_WAIT_MS = 2000L
         private const val OVERLAY_GATE_POLL_MS = 100L
+
+        /** Пауза применения FLAG_NOT_TOUCHABLE при инъекции наших жестов (окно оверлея). */
+        private const val OVERLAY_PASSTHROUGH_SETTLE_MS = 40L
 
         private val SYSTEM_DIALOG_SKIPS = listOf(
             "Пропустить", "Пропустить настройку", "Не сейчас", "Закрыть", "Отозвать", "Отмена"
@@ -1751,11 +1778,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     private suspend fun verifySwitchState(step: SimpleSteps.Step, texts: List<String>): Boolean {
-        val root = service.rootInActiveWindow ?: return true
-        val switchNode = findSwitchByText(root, texts)
-        val result = switchNode?.let { SwitchFinder.isChecked(it) == step.targetChecked } ?: true
-        recycleNode(switchNode); recycleNode(root)
-        return result
+        // MIUI применяет состояние не мгновенно (App Vault: тумблер отрисовался
+        // включённым ещё мгновение после тапа — шаг рапортовал verify_failed, прогон
+        // rmuh2vb1r): читаем состояние повторно, без дополнительных тапов.
+        repeat(SWITCH_VERIFY_ATTEMPTS) { attempt ->
+            if (attempt > 0) delay(SWITCH_VERIFY_RETRY_DELAY_MS)
+            val root = service.rootInActiveWindow ?: return true
+            val switchNode = findSwitchByText(root, texts)
+            val result = switchNode?.let { SwitchFinder.isChecked(it) == step.targetChecked } ?: true
+            recycleNode(switchNode); recycleNode(root)
+            if (result) return true
+        }
+        return false
     }
 
     // ═════════════════════════════════════════════════════════════════════
@@ -1880,7 +1914,34 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return false
     }
 
-    private suspend fun tapAt(x: Int, y: Int): Boolean {
+    /** Тап с временно снятым поглощением тапов оверлеем (см. [withOverlayPassthrough]). */
+    private suspend fun tapAt(x: Int, y: Int): Boolean = withOverlayPassthrough { tapAtRaw(x, y) }
+
+    /**
+     * Инъекция жеста при снятом поглощении тапов оверлеем.
+     *
+     * Оверлей Простого режима поглощает касания по всей площади (инвариант: пользователь
+     * не прерывает автоматизацию), но это поглощение перехватывает и НАШИ жесты
+     * ([AccessibilityService.dispatchGesture]): долгий тап по папке рабочего стола не
+     * доходил до лаунчера («folder: editor not opened»), а тап в зоне кнопки «Отмена»
+     * панели останавливал прогон целиком — `OverlaySvc: automation cancelled by user`,
+     * прогон rmuh2vb1r умер на шаге 27/28 без действий владельца.
+     *
+     * На время жеста окно делаем не-перехватывающим (FLAG_NOT_TOUCHABLE) и сразу
+     * возвращаем поглощение: вне моментов инъекции окно блокирует пользователя.
+     */
+    private suspend fun withOverlayPassthrough(block: suspend () -> Boolean): Boolean {
+        OverlayController.setBlocking(service, false)
+        delay(OVERLAY_PASSTHROUGH_SETTLE_MS)
+        return try {
+            block()
+        } finally {
+            delay(OVERLAY_PASSTHROUGH_SETTLE_MS)
+            OverlayController.setBlocking(service, true)
+        }
+    }
+
+    private suspend fun tapAtRaw(x: Int, y: Int): Boolean {
         val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
         val gesture = GestureDescription.Builder()
             .addStroke(GestureDescription.StrokeDescription(path, 0, 50)).build()
@@ -2824,7 +2885,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
         )
     }
 
+    /** Жест с временно снятым поглощением тапов оверлеем (см. [withOverlayPassthrough]). */
     private suspend fun performGesture(
+        startX: Float,
+        startY: Float,
+        endX: Float,
+        endY: Float,
+        durationMs: Long
+    ): Boolean = withOverlayPassthrough { performGestureRaw(startX, startY, endX, endY, durationMs) }
+
+    private suspend fun performGestureRaw(
         startX: Float,
         startY: Float,
         endX: Float,

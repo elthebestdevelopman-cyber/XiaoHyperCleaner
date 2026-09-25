@@ -135,6 +135,22 @@ object AdaptiveCatalog {
     /** Текущий активный вариант каталога (для диагностики/снапшотов). */
     fun currentVariant(): String = activeVariantName
 
+    /**
+     * Шаги, отключённые для активного варианта (на этой прошивке нужных экранов нет).
+     * Список живёт в каталоге (`disabledSteps` варианта): шаг не удаляется совсем —
+     * при появлении экрана на другой сборке достаточно убрать id из списка.
+     */
+    fun disabledSteps(context: Context): Set<String> {
+        ensureLoaded(context)
+        val arr = variantArray("disabledSteps") ?: return emptySet()
+        val result = LinkedHashSet<String>(arr.length())
+        for (i in 0 until arr.length()) {
+            val id = arr.optString(i, "")
+            if (id.isNotBlank()) result.add(id)
+        }
+        return result
+    }
+
     /** Флаг replaceDrillPath: каталог заменяет drillPath шага вместо мерджа. */
     private fun isReplaceDrillPath(stepId: String): Boolean =
         variantStepObj("uiSteps", stepId)?.optBoolean("replaceDrillPath", false) ?: false

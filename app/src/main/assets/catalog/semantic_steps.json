@@ -1,9 +1,9 @@
-﻿{
+{
   "version": 1,
   "consentPolicy": {
     "welcomeMarkers": {
-      "ru": ["Добро пожаловать", "Условия использования", "Условиями использования", "Условиях использования", "Политика конфиденциальности", "Политикой конфиденциальности", "Пользовательское соглашение", "Скачивание видео", "Загрузка видео", "Настройка браузера", "Выберите поисковую систему", "Быстрая настройка", "Глобальная лента контента", "Юридические документы"],
-      "en": ["Welcome", "Terms of Service", "Terms of Use", "Privacy Policy", "User Agreement", "By continuing", "Download videos", "Video download", "Set up your browser", "Choose a search engine", "Quick setup", "Global content feed", "Legal documents"],
+      "ru": ["Добро пожаловать", "Условия использования", "Условиями использования", "Условиях использования", "Политика конфиденциальности", "Политикой конфиденциальности", "Пользовательское соглашение", "Скачивание видео", "Загрузка видео", "Настройка браузера", "Выберите поисковую систему", "Быстрая настройка", "Глобальная лента контента", "Юридические документы", "Приватные файлы", "Управление файлами на устройстве и их сокрытие", "Мощный видеоплеер"],
+      "en": ["Welcome", "Terms of Service", "Terms of Use", "Privacy Policy", "User Agreement", "By continuing", "Download videos", "Video download", "Set up your browser", "Choose a search engine", "Quick setup", "Global content feed", "Legal documents", "Private files", "Manage files on your device and hide them", "Powerful video player"],
       "es": ["Bienvenido", "Términos de servicio", "Política de privacidad", "Descarga de vídeos", "Configuración del navegador", "Elige un motor de búsqueda", "Feed de contenido global", "Documentos legales"],
       "zh": ["欢迎", "服务条款", "隐私政策", "视频下载", "浏览器设置", "选择搜索引擎", "全球内容源", "法律文件"],
       "hi": ["स्वागत है", "सेवा की शर्तें", "गोपनीयता नीति", "वीडियो डाउनलोड", "ब्राउज़र सेटअप", "खोज इंजन चुनें", "वैश्विक सामग्री फ़ीड", "कानूनी दस्तावेज़"],
@@ -11,8 +11,8 @@
       "id": ["Selamat datang", "Ketentuan Layanan", "Kebijakan Privasi", "Unduh video", "Pengaturan browser", "Pilih mesin pencari", "Feed konten global", "Dokumen hukum"]
     },
     "welcomeActions": {
-      "ru": ["Согласиться", "Принять", "Принять и продолжить", "Согласен", "Еще", "Ещё", "Далее", "Продолжить"],
-      "en": ["Agree", "Accept", "Accept and continue", "I agree", "More", "Next", "Continue"],
+      "ru": ["Согласиться", "Принять", "Принять и продолжить", "Согласен", "Еще", "Ещё", "Далее", "Продолжить", "Начать", "Пропустить"],
+      "en": ["Agree", "Accept", "Accept and continue", "I agree", "More", "Next", "Continue", "Start", "Skip"],
       "es": ["Aceptar", "Aceptar y continuar", "De acuerdo", "Más", "Siguiente", "Continuar"],
       "zh": ["同意", "接受", "同意并继续", "我同意", "更多", "下一步", "继续"],
       "hi": ["सहमत हूँ", "स्वीकार करें", "स्वीकार करें और जारी रखें", "अधिक", "अगला", "जारी रखें"],
@@ -434,13 +434,11 @@
           "fallback": true,
           "drillPath": [
             ["Приложения", "Apps", "Applications"],
-            ["Все приложения", "All apps", "All applications"],
-            ["⋮", "Ещё", "More", "Дополнительно", "More options"],
-            ["Прочие настройки", "Additional settings", "Advanced settings"]
+            ["⋮", "Ещё", "More", "Дополнительно", "More options"]
           ],
           "screenMarkers": {
-            "ru": ["Прочие настройки", "Приложения", "Приложения по умолчанию", "Сбросить настройки приложений"],
-            "en": ["Additional settings", "Apps"],
+            "ru": ["Приложения по умолчанию", "Сбросить настройки приложений", "Уведомлять о наличии обновлений", "Получать рекомендации"],
+            "en": ["Apps", "Reset app preferences", "Notify about updates", "Receive recommendations"],
             "zh": ["其他设置"],
             "es": ["Ajustes adicionales"]
           },
@@ -460,13 +458,11 @@
           "fallback": false,
           "drillPath": [
             ["Приложения", "Apps", "Applications"],
-            ["Все приложения", "All apps"],
-            ["⋮", "Ещё", "More", "Дополнительно"],
-            ["Прочие настройки", "Additional settings"]
+            ["⋮", "Ещё", "More", "Дополнительно"]
           ],
           "screenMarkers": {
-            "ru": ["Прочие настройки", "Приложения", "Приложения по умолчанию", "Сбросить настройки приложений"],
-            "en": ["Additional settings", "Apps"],
+            "ru": ["Приложения по умолчанию", "Сбросить настройки приложений", "Уведомлять о наличии обновлений", "Получать рекомендации"],
+            "en": ["Apps", "Reset app preferences", "Notify about updates", "Receive recommendations"],
             "zh": ["其他设置"]
           },
           "itemTexts": {

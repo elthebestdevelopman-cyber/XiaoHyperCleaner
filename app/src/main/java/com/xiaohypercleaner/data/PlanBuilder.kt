@@ -57,10 +57,17 @@ object PlanBuilder {
         SemanticCatalog.selectVariant(profile)
         val installedHome = resolveHomePackage(context)
         val neverTouch = SemanticCatalog.neverTouchPackages()
+        // Шаги, отключённые для активного варианта каталога (нет экранов на прошивке):
+        // не удаляем, а не запускаем — см. AdaptiveCatalog.disabledSteps.
+        val disabled = AdaptiveCatalog.disabledSteps(context)
         val excluded = ArrayList<String>()
         val plan = ArrayList<PlanStep>(SimpleSteps.ALL.size)
 
         for (step in SimpleSteps.ALL) {
+            if (step.id in disabled) {
+                excluded.add("${step.id}:disabled_for_variant")
+                continue
+            }
             val semantic = SemanticCatalog.step(step.id)
 
             if (!notifTransparency && step.id.startsWith(NOTIF_PREFIX)) {
