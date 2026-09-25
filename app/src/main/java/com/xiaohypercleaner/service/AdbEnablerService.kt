@@ -384,6 +384,9 @@ class AdbEnablerService : AccessibilityService() {
                 // это skip, а не FAIL (иначе отчёт врёт, прогон rmu8qhjhi).
                 val skippedResult = result.reason == "app_not_installed" ||
                     result.reason == "low_confidence" ||
+                    result.reason == "foreign_screen" ||
+                    result.reason == "installer_settings_not_found" ||
+                    result.reason == "folder_switch_absent" ||
                     result.reason == SimpleRunner.NOT_APPLICABLE
                 if (!result.success && skippedResult) {
                     AppLog.i(TAG, "runSimpleStep: step ${step.id} skipped (${result.reason})")

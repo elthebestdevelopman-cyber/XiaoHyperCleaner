@@ -700,12 +700,25 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // «Конфиденциальность» → «Разрешения»). Если после интентов мы не на корне
         // Настроек и цель шага не видна — возвращаемся в корень: drill пойдёт от
         // известной точки, а не с середины чужого экрана (прогон rmu8lzcu9).
-        if (step.launchPackage == null && mergedDrillPath.isNotEmpty() &&
-            !onTargetScreen(step) && !isSettingsRoot()
-        ) {
-            AppLog.i(TAG, "settings step ${step.id}: intent screen unusable — re-anchor to root")
-            canResumeSettings = false
-            resetSettingsToRoot()
+        // S5: settings-шаг без подтверждённого интента продолжает drill С ТЕКУЩЕГО экрана.
+        // Re-anchor в корень Настроек — только если мы вне Настроек И целевых строк нет
+        // вовсе. App-шаги (launchPackage != null) в корень не возвращаются никогда.
+        if (step.launchPackage == null && mergedDrillPath.isNotEmpty() && !onTargetScreen(step)) {
+            val inSettings = activePackage() == SETTINGS_PACKAGE || isSettingsRoot()
+            val targetRows = verifyTexts + SemanticCatalog.screenMarkers(step.id)
+            if (inSettings || screenHasAny(targetRows)) {
+                AppLog.i(
+                    TAG,
+                    "intent unconfirmed — continuing drill from current screen (${step.id})"
+                )
+            } else {
+                AppLog.i(
+                    TAG,
+                    "settings step ${step.id}: left Settings, no target rows — re-anchor to root"
+                )
+                canResumeSettings = false
+                resetSettingsToRoot()
+            }
         }
         // Resume: если интент уже открыл нужный экран, начинаем с текущего уровня
         // (совпадение с целью шага отменяет бурение вовсе).
@@ -2109,24 +2122,29 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 menuTexts = menuTexts,
                 editorMarkers = editorMarkers
             )
-            if (!editorOpened) AppLog.w(TAG, "folder: editor not opened for '$label'")
-            val result = if (editorOpened) {
-                toggleWithGate(step, toggleTexts, editorMarkers)
-            } else {
-                null
-            }
-            leaveFolderEditor()
-            if (result != null) return result
-            if (editorOpened) {
-                // Редактор папки открылся, но тумблера рекомендаций в нём нет: значит
-                // рекомендации в папках уже выключены (владелец: после отключения
-                // msa/персонализации чекбокс из папки исчез) — честное «неприменимо»
-                // вместо перебора остальных иконок (прогон rmubgvwm5).
-                AppLog.i(TAG, "folder: editor has no suggestions switch ('$label')")
-                StepDiagnostics.note(step.id, "APPLICABILITY", "folder_switch_absent name='$label'")
+            if (!editorOpened) {
+                // S14: поповер открылся, но редактор папки не открылся и тумблера в поповере
+                // нет — честное «неприменимо» после ПЕРВОЙ такой пробы: чекбокс живёт в
+                // редакторе, перебор остальных иконок только жжёт бюджет шага.
+                AppLog.w(TAG, "folder: popover opened, editor not opened for '$label'")
+                StepDiagnostics.note(
+                    step.id,
+                    "APPLICABILITY",
+                    "folder_switch_absent editor_not_opened name='$label'"
+                )
+                leaveFolderEditor()
                 return Result(false, NOT_APPLICABLE)
             }
-            AppLog.i(TAG, "folder: no switch in '$label' — next candidate")
+            val result = toggleWithGate(step, toggleTexts, editorMarkers)
+            leaveFolderEditor()
+            if (result != null) return result
+            // Редактор папки открылся, но тумблера рекомендаций в нём нет: значит
+            // рекомендации в папках уже выключены (владелец: после отключения
+            // msa/персонализации чекбокс из папки исчез) — честное «неприменимо»
+            // вместо перебора остальных иконок (прогон rmubgvwm5).
+            AppLog.i(TAG, "folder: editor has no suggestions switch ('$label')")
+            StepDiagnostics.note(step.id, "APPLICABILITY", "folder_switch_absent name='$label'")
+            return Result(false, NOT_APPLICABLE)
         }
         if (foldersOpened > 0) {
             // Папка открылась, но тумблера рекомендаций в ней нет ни в поповере, ни в
@@ -2398,9 +2416,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val candidates = installerSettingsCandidates(candidatePackages(step))
         StepDiagnostics.note(step.id, "INSTALLER", "candidates=${candidates.size}")
         AppLog.i(TAG, "installer: candidates=${candidates.size} step=${step.id}")
-        if (candidates.isEmpty()) return Result(false, "installer_settings_not_found")
+        if (candidates.isEmpty()) {
+            // S15: у установщика нет экспортированных активностей настроек — это
+            // неприменимость на прошивке, а не провал автоматизации (ручная памятка
+            // package_installer остаётся в отчёте).
+            StepDiagnostics.note(step.id, "APPLICABILITY", "installer_settings_not_found")
+            AppLog.i(TAG, "installer: no settings activities — not_applicable")
+            return Result(false, NOT_APPLICABLE)
+        }
 
         var tried = 0
+        var launchedAny = false
         for (component in candidates) {
             if (tried >= MAX_INSTALLER_CANDIDATES) break
             tried++
@@ -2412,6 +2438,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 AppLog.w(TAG, "installer: launch failed for $short")
                 continue
             }
+            launchedAny = true
             delay(APP_LAUNCH_DELAY_MS)
             handleConsentWalls(step)
             if (!isInstallerSettingsScreen(settingsMarkers, toggleTexts)) {
@@ -2423,6 +2450,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
             pressBackToNeutral()
             if (result != null) return result
             AppLog.i(TAG, "installer: no switch on $short — next activity")
+        }
+        if (!launchedAny) {
+            // S15: все кандидаты отказали в старте (Permission Denial / SecurityException) —
+            // честная неприменимость вместо switch_not_found.
+            StepDiagnostics.note(step.id, "APPLICABILITY", "installer_settings_denied tried=$tried")
+            AppLog.i(TAG, "installer: all candidates denied launch — not_applicable")
+            return Result(false, NOT_APPLICABLE)
         }
         return Result(false, "switch_not_found")
     }
