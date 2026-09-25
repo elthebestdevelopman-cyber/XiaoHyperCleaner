@@ -260,6 +260,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
          */
         private const val TOGGLE_BUDGET_RESERVE_MS = 4000L
 
+        /** Сколько ждать появления диалога подтверждения (confirmTexts) после тумблера. */
+        private const val CONFIRM_DIALOG_WAIT_MS = 5000L
+
+        /** Пауза после тапа подтверждения: проверяем, что диалог действительно закрылся. */
+        private const val CONFIRM_SETTLE_MS = 400L
+
         private val SYSTEM_DIALOG_SKIPS = listOf(
             "Пропустить", "Пропустить настройку", "Не сейчас", "Закрыть", "Отозвать", "Отмена"
         )
@@ -1794,15 +1800,38 @@ class SimpleRunner(private val service: AdbEnablerService) {
         if (mergedConfirmTexts.isEmpty()) return
         val waitMs = SemanticCatalog.confirmWaitMs(step.id, step.confirmWaitMs)
         if (waitMs > 0) delay(waitMs)
-        for (attempt in 1..3) {
-            val confirmRoot = service.rootInActiveWindow ?: break
-            val confirmNode = findClickableByText(confirmRoot, mergedConfirmTexts)
+        // S3: диалог подтверждения (downloads: «Отключить рекомендации?») обязан быть
+        // закрыт ДО выхода из шага. Ждём его по бюджету, а не тремя фиксированными
+        // попытками: иначе диалог остаётся открытым и ломает следующий шаг.
+        val deadline = System.currentTimeMillis() +
+            minOf(CONFIRM_DIALOG_WAIT_MS, maxOf(0L, remainingBudgetMs() - 1000L))
+        var attempt = 0
+        while (!cancelled) {
+            attempt++
+            val confirmRoot = service.rootInActiveWindow
+            val confirmNode = confirmRoot?.let { findClickableByText(it, mergedConfirmTexts) }
+            if (confirmRoot != null) recycleNode(confirmRoot)
             if (confirmNode != null) {
-                tapNode(confirmNode)
-                recycleNode(confirmNode); recycleNode(confirmRoot)
-                break
+                val label = buttonLabel(confirmNode)
+                val tapped = tapNode(confirmNode)
+                recycleNode(confirmNode)
+                AppLog.i(TAG, "confirm: tapped '$label' ok=$tapped step=${step.id}")
+                if (tapped) {
+                    delay(CONFIRM_SETTLE_MS)
+                    val afterRoot = service.rootInActiveWindow
+                    val stillOpen = afterRoot?.let { findClickableByText(it, mergedConfirmTexts) }
+                    if (afterRoot != null) recycleNode(afterRoot)
+                    if (stillOpen != null) {
+                        recycleNode(stillOpen)
+                        AppLog.w(TAG, "confirm: dialog still open after tap step=${step.id}")
+                    }
+                    return
+                }
             }
-            recycleNode(confirmRoot)
+            if (System.currentTimeMillis() >= deadline) {
+                AppLog.i(TAG, "confirm: dialog not found after ${attempt} attempt(s) step=${step.id}")
+                return
+            }
             delay(CONFIRM_RETRY_MS)
         }
     }
