@@ -2076,8 +2076,8 @@
             ["⚙", "⚙️", "Настройки", "Settings"]
           ],
           "screenMarkers": {
-            "ru": ["Профиль", "Настройки"],
-            "en": ["Profile", "Settings"],
+            "ru": ["Настройки", "Показывать рекламу", "Персональные рекомендации"],
+            "en": ["Settings", "Show ads", "Personalized recommendations"],
             "zh": ["我的"]
           },
           "itemTexts": {
@@ -2099,8 +2099,8 @@
             ["⚙", "️", "Настройки", "Settings"]
           ],
           "screenMarkers": {
-            "ru": ["Профиль", "Настройки"],
-            "en": ["Profile", "Settings"]
+            "ru": ["Настройки", "Показывать рекламу", "Персональные рекомендации"],
+            "en": ["Settings", "Show ads", "Personalized recommendations"]
           },
           "itemTexts": {
             "ru": ["Показывать рекламу", "Персональные рекомендации"],

@@ -129,6 +129,11 @@
         "sys_recommendations": {
           "replaceDrillPath": true,
           "drillPath": [["Приложения", "Apps", "Applications"], ["Ещё", "More", "Дополнительно", "More options", "⋮"]]
+        },
+        "themes": {
+          "replaceDrillPath": true,
+          "drillPath": [["Профиль", "Profile"], ["Настройки", "Settings"]],
+          "searchTexts": ["Настройки", "Показывать рекламу", "Персональные рекомендации", "Отзыв согласия"]
         }
       },
       "disabledSteps": []
