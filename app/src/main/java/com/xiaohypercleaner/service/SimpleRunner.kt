@@ -612,6 +612,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     screenOpened = false
                 } else if (awaitEntryScreen(step, notifTarget, verifyTexts, CONTENT_WAIT_MS)) {
                     break
+                } else if (onTargetScreen(step)) {
+                    // S6: цель уже на экране (строки + маркеры шага совпали) — следующий
+                    // интент не нужен, drill тоже (sys_recommendations стоял на цели).
+                    AppLog.i(TAG, "intent unconfirmed but target screen already reached: ${step.id}")
+                    break
                 } else {
                     AppLog.w(TAG, "Экран не подтверждён после интента, пробуем следующий")
                 }
@@ -674,7 +679,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         // Навигация по маршруту: авторитетный drillPath варианта ОС, иначе legacy + подсказки каталога.
         // skipDrill каталога означает «интент уже открыл целевой экран» — бурение не нужно.
-        val mergedDrillPath = if (AdaptiveCatalog.isDrillSkipped(service, step.id)) {
+        val mergedDrillPathBase = if (AdaptiveCatalog.isDrillSkipped(service, step.id)) {
             AppLog.i(TAG, "drill skipped by catalog flag id=${step.id}")
             emptyList()
         } else {
@@ -682,6 +687,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 step,
                 AdaptiveCatalog.mergeDrillPath(service, step.id, step.drillPath)
             )
+        }
+        // S6: на старте drill цель могла быть уже открыта (в т.ч. интентом выше) —
+        // бурение уровня 1 тогда лишнее и ломает уже открытый экран.
+        var mergedDrillPath = mergedDrillPathBase
+        if (mergedDrillPath.isNotEmpty() && onTargetScreen(step)) {
+            AppLog.i(TAG, "drill skipped: already on target screen for ${step.id}")
+            StepDiagnostics.note(step.id, "DRILL", "skipped_already_on_target")
+            mergedDrillPath = emptyList()
         }
         // Интенты MIUI умеют открывать не тот подэкран (msa: APP_PERM_EDITOR ведёт в
         // «Конфиденциальность» → «Разрешения»). Если после интентов мы не на корне
