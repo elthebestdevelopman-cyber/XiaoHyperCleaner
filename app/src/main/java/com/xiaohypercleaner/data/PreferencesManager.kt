@@ -7,10 +7,15 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.util.AppLog
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 // ✅ ИСПРАВЛЕНО: имя берётся из AppConstants (было захардкожено "xhc_settings")
 private val Context.dataStore by preferencesDataStore(name = AppConstants.DATASTORE_NAME)
@@ -324,12 +329,29 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * Записывает фактическое состояние тумблера в момент переключения
-     * (`checked_before`) в снапшот отката. Если снапшота ещё не было —
-     * создаёт пустой контейнер: состояние тумблеров должно переживать
-     * перезапуск приложения.
+     * In-memory зеркало checked_before: тумблерный путь раннера НЕ ждёт DataStore.
+     * На MIUI запись под нагрузкой упиралась в таймаут DataStore (~5 с) и съедала
+     * бюджет шага — шаг падал `timeout`. Зеркало отдаёт состояние сразу, запись
+     * снапшота уходит в фон.
      */
-    suspend fun recordSimpleToggleState(stepId: String, checkedBefore: Boolean) = runCatching {
+    private val simpleToggleMirror = ConcurrentHashMap<String, Boolean>()
+
+    /** Фоновые записи зеркала: шаг не блокируют, ошибка только логируется. */
+    private val mirrorWriteScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * Записывает фактическое состояние тумблера в момент переключения
+     * (`checked_before`). Не приостанавливает вызывающего: сначала зеркало
+     * (его видит откат), затем фоном — снапшот отката. Если снапшота ещё не было,
+     * создаётся пустой контейнер: состояние тумблеров переживает перезапуск.
+     */
+    fun recordSimpleToggleState(stepId: String, checkedBefore: Boolean) {
+        simpleToggleMirror[stepId] = checkedBefore
+        AppLog.i(TAG, "recordSimpleToggleState: $stepId checked_before=$checkedBefore (mirror)")
+        mirrorWriteScope.launch { persistSimpleToggleState(stepId, checkedBefore) }
+    }
+
+    private suspend fun persistSimpleToggleState(stepId: String, checkedBefore: Boolean) = runCatching {
         context.dataStore.edit { prefs ->
             val current = prefs[RESTORE_SNAPSHOT_KEY]?.let { RestoreSnapshot.fromJson(it) }
                 ?: RestoreSnapshot(
@@ -342,19 +364,22 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
                 simpleToggleStates = current.simpleToggleStates + (stepId to checkedBefore)
             )
             prefs[RESTORE_SNAPSHOT_KEY] = updated.toJson()
-            AppLog.i(TAG, "recordSimpleToggleState: $stepId checked_before=$checkedBefore")
         }
     }.onFailure { e ->
-        AppLog.e(TAG, "recordSimpleToggleState($stepId) failed: ${e.message}")
+        AppLog.w(TAG, "recordSimpleToggleState($stepId) persist failed: ${e.message}")
     }
 
     /**
-     * Сохранённые `checked_before` простых тумблеров.
+     * Сохранённые `checked_before` простых тумблеров: снапшот + in-memory зеркало
+     * (зеркало приоритетнее: оно новее, пока фоновая запись не завершилась).
      * Пустая map у снапшотов старого формата (миграция: откат по инверсии target).
      */
-    suspend fun getSimpleToggleStates(): Map<String, Boolean> = runCatching {
-        context.dataStore.data.first()[RESTORE_SNAPSHOT_KEY]
-    }.getOrNull()?.let { RestoreSnapshot.fromJson(it)?.simpleToggleStates } ?: emptyMap()
+    suspend fun getSimpleToggleStates(): Map<String, Boolean> {
+        val stored = runCatching {
+            context.dataStore.data.first()[RESTORE_SNAPSHOT_KEY]
+        }.getOrNull()?.let { RestoreSnapshot.fromJson(it)?.simpleToggleStates } ?: emptyMap()
+        return stored + simpleToggleMirror
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // Кэш найденных активностей (ActivityCacheStore)

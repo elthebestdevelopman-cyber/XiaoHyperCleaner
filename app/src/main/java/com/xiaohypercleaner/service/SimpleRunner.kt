@@ -254,6 +254,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
         /** Пауза применения FLAG_NOT_TOUCHABLE при инъекции наших жестов (окно оверлея). */
         private const val OVERLAY_PASSTHROUGH_SETTLE_MS = 40L
 
+        /**
+         * Резерв бюджета шага на тап+verify тумблера: тапать «в последний момент»
+         * бессмысленно — verify не успевает, шаг падает `timeout` без причины в логе.
+         */
+        private const val TOGGLE_BUDGET_RESERVE_MS = 4000L
+
         private val SYSTEM_DIALOG_SKIPS = listOf(
             "Пропустить", "Пропустить настройку", "Не сейчас", "Закрыть", "Отозвать", "Отмена"
         )
@@ -287,6 +293,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     // П.6: Флаг переиспользования окна настроек
     private var canResumeSettings: Boolean = false
+
+    /** Дедлайн бюджета текущего шага: по нему считается остаток перед тумблером. */
+    private var stepDeadlineMs: Long = 0L
+
+    /** Остаток бюджета шага (Long.MAX_VALUE, если дедлайн не задан — unit-тесты). */
+    private fun remainingBudgetMs(): Long =
+        if (stepDeadlineMs <= 0L) Long.MAX_VALUE else stepDeadlineMs - System.currentTimeMillis()
 
     /** Подписи приложений для проверки входа notif_*-шагов (кэш на прогон). */
     private val appLabelCache = HashMap<String, String>()
@@ -389,6 +402,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         val timeout = computeTimeout(step, profile)
         AppLog.i(TAG, "Executing step: ${step.id} (timeout ${timeout}ms)")
+        // Дедлайн нужен фазе тумблера: перед тапом проверяем остаток бюджета (S2).
+        stepDeadlineMs = System.currentTimeMillis() + timeout
 
         job = scope.launch {
             val start = System.currentTimeMillis()
@@ -432,6 +447,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 Result(false, "error")
             } finally {
                 cleanupFreshDevice()
+                stepDeadlineMs = 0L
                 isRunning = false
                 currentStepId = null
             }
@@ -1665,6 +1681,20 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // checked_before фиксируется в снапшоте отката в момент тумблера (блок 6).
         recordCheckedBefore(step.id, isChecked)
 
+        // S2: резерв бюджета на тап+verify. Если остатка мало — не тапаем вслепую:
+        // шаг падает с причиной budget_exhausted вместо глухого timeout.
+        if (remainingBudgetMs() < TOGGLE_BUDGET_RESERVE_MS) {
+            AppLog.w(
+                TAG,
+                "budget exhausted before toggle: step=${step.id} remaining=${remainingBudgetMs()}ms"
+            )
+            StepDiagnostics.note(
+                step.id, "TOGGLE", "budget_exhausted remaining=${remainingBudgetMs()}ms"
+            )
+            recycleNode(targetSwitch); recycleNode(currentRoot)
+            return Result(false, "budget_exhausted")
+        }
+
         if (!tapNode(targetSwitch)) {
             recycleNode(targetSwitch); recycleNode(currentRoot)
             return Result(false, "tap_failed")
@@ -1785,7 +1815,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
             if (attempt > 0) delay(SWITCH_VERIFY_RETRY_DELAY_MS)
             val root = service.rootInActiveWindow ?: return true
             val switchNode = findSwitchByText(root, texts)
-            val result = switchNode?.let { SwitchFinder.isChecked(it) == step.targetChecked } ?: true
+            val actual = switchNode?.let { SwitchFinder.isChecked(it) }
+            val result = actual?.let { it == step.targetChecked } ?: true
+            AppLog.i(
+                TAG,
+                "verify: state ${if (attempt == 0) "before" else "after"} " +
+                    "attempt=${attempt + 1} actual=$actual target=${step.targetChecked} step=${step.id}"
+            )
             recycleNode(switchNode); recycleNode(root)
             if (result) return true
         }
@@ -2868,14 +2904,29 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     private suspend fun tapNode(node: AccessibilityNodeInfo): Boolean {
-        if (node.isClickable && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
-        var parent = node.parent;
+        val rect = Rect().also { node.getBoundsInScreen(it) }
+        val cls = node.className?.toString()?.substringAfterLast('.') ?: "?"
+        val id = node.viewIdResourceName ?: ""
+        val bounds = "[${rect.left},${rect.top},${rect.right},${rect.bottom}]"
+        if (node.isClickable && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+            AppLog.i(TAG, "tap: $cls id=$id clickable=true bounds=$bounds via=node")
+            return true
+        }
+        var parent = node.parent
         var depth = 0
         while (parent != null && depth < 5) {
-            if (parent.isClickable && parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
-            parent = parent.parent; depth++
+            if (parent.isClickable && parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                AppLog.i(TAG, "tap: $cls id=$id clickable=false bounds=$bounds via=parent depth=${depth + 1}")
+                return true
+            }
+            parent = parent.parent
+            depth++
         }
-        val rect = Rect(); node.getBoundsInScreen(rect)
+        AppLog.i(
+            TAG,
+            "tap: $cls id=$id clickable=${node.isClickable} bounds=$bounds " +
+                "via=gesture center=(${rect.centerX()},${rect.centerY()})"
+        )
         return performGesture(
             rect.centerX().toFloat(),
             rect.centerY().toFloat(),
@@ -2951,8 +3002,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
             .getOrNull()
     }
 
-    /** Фиксирует фактическое состояние тумблера (checked_before) в снапшоте отката. */
-    private suspend fun recordCheckedBefore(stepId: String, checkedBefore: Boolean) {
+    /** Фиксирует фактическое состояние тумблера (checked_before) в снапшоте отката.
+     *  Не блокирует шаг: запись неблокирующая (in-memory зеркало + фоновый persist). */
+    private fun recordCheckedBefore(stepId: String, checkedBefore: Boolean) {
         val store = prefs ?: return
         runCatching { store.recordSimpleToggleState(stepId, checkedBefore) }
             .onFailure { AppLog.w(TAG, "recordCheckedBefore failed: ${it.message}") }
