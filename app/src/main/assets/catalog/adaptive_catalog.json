@@ -134,6 +134,11 @@
           "replaceDrillPath": true,
           "drillPath": [["Профиль", "Profile"], ["Настройки", "Settings"]],
           "searchTexts": ["Настройки", "Показывать рекламу", "Персональные рекомендации", "Отзыв согласия"]
+        },
+        "music_sys": {
+          "replaceDrillPath": true,
+          "drillPath": [["☰", "Показать меню", "Show menu", "Menu"], ["Настройки", "Settings"]],
+          "searchTexts": ["Показывать рекламу", "Персональные рекомендации", "Сервисы онлайн-контента", "Аккаунт и настройки"]
         }
       },
       "disabledSteps": []
