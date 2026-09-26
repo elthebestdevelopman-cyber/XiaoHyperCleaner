@@ -38,6 +38,9 @@
         <package android:name="com.miui.securitycenter" />
         <package android:name="com.miui.securitycore" />
         <package android:name="com.miui.cleanmaster" />
+        <!-- Очистка: свой пакет экрана «Настройки очистки» (без queries старт
+             лаунчер-интента падал «No Activity found» — прогон rmuihm2vo, cleaner) -->
+        <package android:name="com.miui.cleaner" />
         <package android:name="com.xiaomi.misettings" />
 
         <!-- Системные службы фонового трафика / MSA -->
