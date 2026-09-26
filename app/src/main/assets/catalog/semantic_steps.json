@@ -2069,7 +2069,7 @@
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
           "drillPath": [
-            ["Профиль", "Мой профиль", "Profile", "我的"],
+            ["Мой аккаунт", "Аккаунт", "Профиль", "Мой профиль", "Profile", "我的"],
             ["⚙", "⚙️", "Настройки", "Settings"]
           ],
           "screenMarkers": {
@@ -2723,18 +2723,15 @@
           "fallback": true,
           "control": "toggle",
           "drillPath": [
-            ["Рабочий стол", "Главный экран", "Home screen"],
-            ["Лента виджетов", "Показывать предложения", "App Vault", "Show suggestions"]
+            ["Рекомендуемое", "Recommendations"]
           ],
-          "screenMarkers": { "ru": ["Рабочий стол"], "en": ["Home screen"] },
+          "screenMarkers": {
+            "ru": ["Рекомендации приложений", "Ярлыки"],
+            "en": ["App recommendations", "Shortcuts"]
+          },
           "itemTexts": {
-            "ru": ["Лента виджетов", "Показывать предложения"],
-            "en": ["App Vault", "Show suggestions"],
-            "es": ["App Vault"],
-            "zh": ["小部件面板"],
-            "hi": ["विजेट फ़ीड"],
-            "pt": ["App Vault"],
-            "id": ["App Vault"]
+            "ru": ["Рекомендации приложений"],
+            "en": ["App recommendations"]
           }
         },
         {
@@ -2816,18 +2813,15 @@
           "fallback": true,
           "control": "toggle",
           "drillPath": [
-            ["Рабочий стол", "Главный экран", "Home screen"],
-            ["Лента виджетов", "Показывать предложения", "App Vault", "Show suggestions"]
+            ["О ленте виджетов", "About App Vault"]
           ],
-          "screenMarkers": { "ru": ["Рабочий стол"], "en": ["Home screen"] },
+          "screenMarkers": {
+            "ru": ["Персонализированные услуги", "О ленте виджетов"],
+            "en": ["Personalized services", "About App Vault"]
+          },
           "itemTexts": {
-            "ru": ["Лента виджетов", "Показывать предложения"],
-            "en": ["App Vault", "Show suggestions"],
-            "es": ["App Vault"],
-            "zh": ["小部件面板"],
-            "hi": ["विजेट फ़ीड"],
-            "pt": ["App Vault"],
-            "id": ["App Vault"]
+            "ru": ["Персонализированные услуги"],
+            "en": ["Personalized services"]
           }
         },
         {

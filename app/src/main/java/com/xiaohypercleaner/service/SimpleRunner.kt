@@ -910,8 +910,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
             recycleNode(root)
         }
         if (clearNode == null) {
-            AppLog.w(TAG, "CLEAR_DATA: кнопка очистки не найдена (${step.id})")
-            return Result(false, "clear_button_not_found")
+            // Фолбэк «очистить данные → Отмена на приветствии» — легаси-приём, а НЕ цель
+            // шага: если недоступен и он (MIUI прячет кнопку очистки за «Память» или не
+            // показывает вовсе), это не провал автоматизации — шаг честно неприменим
+            // (прогон rmuikdldc: filemanager выдавал FAIL clear_button_not_found).
+            AppLog.w(TAG, "CLEAR_DATA: кнопка очистки не найдена — fallback unavailable (${step.id})")
+            StepDiagnostics.note(step.id, "APPLICABILITY", "clear_data_fallback_absent")
+            return Result(false, NOT_APPLICABLE)
         }
         val tappedClear = tapNode(clearNode)
         recycleNode(clearNode)
@@ -1723,6 +1728,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
 
         // checked_before фиксируется в снапшоте отката в момент тумблера (блок 6).
+        // ROM может ЗАБЛОКИРОВАТЬ тумблер (MIUI: «Показывать уведомления» Ленты
+        // виджетов — `enabled=false` у строки, дамп appvault_notif_disabled): тапать
+        // бессмысленно, шаг не выполнить — честный skip вместо verify_failed.
+        val tapRow = clickableAncestorOrSelf(targetSwitch) ?: targetSwitch
+        val toggleEnabled = targetSwitch.isEnabled || tapRow.isEnabled
+        if (tapRow !== targetSwitch) recycleNode(tapRow)
+        if (!toggleEnabled) {
+            AppLog.w(TAG, "switch disabled by rom for ${step.id} — not_applicable")
+            StepDiagnostics.note(step.id, "APPLICABILITY", "switch_disabled")
+            recycleNode(targetSwitch); recycleNode(currentRoot)
+            return Result(false, NOT_APPLICABLE)
+        }
         recordCheckedBefore(step.id, isChecked)
 
         // S2: резерв бюджета на тап+verify. Если остатка мало — не тапаем вслепую:

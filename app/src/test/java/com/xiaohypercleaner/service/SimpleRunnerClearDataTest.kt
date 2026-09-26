@@ -95,9 +95,11 @@ class SimpleRunnerClearDataTest {
     }
 
     @Test
-    fun `non actionable clear button reports honest failure`() = runTest {
-        // Текст кнопки виден (экран подтверждён), но узел не кликабельный —
-        // сценарий не должен выдавать ложный успех.
+    fun `non actionable clear button is an honest skip`() = runTest {
+        // Текст кнопки виден (экран подтверждён), но узел не кликабельный. Фолбэк
+        // «очистка данных» — легаси-приём, а не цель шага, поэтому недоступность кнопки
+        // должна давать честный skip (not_applicable), а не FAIL clear_button_not_found
+        // (прогон rmuikdldc: filemanager показывался как провал).
         val clearButton = node("Clear data", clickable = false)
         val root = node(null, clickable = false, clearButton)
         Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
@@ -105,6 +107,6 @@ class SimpleRunnerClearDataTest {
         val result = runner.executeClearDataDecline(clearDataStep())
 
         assertFalse("ложный успех недопустим", result.success)
-        assertEquals("clear_button_not_found", result.reason)
+        assertEquals("not_applicable", result.reason)
     }
 }

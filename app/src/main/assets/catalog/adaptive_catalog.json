@@ -127,10 +127,12 @@
           "skipDrill": true
         },
         "appvault_services": {
-          "skipDrill": true
+          "replaceDrillPath": true,
+          "drillPath": [["Рекомендуемое", "Recommendations"]]
         },
         "appvault_about": {
-          "skipDrill": true
+          "replaceDrillPath": true,
+          "drillPath": [["О ленте виджетов", "About App Vault"]]
         },
         "browser_sys": {
           "replaceDrillPath": true,
@@ -147,8 +149,9 @@
         },
         "themes": {
           "replaceDrillPath": true,
-          "drillPath": [["Профиль", "Profile"], ["Настройки", "Settings"]],
-          "searchTexts": ["Настройки", "Показывать рекламу", "Персональные рекомендации", "Отзыв согласия"]
+          "drillPath": [["Мой аккаунт", "Аккаунт", "Профиль", "Profile"], ["Настройки", "Settings"]],
+          "searchTexts": ["Настройки", "Показывать рекламу", "Персональные рекомендации", "Отзыв согласия"],
+          "additionalToggles": ["Персональные рекомендации", "Personalized recommendations"]
         },
         "music_sys": {
           "replaceDrillPath": true,
