@@ -43,6 +43,8 @@ class OverlayService : Service() {
         private const val TAG = "OverlaySvc"
         const val ACTION_SET_BLOCKING = "set_blocking"
         const val EXTRA_BLOCKING = "blocking"
+        const val ACTION_SET_PASSTHROUGH = "set_passthrough"
+        const val EXTRA_PASSTHROUGH_MS = "passthrough_ms"
         const val ACTION_AUTO_START = "auto_start"
         const val ACTION_AUTO_UPDATE = "auto_update"
         const val ACTION_AUTO_STATUS = "auto_status"
@@ -68,6 +70,13 @@ class OverlayService : Service() {
 
         /** Потолок строк ручной памятки на экране результатов. */
         private const val MANUAL_LIST_MAX = 7
+
+        /**
+         * Сколько подряд ударов heartbeat с zero-rect терпим, прежде чем пересоздать окно.
+         * Смена FLAG_NOT_TOUCHABLE на MIUI схлопывает ACCESSIBILITY_OVERLAY в 0x0 —
+         * updateViewLayout такое состояние не лечит, помогает только re-add.
+         */
+        private const val ZERO_RECT_READD_AFTER = 3
     }
 
     enum class PointerMode { TOP_RIGHT, BOTTOM_LIST, SWITCH_RIGHT, LIST_ITEM_CENTER, GENERIC_BOTTOM }
@@ -99,6 +108,13 @@ class OverlayService : Service() {
 
     /** Счётчик ударов heartbeat (для периодического alive-лога). */
     private var heartbeatTicks = 0
+
+    /** До какого времени окно пропускает касания (наши жесты dispatchGesture). */
+    @Volatile
+    private var passthroughUntilMs = 0L
+
+    /** Подряд идущие zero-rect удары heartbeat: после порога окно пересоздаётся. */
+    private var zeroRectRecoveries = 0
 
     /** Корневое окно оверлея: логирует все смены attach/detach/visibility. */
     private inner class OverlayRootView(context: android.content.Context) : FrameLayout(context) {
@@ -161,6 +177,9 @@ class OverlayService : Service() {
         when (intent?.action) {
             ACTION_HIDE -> hide()
             ACTION_SET_BLOCKING -> setBlocking(intent.getBooleanExtra(EXTRA_BLOCKING, true))
+            ACTION_SET_PASSTHROUGH -> setPassthrough(
+                intent.getLongExtra(EXTRA_PASSTHROUGH_MS, 800L)
+            )
             ACTION_AUTO_START -> showAutomation(intent.getIntExtra(EXTRA_TOTAL, 0))
             ACTION_AUTO_UPDATE -> updateAutomation(
                 intent.getIntExtra(EXTRA_STEP, 0),
@@ -196,6 +215,21 @@ class OverlayService : Service() {
         } catch (e: Exception) {
             AppLog.w(TAG, "setBlocking update failed: ${e.message}")
         }
+    }
+
+    /**
+     * Окно пропускает касания в течение [ms]: наши инъектированные жесты
+     * ([AccessibilityService.dispatchGesture]) должны дойти до приложения под оверлеем.
+     *
+     * Флаг окна при этом НЕ меняется: на MIUI 13 смена FLAG_NOT_TOUCHABLE схлопывает
+     * ACCESSIBILITY_OVERLAY в прямоугольник 0x0, после чего окно не восстанавливается
+     * (прогон rmuih76mh: `heartbeat recovered reason=zero-rect` каждые 500 мс, шаги
+     * вставали на паузах overlay). Пропуск реализован в touch-listener'е: пока окно
+     * пропускает, событие не поглощается и уходит окну ниже.
+     */
+    private fun setPassthrough(ms: Long) {
+        passthroughUntilMs = System.currentTimeMillis() + ms.coerceIn(100L, 3000L)
+        AppLog.i(TAG, "overlay passthrough until=${passthroughUntilMs} (${ms}ms)")
     }
 
     // ─── AUTOMATION ───
@@ -420,6 +454,8 @@ class OverlayService : Service() {
                 val attached = v.isAttachedToWindow
                 val visible = attached && v.windowVisibility == View.VISIBLE && v.getGlobalVisibleRect(Rect())
                 if (visible) verifyGeometry(v)
+                // Видимость вернулась — счётчик эскалации сбрасываем.
+                if (visible) zeroRectRecoveries = 0
                 // Реальная отрисовка: сверяем z-order нашего окна с фоновым приложением.
                 checkZOrder()
                 OverlayController.markVisible(visible)
@@ -442,8 +478,16 @@ class OverlayService : Service() {
                     if (params != null && !attached) {
                         reAddView(v, params, "heartbeat")
                     } else if (params != null) {
-                        try { wm?.updateViewLayout(v, params); AppLog.i(TAG, "overlay: heartbeat updateViewLayout after $reason") }
-                        catch (e: Exception) { AppLog.w(TAG, "overlay: heartbeat update failed: ${e.message}") }
+                        if (reason == "zero-rect" && ++zeroRectRecoveries >= ZERO_RECT_READD_AFTER) {
+                            // updateViewLayout не лечит окно, схлопнутое в 0x0 (MIUI после
+                            // смены флагов) — пересоздаём окно целиком.
+                            zeroRectRecoveries = 0
+                            AppLog.w(TAG, "overlay: zero-rect persisted — re-adding view")
+                            reAddView(v, params, "zero-rect-escalation")
+                        } else {
+                            try { wm?.updateViewLayout(v, params); AppLog.i(TAG, "overlay: heartbeat updateViewLayout after $reason") }
+                            catch (e: Exception) { AppLog.w(TAG, "overlay: heartbeat update failed: ${e.message}") }
+                        }
                     }
                 }
                 heartbeatHandler.postDelayed(this, HEARTBEAT_INTERVAL_MS)
@@ -591,8 +635,15 @@ class OverlayService : Service() {
         // Back/Home не должны прерывать автоматизацию.
         if (touchable) {
             v.setOnTouchListener { _, event ->
-                AppLog.d(TAG, "touch intercepted: x=${event.x}, y=${event.y}")
-                true
+                // Пассивное окно passthrough вокруг наших жестов: касание не поглощаем —
+                // оно уходит приложению под оверлеем. Флаг окна не трогаем (см. setPassthrough).
+                if (System.currentTimeMillis() < passthroughUntilMs) {
+                    AppLog.d(TAG, "touch passed through: x=${event.x}, y=${event.y}")
+                    false
+                } else {
+                    AppLog.d(TAG, "touch intercepted: x=${event.x}, y=${event.y}")
+                    true
+                }
             }
         }
         return v

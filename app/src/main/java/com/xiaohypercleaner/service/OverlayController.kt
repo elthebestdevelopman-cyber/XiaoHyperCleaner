@@ -161,6 +161,16 @@ object OverlayController {
                 .putExtra(OverlayService.EXTRA_BLOCKING, blocking)
         )
 
+    /**
+     * Окно пропускает касания [ms] — вокруг инъекции наших жестов. Смена флага окна
+     * не используется: на MIUI она схлопывает ACCESSIBILITY_OVERLAY в 0x0.
+     */
+    fun setPassthrough(ctx: Context, ms: Long) =
+        ctx.startService(
+            intent(ctx, OverlayService.ACTION_SET_PASSTHROUGH)
+                .putExtra(OverlayService.EXTRA_PASSTHROUGH_MS, ms)
+        )
+
     private fun callerName(): String {
         // Первый кадр вне OverlayController: index 0 — callerName, 1 — публичный метод.
         val trace = Throwable().stackTrace

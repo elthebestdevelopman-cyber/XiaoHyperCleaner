@@ -251,8 +251,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
         private const val OVERLAY_GATE_WAIT_MS = 2000L
         private const val OVERLAY_GATE_POLL_MS = 100L
 
-        /** Пауза применения FLAG_NOT_TOUCHABLE при инъекции наших жестов (окно оверлея). */
-        private const val OVERLAY_PASSTHROUGH_SETTLE_MS = 40L
+        /**
+         * Окно пропуска касаний оверлеем вокруг нашей инъекции (dispatchGesture):
+         * покрывает settle сервиса, сам жест и обработку. Отсчёт идёт от постановки
+         * запроса, поэтому берём с запасом (S4: ±500 мс вокруг жеста).
+         */
+        private const val OVERLAY_PASSTHROUGH_WINDOW_MS = 900L
 
         /**
          * Резерв бюджета шага на тап+verify тумблера: тапать «в последний момент»
@@ -2022,14 +2026,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * возвращаем поглощение: вне моментов инъекции окно блокирует пользователя.
      */
     private suspend fun withOverlayPassthrough(block: suspend () -> Boolean): Boolean {
-        OverlayController.setBlocking(service, false)
-        delay(OVERLAY_PASSTHROUGH_SETTLE_MS)
-        return try {
-            block()
-        } finally {
-            delay(OVERLAY_PASSTHROUGH_SETTLE_MS)
-            OverlayController.setBlocking(service, true)
-        }
+        // Пропуск касаний включается НЕ сменой флага окна, а временным окном в
+        // touch-listener'е: на MIUI 13 смена FLAG_NOT_TOUCHABLE схлопывает
+        // ACCESSIBILITY_OVERLAY в 0x0 и больше его не восстановить (прогон rmuih76mh).
+        OverlayController.setPassthrough(service, OVERLAY_PASSTHROUGH_WINDOW_MS)
+        return block()
     }
 
     private suspend fun tapAtRaw(x: Int, y: Int): Boolean {
