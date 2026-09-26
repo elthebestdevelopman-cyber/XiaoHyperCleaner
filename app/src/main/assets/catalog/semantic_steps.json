@@ -1183,17 +1183,17 @@
             ["Лента виджетов", "Показывать предложения", "Включить Ленту виджетов", "App Vault", "Show suggestions"]
           ],
           "screenMarkers": {
-            "ru": ["Рабочий стол", "Лента виджетов", "Включить Ленту виджетов"],
-            "en": ["Home screen", "App Vault"]
+            "ru": ["Лента виджетов", "Показывать предложения"],
+            "en": ["App Vault", "Show suggestions"]
           },
           "itemTexts": {
-            "ru": ["Лента виджетов", "Показывать предложения", "Включить Ленту виджетов"],
-            "en": ["App Vault", "Show suggestions"],
-            "es": ["App Vault", "Mostrar sugerencias"],
-            "zh": ["小部件面板", "显示建议"],
-            "hi": ["विजेट फ़ीड", "सुझाव दिखाएँ"],
-            "pt": ["App Vault", "Mostrar sugestões"],
-            "id": ["App Vault", "Tampilkan saran"]
+            "ru": ["Показывать предложения", "Лента виджетов", "Показывать рекомендации"],
+            "en": ["Show suggestions", "App Vault"],
+            "es": ["Mostrar sugerencias", "App Vault"],
+            "zh": ["显示建议", "小部件面板"],
+            "hi": ["सुझाव दिखाएँ", "विजेट फ़ीड"],
+            "pt": ["Mostrar sugestões", "App Vault"],
+            "id": ["Tampilkan saran", "App Vault"]
           }
         },
         {
