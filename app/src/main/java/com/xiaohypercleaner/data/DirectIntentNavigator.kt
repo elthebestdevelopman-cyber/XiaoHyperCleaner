@@ -371,10 +371,17 @@ object DirectIntentNavigator {
             // ═══════════════════════════════════════════════════════════
 
             "appvault_services", "appvault_about" -> {
-                // Лента виджетов — предложения / услуги (globalminusscreen = Global пакет)
+                // Лента виджетов — предложения / услуги. Пробы 2026-09-26: компонента
+                // `com.mi.android.globalminusscreen/…tab.TabSettingActivity` открывает экран
+                // настроек ленты (verdict OK, маркеры «Лента виджетов»+«Рекомендуемое» /
+                // «О ленте виджетов») — она первая, бурение через «Рабочий стол» не нужно.
                 val pkg = resolvedPackage ?: "com.miui.personalassistant"
                 intents.addAll(
                     listOf(
+                        explicitActivity(
+                            "com.mi.android.globalminusscreen",
+                            "com.mi.android.globalminusscreen.tab.TabSettingActivity"
+                        ),
                         launchIntent(pkg),
                         launchIntent("com.mi.android.globalminusscreen"),
                         launchIntent("com.miui.personalassistant"),

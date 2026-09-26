@@ -2425,6 +2425,19 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val candidates = installerSettingsCandidates(candidatePackages(step))
         StepDiagnostics.note(step.id, "INSTALLER", "candidates=${candidates.size}")
         AppLog.i(TAG, "installer: candidates=${candidates.size} step=${step.id}")
+        // Активности установщика (`.SettingsActivity`, `.activity.ScanActivity`) не exported:
+        // запуск из стороннего актора → Permission Denial, фильтры помечены
+        // category.MONKEY (пробы 2026-09-26). Экран настроек («Расширенные настройки» →
+        // «Получать рекомендации») живёт только внутри потока установки, который открывает
+        // MIUI. Поэтому сначала проверяем, не открыт ли он УЖЕ (установка из магазина/
+        // браузера) — и работаем на нём, ничего не запуская и ничего не устанавливая.
+        if (isInstallerSettingsScreen(settingsMarkers, toggleTexts)) {
+            AppLog.i(TAG, "installer: settings screen already open — toggling in place")
+            StepDiagnostics.note(step.id, "INSTALLER", "screen_already_open")
+            val live = toggleWithGate(step, toggleTexts, settingsMarkers)
+            pressBackToNeutral()
+            return live ?: Result(false, NOT_APPLICABLE)
+        }
         if (candidates.isEmpty()) {
             // S15: у установщика нет экспортированных активностей настроек — это
             // неприменимость на прошивке, а не провал автоматизации (ручная памятка

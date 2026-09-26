@@ -126,6 +126,12 @@
         "home_suggestions": {
           "skipDrill": true
         },
+        "appvault_services": {
+          "skipDrill": true
+        },
+        "appvault_about": {
+          "skipDrill": true
+        },
         "browser_sys": {
           "replaceDrillPath": true,
           "drillPath": [["Дополнительные настройки", "Additional settings", "更多设置"]]

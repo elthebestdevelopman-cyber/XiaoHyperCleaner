@@ -2721,7 +2721,6 @@
           "id": "miui12_14",
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
-          "entry": "settings",
           "control": "toggle",
           "drillPath": [
             ["Рабочий стол", "Главный экран", "Home screen"],
@@ -2815,7 +2814,6 @@
           "id": "miui12_14",
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
-          "entry": "settings",
           "control": "toggle",
           "drillPath": [
             ["Рабочий стол", "Главный экран", "Home screen"],
@@ -3432,6 +3430,7 @@
         "id": ["Terima rekomendasi", "Pengaturan lanjutan"]
       },
       "requiredPackages": [
+        "com.miui.global.packageinstaller",
         "com.miui.packageinstaller",
         "com.google.android.packageinstaller",
         "com.android.packageinstaller"

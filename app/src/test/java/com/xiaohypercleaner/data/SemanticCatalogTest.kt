@@ -167,8 +167,11 @@ class SemanticCatalogTest {
     @Test
     fun `installer step declares the settings route for every locale`() {
         assertEquals(
-            "пакеты установщика",
+            "пакеты установщика: на POCO/MIUI 13 global экран настроек живёт в " +
+                "com.miui.global.packageinstaller (прогон rmuiiy2an: без него шаг уходил " +
+                "в installer_settings_not_found)",
             listOf(
+                "com.miui.global.packageinstaller",
                 "com.miui.packageinstaller",
                 "com.google.android.packageinstaller",
                 "com.android.packageinstaller"
