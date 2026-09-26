@@ -808,11 +808,19 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     "foreign_screen fg=${activePackage() ?: "-"} route=${mergedDrillPath.size}"
                 )
                 Result(false, NOT_APPLICABLE)
-            } else if (isAppStep && lastDrillLevelNotFound &&
-                activePackage().equals(resolvedPkg, ignoreCase = true) &&
+            } else if (lastDrillLevelNotFound &&
                 // Экран занят рекламой (Темы: интерстишл 2ГИС) — это не «экрана нет»:
                 // честный drill_failed вместо ложного not_applicable.
-                !ConsentWallHandler.isAdScreenNow(service)
+                !ConsentWallHandler.isAdScreenNow(service) &&
+                if (isAppStep) {
+                    activePackage().equals(resolvedPkg, ignoreCase = true)
+                } else {
+                    // Settings-шаг: уровень маршрута отсутствует на экране Настроек И
+                    // целевых строк шага нет вовсе (google_diagnostics: раздела
+                    // «Использование и диагностика» на этой прошивке нет) — честное
+                    // «неприменимо» вместо FAIL.
+                    !onTargetScreen(step) && !screenHasAny(verifyTexts)
+                }
             ) {
                 // Приложение шага открыто, но строки последнего уровня маршрута на его
                 // экранах нет вовсе (GetApps 20.4.5: в «Настройках» нет раздела

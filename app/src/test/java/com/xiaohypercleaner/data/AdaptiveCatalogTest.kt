@@ -194,7 +194,7 @@ class AdaptiveCatalogTest {
     }
 
     @Test
-    fun `global_ru inherits cn_hyperos for non-overridden steps`() {
+    fun `global_ru browser drill starts from the remaining level`() {
         withLocale("ru") {
             AdaptiveCatalog.selectVariant(context, globalProfile())
 
@@ -202,9 +202,11 @@ class AdaptiveCatalogTest {
                 context, "browser_sys", listOf(listOf("BASE"))
             )
 
-            // browser_sys не переопределён в global_ru -> берётся из cn_hyperos.
-            assertEquals(4, merged.size)
-            assertTrue(merged[1].contains("Профиль"))
+            // Прямой вход (BrowserSettingsActivity / OPEN_SETTINGS) уже открывает экран
+            // настроек браузера, поэтому в global_ru маршрут начинается с остаточного
+            // уровня «Дополнительные настройки» (S9), а не с наследованного 4-уровневого.
+            assertEquals(1, merged.size)
+            assertTrue(merged[0].contains("Дополнительные настройки"))
         }
     }
 
