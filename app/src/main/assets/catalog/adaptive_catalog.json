@@ -14,8 +14,8 @@
     "mivideo": ["com.miui.videoplayer", "com.miui.video", "com.mi.global.video"],
     "shareme": ["com.xiaomi.midrop", "com.mi.android.globalshareme"],
     "filemanager": ["com.mi.android.globalFileexplorer", "com.android.fileexplorer"],
-    "appvault_services": ["com.miui.personalassistant", "com.mi.android.global.personalassistant"],
-    "appvault_about": ["com.miui.personalassistant", "com.mi.android.global.personalassistant"]
+    "appvault_services": ["com.mi.android.globalminusscreen", "com.miui.personalassistant", "com.mi.android.global.personalassistant"],
+    "appvault_about": ["com.mi.android.globalminusscreen", "com.miui.personalassistant", "com.mi.android.global.personalassistant"]
   },
   "groups": {
     "browser": ["com.mi.globalbrowser", "com.android.browser", "com.miui.browser"],
