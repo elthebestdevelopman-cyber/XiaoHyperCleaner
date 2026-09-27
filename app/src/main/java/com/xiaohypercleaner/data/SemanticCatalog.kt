@@ -98,7 +98,14 @@ object SemanticCatalog {
         /** Явный сценарий маршрута (RouteScript) для этой прошивки; пусто — обычная логика. */
         val route: List<RouteItem> = emptyList(),
         /** Точка входа: "settings" — маршрут через Настройки, а не через приложение. */
-        val entry: String?
+        val entry: String?,
+        /**
+         * Тексты кнопки-отказа диалога, который оболочка показывает ПОСЛЕ главного
+         * тумблера (Карусель обоев: «Нет, спасибо»). Тап по этой кнопке — часть шага:
+         * без него тумблер остаётся включённым, а шаг падает verify_failed
+         * (дамп diag-dumps/fresh/carousel_after_tap1.xml).
+         */
+        val toggleDeclineTexts: Map<String, List<String>> = emptyMap()
     )
 
     /**
@@ -134,7 +141,13 @@ object SemanticCatalog {
         val itemTexts: Map<String, List<String>>,
         val control: ActionType?,
         /** Целевое состояние тумблера цели: по умолчанию выключить (как раньше). */
-        val targetChecked: Boolean = false
+        val targetChecked: Boolean = false,
+        /**
+         * Цель обязана отработать ДО главного тумблера: на MIUI 13 строка исчезает
+         * после его выключения (Карусель: «Обновлять через мобильный интернет»
+         * пропадает, как только карусель выключена — дамп carousel_optout_wait).
+         */
+        val beforeMain: Boolean = false
     )
 
     /** Выбранный вариант шага + признак применения фолбэка (для лога `rom: variant=`). */
@@ -290,7 +303,9 @@ object SemanticCatalog {
         val itemTexts: List<String>,
         val control: ActionType,
         /** Целевое состояние тумблера цели (включается, если true). */
-        val targetChecked: Boolean = false
+        val targetChecked: Boolean = false,
+        /** Цель-«до главного тумблера»: её строка исчезает после выключения главной. */
+        val beforeMain: Boolean = false
     )
 
     /** Авторитетный drillPath варианта: заменяет legacy-путь при явном совпадении ОС. */
@@ -308,9 +323,22 @@ object SemanticCatalog {
                 drillPath = target.drillPath,
                 itemTexts = localizedTexts(target.itemTexts),
                 control = target.control ?: ActionType.TOGGLE,
-                targetChecked = target.targetChecked
+                targetChecked = target.targetChecked,
+                beforeMain = target.beforeMain
             )
         }
+
+    /** Цели, обязанные отработать ДО главного тумблера: строка исчезает после его выключения. */
+    fun extraTargetsBeforeMain(id: String): List<ExtraTarget> =
+        extraTargets(id).filter { it.beforeMain }
+
+    /** Цели после главного тумблера (второй экран/второй тумблер). */
+    fun extraTargetsAfterMain(id: String): List<ExtraTarget> =
+        extraTargets(id).filterNot { it.beforeMain }
+
+    /** Тексты кнопки-отказа диалога, который оболочка показывает после главного тумблера. */
+    fun toggleDeclineTexts(id: String): List<String> =
+        localizedTexts(selection(id)?.variant?.toggleDeclineTexts)
 
     /** Фолбэк-действие варианта (например `clear_data_decline` для Проводника). */
     fun fallbackAction(id: String): String? = selection(id)?.variant?.fallbackAction
@@ -582,6 +610,7 @@ object SemanticCatalog {
                     consentTexts = parseListMap(o.optJSONObject("consentTexts")),
                     control = o.optString("control").takeIf { it.isNotEmpty() }?.let { ActionType.from(it) },
                     extraTargets = parseExtraTargets(o.optJSONArray("extraTargets")),
+                    toggleDeclineTexts = parseListMap(o.optJSONObject("toggleDeclineTexts")),
                     fallbackAction = o.optString("fallbackAction").takeIf { it.isNotEmpty() },
                     route = parseRoute(o.optJSONArray("route")),
                     entry = o.optString("entry").takeIf { it.isNotEmpty() }
@@ -632,7 +661,8 @@ object SemanticCatalog {
                     drillPath = parseDrillPath(o.optJSONArray("drillPath")),
                     itemTexts = parseListMap(o.optJSONObject("itemTexts")),
                     control = o.optString("control").takeIf { it.isNotEmpty() }?.let { ActionType.from(it) },
-                    targetChecked = o.optBoolean("target", false)
+                    targetChecked = o.optBoolean("target", false),
+                    beforeMain = o.optBoolean("beforeMain", false)
                 )
             )
         }

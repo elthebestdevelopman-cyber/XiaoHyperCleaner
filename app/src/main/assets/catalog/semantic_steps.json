@@ -959,35 +959,24 @@
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
           "drillPath": [
-            ["Настройки Карусели обоев", "Carousel settings", "Wallpaper Carousel settings"]
+            ["Блокировка экрана", "Lock screen"],
+            ["Карусель обоев", "Wallpaper Carousel"]
           ],
-          "screenMarkers": { "ru": ["Текущий режим", "Пользовательские обои", "Карусель обоев"], "en": ["Current mode", "Personal wallpapers", "Wallpaper Carousel"], "zh": ["壁纸轮播"] },
+          "screenMarkers": { "ru": ["Карусель обоев", "Включить", "Обновлять через мобильный интернет"], "en": ["Wallpaper Carousel", "Enable", "Update via mobile network"], "zh": ["壁纸轮播"] },
           "itemTexts": {
-            "ru": ["Пользовательские обои"],
-            "en": ["Personal wallpapers"],
-            "es": ["Fondos personalizados"],
-            "zh": ["自定义壁纸"],
-            "hi": ["व्यक्तिगत वॉलपेपर"],
-            "pt": ["Papéis de parede personalizados"],
-            "id": ["Wallpaper pribadi"]
+            "ru": ["Включить"],
+            "en": ["Enable"]
+          },
+          "toggleDeclineTexts": {
+            "ru": ["Нет, спасибо"],
+            "en": ["No, thanks"]
           },
           "extraTargets": [
             {
               "back": 0,
               "drillPath": [],
-              "itemTexts": { "ru": ["Только рекомендации"], "en": ["Recommendations only"] },
-              "control": "toggle"
-            },
-            {
-              "back": 1,
-              "drillPath": [],
-              "itemTexts": { "ru": ["Проведите вправо по Экрану блокировки"], "en": ["Swipe right on the Lock screen"] },
-              "control": "toggle"
-            },
-            {
-              "back": 0,
-              "drillPath": [],
-              "itemTexts": { "ru": ["Обновлять через мобильный Интернет"], "en": ["Update via mobile network"] },
+              "beforeMain": true,
+              "itemTexts": { "ru": ["Обновлять через мобильный интернет"], "en": ["Update via mobile network"] },
               "control": "toggle"
             }
           ]

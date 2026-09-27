@@ -69,10 +69,12 @@ class SimpleStepsTest {
         val carousel = SimpleSteps.ALL.first { it.id == "carousel" }
         assertTrue(carousel.searchTexts.any { it.contains("Карусель") || it.contains("Carousel") })
         assertFalse(carousel.searchTexts.any { it.equals("Вкл", ignoreCase = true) })
-        // Владелец: карусель остаётся, но переключается в режим «Пользовательские обои»,
-        // поэтому шаг ВКЛЮЧАЕТ тумблер (остальные его тумблеры гасят extraTargets каталога).
-        assertTrue("цель шага — включённый режим", carousel.targetChecked)
-        assertTrue(carousel.searchTexts.contains("Настройки Карусели обоев"))
+        // Владелец: карусель ВЫКЛЮЧАЕТСЯ — сама и обновление через мобильный интернет.
+        // Путь проверен на POCO X3 Pro MIUI 13 (Настройки → Блокировка экрана → Карусель
+        // обоев, дампы carousel_level1|level2|open).
+        assertFalse("цель шага — выключенная карусель", carousel.targetChecked)
+        assertTrue(carousel.searchTexts.contains("Включить"))
+        assertEquals("Блокировка экрана", carousel.drillPath.first().first())
 
         assertTrue(home.requiredPackages.contains("com.miui.home"))
         assertTrue(home.requiredPackages.contains("com.mi.android.globallauncher"))

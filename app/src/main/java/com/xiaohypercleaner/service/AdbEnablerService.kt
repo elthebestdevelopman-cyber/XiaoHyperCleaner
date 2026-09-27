@@ -382,18 +382,32 @@ class AdbEnablerService : AccessibilityService() {
                 // ═══════════════════════════════════════════════════════════════
                 // not_applicable: экрана/строк шага на этом устройстве нет вовсе —
                 // это skip, а не FAIL (иначе отчёт врёт, прогон rmu8qhjhi).
-                val skippedResult = result.reason == "app_not_installed" ||
-                    result.reason == "low_confidence" ||
-                    result.reason == "foreign_screen" ||
-                    result.reason == "installer_settings_not_found" ||
-                    result.reason == "folder_switch_absent" ||
-                    result.reason == SimpleRunner.NOT_APPLICABLE
-                if (!result.success && skippedResult) {
-                    AppLog.i(TAG, "runSimpleStep: step ${step.id} skipped (${result.reason})")
-                    OverlayController.updateStatus(
-                        this, getString(R.string.automation_status_skip)
+                // Пропуск ≠ провал, но и не «нет на устройстве» по умолчанию: ведро причины
+                // считает SimpleRunner.classifySkip, а текст отчёта берётся из отдельных
+                // строк — иначе отчёт сваливал вину на устройство (прогон rmuk44un7).
+                val skippedResult = !result.success && (
+                    result.reason == "app_not_installed" ||
+                        result.reason == "low_confidence" ||
+                        result.reason == "foreign_screen" ||
+                        result.reason == "installer_settings_not_found" ||
+                        result.reason == "folder_switch_absent" ||
+                        result.reason == SimpleRunner.LAUNCHER_ABSENT ||
+                        result.reason == SimpleRunner.NOT_APPLICABLE
                     )
-                    SimpleStepBridge.onSkipped?.invoke(step.id)
+                if (skippedResult) {
+                    val kind = SimpleRunner.classifySkip(result.reason)
+                    AppLog.i(TAG, "runSimpleStep: step ${step.id} skipped (${result.reason}) kind=$kind")
+                    OverlayController.updateStatus(
+                        this,
+                        getString(
+                            if (kind == SimpleRunner.SkipKind.UNRESOLVED) {
+                                R.string.automation_status_unresolved
+                            } else {
+                                R.string.automation_status_skip
+                            }
+                        )
+                    )
+                    SimpleStepBridge.onSkipped?.invoke(step.id, kind.name)
                 } else {
                     AppLog.i(
                         TAG,

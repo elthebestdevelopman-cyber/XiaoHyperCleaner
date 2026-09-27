@@ -1,4 +1,4 @@
-﻿package com.xiaohypercleaner.service
+package com.xiaohypercleaner.service
 
 import android.content.Context
 import android.content.Intent
@@ -126,12 +126,17 @@ object OverlayController {
         skipped: Int,
         notifSteps: List<String> = emptyList(),
         /** Шаги, где тумблер уже был выключен: ничего не меняли, но состояние проверено. */
-        alreadyOffSteps: List<String> = emptyList()
+        alreadyOffSteps: List<String> = emptyList(),
+        /** Шаги, которых нет в лаунчере: «настройка отсутствует в лаунчере». */
+        launcherSkipped: Int = 0,
+        /** Шаги, которые робот не нашёл сам (не провал и не «нет на устройстве»). */
+        unresolved: Int = 0
     ) {
         endPhase()
         AppLog.i(
             TAG,
             "showResult: $completed/$total, failed=$failed, skipped=$skipped " +
+                "launcher=$launcherSkipped unresolved=$unresolved " +
                 "notif=${notifSteps.size} alreadyOff=${alreadyOffSteps.size} caller=${callerName()}"
         )
         ctx.startService(
@@ -142,6 +147,8 @@ object OverlayController {
                 .putExtra(OverlayService.EXTRA_SKIPPED, skipped)
                 .putExtra(OverlayService.EXTRA_NOTIF_STEPS, notifSteps.joinToString("\n"))
                 .putExtra(OverlayService.EXTRA_ALREADY_OFF_STEPS, alreadyOffSteps.joinToString("\n"))
+                .putExtra(OverlayService.EXTRA_LAUNCHER_SKIPPED, launcherSkipped)
+                .putExtra(OverlayService.EXTRA_UNRESOLVED, unresolved)
         )
     }
 

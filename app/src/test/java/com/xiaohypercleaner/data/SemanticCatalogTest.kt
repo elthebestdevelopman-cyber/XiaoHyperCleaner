@@ -99,34 +99,47 @@ class SemanticCatalogTest {
     }
 
     @Test
-    fun `carousel step declares the personal wallpapers mode and its extra targets`() {
-        // Владелец: карусель остаётся, но только со своими обоями — включаем «Пользовательские
-        // обои» и выключаем рекомендации, свайп-ленту и мобильные обновления (дампы
-        // carousel_setting_act / owner_screen3).
-        val variants = SemanticCatalog.step("carousel")?.variants.orEmpty()
-        assertTrue("варианты карусели объявлены", variants.isNotEmpty())
-        variants.forEach { variant ->
-            assertTrue(
-                "${variant.id}: тумблер режима",
-                variant.itemTexts["ru"].orEmpty().any { it.contains("Пользовательские обои") }
-            )
-            assertTrue(
-                "${variant.id}: маркеры экрана режима",
-                variant.screenMarkers["ru"].orEmpty().any { it.contains("Текущий режим") }
-            )
-            val switchOff = variant.extraTargets
-                .filter { !it.targetChecked }
-                .mapNotNull { it.itemTexts["ru"]?.firstOrNull() }
-            assertTrue("${variant.id}: рекомендации выключаются", switchOff.contains("Только рекомендации"))
-            assertTrue(
-                "${variant.id}: свайп-лента выключается",
-                switchOff.contains("Проведите вправо по Экрану блокировки")
-            )
-            assertTrue(
-                "${variant.id}: мобильные обновления выключаются",
-                switchOff.contains("Обновлять через мобильный Интернет")
-            )
-        }
+    fun `carousel on miui12_14 turns the carousel off through the lock screen route`() {
+        // Владелец + разведка на POCO X3 Pro (MIUI 13): Настройки → Блокировка экрана →
+        // Карусель обоев → KSettingActivity. Главный тумблер «Включить» гасится через
+        // диалог-заглушку («Нет, спасибо»), зависимый «Обновлять через мобильный интернет» —
+        // ДО него: строка исчезает вместе с каруселью
+        // (дампы diag-dumps/fresh/carousel_open|after_tap1|optout_wait).
+        val variant = SemanticCatalog.step("carousel")?.variants
+            .orEmpty()
+            .first { it.id == "miui12_14" }
+
+        assertEquals("Блокировка экрана", variant.drillPath.first().first())
+        assertEquals("Карусель обоев", variant.drillPath.last().first())
+        assertEquals(listOf("Включить"), variant.itemTexts["ru"])
+        assertEquals(listOf("Нет, спасибо"), variant.toggleDeclineTexts["ru"])
+        assertEquals(
+            listOf("Карусель обоев", "Включить", "Обновлять через мобильный интернет"),
+            variant.screenMarkers["ru"]
+        )
+
+        val preTargets = variant.extraTargets.filter { it.beforeMain }
+        assertEquals("зависимый тумблер объявлен один", 1, preTargets.size)
+        assertEquals(
+            listOf("Обновлять через мобильный интернет"),
+            preTargets.first().itemTexts["ru"]
+        )
+        assertFalse("зависимый тумблер выключается, а не включается", preTargets.first().targetChecked)
+        assertTrue("целей после главного тумблера нет", variant.extraTargets.none { !it.beforeMain })
+    }
+
+    @Test
+    fun `carousel on hyperos keeps the personal wallpapers mode`() {
+        // HyperOS-ветка на устройстве не проверялась: поведение оставлено прежним
+        // (карусель со своими обоями), менять его без дампа нельзя.
+        val variant = SemanticCatalog.step("carousel")?.variants
+            .orEmpty()
+            .first { it.id == "hyperos1_3" }
+
+        assertTrue(
+            "hyperos1_3: тумблер режима",
+            variant.itemTexts["ru"].orEmpty().any { it.contains("Пользовательские обои") }
+        )
     }
 
     @Test

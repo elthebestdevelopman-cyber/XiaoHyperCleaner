@@ -73,7 +73,6 @@
     <string name="simple_done_benefit_spam">✅ Reduced notifications from system apps</string>
     <string name="simple_done_benefit_stable">✅ Reduced background system load</string>
     <string name="simple_done_failed_title">Couldn\'t complete automatically:</string>
-    <string name="simple_done_skipped_title">Skipped (not on this device):</string>
     <string name="simple_done_rate">Rate the app</string>
     <string name="simple_done_donate">Support the author</string>
     <string name="simple_done_close">Close</string>
@@ -292,10 +291,13 @@
     <string name="automation_status_search">Looking for: %s…</string>
     <string name="automation_status_done">Done, verifying…</string>
     <string name="automation_status_fail">Couldn\'t do it, moving on…</string>
-    <string name="automation_status_skip">App not installed — skipping</string>
+    <string name="automation_status_skip">Setting not available — skipping</string>
+    <string name="automation_status_unresolved">Not found — skipping</string>
     <string name="result_title">Done! The cat is pleased 🧡</string>
     <string name="result_summary">Completed %1$d of %2$d steps</string>
     <string name="result_skipped">Skipped (not on device): %d</string>
+    <string name="result_skipped_launcher">Setting not present in launcher: %d</string>
+    <string name="result_skipped_unresolved">Not found automatically (check manually): %d</string>
     <string name="result_failed">Couldn\'t complete (system-protected): %d</string>
     <string name="result_notif_title">Notifications turned off:</string>
     <string name="result_already_off_title">Already off (verified):</string>

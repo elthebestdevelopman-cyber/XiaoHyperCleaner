@@ -133,6 +133,23 @@ object SimpleSteps {
     // ═════════════════════════════════════════════════════════════════
 
     val ALL: List<Step> = listOf(
+        // Владелец: шаг папок идёт ПЕРВЫМ. Отзыв msa убирает строку рекомендаций в
+        // редакторе папки, поэтому после msa шаг становится невыполнимым (2026-09-28).
+        // Папки рабочего стола: «Рекомендуемое сегодня» внутри папки (лаунчер MIUI).
+        // Вход — рабочий стол, поэтому маршрут Настроек и launchPackage не нужны:
+        // папку находит рантайм-рутина по структуре (имя задаёт пользователь).
+        Step(
+            id = "folder_recommendations",
+            titleRu = "Рекомендации в папках рабочего стола",
+            titleEn = "Home folder suggestions",
+            descRu = "Выключаем «Рекомендуемое сегодня» внутри папок рабочего стола.",
+            descEn = "Turning off \"Recommended today\" inside home screen folders.",
+            intents = emptyList(),
+            searchTexts = listOf(
+                "Рекомендуемое сегодня", "Recommended today",
+                "Рекомендации", "Recommendations",
+                "Изменить папку", "Edit folder"
+            ),
 
         // ── БЛОК А: СИСТЕМНЫЕ НАСТРОЙКИ ───────────────────────────────
 
@@ -279,32 +296,35 @@ object SimpleSteps {
             id = "carousel",
             titleRu = "Карусель обоев",
             titleEn = "Wallpaper Carousel",
-            descRu = "Оставляем карусель со своими обоями: рекомендации, свайп-лента и обновления выключаются.",
-            descEn = "Keeping the carousel with your own wallpapers: recommendations, swipe feed and updates are off.",
+            descRu = "Выключаем карусель обоев и обновление подборки через мобильный интернет.",
+            descEn = "Turning off the wallpaper carousel and its mobile-data updates.",
             intents = listOf(settingsRoot()),
             searchTexts = listOf(
                 "Карусель обоев",
-                // Точные строки под-экрана режима (LoopSettingActivity, дамп owner_screen3):
-                // по ним resume/onTargetScreen понимают, что экран уже целевой.
-                "Настройки Карусели обоев",
-                "Текущий режим",
-                "Пользовательские обои",
+                // Точная строка главного тумблера (KSettingActivity, дамп carousel_open):
+                // по ней гейт уверенности и поиск тумблера подтверждают целевой экран.
+                "Включить",
                 "Wallpaper Carousel",
-                "Wallpaper carousel",
+                "Enable",
                 "Glance"
             ),
-            // Цель шага — включённый режим «Пользовательские обои»; остальные тумблеры
-            // выключают extraTargets каталога (у каждой цели своё целевое состояние).
-            targetChecked = true,
-            manualHintRu = "Карусель обоев → «Настройки Карусели обоев» → включите «Пользовательские обои» " +
-                    "и выключите «Только рекомендации».",
-            manualHintEn = "Wallpaper Carousel → carousel settings → turn on \"Personal wallpapers\" " +
-                    "and turn off \"Recommendations only\".",
+            // Цель шага — выключенная карусель: главный тумблер «Включить», после тапа
+            // оболочка спрашивает подтверждение, отказ — кнопка «Нет, спасибо» (каталог).
+            // Зависимый тумблер «Обновлять через мобильный интернет» гасит extraTarget
+            // варианта ДО главного: строка исчезает вместе с каруселью (дамп optout_wait).
+            targetChecked = false,
+            manualHintRu = "Настройки → Блокировка экрана → Карусель обоев → выключите «Включить» " +
+                    "(в диалоге — «Нет, спасибо») и «Обновлять через мобильный интернет».",
+            manualHintEn = "Settings → Lock screen → Wallpaper Carousel → turn off \"Enable\" " +
+                    "(choose \"No, thanks\" in the dialog) and \"Update via mobile network\".",
             drillPath = listOf(
                 listOf(
-                    "Настройки Карусели обоев",
-                    "Carousel settings",
-                    "Wallpaper Carousel settings"
+                    "Блокировка экрана",
+                    "Lock screen"
+                ),
+                listOf(
+                    "Карусель обоев",
+                    "Wallpaper Carousel"
                 )
             )
         ),
@@ -941,22 +961,6 @@ object SimpleSteps {
                 "com.mi.global.video"
             )
         ),
-
-        // Папки рабочего стола: «Рекомендуемое сегодня» внутри папки (лаунчер MIUI).
-        // Вход — рабочий стол, поэтому маршрут Настроек и launchPackage не нужны:
-        // папку находит рантайм-рутина по структуре (имя задаёт пользователь).
-        Step(
-            id = "folder_recommendations",
-            titleRu = "Рекомендации в папках рабочего стола",
-            titleEn = "Home folder suggestions",
-            descRu = "Выключаем «Рекомендуемое сегодня» внутри папок рабочего стола.",
-            descEn = "Turning off \"Recommended today\" inside home screen folders.",
-            intents = emptyList(),
-            searchTexts = listOf(
-                "Рекомендуемое сегодня", "Recommended today",
-                "Рекомендации", "Recommendations",
-                "Изменить папку", "Edit folder"
-            ),
             manualHintRu = "Откройте папку на рабочем столе → нажмите на её название " +
                 "(HyperOS 2/3: удерживайте папку → «Изменить папку») → выключите «Рекомендуемое сегодня».",
             manualHintEn = "Open a home folder → tap its name (HyperOS 2/3: hold the folder → " +

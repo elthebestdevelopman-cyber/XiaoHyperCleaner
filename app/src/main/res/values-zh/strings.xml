@@ -82,7 +82,6 @@
     <string name="simple_done_benefit_spam">✅ 已减少系统应用通知</string>
     <string name="simple_done_benefit_stable">✅ 已减少系统后台负载</string>
     <string name="simple_done_failed_title">无法自动完成：</string>
-    <string name="simple_done_skipped_title">已跳过（此设备上不存在）：</string>
     <string name="simple_done_rate">评价应用</string>
     <string name="simple_done_donate">支持作者</string>
     <string name="simple_done_close">关闭</string>
@@ -301,10 +300,13 @@
     <string name="automation_status_search">正在查找：%s…</string>
     <string name="automation_status_done">完成，正在验证…</string>
     <string name="automation_status_fail">无法完成，继续下一步…</string>
-    <string name="automation_status_skip">应用未安装 — 跳过</string>
+    <string name="automation_status_skip">设置不存在 — 跳过</string>
+    <string name="automation_status_unresolved">未找到 — 跳过</string>
     <string name="result_title">完成！猫咪很满意 🧡</string>
     <string name="result_summary">已完成 %1$d / %2$d 步</string>
     <string name="result_skipped">已跳过（设备上不存在）：%d</string>
+    <string name="result_skipped_launcher">启动器中无此设置：%d</string>
+    <string name="result_skipped_unresolved">未能自动找到（请手动检查）：%d</string>
     <string name="result_failed">无法完成（系统保护）：%d</string>
     <string name="result_notif_title">已关闭通知：</string>
     <string name="result_already_off_title">已经关闭（已验证）：</string>

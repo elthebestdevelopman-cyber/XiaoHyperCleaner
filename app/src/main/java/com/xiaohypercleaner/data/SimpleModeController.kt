@@ -71,12 +71,18 @@ class SimpleModeController(
          * ничего не меняли, но состояние проверено — пользователь должен видеть разницу
          * между «выключено сейчас» и «было выключено».
          */
-        val alreadyOffStepIds: List<String> = emptyList()
+        val alreadyOffStepIds: List<String> = emptyList(),
+        /** Шаги, которых нет в лаунчере: «настройка отсутствует в лаунчере» (POCO). */
+        val launcherSkippedStepIds: List<String> = emptyList(),
+        /** Шаги, которые робот не нашёл сам: не провал и не «нет на устройстве». */
+        val unresolvedStepIds: List<String> = emptyList()
     )
 
     val isActive: Boolean get() = state.active
     val failedStepIds: List<String> get() = state.failedStepIds
     val skippedStepIds: List<String> get() = state.skippedStepIds
+    val launcherSkippedStepIds: List<String> get() = state.launcherSkippedStepIds
+    val unresolvedStepIds: List<String> get() = state.unresolvedStepIds
 
     private fun checkAccessibility(): Boolean {
         val component = ComponentName(context, AdbEnablerService::class.java).flattenToString()
@@ -103,6 +109,8 @@ class SimpleModeController(
     private var autoFlowJob: Job? = null
     private val failedIds: MutableList<String> = mutableListOf()
     private val skippedIds: MutableList<String> = mutableListOf()
+    private val launcherSkippedIds: MutableList<String> = mutableListOf()
+    private val unresolvedIds: MutableList<String> = mutableListOf()
     private val notifToggledIds: MutableList<String> = mutableListOf()
     private val alreadyOffIds: MutableList<String> = mutableListOf()
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -182,6 +190,8 @@ class SimpleModeController(
         skippedIds.clear()
         notifToggledIds.clear()
         alreadyOffIds.clear()
+        launcherSkippedIds.clear()
+        unresolvedIds.clear()
         stepAttempt = 1
         stepsStarted = false
         restrictedLocation = RestrictedLocation.UNKNOWN
@@ -531,10 +541,24 @@ class SimpleModeController(
         setState { copy(step = step.copy(status = SimpleStepState.Status.IDLE, attempt = attempt)) }
     }
 
-    fun onStepSkipped(stepId: String) {
-        AppLog.i(TAG, "onStepSkipped: step=$stepId, index=${state.currentStepIndex}")
+    fun onStepSkipped(stepId: String, kind: String = SimpleRunner.SkipKind.NOT_ON_DEVICE.name) {
+        AppLog.i(TAG, "onStepSkipped: step=$stepId kind=$kind, index=${state.currentStepIndex}")
         if (!skippedIds.contains(stepId)) skippedIds.add(stepId)
-        setState { copy(skippedStepIds = skippedIds.toList()) }
+        // Ведро причины: «нет в лаунчере» и «робот не нашёл» показываются отдельными
+        // строками отчёта — состояние устройства и промах автоматизации не смешиваются.
+        when (kind) {
+            SimpleRunner.SkipKind.LAUNCHER_ABSENT.name ->
+                if (!launcherSkippedIds.contains(stepId)) launcherSkippedIds.add(stepId)
+            SimpleRunner.SkipKind.UNRESOLVED.name ->
+                if (!unresolvedIds.contains(stepId)) unresolvedIds.add(stepId)
+        }
+        setState {
+            copy(
+                skippedStepIds = skippedIds.toList(),
+                launcherSkippedStepIds = launcherSkippedIds.toList(),
+                unresolvedStepIds = unresolvedIds.toList()
+            )
+        }
         scheduleAdvance()
     }
 
@@ -600,7 +624,9 @@ class SimpleModeController(
             OverlayController.showResult(
                 context, finalCompleted, applicable, failedIds.size, skippedIds.size,
                 notifToggledIds.map { stepTitle(it) },
-                alreadyOffIds.map { stepTitle(it) }
+                alreadyOffIds.map { stepTitle(it) },
+                launcherSkippedIds.size,
+                unresolvedIds.size
             )
             return
         }
@@ -772,6 +798,8 @@ class SimpleModeController(
         skippedIds.clear()
         notifToggledIds.clear()
         alreadyOffIds.clear()
+        launcherSkippedIds.clear()
+        unresolvedIds.clear()
         stepAttempt = 1
         stepsStarted = false
         SimplePlan.reset()

@@ -223,6 +223,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
         /** Повторное чтение состояния тумблера: MIUI применяет его с задержкой. */
         private const val SWITCH_VERIFY_ATTEMPTS = 3
         private const val SWITCH_VERIFY_RETRY_DELAY_MS = 600L
+        /** Ожидание кнопки-отказа после главного тумблера (Карусель: «Нет, спасибо»). */
+        private const val TOGGLE_DECLINE_WAIT_MS = 2500L
         private const val CONFIRM_RETRY_MS = 1500L
         private const val SWITCH_FALLBACK_SCROLLS = 4
 
@@ -231,6 +233,24 @@ class SimpleRunner(private val service: AdbEnablerService) {
          * Отдельный исход (skip), а не FAIL — иначе отчёт врёт (POCO Launcher).
          */
         internal const val NOT_APPLICABLE = "not_applicable"
+
+        /**
+         * Настройка лаунчера, которой на прошивке нет вовсе (POCO: в настройках
+         * рабочего стола нет ни «Показывать предложения», ни рекомендаций).
+         */
+        internal const val LAUNCHER_ABSENT = "launcher_setting_absent"
+
+        /**
+         * Ведро причины пропуска: от него зависит текст отчёта. Смешивать «настройки нет
+         * на устройстве», «её нет в лаунчере» и «робот не нашёл» нельзя — отчёт врал бы.
+         */
+        enum class SkipKind { NOT_ON_DEVICE, LAUNCHER_ABSENT, UNRESOLVED }
+
+        internal fun classifySkip(reason: String?): SkipKind = when (reason) {
+            LAUNCHER_ABSENT -> SkipKind.LAUNCHER_ABSENT
+            "app_not_installed", NOT_APPLICABLE -> SkipKind.NOT_ON_DEVICE
+            else -> SkipKind.UNRESOLVED
+        }
 
         /** Поллинг проверки входного экрана (notif_*: подпись приложения). */
         private const val ENTRY_POLL_MS = 200L
@@ -857,6 +877,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 Result(false, drillFailure)
             }
         } else {
+            // Цели варианта, обязанные отработать ДО главного тумблера: на MIUI 13 строка
+            // «Обновлять через мобильный интернет» исчезает, как только карусель выключена
+            // (дамп carousel_optout_wait), и после главного тумблера её уже нет.
+            val preTargets = SemanticCatalog.extraTargetsBeforeMain(step.id)
+            val preMarkers = SemanticCatalog.screenMarkers(step.id)
+            if (preTargets.isNotEmpty() && (preMarkers.isEmpty() || screenHasAny(preMarkers))) {
+                runExtraTargets(step, preTargets)
+            }
             findAndToggleSwitch(step)
         }
         // Фолбэк варианта (Проводник: основной путь через меню не найден → CLEAR_DATA_DECLINE).
@@ -1481,11 +1509,24 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val switch = findSwitchByText(root, target.itemTexts)
         if (switch != null) {
             val checked = SwitchFinder.isChecked(switch)
-            // Цель может требовать включения (carousel: «Пользовательские обои»), поэтому
-            // целевое состояние берём у цели, а не у шага.
-            val tapped = if (checked == target.targetChecked) true else tapNode(switch)
+            // Цель может требовать включения, поэтому целевое состояние берём
+            // у цели, а не у шага.
+            val needed = checked != target.targetChecked
+            val tapped = if (needed) tapNode(switch) else true
             recycleNode(switch); recycleNode(root)
+            if (!tapped) return false
+            if (!needed) return true
             delay(600)
+            // Диалог-заглушка после тапа цели (Карусель обоев: «Нет, спасибо»).
+            tapToggleDeclineIfNeeded(step)
+            // Без подтверждения фактического состояния цель «выполнено» не объявляет.
+            if (!verifyExtraTargetState(target)) {
+                AppLog.w(
+                    TAG,
+                    "extra target not verified step=" + step.id + " text=" + target.itemTexts.firstOrNull()
+                )
+                return false
+            }
             if (tapped) {
                 AppLog.i(TAG, "extra target toggled step=${step.id} text='${target.itemTexts.first()}'")
             }
@@ -1495,8 +1536,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
         if (target.control == SemanticCatalog.ActionType.TAP_CONFIRM) {
             return tapActionButton(step, target.itemTexts).success
         }
-        AppLog.w(TAG, "extra target switch_not_found step=${step.id} text='${target.itemTexts.first()}'")
-        return false
+        // Строки нет на экране: на повторном прогоне главная цель уже выключена и
+        // зависимая строка исчезла (Карусель) — делать нечего, это не сбой.
+        AppLog.i(
+            TAG,
+            "extra target absent on screen step=" + step.id + " text=" + target.itemTexts.firstOrNull()
+        )
+        return true
     }
 
     /**
@@ -1657,6 +1703,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return targets.isNotEmpty() && !screenHasAny(targets)
     }
 
+    /** Шаг настраивает лаунчер: его строки живут в настройках рабочего стола. */
+    private fun isLauncherSettingsStep(step: SimpleSteps.Step): Boolean =
+        step.id == "home_suggestions"
+
     // ─── Switch finding and toggling ──────────────────────────────────────
     private suspend fun findAndToggleSwitch(step: SimpleSteps.Step): Result {
         val mergedSearchTexts = searchTextsFor(step)
@@ -1676,7 +1726,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 }
                 AppLog.w(TAG, "step ${step.id}: экран шага не открылся, маркеров нет — шаг неприменим")
                 StepDiagnostics.note(step.id, "APPLICABILITY", "screen_markers_absent")
-                return Result(false, NOT_APPLICABLE)
+                // Настройки лаунчера подаём отдельной причиной: отчёт скажет «настройки нет
+                // в лаунчере», а не «нет на устройстве» и не «робот не нашёл».
+                val absentReason =
+                    if (isLauncherSettingsStep(step)) LAUNCHER_ABSENT else NOT_APPLICABLE
+                return Result(false, absentReason)
             }
         }
 
@@ -1772,6 +1826,23 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val bounds = hit.bounds
 
         if (isChecked == step.targetChecked) {
+            // Доказательство вердикта: подпись узла, его рамка и состояние маркеров экрана.
+            // Без этого «уже выключено» неотличимо от ложного успеха (прогон rmuk44un7).
+            val markers = SemanticCatalog.screenMarkers(step.id)
+            val markerState = when {
+                markers.isEmpty() -> "none"
+                currentRoot == null -> "unknown"
+                else -> {
+                    val screenText = ComponentVerifier.screenText(currentRoot)
+                    if (markers.any { TextMatcher.normalizedContains(screenText, it) }) "ok" else "absent"
+                }
+            }
+            StepDiagnostics.note(
+                step.id, "VERDICT",
+                "already_" + (if (step.targetChecked) "done" else "off") +
+                    " label=" + text + " bounds=[" + bounds.left + "," + bounds.top + "," +
+                    bounds.right + "," + bounds.bottom + "] markers=" + markerState
+            )
             recycleNode(targetSwitch); recycleNode(currentRoot)
             // Уже в целевом состоянии: тумблить нечего, откат этот шаг не трогает.
             return Result(true, if (step.targetChecked) "already_done" else "already_off")
@@ -1813,6 +1884,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         recycleNode(targetSwitch); recycleNode(currentRoot)
 
         delay(600)
+        // Диалог-заглушка MIUI сразу после тапа (Карусель обоев: «Нет, спасибо» / «Хорошо»):
+        // отказ — часть шага, иначе тумблер остаётся включённым и шаг падает verify_failed.
+        tapToggleDeclineIfNeeded(step)
         // Диалог подтверждения появляется сразу после тапа («Отключение Ленты виджетов:
         // Вы не сможете использовать Ленту виджетов… Отключить её?» — дамп owner_06).
         // Подтверждаем ДО проверки состояния, иначе verify не видит переключения и шаг
@@ -1824,6 +1898,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             if (retryNode != null) tapNode(retryNode)
             recycleNode(retryNode); recycleNode(retryRoot)
             delay(600)
+            tapToggleDeclineIfNeeded(step)
             tapConfirmIfNeeded(step)
             if (!verifySwitchState(step, mergedSearchTexts)) return Result(false, "verify_failed")
         }
@@ -1859,12 +1934,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         // Вариант каталога может требовать второй экран (Браузер: «Показывать рекламу»
         // → назад → «Персональные рекомендации»).
-        for (target in SemanticCatalog.extraTargets(step.id)) {
-            if (cancelled) break
-            if (!executeExtraTarget(step, target)) {
-                AppLog.w(TAG, "extra target failed for ${step.id}: ${target.itemTexts.firstOrNull()}")
-            }
-        }
+        runExtraTargets(step, SemanticCatalog.extraTargetsAfterMain(step.id))
 
         // Диалоги-заглушки после тумблера (Карусель: «Нет, спасибо»).
         handleConsentWalls(step)
@@ -1894,6 +1964,78 @@ class SimpleRunner(private val service: AdbEnablerService) {
         delay(600)
         tapConfirmIfNeeded(step)
         return Result(true, "tapped_fallback")
+    }
+
+    /**
+     * Дополнительные цели варианта в порядке каталога. Сбой цели не меняет вердикт шага,
+     * но обязан быть виден в логе и диагностике: молчаливого «всё ок» не бывает.
+     */
+    private suspend fun runExtraTargets(
+        step: SimpleSteps.Step,
+        targets: List<SemanticCatalog.ExtraTarget>
+    ) {
+        for (target in targets) {
+            if (cancelled) return
+            if (!executeExtraTarget(step, target)) {
+                AppLog.w(
+                    TAG,
+                    "extra target failed step=" + step.id + " text=" + target.itemTexts.firstOrNull()
+                )
+                StepDiagnostics.note(
+                    step.id,
+                    "EXTRA",
+                    "target_failed text=" + target.itemTexts.firstOrNull()
+                )
+            }
+        }
+    }
+
+    /**
+     * Фактическое состояние дополнительной цели после тапа. Строка, исчезнувшая с экрана
+     * (карусель выключена — зависимая строка пропала), считается достигнутой целью.
+     */
+    private suspend fun verifyExtraTargetState(target: SemanticCatalog.ExtraTarget): Boolean {
+        repeat(SWITCH_VERIFY_ATTEMPTS) { attempt ->
+            if (attempt > 0) delay(SWITCH_VERIFY_RETRY_DELAY_MS)
+            val root = service.rootInActiveWindow ?: return false
+            val node = findSwitchByText(root, target.itemTexts)
+            val state = node?.let { SwitchFinder.isChecked(it) }
+            recycleNode(node); recycleNode(root)
+            if (state == null || state == target.targetChecked) return true
+        }
+        return false
+    }
+
+    /**
+     * Кнопка-отказа диалога, который оболочка показывает ПОСЛЕ главного тумблера
+     * (Карусель обоев: «Нет, спасибо»). Тапается только кнопка из
+     * [SemanticCatalog.toggleDeclineTexts]: «Хорошо» не нажимаем никогда.
+     */
+    private suspend fun tapToggleDeclineIfNeeded(step: SimpleSteps.Step) {
+        val texts = SemanticCatalog.toggleDeclineTexts(step.id)
+        if (texts.isEmpty()) return
+        val deadline = System.currentTimeMillis() +
+            minOf(TOGGLE_DECLINE_WAIT_MS, maxOf(0L, remainingBudgetMs() - 1000L))
+        while (!cancelled) {
+            val root = service.rootInActiveWindow
+            val node = root?.let { findClickableByText(it, texts) }
+            if (root != null) recycleNode(root)
+            if (node != null) {
+                val label = buttonLabel(node)
+                val tapped = tapNode(node)
+                recycleNode(node)
+                AppLog.i(TAG, "toggle decline: tapped " + label + " ok=" + tapped + " step=" + step.id)
+                if (tapped) {
+                    delay(CONFIRM_SETTLE_MS)
+                    return
+                }
+            }
+            if (System.currentTimeMillis() >= deadline) {
+                AppLog.i(TAG, "toggle decline: dialog not found for " + step.id)
+                return
+            }
+            delay(CONFIRM_RETRY_MS)
+        }
     }
 
     /** Тапает кнопку подтверждения диалога, если он появился (confirmTexts шага). */

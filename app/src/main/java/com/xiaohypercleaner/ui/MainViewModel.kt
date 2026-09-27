@@ -120,12 +120,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             onSimpleStepResult(success)
         }
 
-        SimpleStepBridge.onSkipped = { stepId ->
+        SimpleStepBridge.onSkipped = { stepId, kind ->
             // Skipped = нет уверенности в экране (low_confidence) или пакет не установлен:
-            // текст лога не должен выдавать одно за другое.
-            AppLog.i(TAG, "SimpleStepBridge skipped: $stepId")
+            // текст лога не должен выдавать одно за другое. Ведро причины приходит из
+            // раннера и решает, какой текст увидит пользователь.
+            AppLog.i(TAG, "SimpleStepBridge skipped: $stepId kind=$kind")
             stepAttempt = 1
-            simpleController.onStepSkipped(stepId)
+            simpleController.onStepSkipped(stepId, kind)
         }
 
         OverlayController.setOnCancel {

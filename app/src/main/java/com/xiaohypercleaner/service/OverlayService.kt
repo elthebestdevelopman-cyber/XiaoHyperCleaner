@@ -1,4 +1,4 @@
-﻿package com.xiaohypercleaner.service
+package com.xiaohypercleaner.service
 
 import android.animation.ObjectAnimator
 import android.app.Service
@@ -58,6 +58,10 @@ class OverlayService : Service() {
         const val EXTRA_COMPLETED = "completed"
         const val EXTRA_FAILED = "failed"
         const val EXTRA_SKIPPED = "skipped"
+        /** Шаги, которых нет в лаунчере: отдельная строка отчёта. */
+        const val EXTRA_LAUNCHER_SKIPPED = "launcher_skipped"
+        /** Шаги, которые робот не нашёл сам: отдельная строка отчёта. */
+        const val EXTRA_UNRESOLVED = "unresolved"
         const val EXTRA_NOTIF_STEPS = "notif_steps"
         const val EXTRA_ALREADY_OFF_STEPS = "already_off_steps"
         private const val HEARTBEAT_INTERVAL_MS = 500L
@@ -193,7 +197,9 @@ class OverlayService : Service() {
                 intent.getIntExtra(EXTRA_FAILED, 0),
                 intent.getIntExtra(EXTRA_SKIPPED, 0),
                 intent.getStringExtra(EXTRA_NOTIF_STEPS).orEmpty(),
-                intent.getStringExtra(EXTRA_ALREADY_OFF_STEPS).orEmpty()
+                intent.getStringExtra(EXTRA_ALREADY_OFF_STEPS).orEmpty(),
+                intent.getIntExtra(EXTRA_LAUNCHER_SKIPPED, 0),
+                intent.getIntExtra(EXTRA_UNRESOLVED, 0)
             )
         }
         return START_NOT_STICKY
@@ -321,7 +327,9 @@ class OverlayService : Service() {
         failed: Int,
         skipped: Int,
         notifSteps: String,
-        alreadyOffSteps: String
+        alreadyOffSteps: String,
+        launcherSkipped: Int,
+        unresolved: Int
     ) {
         stopHeartbeat()
         hide()
@@ -338,6 +346,10 @@ class OverlayService : Service() {
         layout.addView(titleText(getString(R.string.result_title), 20f, bold = true), llWrap().apply { topMargin = dp(12) })
         layout.addView(bodyText(getString(R.string.result_summary, completed, total)), llWrap().apply { topMargin = dp(6) })
         if (skipped > 0) layout.addView(bodyText(getString(R.string.result_skipped, skipped), small = true), llWrap().apply { topMargin = dp(4) })
+        // Честный отчёт: «нет настройки в лаунчере» и «робот не нашёл» — разные строки,
+        // их нельзя показывать как «нет на устройстве».
+        if (launcherSkipped > 0) layout.addView(bodyText(getString(R.string.result_skipped_launcher, launcherSkipped), small = true), llWrap().apply { topMargin = dp(4) })
+        if (unresolved > 0) layout.addView(bodyText(getString(R.string.result_skipped_unresolved, unresolved), small = true), llWrap().apply { topMargin = dp(4) })
         if (failed > 0) layout.addView(bodyText(getString(R.string.result_failed, failed), small = true), llWrap().apply { topMargin = dp(4) })
         // Прозрачность notif_*: что именно отключено (Аддендум C3).
         val notifTitles = notifSteps.split('\n').filter { it.isNotBlank() }.take(NOTIF_LIST_MAX)
@@ -380,6 +392,7 @@ class OverlayService : Service() {
         AppLog.i(
             TAG,
             "result shown: $completed/$total, failed=$failed, skipped=$skipped " +
+                "launcherSkipped=$launcherSkipped unresolved=$unresolved " +
                 "notif=${notifTitles.size} manual=$manualShown"
         )
     }

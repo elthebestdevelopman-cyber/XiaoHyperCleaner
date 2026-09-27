@@ -83,7 +83,6 @@
     <string name="simple_done_benefit_spam">✅ Reducidas las notificaciones de apps del sistema</string>
     <string name="simple_done_benefit_stable">✅ Reducida la carga del sistema en segundo plano</string>
     <string name="simple_done_failed_title">No se pudo completar automáticamente:</string>
-    <string name="simple_done_skipped_title">Omitido (no está en este dispositivo):</string>
     <string name="simple_done_rate">Calificar la app</string>
     <string name="simple_done_donate">Apoyar al autor</string>
     <string name="simple_done_close">Cerrar</string>
@@ -302,10 +301,13 @@
     <string name="automation_status_search">Buscando: %s…</string>
     <string name="automation_status_done">Listo, verificando…</string>
     <string name="automation_status_fail">No se pudo, continuando…</string>
-    <string name="automation_status_skip">App no instalada — saltando</string>
+    <string name="automation_status_skip">Ajuste no disponible — saltando</string>
+    <string name="automation_status_unresolved">No encontrado — saltando</string>
     <string name="result_title">¡Listo! El gato está contento 🧡</string>
     <string name="result_summary">Completados %1$d de %2$d pasos</string>
     <string name="result_skipped">Omitidos (no en el dispositivo): %d</string>
+    <string name="result_skipped_launcher">Ajuste ausente en el lanzador: %d</string>
+    <string name="result_skipped_unresolved">No se encontró automáticamente (revisa manualmente): %d</string>
     <string name="result_failed">No se pudo completar (protegido por el sistema): %d</string>
     <string name="result_notif_title">Notificaciones desactivadas:</string>
     <string name="result_already_off_title">Ya estaba desactivado (verificado):</string>

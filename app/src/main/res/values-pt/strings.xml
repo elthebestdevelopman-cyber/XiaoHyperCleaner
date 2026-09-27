@@ -60,7 +60,6 @@
     <string name="simple_done_benefit_spam">✅ Redução de notificações de aplicativos do sistema</string>
     <string name="simple_done_benefit_stable">✅ Redução do consumo de recursos do sistema</string>
     <string name="simple_done_failed_title">Não foi possível automaticamente:</string>
-    <string name="simple_done_skipped_title">Ignorado (não presente no dispositivo):</string>
     <string name="simple_done_rate">Avaliar o app</string>
     <string name="simple_done_donate">Apoiar o projeto</string>
     <string name="simple_done_close">Fechar</string>
@@ -272,10 +271,13 @@
     <string name="automation_status_search">Procurando: %s…</string>
     <string name="automation_status_done">Concluído, verificando…</string>
     <string name="automation_status_fail">Avançando…</string>
-    <string name="automation_status_skip">App não instalado — ignorando</string>
+    <string name="automation_status_skip">Configuração indisponível — ignorando</string>
+    <string name="automation_status_unresolved">Não encontrado — ignorando</string>
     <string name="result_title">Concluído! Tudo limpo 🧡</string>
     <string name="result_summary">Concluídos %1$d de %2$d passos</string>
     <string name="result_skipped">Ignorados: %d</string>
+    <string name="result_skipped_launcher">Configuração ausente no launcher: %d</string>
+    <string name="result_skipped_unresolved">Não encontrado automaticamente (verifique manualmente): %d</string>
     <string name="result_failed">Protegidos pelo sistema: %d</string>
     <string name="result_notif_title">Notificações desativadas:</string>
     <string name="result_already_off_title">Já estava desativado (verificado):</string>

@@ -62,7 +62,6 @@
     <string name="simple_done_benefit_spam">✅ Уменьшены уведомления от системных приложений</string>
     <string name="simple_done_benefit_stable">✅ Снижена фоновая нагрузка на систему</string>
     <string name="simple_done_failed_title">Не получилось автоматически:</string>
-    <string name="simple_done_skipped_title">Пропущено (нет на устройстве):</string>
     <string name="simple_done_rate">Оценить приложение</string>
     <string name="simple_done_donate">Поддержать автора</string>
     <string name="simple_done_close">Закрыть</string>
@@ -281,10 +280,13 @@
     <string name="automation_status_search">Ищу пункт: %s…</string>
     <string name="automation_status_done">Готово, проверяю…</string>
     <string name="automation_status_fail">Не получилось, пробую дальше…</string>
-    <string name="automation_status_skip">Приложения нет — пропускаю</string>
+    <string name="automation_status_skip">Настройки нет — пропускаю</string>
+    <string name="automation_status_unresolved">Не нашёл — пропускаю</string>
     <string name="result_title">Готово! Котик доволен 🧡</string>
     <string name="result_summary">Выполнено %1$d из %2$d шагов</string>
     <string name="result_skipped">Пропущено (нет на устройстве): %d</string>
+    <string name="result_skipped_launcher">Настройка отсутствует в лаунчере: %d</string>
+    <string name="result_skipped_unresolved">Не найдено автоматически (проверьте вручную): %d</string>
     <string name="result_failed">Не получилось (защищено системой): %d</string>
     <string name="result_notif_title">Уведомления отключены:</string>
     <string name="result_already_off_title">Уже было выключено (проверено):</string>

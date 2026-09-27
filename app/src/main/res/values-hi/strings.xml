@@ -60,7 +60,6 @@
     <string name="simple_done_benefit_spam">✅ सिस्टम ऐप्स से सूचनाएं कम हुईं</string>
     <string name="simple_done_benefit_stable">✅ सिस्टम लोड कम किया गया</string>
     <string name="simple_done_failed_title">स्वचालित रूप से नहीं हो सका:</string>
-    <string name="simple_done_skipped_title">छोड़ दिया गया (डिवाइस पर नहीं है):</string>
     <string name="simple_done_rate">ऐप रेट करें</string>
     <string name="simple_done_donate">समर्थन करें</string>
     <string name="simple_done_close">बंद करें</string>
@@ -272,10 +271,13 @@
     <string name="automation_status_search">ढूंढ रहे हैं: %s…</string>
     <string name="automation_status_done">हो गया, पुष्टि कर रहे हैं…</string>
     <string name="automation_status_fail">आगे बढ़ रहे हैं…</string>
-    <string name="automation_status_skip">ऐप मौजूद नहीं है — छोड़ रहे हैं</string>
+    <string name="automation_status_skip">सेटिंग मौजूद नहीं — छोड़ रहे हैं</string>
+    <string name="automation_status_unresolved">नहीं मिला — छोड़ रहे हैं</string>
     <string name="result_title">पूर्ण! सब व्यवस्थित है 🧡</string>
     <string name="result_summary">%1$d / %2$d कदम पूर्ण</string>
     <string name="result_skipped">छोड़ा गया: %d</string>
+    <string name="result_skipped_launcher">लॉन्चर में यह सेटिंग नहीं है: %d</string>
+    <string name="result_skipped_unresolved">स्वतः नहीं मिला (मैन्युअल जाँचें): %d</string>
     <string name="result_failed">सिस्टम द्वारा संरक्षित: %d</string>
     <string name="result_notif_title">सूचनाए\u0901 बंद कर दी गईं:</string>
     <string name="result_already_off_title">पहले से बंद (सत्यापित):</string>

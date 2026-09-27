@@ -135,4 +135,25 @@ class SemanticVariantTest {
         assertTrue(SemanticCatalog.variantDrillPath("filemanager").isEmpty())
         assertTrue(SemanticCatalog.fallbackDrillPath("filemanager").isNotEmpty())
     }
+
+    @Test
+    fun `carousel on miui13 turns the carousel off through the lock screen`() {
+        SemanticCatalog.selectVariant(profile(RomFamily.MIUI, "13"))
+
+        assertEquals("miui12_14", SemanticCatalog.selection("carousel")?.variant?.id)
+        val path = SemanticCatalog.variantDrillPath("carousel")
+        assertEquals("Блокировка экрана", path.first().first())
+        assertEquals("Карусель обоев", path.last().first())
+        assertTrue(SemanticCatalog.itemTexts("carousel").contains("Включить"))
+        assertTrue(SemanticCatalog.toggleDeclineTexts("carousel").contains("Нет, спасибо"))
+
+        val preTargets = SemanticCatalog.extraTargetsBeforeMain("carousel")
+        assertEquals(1, preTargets.size)
+        assertEquals("Обновлять через мобильный интернет", preTargets.first().itemTexts.first())
+        assertFalse(preTargets.first().targetChecked)
+        assertTrue(
+            "зависимая строка гасится до главного тумблера",
+            SemanticCatalog.extraTargetsAfterMain("carousel").isEmpty()
+        )
+    }
 }

@@ -60,7 +60,6 @@
     <string name="simple_done_benefit_spam">✅ Notifikasi dari aplikasi sistem berkurang</string>
     <string name="simple_done_benefit_stable">✅ Beban sistem latar belakang berkurang</string>
     <string name="simple_done_failed_title">Tidak dapat diselesaikan otomatis:</string>
-    <string name="simple_done_skipped_title">Dilewati (tidak ada di perangkat):</string>
     <string name="simple_done_rate">Beri nilai aplikasi</string>
     <string name="simple_done_donate">Dukung pengembang</string>
     <string name="simple_done_close">Tutup</string>
@@ -272,10 +271,13 @@
     <string name="automation_status_search">Mencari: %s…</string>
     <string name="automation_status_done">Selesai, memverifikasi…</string>
     <string name="automation_status_fail">Melanjutkan…</string>
-    <string name="automation_status_skip">Aplikasi tidak terpasang — melewati</string>
+    <string name="automation_status_skip">Setelan tidak ada — melewati</string>
+    <string name="automation_status_unresolved">Tidak ditemukan — melewati</string>
     <string name="result_title">Selesai! Sistem rapi 🧡</string>
     <string name="result_summary">%1$d dari %2$d langkah selesai</string>
     <string name="result_skipped">Dilewati: %d</string>
+    <string name="result_skipped_launcher">Setelan tidak ada di peluncur: %d</string>
+    <string name="result_skipped_unresolved">Tidak ditemukan otomatis (periksa manual): %d</string>
     <string name="result_failed">Dilindungi sistem: %d</string>
     <string name="result_notif_title">Notifikasi dimatikan:</string>
     <string name="result_already_off_title">Sudah nonaktif (terverifikasi):</string>
