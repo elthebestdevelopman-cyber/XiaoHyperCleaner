@@ -1129,6 +1129,18 @@
         "pt": ["Uso e diagnóstico"],
         "id": ["Penggunaan & diagnostik"]
       },
+      "drillPath": [
+        ["Использование и диагностика", "Usage & diagnostics", "使用情况与诊断", "Uso y diagnóstico", "Penggunaan & diagnostik", "उपयोग और निदान"]
+      ],
+      "itemTexts": {
+        "ru": ["Использование и диагностика"],
+        "en": ["Usage & diagnostics", "Usage and diagnostics"],
+        "es": ["Uso y diagnóstico"],
+        "zh": ["使用情况与诊断"],
+        "hi": ["उपयोग और निदान"],
+        "pt": ["Uso e diagnóstico"],
+        "id": ["Penggunaan & diagnostik"]
+      },
       "actionType": "toggle",
       "safe": true,
       "localeCoverage": [
@@ -3331,9 +3343,6 @@
         "pt": ["Editar pasta", "Renomear"],
         "id": ["Edit folder", "Ubah nama"]
       },
-      "fallbackDrillPath": [
-        ["Рабочий стол", "Home screen"]
-      ],
       "requiredPackages": [
         "com.miui.home",
         "com.mi.android.globallauncher",

@@ -187,7 +187,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         /** Отсчётный хвост кнопки MIUI: «(9 с)», «(9s)», «(9)» — кнопка ещё неактивна. */
         private val COUNTDOWN_LABEL_REGEX = Regex("\\(\\s*\\d+\\s*(с|s)?\\s*\\)")
-        private const val MSA_REVOKE_SETTLE_MS = 2_500L
+        /** Потолок ожидания фактического отзыва после тапа подтверждения. */
+        private const val MSA_REVOKE_SETTLE_MAX_MS = 8_000L
 
         /** Фолбэк-действие варианта: очистка данных + отклонение приветствия. */
         private const val FALLBACK_ACTION_CLEAR_DATA = "clear_data_decline"
@@ -1386,15 +1387,44 @@ class SimpleRunner(private val service: AdbEnablerService) {
             AppLog.w(TAG, "msa: revoke button not enabled within ${waitMs}ms (step=${step.id})")
             return false
         }
-        AppLog.i(TAG, "msa: revoke tapped, waiting ${MSA_REVOKE_SETTLE_MS}ms for revocation")
+        AppLog.i(TAG, "msa: revoke tapped, waiting up to ${MSA_REVOKE_SETTLE_MAX_MS}ms")
 
-        // Отзыв не всегда происходит моментально — ждём и подтверждаем факт.
-        delay(MSA_REVOKE_SETTLE_MS)
-        val confirmation = service.rootInActiveWindow
-        val confirmText = ComponentVerifier.screenText(confirmation)
-        if (confirmation != null) recycleNode(confirmation)
-        val dialogGone = confirmTexts.none { TextMatcher.normalizedContains(confirmText, it) }
-        val confirmed = dialogGone && verifySwitchState(step, switchTexts)
+        // Отзыв не мгновенный, а тап по отсчётной кнопке MIUI иногда не срабатывает с
+        // первого раза: на чистом устройстве (прогон rmuk1h2al) диалог остался открыт
+        // через 2.5 с (`dialogGone=false`). Опрашиваем диалог, при упорном диалоге
+        // повторяем тап, факт отзыва принимаем по состоянию тумблера ЛИБО по закрытию
+        // диалога на целевом экране — на MIUI 13 состояние sliding_button читается не всегда.
+        var dialogGone = false
+        var retried = false
+        val deadline = System.currentTimeMillis() + MSA_REVOKE_SETTLE_MAX_MS
+        while (!cancelled && System.currentTimeMillis() < deadline) {
+            delay(MSA_CONFIRM_POLL_MS)
+            val confirmation = service.rootInActiveWindow
+            val confirmText = ComponentVerifier.screenText(confirmation)
+            val dialogNode = confirmation?.let { findDialogConfirmButton(it, confirmTexts) }
+            val dialogVisible = confirmTexts.any { TextMatcher.normalizedContains(confirmText, it) }
+            if (!dialogVisible) {
+                dialogGone = true
+                dialogNode?.let { recycleNode(it) }
+                if (confirmation != null) recycleNode(confirmation)
+                break
+            }
+            if (!retried && dialogNode != null && !isCountdownLabel(buttonLabel(dialogNode))) {
+                retried = true
+                AppLog.i(TAG, "msa: диалог не закрылся — повторный тап подтверждения")
+                tapNode(dialogNode)
+            }
+            dialogNode?.let { recycleNode(it) }
+            if (confirmation != null) recycleNode(confirmation)
+        }
+        val switchOk = verifySwitchState(step, switchTexts)
+        val screenRoot = service.rootInActiveWindow
+        val screenText = ComponentVerifier.screenText(screenRoot)
+        if (screenRoot != null) recycleNode(screenRoot)
+        val markers = SemanticCatalog.screenMarkers(step.id)
+        val onTargetScreen = markers.isEmpty() ||
+            markers.any { TextMatcher.normalizedContains(screenText, it) }
+        val confirmed = switchOk || (dialogGone && onTargetScreen)
         if (confirmed) {
             AppLog.i(TAG, "msa: revoke confirmed step=${step.id}")
         } else {
@@ -2814,7 +2844,42 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // ACTION_MAIN+CATEGORY_HOME не вызывает resolver «Главный экран по умолчанию».
         val ok = service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
         delay(500)
+        // MIUI помнит последнюю страницу лаунчера: если это лента виджетов (App Vault),
+        // папок рабочего стола на экране нет — шаг `folder_recommendations` видел
+        // candidates=0 (прогон rmuk1h2al). Уводим на главную страницу: сначала повторным
+        // HOME, при упорной ленте — свайпом влево (лента живёт слева от первой страницы).
+        repeat(2) {
+            if (!isAppVaultVisible()) return ok
+            AppLog.i(TAG, "resetToHome: launcher on App Vault — returning to desktop page")
+            service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
+            delay(500)
+        }
+        if (isAppVaultVisible()) {
+            val dm = service.resources.displayMetrics
+            performGesture(
+                dm.widthPixels * 0.9f, dm.heightPixels * 0.6f,
+                dm.widthPixels * 0.1f, dm.heightPixels * 0.6f,
+                250
+            )
+            delay(500)
+        }
         return ok
+    }
+
+    /**
+     * Лента виджетов (App Vault) на экране: её карточки приходят из
+     * `com.mi.android.globalminusscreen`, хотя окно принадлежит лаунчеру — поэтому
+     * признак ищется по resource-id в дереве, а не по активному пакету.
+     */
+    private fun isAppVaultVisible(): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val nodes = NodeTree.findAllInTree(root, predicate = { node ->
+            node.viewIdResourceName?.contains("globalminusscreen") == true
+        })
+        val found = nodes.isNotEmpty()
+        nodes.forEach { recycleNode(it) }
+        recycleNode(root)
+        return found
     }
 
     private suspend fun swipeUp() {
