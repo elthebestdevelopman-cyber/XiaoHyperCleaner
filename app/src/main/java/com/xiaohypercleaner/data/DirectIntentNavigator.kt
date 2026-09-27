@@ -122,20 +122,19 @@ object DirectIntentNavigator {
             }
 
             "sys_recommendations" -> {
-                // Системные рекомендации. Проба p_sysrec_seccenter (2026-09-26): явная
-                // компонента `com.miui.appmanager.AppManagerSettings` в securitycenter
-                // экспортирована, открывает экран с тумблером «Получать рекомендации»
-                // (verdict OK) — вход уровня 1 без бурения «Приложения → Ещё».
-                // Фолбэк — «Все приложения» системных Настроек (verdict OK); miui
-                // SYSTEM_RECOMMENDATIONS и aosp SYSTEM_RECOMMENDATIONS_SETTINGS —
-                // NO_RESOLVE (убраны).
-                intents.addAll(
-                    listOf(
-                        explicitActivity(
-                            "com.miui.securitycenter",
-                            "com.miui.appmanager.AppManagerSettings"
-                        ),
-                        settingsIntent("android.settings.APPLICATION_SETTINGS")
+                // Системные рекомендации (целевой экран — `AppManagerSettings` с тумблером
+                // «Получать рекомендации»). Перепроверено на чистом устройстве 27.09:
+                // `com.miui.securitycenter/com.miui.appmanager.AppManagerSettings` НЕ
+                // экспортирована (`not exported from uid 1000`) — проба p_sysrec_seccenter
+                // подтверждала её только для shell-актора; из приложения старт запрещён, и шаг
+                // застревал на чужом экране (прогоны rmuk1h2al / rmuk259a0).
+                // Проверенный короткий вход: `AppManagerMainActivity` («Приложения») —
+                // стартует интентом → ⋮ (`id=more`, desc «Еще») → «Настройки» → целевой экран.
+                // Тапы заданы маршрутом в adaptive-каталоге, здесь только точка входа.
+                intents.add(
+                    explicitActivity(
+                        "com.miui.securitycenter",
+                        "com.miui.appmanager.AppManagerMainActivity"
                     )
                 )
             }
