@@ -2584,9 +2584,13 @@
             ["Информация", "О программе", "Info", "About"]
           ],
           "screenMarkers": {
-            "ru": ["Информация", "Настройки"],
-            "en": ["Info", "Settings"],
-            "zh": ["信息"]
+            "ru": ["Получать рекомендации", "Отзыв согласия"],
+            "en": ["Receive recommendations", "Consent revocation"],
+            "zh": ["接收推荐", "撤回同意"],
+            "es": ["Recibir recomendaciones", "Revocación del consentimiento"],
+            "hi": ["सुझाव प्राप्त करें", "सहमति वापस लें"],
+            "pt": ["Receber recomendações", "Revogação de consentimento"],
+            "id": ["Terima rekomendasi", "Pencabutan persetujuan"]
           },
           "itemTexts": {
             "ru": ["Получать рекомендации"],
@@ -2717,7 +2721,7 @@
         "pt": ["Concordo", "Aceitar", "Continuar", "Aceitar e continuar"],
         "id": ["Setuju", "Terima", "Lanjutkan", "Terima dan lanjutkan"]
       },
-      "launchPackage": "com.mi.android.fileexplorer"
+      "launchPackage": "com.mi.android.globalFileexplorer"
     },
     {
       "id": "appvault_services",

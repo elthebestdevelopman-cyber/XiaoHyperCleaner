@@ -709,12 +709,21 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Re-anchor в корень Настроек — только если мы вне Настроек И целевых строк нет
         // вовсе. App-шаги (launchPackage != null) в корень не возвращаются никогда.
         if (step.launchPackage == null && mergedDrillPath.isNotEmpty() && !onTargetScreen(step)) {
+            // Интент мог открыть ЦЕЛЕВОЕ приложение шага (sys_recommendations:
+            // AppManagerMainActivity в SecurityCenter). Возврат в корень Настроек в этом
+            // случае уничтожал уже открытый маршрут: шаг уходил в основные Настройки и
+            // ничего там не находил (прогон rmuk2wjx2, шаг 2 — «интент сработал, робот
+            // ушёл в Настройки»). Признак «мы в приложении интента» — пакет текущего
+            // окна равен пакету первого явного интента шага.
+            val intendedPkg = intents.firstOrNull { it.component != null }?.component?.packageName
+            val inIntendedApp = intendedPkg != null && activePackage() == intendedPkg
             val inSettings = activePackage() == SETTINGS_PACKAGE || isSettingsRoot()
             val targetRows = verifyTexts + SemanticCatalog.screenMarkers(step.id)
-            if (inSettings || screenHasAny(targetRows)) {
+            if (inSettings || inIntendedApp || screenHasAny(targetRows)) {
                 AppLog.i(
                     TAG,
-                    "intent unconfirmed — continuing drill from current screen (${step.id})"
+                    "intent unconfirmed — continuing drill from current screen (${step.id})" +
+                        if (inIntendedApp) " [entry app $intendedPkg]" else ""
                 )
             } else {
                 AppLog.i(
