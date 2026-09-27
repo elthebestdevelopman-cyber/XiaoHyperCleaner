@@ -2957,7 +2957,19 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 }
                 matches && clickableAncestorOrSelf(node) != null
             })
-            val node = nodes.firstOrNull()
+            val node = nodes.firstOrNull { n ->
+                // Точное совпадение приоритетнее вхождения: «Настройки» не должно
+                // матчить «Сбросить настройки приложений» (иначе маршрут жмёт соседний
+                // пункт меню — прогон rmuk3w8a5, шаг sys_recommendations).
+                val label = when {
+                    text != null -> n.text?.toString()
+                    desc != null -> n.contentDescription?.toString()
+                    else -> null
+                }.orEmpty()
+                val query = text ?: desc ?: id ?: ""
+                TextMatcher.normalizedContains(label, query) &&
+                    TextMatcher.normalizedContains(query, label)
+            } ?: nodes.firstOrNull()
             if (node != null) {
                 nodes.forEach { if (it !== node) recycleNode(it) }
                 val target = clickableAncestorOrSelf(node) ?: node
