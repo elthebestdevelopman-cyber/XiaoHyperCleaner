@@ -8,6 +8,7 @@ import com.xiaohypercleaner.AppConstants
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.ChainFlags
 import com.xiaohypercleaner.service.OverlayController
+import com.xiaohypercleaner.service.SimpleRunner
 import com.xiaohypercleaner.util.AppLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

@@ -50,32 +50,8 @@
     <string name="level_confirm_start">Start</string>
 
     <!-- ========== SIMPLE MODE: STEPS ========== -->
-    <string name="simple_step_of">Step %1$d of %2$d</string>
-    <string name="simple_step_start">Start</string>
-    <string name="simple_step_working">Working…</string>
-    <string name="simple_step_attempt">Attempt %1$d of %2$d</string>
-    <string name="simple_step_auto_next">Done — moving on…</string>
-    <string name="simple_step_failed">Could not complete automatically</string>
-    <string name="simple_step_next">Next</string>
-    <string name="simple_step_skip">Skip step</string>
-    <string name="simple_step_retry">Retry</string>
 
     <!-- ========== SIMPLE MODE: FINAL ========== -->
-    <string name="simple_done_title">All done!</string>
-    <string name="simple_done_text">Privacy settings applied. No reboot required.</string>
-    <plurals name="simple_done_steps_done">
-        <item quantity="one">Completed %1$d of %2$d step</item>
-        <item quantity="other">Completed %1$d of %2$d steps</item>
-    </plurals>
-    <string name="simple_done_benefits">What changed:</string>
-    <string name="simple_done_benefit_ads">✅ Privacy settings applied for telemetry services</string>
-    <string name="simple_done_benefit_telemetry">✅ Reduced telemetry data collection</string>
-    <string name="simple_done_benefit_spam">✅ Reduced notifications from system apps</string>
-    <string name="simple_done_benefit_stable">✅ Reduced background system load</string>
-    <string name="simple_done_failed_title">Couldn\'t complete automatically:</string>
-    <string name="simple_done_rate">Rate the app</string>
-    <string name="simple_done_donate">Support the author</string>
-    <string name="simple_done_close">Close</string>
 
     <!-- ========== SHIZUKU DIALOGS ========== -->
     <string name="shizuku_dialog_title">Advanced mode requires Shizuku</string>
@@ -116,8 +92,6 @@
 
     <!-- ========== ACCESSIBILITY ========== -->
     <string name="accessibility_explanation_text">The Accessibility service helps users with limited mobility automatically navigate system settings screens: it taps the required switches for the user. Used only to navigate system screens at your request. No data is collected or sent to servers.</string>
-    <string name="hint_accessibility">Enable "XiaoHyperCleaner" in the services list</string>
-    <string name="hint_overlay">Allow display over other apps</string>
 
     <!-- ========== OVERLAY ========== -->
     <string name="overlay_permission_title">"Display over other apps" permission</string>
@@ -213,20 +187,15 @@
     <string name="shizuku_sources_apkpure">APKPure</string>
 
     <!-- ========== POINTER HINTS (arrows to elements) ========== -->
-    <string name="pointer_overlay_switch">Turn on this switch</string>
-    <string name="pointer_accessibility_item">Find "XiaoHyperCleaner" in the list and turn on the switch</string>
     <string name="pointer_restricted_blocked">Can\'t enable the service?</string>
     <string name="pointer_restricted_explain">The system temporarily restricted access. Tap ⋮ in the app card and allow access — it takes 10 seconds.</string>
 
     <!-- ========== LOCATION CLARIFICATION ========== -->
-    <string name="pointer_restricted_generic">Find "Allow restricted settings" — usually in the ⋮ menu at the top or at the bottom of this screen</string>
     <string name="pointer_restricted_not_found_title">Can\'t find the item?</string>
     <string name="pointer_restricted_location_question">Where is the restricted settings permission on your device?</string>
     <string name="pointer_restricted_menu_option">In the ⋮ menu (top-right corner)</string>
     <string name="pointer_restricted_bottom_option">At the bottom of the settings list</string>
     <string name="pointer_restricted_absent_option">No such item</string>
-    <string name="pointer_restricted_top_hint">Tap ⋮ and select "Allow restricted settings"</string>
-    <string name="pointer_restricted_bottom_hint">Scroll down and enable "Allow restricted settings"</string>
 
     <!-- ========== ACCESSIBILITY POLICY DECLARATION ========== -->
     <string name="accessibility_policy_summary">Automates system settings navigation for users with limited mobility</string>
@@ -253,16 +222,8 @@
     <string name="fallback_appinfo_text">After 3 attempts we couldn\'t access the app settings. Open them manually via Settings → Apps → XiaoHyperCleaner and allow "Restricted settings".</string>
 
     <!-- ========== HINT CARDS FOR POINTERS ========== -->
-    <string name="pointer_hint_accessibility">Find "XiaoHyperCleaner" in the services list and turn on the switch on the right</string>
-    <string name="pointer_hint_overlay">Turn on this switch to allow displaying hints</string>
-    <string name="hint_restricted">Find the "Allow restricted settings" switch on this screen. If not found, tap ⋮ in the top-right corner</string>
 
     <!-- ========== RESTRICTED SETTINGS SCREEN ========== -->
-    <string name="restricted_screen_title">Unlock system settings</string>
-    <string name="restricted_screen_intro">To configure privacy settings, you need to allow changing restricted settings. This is an Android 13+ system requirement for apps installed outside Google Play.</string>
-    <string name="restricted_screen_step1">Open "Settings" → "Apps" → find "XiaoHyperCleaner"</string>
-    <string name="restricted_screen_step2">Find the "Allow restricted settings" (or "Forbidden settings" in HyperOS) switch and turn it on</string>
-    <string name="restricted_screen_step3">Confirm with your fingerprint or password</string>
     <string name="restricted_screen_open">Open app settings</string>
     <string name="restricted_screen_done">I allowed it, continue</string>
 
@@ -281,8 +242,6 @@
     <string name="battery_dialog_title">Battery optimization</string>
     <string name="battery_dialog_text">To ensure stable automation and prevent the system from stopping the service:\n\n1. In the window that opens, select "XiaoHyperCleaner" (or confirm the system prompt).\n2. Select "No restrictions" (or "Don\'t optimize").\n3. Tap Back to continue optimization.</string>
     <string name="battery_dialog_open">Open battery settings</string>
-    <string name="battery_dialog_skip">Skip</string>
-    <string name="hint_battery_optimization">Select "No restrictions" or "Don\'t optimize"</string>
 
     <!-- ========== AUTOMATION (robo-cat) ========== -->
     <string name="automation_title">Robo-cat is cleaning up…</string>

@@ -1,5 +1,7 @@
 package com.xiaohypercleaner.service
 
+import org.junit.Assert.assertEquals
+
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.view.accessibility.AccessibilityNodeInfo
@@ -181,5 +183,32 @@ class SimpleRunnerApplicabilityTest {
                 resolvedPkg = "com.android.thememanager"
             )
         )
+    }
+
+    @Test
+    fun `skip kinds separate device absence from automation miss`() {
+        // Ведро причины решает текст отчёта: «нет на устройстве», «нет в лаунчере» или
+        // «робот не нашёл». Смешивать их нельзя — отчёт врал бы (прогон rmuk44un7).
+        assertEquals(
+            SimpleRunner.SkipKind.NOT_ON_DEVICE,
+            SimpleRunner.classifySkip("app_not_installed")
+        )
+        assertEquals(
+            SimpleRunner.SkipKind.NOT_ON_DEVICE,
+            SimpleRunner.classifySkip(SimpleRunner.NOT_APPLICABLE)
+        )
+        assertEquals(
+            SimpleRunner.SkipKind.LAUNCHER_ABSENT,
+            SimpleRunner.classifySkip(SimpleRunner.LAUNCHER_ABSENT)
+        )
+        assertEquals(
+            SimpleRunner.SkipKind.UNRESOLVED,
+            SimpleRunner.classifySkip("low_confidence")
+        )
+        assertEquals(
+            SimpleRunner.SkipKind.UNRESOLVED,
+            SimpleRunner.classifySkip("folder_switch_absent")
+        )
+        assertEquals(SimpleRunner.SkipKind.UNRESOLVED, SimpleRunner.classifySkip(null))
     }
 }

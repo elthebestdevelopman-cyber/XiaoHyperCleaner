@@ -37,32 +37,8 @@
     <string name="level_confirm_start">शुरू करें</string>
 
     <!-- ========== SIMPLE MODE: STEPS ========== -->
-    <string name="simple_step_of">कदम %1$d / %2$d</string>
-    <string name="simple_step_start">शुरू करें</string>
-    <string name="simple_step_working">प्रक्रिया जारी है…</string>
-    <string name="simple_step_attempt">प्रयास %1$d / %2$d</string>
-    <string name="simple_step_auto_next">हो गया — आगे बढ़ रहे हैं…</string>
-    <string name="simple_step_failed">स्वचालित रूप से पूर्ण नहीं हो सका</string>
-    <string name="simple_step_next">आगे</string>
-    <string name="simple_step_skip">कदम छोड़ें</string>
-    <string name="simple_step_retry">पुनः प्रयास करें</string>
 
     <!-- ========== SIMPLE MODE: FINAL ========== -->
-    <string name="simple_done_title">सब तैयार है!</string>
-    <string name="simple_done_text">गोपनीयता सेटिंग्स लागू कर दी गई हैं। पुनरारंभ की आवश्यकता नहीं है।</string>
-    <plurals name="simple_done_steps_done">
-        <item quantity="one">%1$d / %2$d कदम पूर्ण</item>
-        <item quantity="other">%1$d / %2$d कदम पूर्ण</item>
-    </plurals>
-    <string name="simple_done_benefits">क्या बदला:</string>
-    <string name="simple_done_benefit_ads">✅ टेलीमेट्री सेवाओं के लिए गोपनीयता सेटिंग्स लागू</string>
-    <string name="simple_done_benefit_telemetry">✅ अनावश्यक पृष्ठभूमि डेटा संग्रह में कमी</string>
-    <string name="simple_done_benefit_spam">✅ सिस्टम ऐप्स से सूचनाएं कम हुईं</string>
-    <string name="simple_done_benefit_stable">✅ सिस्टम लोड कम किया गया</string>
-    <string name="simple_done_failed_title">स्वचालित रूप से नहीं हो सका:</string>
-    <string name="simple_done_rate">ऐप रेट करें</string>
-    <string name="simple_done_donate">समर्थन करें</string>
-    <string name="simple_done_close">बंद करें</string>
 
     <!-- ========== SHIZUKU DIALOGS ========== -->
     <string name="shizuku_dialog_title">उन्नत मोड के लिए Shizuku आवश्यक है</string>
@@ -102,8 +78,6 @@
 
     <!-- ========== ACCESSIBILITY ========== -->
     <string name="accessibility_explanation_text">एक्सेसिबिलिटी सेवा सीमित गतिशीलता वाले उपयोगकर्ताओं को सिस्टम सेटिंग्स स्क्रीन को स्वचालित रूप से नेविगेट करने में मदद करती है: यह उपयोगकर्ता के लिए आवश्यक स्विच को टैप करती है। कोई डेटा एकत्र या भेजा नहीं जाता है।</string>
-    <string name="hint_accessibility">सेवा सूची में "XiaoHyperCleaner" चालू करें</string>
-    <string name="hint_overlay">अन्य ऐप्स के ऊपर प्रदर्शित करने की अनुमति दें</string>
 
     <!-- ========== OVERLAY ========== -->
     <string name="overlay_permission_title">"अन्य ऐप्स के ऊपर दिखाएं" अनुमति</string>
@@ -198,18 +172,13 @@
     <string name="shizuku_sources_apkpure">APKPure</string>
 
     <!-- ========== POINTER HINTS ========== -->
-    <string name="pointer_overlay_switch">यह स्विच चालू करें</string>
-    <string name="pointer_accessibility_item">सूची में "XiaoHyperCleaner" ढूंढें और चालू करें</string>
     <string name="pointer_restricted_blocked">सेवा चालू नहीं कर पा रहे?</string>
     <string name="pointer_restricted_explain">सिस्टम ने अस्थायी रूप से पहुंच प्रतिबंधित कर दी है। ⋮ टैप करें और अनुमति दें।</string>
-    <string name="pointer_restricted_generic">"प्रतिबंधित सेटिंग्स की अनुमति दें" ढूंढें</string>
     <string name="pointer_restricted_not_found_title">विकल्प नहीं मिला?</string>
     <string name="pointer_restricted_location_question">आपके डिवाइस पर यह विकल्प कहां है?</string>
     <string name="pointer_restricted_menu_option">ऊपर दाएं कोने में ⋮ मेनू में</string>
     <string name="pointer_restricted_bottom_option">सूची के नीचे</string>
     <string name="pointer_restricted_absent_option">ऐसा कोई विकल्प नहीं है</string>
-    <string name="pointer_restricted_top_hint">⋮ टैप करें और "प्रतिबंधित सेटिंग्स की अनुमति दें" चुनें</string>
-    <string name="pointer_restricted_bottom_hint">नीचे स्क्रॉल करें और अनुमति दें</string>
 
     <!-- ========== ACCESSIBILITY POLICY ========== -->
     <string name="accessibility_policy_summary">सीमित गतिशीलता वाले उपयोगकर्ताओं के लिए सेटिंग्स नेविगेशन स्वचालन</string>
@@ -233,16 +202,8 @@
     <string name="fallback_appinfo_title">ऐप सेटिंग्स नहीं खोली जा सकीं</string>
     <string name="fallback_appinfo_text">सेटिंग्स → ऐप्स → XiaoHyperCleaner से मैन्युअल रूप से खोलें।</string>
 
-    <string name="pointer_hint_accessibility">सेवा सूची में "XiaoHyperCleaner" ढूंढें और चालू करें</string>
-    <string name="pointer_hint_overlay">संकेत प्रदर्शित करने के लिए यह स्विच चालू करें</string>
-    <string name="hint_restricted">इस स्क्रीन पर अनुमति स्विच ढूंढें</string>
 
     <!-- ========== RESTRICTED SETTINGS SCREEN ========== -->
-    <string name="restricted_screen_title">सिस्टम सेटिंग्स अनलॉक करें</string>
-    <string name="restricted_screen_intro">गोपनीयता सेटिंग्स कॉन्फ़िगर करने के लिए प्रतिबंधित सेटिंग्स की अनुमति दें।</string>
-    <string name="restricted_screen_step1">"सेटिंग्स" → "ऐप्स" → "XiaoHyperCleaner" खोलें</string>
-    <string name="restricted_screen_step2">"प्रतिबंधित सेटिंग्स की अनुमति दें" स्विच ढूंढें और चालू करें</string>
-    <string name="restricted_screen_step3">फ़िंगरप्रिंट या पासवर्ड से पुष्टि करें</string>
     <string name="restricted_screen_open">ऐप सेटिंग्स खोलें</string>
     <string name="restricted_screen_done">मैंने अनुमति दी, जारी रखें</string>
 
@@ -261,8 +222,6 @@
     <string name="battery_dialog_title">बैटरी अनुकूलन</string>
     <string name="battery_dialog_text">ऑटोमेशन के स्थिर संचालन और सिस्टम द्वारा इसे बंद होने से रोकने के लिए:\n\n1. खुलने वाली विंडो में "XiaoHyperCleaner" चुनें (या सिस्टम प्रॉम्प्ट की पुष्टि करें)।\n2. "कोई प्रतिबंध नहीं" (या "अनुकूलित न करें") विकल्प चुनें।\n3. प्रक्रिया जारी रखने के लिए बैक बटन दबाएं।</string>
     <string name="battery_dialog_open">बैटरी सेटिंग्स खोलें</string>
-    <string name="battery_dialog_skip">छोड़ें</string>
-    <string name="hint_battery_optimization">"कोई प्रतिबंध नहीं" चुनें</string>
 
     <!-- ========== AUTOMATION ========== -->
     <string name="automation_title">रोबो-कैट सिस्टम व्यवस्थित कर रहा है…</string>

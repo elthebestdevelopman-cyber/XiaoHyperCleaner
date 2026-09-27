@@ -241,16 +241,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
         internal const val LAUNCHER_ABSENT = "launcher_setting_absent"
 
         /**
-         * Ведро причины пропуска: от него зависит текст отчёта. Смешивать «настройки нет
-         * на устройстве», «её нет в лаунчере» и «робот не нашёл» нельзя — отчёт врал бы.
+         * Ведро причины пропуска шага. Статический помощник: его зовёт AdbEnablerService
+         * при выборе текста отчёта, экземпляр раннера для этого не нужен.
          */
-        enum class SkipKind { NOT_ON_DEVICE, LAUNCHER_ABSENT, UNRESOLVED }
-
         internal fun classifySkip(reason: String?): SkipKind = when (reason) {
             LAUNCHER_ABSENT -> SkipKind.LAUNCHER_ABSENT
             "app_not_installed", NOT_APPLICABLE -> SkipKind.NOT_ON_DEVICE
             else -> SkipKind.UNRESOLVED
         }
+
 
         /** Поллинг проверки входного экрана (notif_*: подпись приложения). */
         private const val ENTRY_POLL_MS = 200L
@@ -1702,6 +1701,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val targets = searchTextsFor(step) + SemanticCatalog.itemTexts(step.id)
         return targets.isNotEmpty() && !screenHasAny(targets)
     }
+
+    /**
+     * Ведро причины пропуска: от него зависит текст отчёта. Смешивать «настройки нет
+     * на устройстве», «её нет в лаунчере» и «робот не нашёл» нельзя — отчёт врал бы.
+     */
+    enum class SkipKind { NOT_ON_DEVICE, LAUNCHER_ABSENT, UNRESOLVED }
 
     /** Шаг настраивает лаунчер: его строки живут в настройках рабочего стола. */
     private fun isLauncherSettingsStep(step: SimpleSteps.Step): Boolean =

@@ -60,31 +60,8 @@
     <string name="level_confirm_start">开始</string>
 
     <!-- ========== 简单模式：步骤 ========== -->
-    <string name="simple_step_of">第 %1$d 步，共 %2$d 步</string>
-    <string name="simple_step_start">开始</string>
-    <string name="simple_step_working">正在执行…</string>
-    <string name="simple_step_attempt">第 %1$d 次尝试，共 %2$d 次</string>
-    <string name="simple_step_auto_next">完成 — 继续下一步…</string>
-    <string name="simple_step_failed">无法自动完成</string>
-    <string name="simple_step_next">下一步</string>
-    <string name="simple_step_skip">跳过此步</string>
-    <string name="simple_step_retry">重试</string>
 
     <!-- ========== 简单模式：完成 ========== -->
-    <string name="simple_done_title">全部完成！</string>
-    <string name="simple_done_text">隐私设置已应用。无需重启。</string>
-    <plurals name="simple_done_steps_done">
-        <item quantity="other">已完成 %1$d / %2$d 步</item>
-    </plurals>
-    <string name="simple_done_benefits">已更改：</string>
-    <string name="simple_done_benefit_ads">✅ 已应用遥测服务的隐私设置</string>
-    <string name="simple_done_benefit_telemetry">✅ 已减少遥测数据收集</string>
-    <string name="simple_done_benefit_spam">✅ 已减少系统应用通知</string>
-    <string name="simple_done_benefit_stable">✅ 已减少系统后台负载</string>
-    <string name="simple_done_failed_title">无法自动完成：</string>
-    <string name="simple_done_rate">评价应用</string>
-    <string name="simple_done_donate">支持作者</string>
-    <string name="simple_done_close">关闭</string>
 
     <!-- ========== SHIZUKU 对话框 ========== -->
     <string name="shizuku_dialog_title">高级模式需要 Shizuku</string>
@@ -125,8 +102,6 @@
 
     <!-- ========== 无障碍服务 ========== -->
     <string name="accessibility_explanation_text">应用需要无障碍服务权限以自动点击设置中的按钮。该权限仅用于导航系统界面，绝不会对外传输。不会收集或向服务器发送任何数据。</string>
-    <string name="hint_accessibility">在服务列表中启用"XiaoHyperCleaner"</string>
-    <string name="hint_overlay">允许在其他应用上层显示</string>
 
     <!-- ========== 悬浮窗 ========== -->
     <string name="overlay_permission_title">"悬浮窗"权限</string>
@@ -222,20 +197,15 @@
     <string name="shizuku_sources_apkpure">APKPure</string>
 
     <!-- ========== 箭头提示 ========== -->
-    <string name="pointer_overlay_switch">打开此开关</string>
-    <string name="pointer_accessibility_item">在列表中找到"XiaoHyperCleaner"并打开开关</string>
     <string name="pointer_restricted_blocked">无法启用服务？</string>
     <string name="pointer_restricted_explain">系统暂时限制了访问。点击应用卡片中的 ⋮ 并允许访问 — 只需 10 秒。</string>
 
     <!-- ========== 位置澄清 ========== -->
-    <string name="pointer_restricted_generic">找到"允许受限设置" — 通常在顶部 ⋮ 菜单或此界面底部</string>
     <string name="pointer_restricted_not_found_title">找不到该项目？</string>
     <string name="pointer_restricted_location_question">您的设备上受限设置权限在哪里？</string>
     <string name="pointer_restricted_menu_option">在 ⋮ 菜单中（右上角）</string>
     <string name="pointer_restricted_bottom_option">在设置列表底部</string>
     <string name="pointer_restricted_absent_option">没有此项目</string>
-    <string name="pointer_restricted_top_hint">点击 ⋮ 并选择"允许受限设置"</string>
-    <string name="pointer_restricted_bottom_hint">向下滚动并启用"允许受限设置"</string>
 
     <!-- ========== 无障碍政策声明 ========== -->
     <string name="accessibility_policy_summary">为行动不便的用户自动化设置导航以节省时间</string>
@@ -262,16 +232,8 @@
     <string name="fallback_appinfo_text">经过 3 次尝试我们无法访问应用设置。请通过 设置 → 应用 → XiaoHyperCleaner 手动打开，并允许"受限设置"。</string>
 
     <!-- ========== 箭头提示卡片 ========== -->
-    <string name="pointer_hint_accessibility">在服务列表中找到"XiaoHyperCleaner"并打开右侧的开关</string>
-    <string name="pointer_hint_overlay">打开此开关以允许显示提示</string>
-    <string name="hint_restricted">在此界面找到"允许受限设置"开关。如果找不到，请点击右上角的 ⋮</string>
 
     <!-- ========== 受限设置界面 ========== -->
-    <string name="restricted_screen_title">解锁系统设置</string>
-    <string name="restricted_screen_intro">要配置隐私设置，您需要允许更改受限设置。这是 Android 13+ 对非 Google Play 安装的应用的系统要求。</string>
-    <string name="restricted_screen_step1">打开"设置" → "应用" → 找到"XiaoHyperCleaner"</string>
-    <string name="restricted_screen_step2">找到"允许受限设置"（或在 HyperOS 中为"禁止的设置"）开关并打开</string>
-    <string name="restricted_screen_step3">使用指纹或密码确认</string>
     <string name="restricted_screen_open">打开应用设置</string>
     <string name="restricted_screen_done">我已允许，继续</string>
 
@@ -290,8 +252,6 @@
     <string name="battery_dialog_title">电池优化</string>
     <string name="battery_dialog_text">为了自动化稳定运行并防止系统在后台停止服务：\n\n1. 在打开的窗口中找到 "XiaoHyperCleaner"（或确认系统弹窗）。\n2. 选择 "无限制"（或 "不优化"）。\n3. 点击返回键继续优化流程。</string>
     <string name="battery_dialog_open">打开电池设置</string>
-    <string name="battery_dialog_skip">跳过</string>
-    <string name="hint_battery_optimization">选择"无限制"或"不优化"</string>
 
     <!-- ========== 自动化（机器猫） ========== -->
     <string name="automation_title">机器猫正在清理…</string>

@@ -37,32 +37,8 @@
     <string name="level_confirm_start">Iniciar</string>
 
     <!-- ========== SIMPLE MODE: STEPS ========== -->
-    <string name="simple_step_of">Passo %1$d de %2$d</string>
-    <string name="simple_step_start">Iniciar</string>
-    <string name="simple_step_working">Em execução…</string>
-    <string name="simple_step_attempt">Tentativa %1$d de %2$d</string>
-    <string name="simple_step_auto_next">Concluído — avançando…</string>
-    <string name="simple_step_failed">Não foi possível concluir automaticamente</string>
-    <string name="simple_step_next">Avançar</string>
-    <string name="simple_step_skip">Pular passo</string>
-    <string name="simple_step_retry">Tentar novamente</string>
 
     <!-- ========== SIMPLE MODE: FINAL ========== -->
-    <string name="simple_done_title">Tudo pronto!</string>
-    <string name="simple_done_text">Ajustes de privacidade aplicados. Nenhuma reinicialização necessária.</string>
-    <plurals name="simple_done_steps_done">
-        <item quantity="one">Concluído %1$d de %2$d passo</item>
-        <item quantity="other">Concluídos %1$d de %2$d passos</item>
-    </plurals>
-    <string name="simple_done_benefits">O que mudou:</string>
-    <string name="simple_done_benefit_ads">✅ Ajustes de privacidade aplicados para serviços de telemetria</string>
-    <string name="simple_done_benefit_telemetry">✅ Coleta de estatísticas de uso em segundo plano reduzida</string>
-    <string name="simple_done_benefit_spam">✅ Redução de notificações de aplicativos do sistema</string>
-    <string name="simple_done_benefit_stable">✅ Redução do consumo de recursos do sistema</string>
-    <string name="simple_done_failed_title">Não foi possível automaticamente:</string>
-    <string name="simple_done_rate">Avaliar o app</string>
-    <string name="simple_done_donate">Apoiar o projeto</string>
-    <string name="simple_done_close">Fechar</string>
 
     <!-- ========== SHIZUKU DIALOGS ========== -->
     <string name="shizuku_dialog_title">O modo avançado requer o Shizuku</string>
@@ -102,8 +78,6 @@
 
     <!-- ========== ACCESSIBILITY ========== -->
     <string name="accessibility_explanation_text">O serviço de acessibilidade ajuda usuários com mobilidade reduzida a navegar automaticamente pelas telas de configurações do sistema: ele toca nos interruptores necessários pelo usuário. Nenhum dado é coletado ou transmitido para servidores.</string>
-    <string name="hint_accessibility">Ative "XiaoHyperCleaner" na lista de serviços</string>
-    <string name="hint_overlay">Permitir exibição sobre outros aplicativos</string>
 
     <!-- ========== OVERLAY ========== -->
     <string name="overlay_permission_title">Permissão "Exibir sobre outros apps"</string>
@@ -198,18 +172,13 @@
     <string name="shizuku_sources_apkpure">APKPure</string>
 
     <!-- ========== POINTER HINTS ========== -->
-    <string name="pointer_overlay_switch">Ative este interruptor</string>
-    <string name="pointer_accessibility_item">Encontre "XiaoHyperCleaner" na lista e ative</string>
     <string name="pointer_restricted_blocked">Não consegue ativar o serviço?</string>
     <string name="pointer_restricted_explain">O sistema restringiu o acesso temporariamente. Toque em ⋮ e permita o acesso.</string>
-    <string name="pointer_restricted_generic">Procure "Permitir configurações restritas"</string>
     <string name="pointer_restricted_not_found_title">Não encontrou o item?</string>
     <string name="pointer_restricted_location_question">Onde fica a opção de configurações restritas no seu aparelho?</string>
     <string name="pointer_restricted_menu_option">No menu ⋮ no canto superior direito</string>
     <string name="pointer_restricted_bottom_option">No final da lista de configurações</string>
     <string name="pointer_restricted_absent_option">Não existe essa opção</string>
-    <string name="pointer_restricted_top_hint">Toque em ⋮ e selecione "Permitir configurações restritas"</string>
-    <string name="pointer_restricted_bottom_hint">Role para baixo e ative "Permitir configurações restritas"</string>
 
     <!-- ========== ACCESSIBILITY POLICY ========== -->
     <string name="accessibility_policy_summary">Automação de navegação em configurações para usuários com mobilidade reduzida</string>
@@ -233,16 +202,8 @@
     <string name="fallback_appinfo_title">Não foi possível abrir as configurações do app</string>
     <string name="fallback_appinfo_text">Abra manualmente por Configurações → Aplicativos → XiaoHyperCleaner.</string>
 
-    <string name="pointer_hint_accessibility">Encontre "XiaoHyperCleaner" na lista e ative o interruptor</string>
-    <string name="pointer_hint_overlay">Ative este interruptor para permitir exibir dicas visuais</string>
-    <string name="hint_restricted">Encontre o interruptor de permissão nesta tela</string>
 
     <!-- ========== RESTRICTED SETTINGS SCREEN ========== -->
-    <string name="restricted_screen_title">Desbloquear configurações do sistema</string>
-    <string name="restricted_screen_intro">Para configurar as opções de privacidade, você deve permitir configurações restritas.</string>
-    <string name="restricted_screen_step1">Abra "Configurações" → "Apps" → "XiaoHyperCleaner"</string>
-    <string name="restricted_screen_step2">Encontre "Permitir configurações restritas" e ative</string>
-    <string name="restricted_screen_step3">Confirme com sua digital ou senha</string>
     <string name="restricted_screen_open">Abrir configurações do app</string>
     <string name="restricted_screen_done">Já permiti, continuar</string>
 
@@ -261,8 +222,6 @@
     <string name="battery_dialog_title">Otimização de bateria</string>
     <string name="battery_dialog_text">Para garantir a execução contínua da automação e evitar que o sistema encerre o serviço:\n\n1. Na janela aberta, localize "XiaoHyperCleaner" (ou confirme o aviso do sistema).\n2. Selecione a opção "Sem restrições" (ou "Não otimizar").\n3. Toque em Voltar para continuar a otimização.</string>
     <string name="battery_dialog_open">Abrir configurações de bateria</string>
-    <string name="battery_dialog_skip">Pular</string>
-    <string name="hint_battery_optimization">Selecione "Sem restrições" ou "Não otimizar"</string>
 
     <!-- ========== AUTOMATION ========== -->
     <string name="automation_title">O Robô-Gato está organizando o sistema…</string>

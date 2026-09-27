@@ -37,34 +37,8 @@
     <string name="level_confirm_start">Начать</string>
 
     <!-- ========== ПРОСТОЙ РЕЖИМ: ШАГИ ========== -->
-    <string name="simple_step_of">Шаг %1$d из %2$d</string>
-    <string name="simple_step_start">Начать</string>
-    <string name="simple_step_working">Выполняется…</string>
-    <string name="simple_step_attempt">Попытка %1$d из %2$d</string>
-    <string name="simple_step_auto_next">Готово — переходим дальше…</string>
-    <string name="simple_step_failed">Не получилось сделать автоматически</string>
-    <string name="simple_step_next">Далее</string>
-    <string name="simple_step_skip">Пропустить шаг</string>
-    <string name="simple_step_retry">Повторить попытку</string>
 
     <!-- ========== ПРОСТОЙ РЕЖИМ: ФИНАЛ ========== -->
-    <string name="simple_done_title">Всё готово!</string>
-    <string name="simple_done_text">Настройки приватности применены. Перезагрузка не требуется.</string>
-    <plurals name="simple_done_steps_done">
-        <item quantity="one">Выполнен %1$d из %2$d шаг</item>
-        <item quantity="few">Выполнено %1$d из %2$d шага</item>
-        <item quantity="many">Выполнено %1$d из %2$d шагов</item>
-        <item quantity="other">Выполнено %1$d из %2$d шагов</item>
-    </plurals>
-    <string name="simple_done_benefits">Что изменилось:</string>
-    <string name="simple_done_benefit_ads">✅ Применены настройки приватности для сервисов сбора статистики</string>
-    <string name="simple_done_benefit_telemetry">✅ Снижен объём передаваемой статистики</string>
-    <string name="simple_done_benefit_spam">✅ Уменьшены уведомления от системных приложений</string>
-    <string name="simple_done_benefit_stable">✅ Снижена фоновая нагрузка на систему</string>
-    <string name="simple_done_failed_title">Не получилось автоматически:</string>
-    <string name="simple_done_rate">Оценить приложение</string>
-    <string name="simple_done_donate">Поддержать автора</string>
-    <string name="simple_done_close">Закрыть</string>
 
     <!-- ========== SHIZUKU ДИАЛОГИ ========== -->
     <string name="shizuku_dialog_title">Для продвинутого режима нужен Shizuku</string>
@@ -105,8 +79,6 @@
 
     <!-- ========== ACCESSIBILITY ========== -->
     <string name="accessibility_explanation_text">Служба специальных возможностей помогает людям с ограниченной подвижностью автоматически проходить экраны системных настроек: нажимает нужные переключатели вместо пользователя. Используется только для навигации по системным экранам по вашему запросу. Данные не собираются и не отправляются на серверы.</string>
-    <string name="hint_accessibility">Включите «XiaoHyperCleaner» в списке служб</string>
-    <string name="hint_overlay">Разрешите отображение поверх других окон</string>
 
     <!-- ========== OVERLAY ========== -->
     <string name="overlay_permission_title">Разрешение «Поверх других окон»</string>
@@ -202,20 +174,15 @@
     <string name="shizuku_sources_apkpure">APKPure</string>
 
     <!-- ========== POINTER HINTS (стрелки к элементам) ========== -->
-    <string name="pointer_overlay_switch">Включите этот переключатель</string>
-    <string name="pointer_accessibility_item">Найдите «XiaoHyperCleaner» в списке и включите переключатель</string>
     <string name="pointer_restricted_blocked">Не получается включить службу?</string>
     <string name="pointer_restricted_explain">Система временно ограничила доступ. Нажмите ⋮ в карточке приложения и разрешите доступ — это займёт 10 секунд.</string>
 
     <!-- ========== УТОЧНЕНИЕ РАСПОЛОЖЕНИЯ ========== -->
-    <string name="pointer_restricted_generic">Найдите пункт «Разрешить ограниченные настройки» — обычно он в меню ⋮ сверху или внизу этого экрана</string>
     <string name="pointer_restricted_not_found_title">Не нашли пункт?</string>
     <string name="pointer_restricted_location_question">Подскажите, где у вас находится пункт разрешения ограниченных настроек?</string>
     <string name="pointer_restricted_menu_option">В меню ⋮ в правом верхнем углу</string>
     <string name="pointer_restricted_bottom_option">Внизу списка настроек</string>
     <string name="pointer_restricted_absent_option">Такого пункта нет</string>
-    <string name="pointer_restricted_top_hint">Нажмите ⋮ и выберите «Разрешить ограниченные настройки»</string>
-    <string name="pointer_restricted_bottom_hint">Прокрутите вниз и включите «Разрешить ограниченные настройки»</string>
 
     <!-- ========== ACCESSIBILITY POLICY DECLARATION ========== -->
     <string name="accessibility_policy_summary">Автоматизация навигации по системным настройкам для пользователей с ограниченной подвижностью</string>
@@ -242,16 +209,8 @@
     <string name="fallback_appinfo_text">После 3 попыток не удалось получить доступ к настройкам приложения. Откройте их вручную через Настройки → Приложения → XiaoHyperCleaner и разрешите «Ограниченные настройки».</string>
 
     <!-- ========== HINT-КАРТОЧКИ ДЛЯ ПОИНТЕРОВ ========== -->
-    <string name="pointer_hint_accessibility">Найдите «XiaoHyperCleaner» в списке служб и включите переключатель справа</string>
-    <string name="pointer_hint_overlay">Включите этот переключатель, чтобы разрешить отображение подсказок</string>
-    <string name="hint_restricted">Найдите переключатель «Разрешить ограниченные настройки» на этом экране. Если не нашли — нажмите ⋮ в правом верхнем углу</string>
 
     <!-- ========== RESTRICTED SETTINGS ЭКРАН ========== -->
-    <string name="restricted_screen_title">Разблокировка системных настроек</string>
-    <string name="restricted_screen_intro">Для управления параметрами конфиденциальности необходимо разрешить изменение ограниченных настроек. Это системное требование Android 13+ для приложений, установленных не из Google Play.</string>
-    <string name="restricted_screen_step1">Откройте «Настройки» → «Приложения» → найдите «XiaoHyperCleaner»</string>
-    <string name="restricted_screen_step2">Найдите переключатель «Разрешить ограниченные настройки» (или «Запрещённые настройки» в HyperOS) и включите его</string>
-    <string name="restricted_screen_step3">Подтвердите действие отпечатком пальца или паролем</string>
     <string name="restricted_screen_open">Открыть настройки приложения</string>
     <string name="restricted_screen_done">Я разрешил, продолжить</string>
 
@@ -270,8 +229,6 @@
     <string name="battery_dialog_title">Экономия заряда батареи</string>
     <string name="battery_dialog_text">Для стабильной работы службы и предотвращения её остановки системой:\n\n1. В открывшемся окне найдите «XiaoHyperCleaner» (или подтвердите запрос).\n2. Выберите вариант «Без ограничений» (или «Не экономить заряд»).\n3. Нажмите кнопку «Назад», чтобы продолжить автоматизацию.</string>
     <string name="battery_dialog_open">Открыть настройки батареи</string>
-    <string name="battery_dialog_skip">Пропустить</string>
-    <string name="hint_battery_optimization">Выберите «Без ограничений» или «Не экономить заряд»</string>
 
     <!-- ========== АВТОМАТИЗАЦИЯ (робокот) ========== -->
     <string name="automation_title">Робокот наводит чистоту…</string>
@@ -304,7 +261,6 @@
     <string name="back_arrow" translatable="false">←</string>
     <string name="menu_icon" translatable="false">⋮</string>
     <string name="pointer_hint_prefix" translatable="false">"👆 "</string>
-    <string name="overlay_hint_prefix" translatable="false">"💡 "</string>
     <string name="progress_format">%1$d%%</string>
     <string name="mock_notifications_label">Уведомления</string>
     <string name="overlay_recovering">Восстановление оверлея…</string>

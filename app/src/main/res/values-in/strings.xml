@@ -37,32 +37,8 @@
     <string name="level_confirm_start">Mulai</string>
 
     <!-- ========== SIMPLE MODE: STEPS ========== -->
-    <string name="simple_step_of">Langkah %1$d dari %2$d</string>
-    <string name="simple_step_start">Mulai</string>
-    <string name="simple_step_working">Sedang berjalan…</string>
-    <string name="simple_step_attempt">Percobaan %1$d dari %2$d</string>
-    <string name="simple_step_auto_next">Selesai — melanjutkan…</string>
-    <string name="simple_step_failed">Tidak dapat diselesaikan otomatis</string>
-    <string name="simple_step_next">Berikutnya</string>
-    <string name="simple_step_skip">Lewati langkah</string>
-    <string name="simple_step_retry">Coba lagi</string>
 
     <!-- ========== SIMPLE MODE: FINAL ========== -->
-    <string name="simple_done_title">Semua selesai!</string>
-    <string name="simple_done_text">Setelan privasi diterapkan. Tidak perlu mulai ulang.</string>
-    <plurals name="simple_done_steps_done">
-        <item quantity="one">%1$d dari %2$d langkah selesai</item>
-        <item quantity="other">%1$d dari %2$d langkah selesai</item>
-    </plurals>
-    <string name="simple_done_benefits">Yang diperbarui:</string>
-    <string name="simple_done_benefit_ads">✅ Setelan privasi diterapkan untuk layanan telemetri</string>
-    <string name="simple_done_benefit_telemetry">✅ Pengumpulan statistik latar belakang dikurangi</string>
-    <string name="simple_done_benefit_spam">✅ Notifikasi dari aplikasi sistem berkurang</string>
-    <string name="simple_done_benefit_stable">✅ Beban sistem latar belakang berkurang</string>
-    <string name="simple_done_failed_title">Tidak dapat diselesaikan otomatis:</string>
-    <string name="simple_done_rate">Beri nilai aplikasi</string>
-    <string name="simple_done_donate">Dukung pengembang</string>
-    <string name="simple_done_close">Tutup</string>
 
     <!-- ========== SHIZUKU DIALOGS ========== -->
     <string name="shizuku_dialog_title">Mode lanjutan memerlukan Shizuku</string>
@@ -102,8 +78,6 @@
 
     <!-- ========== ACCESSIBILITY ========== -->
     <string name="accessibility_explanation_text">Layanan aksesibilitas membantu pengguna dengan keterbatasan mobilitas untuk menavigasi layar setelan sistem secara otomatis: layanan ini mengetuk sakelar yang diperlukan atas nama pengguna. Tidak ada data yang dikumpulkan atau dikirim ke server.</string>
-    <string name="hint_accessibility">Aktifkan "XiaoHyperCleaner" di daftar layanan</string>
-    <string name="hint_overlay">Izinkan tampilan di atas aplikasi lain</string>
 
     <!-- ========== OVERLAY ========== -->
     <string name="overlay_permission_title">Izin "Tampilkan di atas aplikasi lain"</string>
@@ -198,18 +172,13 @@
     <string name="shizuku_sources_apkpure">APKPure</string>
 
     <!-- ========== POINTER HINTS ========== -->
-    <string name="pointer_overlay_switch">Aktifkan sakelar ini</string>
-    <string name="pointer_accessibility_item">Temukan "XiaoHyperCleaner" di daftar dan aktifkan</string>
     <string name="pointer_restricted_blocked">Tidak dapat mengaktifkan layanan?</string>
     <string name="pointer_restricted_explain">Sistem membatasi akses sementara. Ketuk ⋮ dan izinkan.</string>
-    <string name="pointer_restricted_generic">Cari "Izinkan setelan yang dibatasi"</string>
     <string name="pointer_restricted_not_found_title">Tidak menemukan opsi?</string>
     <string name="pointer_restricted_location_question">Di mana opsi setelan yang dibatasi pada perangkat Anda?</string>
     <string name="pointer_restricted_menu_option">Di menu ⋮ di pojok kanan atas</string>
     <string name="pointer_restricted_bottom_option">Di bagian bawah daftar setelan</string>
     <string name="pointer_restricted_absent_option">Tidak ada opsi tersebut</string>
-    <string name="pointer_restricted_top_hint">Ketuk ⋮ dan pilih "Izinkan setelan yang dibatasi"</string>
-    <string name="pointer_restricted_bottom_hint">Gulir ke bawah dan aktifkan</string>
 
     <!-- ========== ACCESSIBILITY POLICY ========== -->
     <string name="accessibility_policy_summary">Otomatisasi navigasi setelan untuk pengguna dengan keterbatasan mobilitas</string>
@@ -233,16 +202,8 @@
     <string name="fallback_appinfo_title">Tidak dapat membuka setelan aplikasi</string>
     <string name="fallback_appinfo_text">Buka manual melalui Setelan → Aplikasi → XiaoHyperCleaner.</string>
 
-    <string name="pointer_hint_accessibility">Temukan "XiaoHyperCleaner" di daftar dan aktifkan</string>
-    <string name="pointer_hint_overlay">Aktifkan sakelar ini untuk menampilkan petunjuk</string>
-    <string name="hint_restricted">Temukan sakelar izin di layar ini</string>
 
     <!-- ========== RESTRICTED SETTINGS SCREEN ========== -->
-    <string name="restricted_screen_title">Buka kunci setelan sistem</string>
-    <string name="restricted_screen_intro">Untuk mengonfigurasi privasi, Anda perlu mengizinkan setelan yang dibatasi.</string>
-    <string name="restricted_screen_step1">Buka "Setelan" → "Aplikasi" → "XiaoHyperCleaner"</string>
-    <string name="restricted_screen_step2">Temukan "Izinkan setelan yang dibatasi" dan aktifkan</string>
-    <string name="restricted_screen_step3">Konfirmasi dengan sidik jari atau kata sandi</string>
     <string name="restricted_screen_open">Buka setelan aplikasi</string>
     <string name="restricted_screen_done">Sudah saya izinkan, lanjutkan</string>
 
@@ -261,8 +222,6 @@
     <string name="battery_dialog_title">Pengoptimalan baterai</string>
     <string name="battery_dialog_text">Untuk memastikan otomatisasi berjalan stabil dan mencegah sistem menghentikan layanan:\n\n1. Pada jendela yang terbuka, pilih "XiaoHyperCleaner" (atau konfirmasi pesan sistem).\n2. Pilih opsi "Tanpa batasan" (atau "Jangan optimalkan").\n3. Ketuk Kembali untuk melanjutkan pengoptimalan.</string>
     <string name="battery_dialog_open">Buka setelan baterai</string>
-    <string name="battery_dialog_skip">Lewati</string>
-    <string name="hint_battery_optimization">Pilih "Tanpa batasan" atau "Jangan optimalkan"</string>
 
     <!-- ========== AUTOMATION ========== -->
     <string name="automation_title">Robo-cat sedang merapikan sistem…</string>

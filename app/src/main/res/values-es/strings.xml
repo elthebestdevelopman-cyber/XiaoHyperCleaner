@@ -59,33 +59,8 @@
     <string name="level_confirm_start">Iniciar</string>
 
     <!-- ========== MODO SIMPLE: PASOS ========== -->
-    <string name="simple_step_of">Paso %1$d de %2$d</string>
-    <string name="simple_step_start">Iniciar</string>
-    <string name="simple_step_working">Trabajando…</string>
-    <string name="simple_step_attempt">Intento %1$d de %2$d</string>
-    <string name="simple_step_auto_next">Listo — continuando…</string>
-    <string name="simple_step_failed">No se pudo completar automáticamente</string>
-    <string name="simple_step_next">Siguiente</string>
-    <string name="simple_step_skip">Saltar paso</string>
-    <string name="simple_step_retry">Reintentar</string>
 
     <!-- ========== MODO SIMPLE: FINAL ========== -->
-    <string name="simple_done_title">¡Todo listo!</string>
-    <string name="simple_done_text">Ajustes de privacidad aplicados. No se requiere reinicio.</string>
-    <plurals name="simple_done_steps_done">
-        <item quantity="one">Completado %1$d de %2$d paso</item>
-        <item quantity="many">Completados %1$d de %2$d pasos</item>
-        <item quantity="other">Completados %1$d de %2$d pasos</item>
-    </plurals>
-    <string name="simple_done_benefits">Qué cambió:</string>
-    <string name="simple_done_benefit_ads">✅ Ajustes de privacidad aplicados para servicios de telemetría</string>
-    <string name="simple_done_benefit_telemetry">✅ Reducida la recolección de datos de telemetría</string>
-    <string name="simple_done_benefit_spam">✅ Reducidas las notificaciones de apps del sistema</string>
-    <string name="simple_done_benefit_stable">✅ Reducida la carga del sistema en segundo plano</string>
-    <string name="simple_done_failed_title">No se pudo completar automáticamente:</string>
-    <string name="simple_done_rate">Calificar la app</string>
-    <string name="simple_done_donate">Apoyar al autor</string>
-    <string name="simple_done_close">Cerrar</string>
 
     <!-- ========== DIÁLOGOS DE SHIZUKU ========== -->
     <string name="shizuku_dialog_title">El modo avanzado requiere Shizuku</string>
@@ -126,8 +101,6 @@
 
     <!-- ========== ACCESIBILIDAD ========== -->
     <string name="accessibility_explanation_text">La app necesita acceso al servicio de accesibilidad para tocar automáticamente botones en los ajustes. El acceso se usa solo para navegar por pantallas del sistema y nunca se transmite externamente. No se recopilan ni envían datos a servidores.</string>
-    <string name="hint_accessibility">Activa "XiaoHyperCleaner" en la lista de servicios</string>
-    <string name="hint_overlay">Permitir mostrar sobre otras apps</string>
 
     <!-- ========== SUPERPOSICIÓN ========== -->
     <string name="overlay_permission_title">Permiso "Mostrar sobre otras apps"</string>
@@ -223,20 +196,15 @@
     <string name="shizuku_sources_apkpure">APKPure</string>
 
     <!-- ========== PISTAS CON FLECHAS ========== -->
-    <string name="pointer_overlay_switch">Activa este interruptor</string>
-    <string name="pointer_accessibility_item">Busca "XiaoHyperCleaner" en la lista y activa el interruptor</string>
     <string name="pointer_restricted_blocked">¿No puedes activar el servicio?</string>
     <string name="pointer_restricted_explain">El sistema restringió temporalmente el acceso. Toca ⋮ en la tarjeta de la app y permite el acceso — toma 10 segundos.</string>
 
     <!-- ========== ACLARACIÓN DE UBICACIÓN ========== -->
-    <string name="pointer_restricted_generic">Busca "Permitir configuración restringida" — generalmente en el menú ⋮ arriba o al final de esta pantalla</string>
     <string name="pointer_restricted_not_found_title">¿No encuentras el elemento?</string>
     <string name="pointer_restricted_location_question">¿Dónde está el permiso de configuración restringida en tu dispositivo?</string>
     <string name="pointer_restricted_menu_option">En el menú ⋮ (esquina superior derecha)</string>
     <string name="pointer_restricted_bottom_option">Al final de la lista de ajustes</string>
     <string name="pointer_restricted_absent_option">No existe tal elemento</string>
-    <string name="pointer_restricted_top_hint">Toca ⋮ y selecciona "Permitir configuración restringida"</string>
-    <string name="pointer_restricted_bottom_hint">Desplázate hacia abajo y activa "Permitir configuración restringida"</string>
 
     <!-- ========== DECLARACIÓN DE POLÍTICA DE ACCESIBILIDAD ========== -->
     <string name="accessibility_policy_summary">Automatiza la navegación por ajustes para ahorrar tiempo a usuarios con movilidad limitada</string>
@@ -263,16 +231,8 @@
     <string name="fallback_appinfo_text">Tras 3 intentos no pudimos acceder a los ajustes de la app. Ábrelos manualmente vía Ajustes → Apps → XiaoHyperCleaner y permite "Configuración restringida".</string>
 
     <!-- ========== TARJETAS DE PISTAS PARA FLECHAS ========== -->
-    <string name="pointer_hint_accessibility">Busca "XiaoHyperCleaner" en la lista de servicios y activa el interruptor a la derecha</string>
-    <string name="pointer_hint_overlay">Activa este interruptor para permitir mostrar pistas</string>
-    <string name="hint_restricted">Busca el interruptor "Permitir configuración restringida" en esta pantalla. Si no lo encuentras, toca ⋮ en la esquina superior derecha</string>
 
     <!-- ========== PANTALLA DE CONFIGURACIÓN RESTRINGIDA ========== -->
-    <string name="restricted_screen_title">Desbloquear ajustes del sistema</string>
-    <string name="restricted_screen_intro">Para configurar la privacidad, necesitas permitir cambiar la configuración restringida. Este es un requisito del sistema Android 13+ para apps instaladas fuera de Google Play.</string>
-    <string name="restricted_screen_step1">Abre "Ajustes" → "Apps" → busca "XiaoHyperCleaner"</string>
-    <string name="restricted_screen_step2">Busca el interruptor "Permitir configuración restringida" (o "Configuración prohibida" en HyperOS) y actívalo</string>
-    <string name="restricted_screen_step3">Confirma con tu huella o contraseña</string>
     <string name="restricted_screen_open">Abrir ajustes de la app</string>
     <string name="restricted_screen_done">Ya lo permití, continuar</string>
 
@@ -291,8 +251,6 @@
     <string name="battery_dialog_title">Optimización de batería</string>
     <string name="battery_dialog_text">Para garantizar el funcionamiento continuo de la automatización y evitar que el sistema la detenga:\n\n1. En la ventana que se abre, busca "XiaoHyperCleaner" (o confirma el aviso del sistema).\n2. Selecciona la opción "Sin restricciones" (o "No optimizar").\n3. Pulsa Atrás para continuar con la optimización.</string>
     <string name="battery_dialog_open">Abrir ajustes de batería</string>
-    <string name="battery_dialog_skip">Saltar</string>
-    <string name="hint_battery_optimization">Selecciona "Sin restricciones" o "No optimizar"</string>
 
     <!-- ========== AUTOMATIZACIÓN (robot-gato) ========== -->
     <string name="automation_title">El robot-gato está limpiando…</string>

@@ -15,11 +15,8 @@ import androidx.core.net.toUri
  *     (активность настроек, БЕЗ запуска установки APK)
  *
  * Поля:
- *  forceStopBeforeLaunch — для шагов-приложений: force-stop очищает recents-стек MIUI,
- *     иначе приложение открывается на старом экране (а не с корневого).
  *  confirmTexts + confirmWaitMs — для msa (диалог с 10-сек таймером).
  *  preDrillWaitMs — пауза перед бурением (экраны со сканом, напр. «Очистка»).
- *  swipeUpAfterLaunch — свайп вверх после запуска (поиск приложений в лаунчере).
  *
  * ИСПРАВЛЕНО (beta6):
  * - Для всех шагов расширены requiredPackages — добавлены альтернативные
@@ -53,16 +50,8 @@ object SimpleSteps {
         val confirmTexts: List<String> = emptyList(),
         val confirmWaitMs: Long = 0L,
         val preDrillWaitMs: Long = 0L,
-        val swipeUpAfterLaunch: Boolean = false,
     /** Тексты кнопки-действия, по которой тапаем, если переключатель не найден (variant-aware через каталог). */
     val tapFallbackTexts: List<String> = emptyList(),
-        /**
-         * Принудительная остановка пакета перед запуском.
-         * Нужно для шагов-приложений (Темы, Музыка, Mi Video и т.д.) — MIUI
-         * иначе открывает старый экран из recents вместо корневого.
-         * Для системных шагов (Settings) НЕ требуется — CLEAR_TASK работает.
-         */
-        val forceStopBeforeLaunch: Boolean = false
     )
 
     // ── Хелперы интентов ─────────────────────────────────────────────
@@ -150,6 +139,19 @@ object SimpleSteps {
                 "Рекомендации", "Recommendations",
                 "Изменить папку", "Edit folder"
             ),
+            manualHintRu = "Откройте папку на рабочем столе → нажмите на её название " +
+                "(HyperOS 2/3: удерживайте папку → «Изменить папку») → выключите «Рекомендуемое сегодня».",
+            manualHintEn = "Open a home folder → tap its name (HyperOS 2/3: hold the folder → " +
+                "\"Edit folder\") → turn off \"Recommended today\".",
+            requiredPackages = listOf(
+                "com.miui.home",
+                "com.mi.android.globallauncher",
+                "com.miui.launcher",
+                "com.mi.global.home"
+            ),
+            actionType = ActionType.HOME_FOLDER_TOGGLE,
+            targetChecked = false
+        ),
 
         // ── БЛОК А: СИСТЕМНЫЕ НАСТРОЙКИ ───────────────────────────────
 
@@ -402,7 +404,7 @@ object SimpleSteps {
                 "com.android.browser",          // Глобал (старое имя)
                 "com.miui.browser"              // Китай
             ),
-            forceStopBeforeLaunch = true
+
         ),
 
         // П.4b: Системные приложения → Музыка (3 тумблера)
@@ -461,7 +463,7 @@ object SimpleSteps {
                 "com.mi.music"                  // HyperOS 3 (новое имя)
                 // без com.android.music — AOSP Music не имеет Xiaomi UI рекомендаций
             ),
-            forceStopBeforeLaunch = true
+
         ),
 
         // П.4c: Системные приложения → Сообщения → Расширенные → Параметры
@@ -491,7 +493,7 @@ object SimpleSteps {
                 "com.miui.mms.global"           // Глобал альтернатива
                 // без Google Messages — другой UI, не Xiaomi system ads
             ),
-            forceStopBeforeLaunch = true
+
         ),
 
         // П.4d (п.5 в инструкции): Безопасность → ⚙ → Получать рекомендации + Wi-Fi
@@ -526,7 +528,7 @@ object SimpleSteps {
                 "OK", "ОК", "Согласен", "Agree", "Подтвердить", "Confirm", "Да", "Yes"
             ),
             confirmWaitMs = 2_500L,
-            forceStopBeforeLaunch = true
+
         ),
 
         // ── БЛОК Б: ВНУТРИ ПРИЛОЖЕНИЙ ─────────────────────────────────
@@ -560,7 +562,7 @@ object SimpleSteps {
                 "com.miui.securitycore",
                 "com.miui.cleaner"
             ),
-            forceStopBeforeLaunch = true
+
         ),
 
         // П.4f (п.4.2 в инструкции): Загрузки → ⋮ / ⚙ → Настройки
@@ -590,7 +592,7 @@ object SimpleSteps {
                 "com.miui.android.downloads",           // MIUI
                 "com.android.downloads"                 // Альтернатива
             ),
-            forceStopBeforeLaunch = true
+
         ),
 
         // П.4g: Темы → Профиль → ⚙ (2 тумблера)
@@ -620,7 +622,7 @@ object SimpleSteps {
                 "com.miui.thememanager",        // Альтернатива
                 "com.mi.thememanager"           // Глобал альтернатива
             ),
-            forceStopBeforeLaunch = true
+
         ),
 
         // П.4h: GetApps → Профиль → ⚙ → Конфиденциальность
@@ -647,7 +649,7 @@ object SimpleSteps {
                 "com.miui.market",              // Старое имя (до ребрендинга)
                 "com.mi.global.market"          // Глобал
             ),
-            forceStopBeforeLaunch = true
+
         ),
 
         // П.4i: Mi Видео → Профиль → ⚙ (сбрасывается раз в 90 дней)
@@ -678,7 +680,7 @@ object SimpleSteps {
                 "com.miui.video",               // Альтернатива
                 "com.mi.global.video"           // Глобал
             ),
-            forceStopBeforeLaunch = true
+
         ),
 
         // П.4j: ShareMe → ⋮ → О приложении → Справка и обратная связь
@@ -705,7 +707,7 @@ object SimpleSteps {
                 "com.xiaomi.midrop",            // Китай (основное)
                 "com.mi.android.globalshareme"  // Глобал
             ),
-            forceStopBeforeLaunch = true
+
         ),
 
         // П.5: Проводник — очистить данные + «Отмена» на приветствии
@@ -729,7 +731,7 @@ object SimpleSteps {
                 "com.android.fileexplorer",            // Китай
                 "com.mi.android.fileexplorer"          // Альтернатива
             ),
-            forceStopBeforeLaunch = true
+
         ),
 
         // ── БЛОК В: ЛЕНТА ВИДЖЕТОВ ─────────────────────────────────────
@@ -769,7 +771,7 @@ object SimpleSteps {
                 "com.android.personalassistant"                  // AOSP
             ),
             riskLevel = RiskLevel.CONDITIONAL,
-            forceStopBeforeLaunch = true
+
         ),
 
         // П.8b: … → О ленте виджетов → «Персонализированные услуги»
@@ -800,7 +802,7 @@ object SimpleSteps {
                 "com.android.personalassistant"
             ),
             riskLevel = RiskLevel.CONDITIONAL,
-            forceStopBeforeLaunch = true
+
         ),
 
         // ── БЛОК Г: УВЕДОМЛЕНИЯ (п.11) ────────────────────────────────
@@ -960,19 +962,6 @@ object SimpleSteps {
                 "com.miui.video",
                 "com.mi.global.video"
             )
-        ),
-            manualHintRu = "Откройте папку на рабочем столе → нажмите на её название " +
-                "(HyperOS 2/3: удерживайте папку → «Изменить папку») → выключите «Рекомендуемое сегодня».",
-            manualHintEn = "Open a home folder → tap its name (HyperOS 2/3: hold the folder → " +
-                "\"Edit folder\") → turn off \"Recommended today\".",
-            requiredPackages = listOf(
-                "com.miui.home",
-                "com.mi.android.globallauncher",
-                "com.miui.launcher",
-                "com.mi.global.home"
-            ),
-            actionType = ActionType.HOME_FOLDER_TOGGLE,
-            targetChecked = false
         ),
 
         // Проверка приложений при установке: экран настроек установщика (шестерёнка из
