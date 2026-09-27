@@ -433,7 +433,7 @@
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
           "route": [
-            { "intent": "com.miui.securitycenter/com.miui.appmanager.AppManagerMainActivity", "waitMs": 1200 },
+            { "intent": "com.miui.securitycenter/com.miui.appmanager.AppManagerMainActivity", "waitMs": 2500 },
             { "tapDesc": "Еще", "waitMs": 1000 },
             { "tapText": "Настройки", "waitMs": 1000 }
           ],
@@ -1108,7 +1108,7 @@
     {
       "id": "google_diagnostics",
       "route": [
-        { "intent": "android.settings.PRIVACY_SETTINGS", "waitMs": 1500 },
+        { "intent": "android.settings.PRIVACY_SETTINGS", "waitMs": 2500 },
         { "tapText": "Использование и диагностика", "waitMs": 1500 }
       ],
       "title": {
@@ -2586,7 +2586,7 @@
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
           "route": [
-            { "intent": "com.mi.android.globalFileexplorer/com.android.fileexplorer.FileExplorerTabActivity", "waitMs": 1500 },
+            { "intent": "com.mi.android.globalFileexplorer/com.android.fileexplorer.FileExplorerTabActivity", "waitMs": 3000 },
             { "tapDesc": "Еще", "waitMs": 1000 },
             { "tapText": "Настройки", "waitMs": 1000 },
             { "tapText": "Информация", "waitMs": 1000 }
