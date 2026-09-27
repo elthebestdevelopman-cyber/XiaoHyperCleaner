@@ -59,6 +59,8 @@ object SemanticCatalog {
         val confirmWaitMs: Long,
         val maxConsentIterations: Int,
         val launchPackage: String?,
+        /** Сценарий маршрута уровня шага (когда у шага нет вариантов). */
+        val route: List<RouteItem> = emptyList(),
         val skipReason: String?,
         val fallbackDrillPath: List<List<String>>,
         val safe: Boolean,
@@ -93,8 +95,33 @@ object SemanticCatalog {
         val control: ActionType?,
         val extraTargets: List<VariantExtraTarget>,
         val fallbackAction: String?,
+        /** Явный сценарий маршрута (RouteScript) для этой прошивки; пусто — обычная логика. */
+        val route: List<RouteItem> = emptyList(),
         /** Точка входа: "settings" — маршрут через Настройки, а не через приложение. */
         val entry: String?
+    )
+
+    /**
+     * Один шаг явного сценария маршрута (RouteScript).
+     *
+     * Сценарий нужен там, где авто-маршрут (merge legacy/variant/adaptive + guard'ы
+     * «корень Настроек»/«чужой экран») уводит шаг не туда: в него попадает ТОЛЬКО то,
+     * что проверено руками на конкретной прошивке. Тумблер после сценария ищется
+     * обычным механизмом (гейт уверенности + checked_before).
+     */
+    data class RouteItem(
+        /** Явная компонента `pkg/Class` или action — открывается как есть. */
+        val intent: String? = null,
+        /** Текст узла (тап с прокруткой до него). */
+        val tapText: String? = null,
+        /** content-description узла (иконки/☰ без текста). */
+        val tapDesc: String? = null,
+        /** Суффикс resource-id узла (`more`, `button1`). */
+        val tapId: String? = null,
+        /** Одна прокрутка вниз перед следующим шагом. */
+        val scroll: Boolean = false,
+        /** Пауза после действия. */
+        val waitMs: Long = 700L
     )
 
     /**
@@ -525,6 +552,7 @@ object SemanticCatalog {
         confirmWaitMs = o.optLong("confirmWaitMs", 0L),
         maxConsentIterations = o.optInt("maxConsentIterations", 0),
         launchPackage = o.optString("launchPackage").takeIf { it.isNotEmpty() },
+        route = parseRoute(o.optJSONArray("route")),
         skipReason = o.optString("skipReason").takeIf { it.isNotEmpty() },
         fallbackDrillPath = parseDrillPath(o.optJSONArray("fallbackDrillPath")),
         safe = o.optBoolean("safe", true),
@@ -555,7 +583,38 @@ object SemanticCatalog {
                     control = o.optString("control").takeIf { it.isNotEmpty() }?.let { ActionType.from(it) },
                     extraTargets = parseExtraTargets(o.optJSONArray("extraTargets")),
                     fallbackAction = o.optString("fallbackAction").takeIf { it.isNotEmpty() },
+                    route = parseRoute(o.optJSONArray("route")),
                     entry = o.optString("entry").takeIf { it.isNotEmpty() }
+                )
+            )
+        }
+        return result
+    }
+
+    /**
+     * Явный сценарий маршрута (RouteScript) активного варианта: если он задан,
+     * авто-маршрут (интенты + drill + guard'ы) для шага не применяется вовсе —
+     * выполняется ровно то, что проверено руками на этой прошивке.
+     */
+    fun route(id: String): List<RouteItem> {
+        val fromVariant = selection(id)?.variant?.route.orEmpty()
+        if (fromVariant.isNotEmpty()) return fromVariant
+        return step(id)?.route.orEmpty()
+    }
+
+    private fun parseRoute(arr: JSONArray?): List<RouteItem> {
+        arr ?: return emptyList()
+        val result = ArrayList<RouteItem>(arr.length())
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            result.add(
+                RouteItem(
+                    intent = o.optString("intent").takeIf { it.isNotEmpty() },
+                    tapText = o.optString("tapText").takeIf { it.isNotEmpty() },
+                    tapDesc = o.optString("tapDesc").takeIf { it.isNotEmpty() },
+                    tapId = o.optString("tapId").takeIf { it.isNotEmpty() },
+                    scroll = o.optBoolean("scroll", false),
+                    waitMs = o.optLong("waitMs", 700L).coerceIn(0L, 5_000L)
                 )
             )
         }

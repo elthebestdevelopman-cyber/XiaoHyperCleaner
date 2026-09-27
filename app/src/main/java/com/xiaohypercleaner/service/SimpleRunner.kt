@@ -512,6 +512,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
             return toggleInstallerRecommendations(step)
         }
 
+        // RouteScript: явный сценарий маршрута, проверенный руками на этой прошивке,
+        // ПОЛНОСТЬЮ заменяет авто-навигацию (intents + drill + merge + guard'ы) —
+        // именно те механизмы, которые уводили шаг «не туда». Тумблер после сценария
+        // ищется обычным механизмом (гейт уверенности + checked_before + verify).
+        val routeScript = SemanticCatalog.route(step.id)
+        if (routeScript.isNotEmpty()) {
+            AppLog.i(TAG, "route script for ${step.id}: ${routeScript.size} шаг(ов) — авто-навигация отключена")
+            StepDiagnostics.note(step.id, "ROUTE", "script=${routeScript.size}")
+            return executeRouteScript(step, routeScript)
+        }
+
         // Резолвинг пакета: вариантный каталог + семантическая таблица (visibility-aware).
         // Маршрут варианта может идти через Настройки (appvault_*: Рабочий стол → Лента
         // виджетов) — тогда приложение не запускаем и пакет не резолвим.
@@ -2873,6 +2884,93 @@ class SimpleRunner(private val service: AdbEnablerService) {
             delay(500)
         }
         return ok
+    }
+
+    /**
+     * Исполняет явный сценарий маршрута шага: интенты и тапы ровно в заданном порядке
+     * (без merge-логики и без guard'ов «корень Настроек»/«чужой экран»), затем обычный
+     * поиск тумблера. Что проверено руками на прошивке — то робот и делает.
+     */
+    private suspend fun executeRouteScript(
+        step: SimpleSteps.Step,
+        route: List<SemanticCatalog.RouteItem>
+    ): Result {
+        for ((index, item) in route.withIndex()) {
+            if (cancelled) return Result(false, "cancelled")
+            if (!awaitOverlayReadyOrPause()) return Result(false, "overlay_lost")
+            val ok = when {
+                item.intent != null -> startRouteIntent(item.intent)
+                item.scroll -> {
+                    scrollDownOnce()
+                    true
+                }
+                item.tapText != null -> tapRouteNode(step, text = item.tapText)
+                item.tapDesc != null -> tapRouteNode(step, desc = item.tapDesc)
+                item.tapId != null -> tapRouteNode(step, id = item.tapId)
+                else -> false
+            }
+            val what = item.intent ?: item.tapText ?: item.tapDesc ?: item.tapId ?: "scroll"
+            AppLog.i(TAG, "route ${step.id}: ${index + 1}/${route.size} '$what' ok=$ok")
+            StepDiagnostics.note(step.id, "ROUTE", "step=${index + 1} what='$what' ok=$ok")
+            delay(item.waitMs)
+        }
+        return findAndToggleSwitch(step)
+    }
+
+    /** Интент сценария: `pkg/Class` (явная компонента) либо action. */
+    private fun startRouteIntent(spec: String): Boolean = try {
+        val intent = if (spec.contains('/')) {
+            val pkg = spec.substringBefore('/')
+            val cls = spec.substringAfter('/').let { if (it.startsWith(".")) pkg + it else it }
+            Intent().setComponent(android.content.ComponentName(pkg, cls))
+        } else {
+            Intent(spec)
+        }
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        service.startActivity(intent)
+        true
+    } catch (e: Exception) {
+        AppLog.w(TAG, "route intent failed: '$spec' — ${e.message}")
+        false
+    }
+
+    /**
+     * Тап узла сценария по тексту, описанию или суффиксу resource-id. Узел может быть
+     * ниже сгиба («Использование и диагностика» в Конфиденциальности) — до 3 попыток
+     * с прокруткой.
+     */
+    private suspend fun tapRouteNode(
+        step: SimpleSteps.Step,
+        text: String? = null,
+        desc: String? = null,
+        id: String? = null
+    ): Boolean {
+        repeat(3) { attempt ->
+            val root = service.rootInActiveWindow ?: return false
+            val nodes = NodeTree.findAllInTree(root, predicate = { node ->
+                val matches = when {
+                    text != null -> TextMatcher.normalizedContains(node.text?.toString(), text)
+                    desc != null ->
+                        TextMatcher.normalizedContains(node.contentDescription?.toString(), desc)
+                    id != null -> node.viewIdResourceName?.endsWith(id) == true
+                    else -> false
+                }
+                matches && clickableAncestorOrSelf(node) != null
+            })
+            val node = nodes.firstOrNull()
+            if (node != null) {
+                nodes.forEach { if (it !== node) recycleNode(it) }
+                val target = clickableAncestorOrSelf(node) ?: node
+                val tapped = tapNode(target)
+                if (target !== node) recycleNode(target)
+                recycleNode(node)
+                recycleNode(root)
+                return tapped
+            }
+            recycleNode(root)
+            if (attempt < 2) scrollDownOnce()
+        }
+        return false
     }
 
     /**

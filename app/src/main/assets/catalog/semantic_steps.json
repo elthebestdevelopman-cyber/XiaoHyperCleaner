@@ -432,6 +432,11 @@
           "id": "miui12_14",
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
+          "route": [
+            { "intent": "com.miui.securitycenter/com.miui.appmanager.AppManagerMainActivity", "waitMs": 1200 },
+            { "tapDesc": "Еще", "waitMs": 1000 },
+            { "tapText": "Настройки", "waitMs": 1000 }
+          ],
           "drillPath": [
             ["Приложения", "Apps", "Applications"],
             ["⋮", "Ещё", "More", "Дополнительно", "More options"]
@@ -1102,6 +1107,10 @@
     },
     {
       "id": "google_diagnostics",
+      "route": [
+        { "intent": "android.settings.PRIVACY_SETTINGS", "waitMs": 1500 },
+        { "tapText": "Использование и диагностика", "waitMs": 1500 }
+      ],
       "title": {
         "ru": "Использование и диагностика (Google)",
         "en": "Google usage & diagnostics",
@@ -2576,6 +2585,12 @@
           "id": "miui12_14",
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
+          "route": [
+            { "intent": "com.mi.android.globalFileexplorer/com.android.fileexplorer.FileExplorerTabActivity", "waitMs": 1500 },
+            { "tapDesc": "Еще", "waitMs": 1000 },
+            { "tapText": "Настройки", "waitMs": 1000 },
+            { "tapText": "Информация", "waitMs": 1000 }
+          ],
           "control": "toggle",
           "fallbackAction": "clear_data_decline",
           "drillPath": [
