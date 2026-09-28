@@ -35,6 +35,11 @@ object SimpleSteps {
         val descRu: String,
         val descEn: String,
         val intents: List<Intent>,
+        /**
+         * Легаси-фолбэк текстов поиска (до семантического каталога). Срок удаления:
+         * релиз после `5a82d30` — семантику задаёт только каталог (`keywords`),
+         * legacy-значения остаются лишь подсказкой на один релиз (.clinerules, A5).
+         */
         val searchTexts: List<String>,
         val targetChecked: Boolean = false,
         val manualHintRu: String,

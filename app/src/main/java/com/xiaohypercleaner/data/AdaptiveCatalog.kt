@@ -30,6 +30,10 @@ import java.util.concurrent.ConcurrentHashMap
  *   откачена.
  * - global_ru — переопределения для Global+RU (replaceDrillPath/drillPath/searchTexts).
  *
+ * ПРИОРИТЕТ ИСТОЧНИКОВ МАРШРУТА: `route` варианта (RouteScript — руки-проверенные
+ * интенты/тапы) → `variants[].drillPath` → legacy-путь + `fallbackDrillPath` каталога.
+ * `uiSteps` остаётся подсказкой: он не отменяет RouteScript варианта.
+ *
  * МЕТОДЫ МЕРДЖА (используются в SimpleRunner):
  * - mergeSearchTexts()    — базовые + каталожные searchTexts
  * - mergeDrillPath()      — базовый + каталожный drillPath

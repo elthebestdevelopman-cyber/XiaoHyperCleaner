@@ -295,24 +295,24 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 30 suites, 230 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 32 suites, 255 tests (full table below)
 ├── data/
-│   ├── AdaptiveCatalogTest.kt    # 16 tests
-│   ├── OptimizationEngineTest.kt # 14 tests
+│   ├── AdaptiveCatalogTest.kt    # 17 tests
+│   ├── OptimizationEngineTest.kt # 15 tests
 │   ├── AdbPortResolverTest.kt    # 5 tests
 │   ├── DirectIntentNavigatorTest.kt # 8 tests (step entry point, intent chains)
 │   ├── RomProfileTest.kt         # 5 tests
-│   └── SimpleStepsTest.kt        # 6 tests
+│   └── SimpleStepsTest.kt        # 7 tests
 ├── service/
-│   ├── SimpleRunnerDrillTest.kt  # 4 tests (drill level verification)
-│   ├── SimpleRunnerApplicabilityTest.kt # 5 tests (not applicable steps, notif_* entry)
+│   ├── SimpleRunnerDrillTest.kt  # 9 tests (drill level verification)
+│   ├── SimpleRunnerApplicabilityTest.kt # 6 tests (not applicable steps, notif_* entry)
 │   ├── SimpleRunnerAppEntryTest.kt # 4 tests (app screen readiness)
 │   └── SimpleRunnerClearDataTest.kt # 2 tests
 ├── ui/
-│   └── MainViewModelTest.kt      # 8 tests (Robolectric)
+│   └── MainViewModelTest.kt      # 9 tests (Robolectric)
 └── util/
     ├── LogMaskerTest.kt          # 15 tests
-    └── TextMatcherTest.kt        # 9 tests
+    └── TextMatcherTest.kt        # 10 tests
 ```
 
 ---
@@ -370,7 +370,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 suites, 230 tests (full ta
 
 ## 🧪 Testing
 
-### Unit Tests (230 tests, 30 suites)
+### Unit Tests (255 tests, 32 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -381,24 +381,25 @@ app/src/test/java/com/xiaohypercleaner/          # 30 suites, 230 tests (full ta
 | `OptimizationEngineTest`      | 15    | Optimization, rollback, DNS, transactions, channel |
 | `RestoreSnapshotTest`         | 5     | Rollback snapshot of original values               |
 | `AdbPortResolverTest`         | 5     | mDNS discovery, mergePorts                         |
-| `AdaptiveCatalogTest`         | 16    | Variant catalog, text merging                      |
-| `SemanticCatalogTest`         | 11    | Step semantics, packages, dialog policy            |
-| `SemanticVariantTest`         | 7     | OS variant selection (MIUI 13 / HyperOS 2)         |
+| `AdaptiveCatalogTest`         | 17    | Variant catalog, text merging                      |
+| `SemanticCatalogTest`         | 16    | Step semantics, packages, dialog policy            |
+| `SemanticVariantTest`         | 9     | OS variant selection (MIUI 13 / HyperOS 2)         |
 | `SemanticGateTest`            | 6     | Confidence gate                                    |
 | `PlanBuilderTest`             | 7     | Plan pre-filter + red list                         |
-| `DirectIntentNavigatorTest`   | 9     | Step entry point: launcher, direct settings screens |
+| `DirectIntentNavigatorTest`   | 8     | Step entry point: launcher, direct settings screens |
 | `ManualStepsTest`             | 4     | Manual checklist: 7-locale parity                  |
-| `SwitchFinderTest`            | 14    | Toggles, checked_before, foreign row rejection     |
-| `ConsentWallTest`             | 21    | Dialogs: force-stop, default app, consent          |
-| `ConsentPermissionTest`       | 3     | Permission request: deny by default, allow for target |
+| `SwitchFinderTest`            | 15    | Toggles, checked_before, foreign row rejection     |
+| `ConsentWallTest`             | 24    | Dialogs: force-stop, default app, consent, decoys  |
+| `ConsentPermissionTest`       | 4     | Permission request: deny by default, allow for target |
 | `SimpleRunnerMsaResumeTest`   | 5     | Drill resume + msa revoke confirmation             |
 | `SimpleRunnerMsaRevokeTest`   | 3     | msa revoke: dialog button, countdown, confirmation |
 | `SimpleRunnerClearDataTest`   | 2     | CLEAR_DATA_DECLINE without false success           |
-| `SimpleRunnerFolderTest`      | 11    | Home folder search (structural markers)            |
+| `SimpleRunnerConfirmTest`     | 2     | Confirm button: its own label, not the dialog title |
+| `SimpleRunnerFolderTest`      | 16    | Home folder search (structural markers)            |
 | `SimpleRunnerInstallerTest`   | 3     | Installer settings route, no APK install           |
-| `SimpleRunnerScrollTest`      | 2     | Scroll container lookup                            |
+| `SimpleRunnerScrollTest`      | 4     | Scroll container lookup, row below the fold        |
 | `SimpleRunnerDrillTest`       | 9     | Drill level verification (route, header menu, alternative nodes) |
-| `SimpleRunnerApplicabilityTest` | 5   | Not applicable steps, notif_* entry                |
+| `SimpleRunnerApplicabilityTest` | 6   | Not applicable steps, notif_* entry                |
 | `SimpleRunnerAppEntryTest`    | 4     | App screen readiness before drilling              |
 | `ScanOrchestratorTest`        | 4     | Navigation planning, cache                         |
 | `ScreenCrawlerTest`           | 6     | Screen crawler (diagnostics)                       |

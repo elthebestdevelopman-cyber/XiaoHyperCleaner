@@ -313,24 +313,24 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 230 тестов (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 32 сьюта, 255 тестов (полная таблица ниже)
 ├── data/
-│   ├── AdaptiveCatalogTest.kt    # 16 тестов
-│   ├── OptimizationEngineTest.kt # 14 тестов
+│   ├── AdaptiveCatalogTest.kt    # 17 тестов
+│   ├── OptimizationEngineTest.kt # 15 тестов
 │   ├── AdbPortResolverTest.kt    # 5 тестов
 │   ├── DirectIntentNavigatorTest.kt # 8 тестов (точка входа шага, цепочки интентов)
 │   ├── RomProfileTest.kt         # 5 тестов
-│   └── SimpleStepsTest.kt        # 6 тестов
+│   └── SimpleStepsTest.kt        # 7 тестов
 ├── service/
-│   ├── SimpleRunnerDrillTest.kt  # 4 теста (проверка уровней бурения)
-│   ├── SimpleRunnerApplicabilityTest.kt # 5 тестов (неприменимые шаги, вход notif_*)
+│   ├── SimpleRunnerDrillTest.kt  # 9 тестов (проверка уровней бурения)
+│   ├── SimpleRunnerApplicabilityTest.kt # 6 тестов (неприменимые шаги, вход notif_*)
 │   ├── SimpleRunnerAppEntryTest.kt # 4 теста (готовность экрана приложения)
 │   └── SimpleRunnerClearDataTest.kt # 2 теста
 ├── ui/
-│   └── MainViewModelTest.kt      # 8 тестов (Robolectric)
+│   └── MainViewModelTest.kt      # 9 тестов (Robolectric)
 └── util/
     ├── LogMaskerTest.kt          # 15 тестов
-    └── TextMatcherTest.kt        # 9 тестов
+    └── TextMatcherTest.kt        # 10 тестов
 ```
 
 ---
@@ -388,7 +388,7 @@ app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 230 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (230 тестов, 30 сьютов)
+### Unit-тесты (255 тестов, 32 сьюта)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -399,24 +399,25 @@ app/src/test/java/com/xiaohypercleaner/          # 30 сьютов, 230 тест
 | `OptimizationEngineTest`      | 15     | Оптимизация, откат, DNS, транзакции, канал отката  |
 | `RestoreSnapshotTest`         | 5      | Снапшот оригиналов для отката                      |
 | `AdbPortResolverTest`         | 5      | mDNS discovery, mergePorts                         |
-| `AdaptiveCatalogTest`         | 16     | Вариантный каталог, мердж текстов                  |
-| `SemanticCatalogTest`         | 11     | Семантика шагов, пакеты-цели, политика диалогов    |
-| `SemanticVariantTest`         | 7      | Выбор вариантов по версии ОС (MIUI 13 / HyperOS 2) |
+| `AdaptiveCatalogTest`         | 17     | Вариантный каталог, мердж текстов                  |
+| `SemanticCatalogTest`         | 16     | Семантика шагов, пакеты-цели, политика диалогов    |
+| `SemanticVariantTest`         | 9      | Выбор вариантов по версии ОС (MIUI 13 / HyperOS 2) |
 | `SemanticGateTest`            | 6      | Гейт уверенности                                   |
 | `PlanBuilderTest`             | 7      | Префильтр плана + красный список                   |
-| `DirectIntentNavigatorTest`   | 9      | Точка входа шага: launcher, прямые экраны настроек   |
+| `DirectIntentNavigatorTest`   | 8      | Точка входа шага: launcher, прямые экраны настроек   |
 | `ManualStepsTest`             | 4      | Ручная памятка: паритет 7 локалей                  |
-| `SwitchFinderTest`            | 14     | Тумблеры, checked_before, запрет чужой строки      |
-| `ConsentWallTest`             | 21     | Диалоги: force-stop, «по умолчанию», consent       |
-| `ConsentPermissionTest`       | 3      | Permission-запрос: deny по умолчанию, allow для цели |
+| `SwitchFinderTest`            | 15     | Тумблеры, checked_before, запрет чужой строки      |
+| `ConsentWallTest`             | 24     | Диалоги: force-stop, «по умолчанию», consent, обманки |
+| `ConsentPermissionTest`       | 4      | Permission-запрос: deny по умолчанию, allow для цели |
 | `SimpleRunnerMsaResumeTest`   | 5      | Resume бурения + подтверждение отзыва msa          |
 | `SimpleRunnerMsaRevokeTest`   | 3      | Отзыв msa: кнопка диалога, отсчёт, подтверждение   |
 | `SimpleRunnerClearDataTest`   | 2      | CLEAR_DATA_DECLINE без ложных успехов              |
-| `SimpleRunnerFolderTest`      | 11     | Поиск папок рабочего стола (структурный признак)   |
+| `SimpleRunnerConfirmTest`     | 2      | Кнопка подтверждения диалога: своя подпись, не заголовок |
+| `SimpleRunnerFolderTest`      | 16     | Поиск папок рабочего стола (структурный признак)   |
 | `SimpleRunnerInstallerTest`   | 3      | Настройки установщика, запрет установки APK        |
-| `SimpleRunnerScrollTest`      | 2      | Поиск контейнера прокрутки                         |
+| `SimpleRunnerScrollTest`      | 4      | Поиск контейнера прокрутки, строка ниже сгиба      |
 | `SimpleRunnerDrillTest`       | 9      | Проверка уровней бурения (маршрут, меню шапки, альтернативные узлы) |
-| `SimpleRunnerApplicabilityTest` | 5    | Неприменимые шаги, вход notif_*                    |
+| `SimpleRunnerApplicabilityTest` | 6    | Неприменимые шаги, вход notif_*                    |
 | `SimpleRunnerAppEntryTest`    | 4      | Готовность экрана приложения перед бурением        |
 | `ScanOrchestratorTest`        | 4      | Планирование навигации, кэш                        |
 | `ScreenCrawlerTest`           | 6      | Сканер экранов (диагностика)                       |

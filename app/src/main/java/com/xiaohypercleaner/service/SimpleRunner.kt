@@ -3174,8 +3174,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         )
 
     /**
-     * Маршрут навигации: явно совпавший вариант ОС авторитетен (его путь заменяет
-     * legacy-догадки), иначе — legacy-путь + fallbackDrillPath-подсказки каталога.
+     * Маршрут навигации. Приоритет источников: `route` (RouteScript варианта — ровно
+     * проверенные руками интенты и тапы) → `variants[].drillPath` (явно совпавший
+     * вариант ОС) → legacy-путь + `fallbackDrillPath`-подсказки каталога.
      * Поведение cn_hyperos (базовые поля) не меняется.
      */
     private fun semanticDrillPath(
