@@ -2,8 +2,11 @@
     Передний план (foreground) адаптивной иконки приложения.
 
     ИСПОЛЬЗУЕТСЯ В:
-    - mipmap-anydpi-v26/ic_launcher.xml (адаптивная иконка Android 8+)
-    - mipmap-anydpi-v26/ic_launcher_round.xml (круглая версия)
+    - mipmap-anydpi/ic_launcher.xml (адаптивная иконка Android 8+)
+    - mipmap-anydpi/ic_launcher_round.xml (круглая версия)
+
+    Фон адаптивной иконки рисует @drawable/ic_launcher_background
+    (то же имя, что у удалённого color-ресурса — не путать).
 
     КОМПОЗИЦИЯ:
     - Робокот (масштаб 0.42) из ic_robot_companion.xml
