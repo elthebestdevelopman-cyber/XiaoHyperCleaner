@@ -296,6 +296,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
     /** Scroll-until-found для уровней drill: до 4 прокруток на уровень. */
     private const val DRILL_SCROLL_TRIES = 4
 
+    /**
+     * Scroll-until-found для строки-цели тумблера: строка живёт ниже сгиба
+     * (Cleaner «Получать рекомендации» y≈2118 на экране 2400; App Vault
+     * «Рекомендации приложений» за списком карточек), четырёх прокруток не хватало —
+     * шаг уходил в low_confidence/keyword_mismatch (прогон rmulhb4yq).
+     */
+    private const val ROW_SCROLL_ATTEMPTS = 8
+
+    /** Прокруток подряд без сдвига экрана, после которых «упёрлись» и прекращаем. */
+    private const val ROW_SCROLL_STALL_LIMIT = 2
+
     /** Сколько совпавших узлов уровня пробуем, прежде чем признать уровень непройденным. */
     private const val DRILL_LEVEL_ATTEMPTS = 3
 
@@ -1777,25 +1788,45 @@ class SimpleRunner(private val service: AdbEnablerService) {
             service.rootInActiveWindow ?: return Result(false, "no_root_window")
         var switchNode: AccessibilityNodeInfo? = findSwitchByText(currentRoot, mergedSearchTexts)
 
-        // Fallback: скролл (ИСПРАВЛЕНО: не ресайклим root, если нашли ноду, чтобы избежать IllegalStateException)
+        // Fallback: строка-цель может жить ниже сгиба даже когда экран шага открыт
+        // (Cleaner: «Получать рекомендации» у нижней кромки; App Vault: за списком
+        // карточек). Крутим до появления строки, но каждую прокрутку проверяем на
+        // фактический сдвиг экрана: без сдвига список закончился или жест не дошёл —
+        // тогда честный `switch_not_found` вместо сжигания бюджета шага.
+        // Root не ресайклим, если нашли ноду (иначе IllegalStateException у switchNode).
         if (switchNode == null && mergedSearchTexts.isNotEmpty()) {
             recycleNode(currentRoot)
-            repeat(SWITCH_FALLBACK_SCROLLS) { attempt ->
+            currentRoot = null
+            var stalled = 0
+            for (attempt in 0 until ROW_SCROLL_ATTEMPTS) {
                 if (cancelled) return Result(false, "cancelled")
                 AppLog.i(
                     TAG,
-                    "switch: scroll attempt ${attempt + 1}/$SWITCH_FALLBACK_SCROLLS " +
+                    "switch: scroll attempt ${attempt + 1}/$ROW_SCROLL_ATTEMPTS " +
                         "for '${mergedSearchTexts.firstOrNull()}'"
                 )
-                val r = service.rootInActiveWindow ?: return Result(false, "no_root_window")
-                recycleNode(r)
-                scrollDownOnce()
-
-                currentRoot = service.rootInActiveWindow ?: return Result(false, "no_root_window")
-                switchNode = findSwitchByText(currentRoot, mergedSearchTexts)
-                if (switchNode != null) return@repeat // Оставляем currentRoot в живых для switchNode
-                recycleNode(currentRoot)
-                currentRoot = null
+                val changed = scrollDownVerified()
+                val root = service.rootInActiveWindow ?: return Result(false, "no_root_window")
+                switchNode = findSwitchByText(root, mergedSearchTexts)
+                if (switchNode != null) {
+                    currentRoot = root
+                    break
+                }
+                recycleNode(root)
+                stalled = if (changed) 0 else stalled + 1
+                if (stalled >= ROW_SCROLL_STALL_LIMIT) {
+                    AppLog.w(
+                        TAG,
+                        "switch: scroll stalled after ${attempt + 1} attempt(s) " +
+                            "for '${mergedSearchTexts.firstOrNull()}'"
+                    )
+                    StepDiagnostics.note(
+                        step.id,
+                        "SCROLL",
+                        "stalled attempts=${attempt + 1} text=" + mergedSearchTexts.firstOrNull()
+                    )
+                    break
+                }
             }
         }
 
@@ -3522,19 +3553,28 @@ class SimpleRunner(private val service: AdbEnablerService) {
             ?.let { clickableAncestorOrSelf(it) }
     }
 
-    private suspend fun findClickableByTextWithScroll(
+    // internal — для тестируемости (SimpleRunnerScrollTest: строка ниже сгиба).
+    internal suspend fun findClickableByTextWithScroll(
         texts: List<String>,
         attempts: Int = SWITCH_FALLBACK_SCROLLS,
         logLabel: String? = null
     ): AccessibilityNodeInfo? {
-        repeat(attempts) { attempt ->
+        var stalled = 0
+        for (attempt in 0 until attempts) {
             findClickableByText(texts = texts)?.let { return it }
             val root = service.rootInActiveWindow ?: return null
             recycleNode(root)
             if (logLabel != null) {
                 AppLog.i(TAG, "drill: scroll attempt ${attempt + 1}/$attempts for '$logLabel'")
             }
-            scrollDownOnce()
+            val changed = scrollDownVerified()
+            stalled = if (changed) 0 else stalled + 1
+            if (stalled >= ROW_SCROLL_STALL_LIMIT) {
+                // Экран не двигается (поповер/ViewPager/жест не дошёл): дальнейшие
+                // прокрутки бесполезны — выходим сразу, а не «до конца попыток».
+                AppLog.w(TAG, "drill: scroll stalled for '$logLabel'")
+                break
+            }
         }
         return findClickableByText(texts = texts)
     }
@@ -3604,16 +3644,36 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     /**
+     * Прокрутка с проверкой эффекта: контейнер списка может ответить `false`
+     * (Cleaner/App Vault: `scroll: gesture down` четыре раза подряд, экран не
+     * сдвинулся — шаг не нашёл строку ниже сгиба, прогон rmulhb4yq), а инъекция
+     * может уйти в никуда. Возвращает true, если текст экрана фактически изменился.
+     */
+    private suspend fun scrollDownVerified(): Boolean {
+        val before = currentScreenText()
+        scrollDownOnce()
+        val after = currentScreenText()
+        return before.isNotBlank() && after.isNotBlank() && after != before
+    }
+
+    /**
      * Прокрутка вниз до появления любой из строк [texts]: тумблер или маркер целевого
      * экрана мог оказаться ниже сгиба (Mi Music: «Показывать рекламу» в разделе
      * «Дополнительные настройки»). Возвращает true, если строка появилась на экране.
+     * Прокрутка без сдвига экрана прекращает цикл: бюджет шага не жжём впустую.
      */
     private suspend fun scrollUntilScreenHasAny(texts: List<String>): Boolean {
         if (texts.isEmpty()) return false
-        repeat(SWITCH_FALLBACK_SCROLLS) {
+        var stalled = 0
+        for (attempt in 0 until SWITCH_FALLBACK_SCROLLS) {
             if (cancelled) return false
-            scrollDownOnce()
+            val changed = scrollDownVerified()
             if (screenHasAny(texts)) return true
+            stalled = if (changed) 0 else stalled + 1
+            if (stalled >= ROW_SCROLL_STALL_LIMIT) {
+                AppLog.w(TAG, "scroll: no effect after ${attempt + 1} attempt(s) — stop")
+                return false
+            }
         }
         return false
     }
