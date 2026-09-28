@@ -3399,6 +3399,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
             AppLog.i(TAG, "route ${step.id}: ${index + 1}/${route.size} '$what' ok=$ok")
             StepDiagnostics.note(step.id, "ROUTE", "step=${index + 1} what='$what' ok=$ok")
             delay(item.waitMs)
+            // Поверх маршрута встаёт стена первого запуска (Проводник: «Добро пожаловать
+            // в Проводник» перекрывает «Еще» → «Настройки» → «Информация»; Mi Браузер:
+            // страницы мастера) либо обманка-промпт (GetApps: «Доступно обновление»).
+            // Закрываем её ДО следующего действия, иначе тап уходит в стену, а шаг
+            // объявляется неприменимым (прогон rmulhb4yq: filemanager route 2–4 ok=false,
+            // browser_sys/getapps — drill_level_absent).
+            val walls = handleConsentWalls(step)
+            if (walls > 0) {
+                AppLog.i(TAG, "route ${step.id}: consent walls handled=$walls before next action")
+                delay(UI_SETTLE_DELAY_MS)
+            }
         }
         return findAndToggleSwitch(step)
     }

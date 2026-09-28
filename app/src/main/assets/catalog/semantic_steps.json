@@ -2,22 +2,22 @@
   "version": 1,
   "consentPolicy": {
     "welcomeMarkers": {
-      "ru": ["Добро пожаловать", "Условия использования", "Условиями использования", "Условиях использования", "Политика конфиденциальности", "Политикой конфиденциальности", "Пользовательское соглашение", "Скачивание видео", "Загрузка видео", "Настройка браузера", "Выберите поисковую систему", "Быстрая настройка", "Глобальная лента контента", "Юридические документы", "Приватные файлы", "Управление файлами на устройстве и их сокрытие", "Мощный видеоплеер"],
-      "en": ["Welcome", "Terms of Service", "Terms of Use", "Privacy Policy", "User Agreement", "By continuing", "Download videos", "Video download", "Set up your browser", "Choose a search engine", "Quick setup", "Global content feed", "Legal documents", "Private files", "Manage files on your device and hide them", "Powerful video player"],
-      "es": ["Bienvenido", "Términos de servicio", "Política de privacidad", "Descarga de vídeos", "Configuración del navegador", "Elige un motor de búsqueda", "Feed de contenido global", "Documentos legales"],
-      "zh": ["欢迎", "服务条款", "隐私政策", "视频下载", "浏览器设置", "选择搜索引擎", "全球内容源", "法律文件"],
-      "hi": ["स्वागत है", "सेवा की शर्तें", "गोपनीयता नीति", "वीडियो डाउनलोड", "ब्राउज़र सेटअप", "खोज इंजन चुनें", "वैश्विक सामग्री फ़ीड", "कानूनी दस्तावेज़"],
-      "pt": ["Bem-vindo", "Termos de Serviço", "Política de Privacidade", "Download de vídeos", "Configuração do navegador", "Escolha um mecanismo de busca", "Feed de conteúdo global", "Documentos legais"],
-      "id": ["Selamat datang", "Ketentuan Layanan", "Kebijakan Privasi", "Unduh video", "Pengaturan browser", "Pilih mesin pencari", "Feed konten global", "Dokumen hukum"]
+      "ru": ["Добро пожаловать", "Добро пожаловать в Проводник", "Добро пожаловать в Mi Браузер", "Совершенно новые AI-функции", "Условия использования", "Условиями использования", "Условиях использования", "Политика конфиденциальности", "Политикой конфиденциальности", "Пользовательское соглашение", "Скачивание видео", "Загрузка видео", "Загрузка видео и фото из соцсетей", "Статусы WhatsApp", "Сохраняйте изображения и видео из статусов в WhatsApp", "Личные файлы", "Настройка браузера", "Выберите поисковую систему", "Быстрая настройка", "Глобальная лента контента", "Юридические документы", "Приватные файлы", "Управление файлами на устройстве и их сокрытие", "Мощный видеоплеер", "Категоризация недавно использованных объектов", "Просмотр и редактирование файлов"],
+      "en": ["Welcome", "Welcome to File Manager", "Welcome to Mi Browser", "Brand-new AI features", "Terms of Service", "Terms of Use", "Privacy Policy", "User Agreement", "By continuing", "Download videos", "Video download", "Download videos and photos from social media", "WhatsApp Status", "Save images and videos from WhatsApp statuses", "Private files", "Set up your browser", "Choose a search engine", "Quick setup", "Global content feed", "Legal documents", "Manage files on your device and hide them", "Powerful video player", "Categorize recently used items", "Browse and edit files"],
+      "es": ["Bienvenido", "Bienvenido a File Manager", "Bienvenido a Mi Browser", "Nuevas funciones de IA", "Términos de servicio", "Política de privacidad", "Descarga de vídeos", "Estados de WhatsApp", "Archivos privados", "Configuración del navegador", "Elige un motor de búsqueda", "Feed de contenido global", "Documentos legales"],
+      "zh": ["欢迎", "欢迎使用文件管理器", "欢迎使用 Mi 浏览器", "全新 AI 功能", "服务条款", "隐私政策", "视频下载", "WhatsApp 状态", "私人文件", "浏览器设置", "选择搜索引擎", "全球内容源", "法律文件"],
+      "hi": ["स्वागत है", "फ़ाइल प्रबंधक में आपका स्वागत है", "Mi ब्राउज़र में आपका स्वागत है", "नई AI सुविधाएँ", "सेवा की शर्तें", "गोपनीयता नीति", "वीडियो डाउनलोड", "WhatsApp स्टेटस", "निजी फ़ाइलें", "ब्राउज़र सेटअप", "खोज इंजन चुनें", "वैश्विक सामग्री फ़ीड", "कानूनी दस्तावेज़"],
+      "pt": ["Bem-vindo", "Bem-vindo ao Gerenciador de arquivos", "Bem-vindo ao Mi Browser", "Novos recursos de IA", "Termos de Serviço", "Política de Privacidade", "Download de vídeos", "Status do WhatsApp", "Arquivos privados", "Configuração do navegador", "Escolha um mecanismo de busca", "Feed de conteúdo global", "Documentos legais"],
+      "id": ["Selamat datang", "Selamat datang di File Manager", "Selamat datang di Mi Browser", "Fitur AI terbaru", "Ketentuan Layanan", "Kebijakan Privasi", "Unduh video", "Status WhatsApp", "File pribadi", "Pengaturan browser", "Pilih mesin pencari", "Feed konten global", "Dokumen hukum"]
     },
     "welcomeActions": {
-      "ru": ["Согласиться", "Принять", "Принять и продолжить", "Согласен", "Еще", "Ещё", "Далее", "Продолжить", "Начать", "Пропустить"],
+      "ru": ["Согласиться", "Принять", "Принять и продолжить", "Согласен", "Еще", "Ещё", "Далее", "Продолжить", "Начать", "Пропустить", "Пропуск"],
       "en": ["Agree", "Accept", "Accept and continue", "I agree", "More", "Next", "Continue", "Start", "Skip"],
-      "es": ["Aceptar", "Aceptar y continuar", "De acuerdo", "Más", "Siguiente", "Continuar"],
-      "zh": ["同意", "接受", "同意并继续", "我同意", "更多", "下一步", "继续"],
-      "hi": ["सहमत हूँ", "स्वीकार करें", "स्वीकार करें और जारी रखें", "अधिक", "अगला", "जारी रखें"],
-      "pt": ["Concordo", "Aceitar", "Aceitar e continuar", "Mais", "Próximo", "Continuar"],
-      "id": ["Setuju", "Terima", "Terima dan lanjutkan", "Lainnya", "Berikutnya", "Lanjutkan"]
+      "es": ["Aceptar", "Aceptar y continuar", "De acuerdo", "Más", "Siguiente", "Continuar", "Omitir", "Empezar"],
+      "zh": ["同意", "接受", "同意并继续", "我同意", "更多", "下一步", "继续", "跳过", "开始"],
+      "hi": ["सहमत हूँ", "स्वीकार करें", "स्वीकार करें और जारी रखें", "अधिक", "अगला", "जारी रखें", "छोड़ें", "शुरू करें"],
+      "pt": ["Concordo", "Aceitar", "Aceitar e continuar", "Mais", "Próximo", "Continuar", "Pular", "Começar"],
+      "id": ["Setuju", "Terima", "Terima dan lanjutkan", "Lainnya", "Berikutnya", "Lanjutkan", "Lewati", "Mulai"]
     },
     "permissionMarkers": {
       "ru": ["Разрешить приложению", "Запрос разрешения"],
@@ -54,13 +54,13 @@
       "id": ["Pilih semua", "Saya setuju dengan semua", "(wajib)", "wajib"]
     },
     "dismissMarkers": {
-      "ru": ["Произошла ошибка сети", "Ошибка сети", "Нет подключения к сети", "Вам нравится Mi Браузер?", "Оцените приложение", "Ярлыки функций доступны сейчас", "Приложение не отвечает", "РЕКЛАМА"],
-      "en": ["Network error occurred", "Network error", "No network connection", "Do you like Mi Browser?", "Rate the app", "Feature shortcuts are available now", "App isn't responding", "AD"],
-      "es": ["Se produjo un error de red", "Error de red", "ANUNCIO"],
-      "zh": ["网络错误", "发生网络错误", "广告"],
-      "hi": ["नेटवर्क त्रुटि", "नेटवर्क त्रुटि हुई", "विज्ञापन"],
-      "pt": ["Ocorreu um erro de rede", "Erro de rede", "ANÚNCIO"],
-      "id": ["Terjadi kesalahan jaringan", "Kesalahan jaringan", "IKLAN"]
+      "ru": ["Произошла ошибка сети", "Ошибка сети", "Нет подключения к сети", "Вам нравится Mi Браузер?", "Оцените приложение", "Ярлыки функций доступны сейчас", "Приложение не отвечает", "РЕКЛАМА", "Совершенно новые AI-функции", "Приватные файлы"],
+      "en": ["Network error occurred", "Network error", "No network connection", "Do you like Mi Browser?", "Rate the app", "Feature shortcuts are available now", "App isn't responding", "AD", "Brand-new AI features", "Private files"],
+      "es": ["Se produjo un error de red", "Error de red", "ANUNCIO", "Nuevas funciones de IA", "Archivos privados"],
+      "zh": ["网络错误", "发生网络错误", "广告", "全新 AI 功能", "私人文件"],
+      "hi": ["नेटवर्क त्रुटि", "नेटवर्क त्रुटि हुई", "विज्ञापन", "नई AI सुविधाएँ", "निजी फ़ाइलें"],
+      "pt": ["Ocorreu um erro de rede", "Erro de rede", "ANÚNCIO", "Novos recursos de IA", "Arquivos privados"],
+      "id": ["Terjadi kesalahan jaringan", "Kesalahan jaringan", "IKLAN", "Fitur AI terbaru", "File pribadi"]
     },
     "dismissTexts": {
       "ru": ["Нет, спасибо", "Понятно", "Закрыть", "Отмена", "Позже", "OK", "Вернуться в приложение"],

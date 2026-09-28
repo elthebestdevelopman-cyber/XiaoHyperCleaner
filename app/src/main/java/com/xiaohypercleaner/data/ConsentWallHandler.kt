@@ -223,7 +223,15 @@ object ConsentWallHandler {
         if (action.kind == "welcome") {
             bridge.tapEnabledDialogButtonByTexts(action.texts, action.markers)
         } else {
-            bridge.tapDialogButtonByTexts(action.texts, action.markers)
+            // Стена-промо без отрицательной кнопки (Mi Браузер: «Совершенно новые
+            // AI-функции», «Приватные файлы»): у неё есть только кнопка продолжения,
+            // поэтому после отказа по dismiss-текстам пробуем действия стены.
+            // Только для kind=dismiss: permission-диалоги этот путь не трогает.
+            bridge.tapDialogButtonByTexts(action.texts, action.markers) ||
+                (action.kind == "dismiss" && bridge.tapEnabledDialogButtonByTexts(
+                    (SemanticCatalog.welcomeActions() + action.texts).distinct(),
+                    action.markers
+                ))
         }
 
 

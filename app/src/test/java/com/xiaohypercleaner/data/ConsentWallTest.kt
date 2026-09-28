@@ -473,4 +473,56 @@ class ConsentWallTest {
             assertEquals("deny", action?.decision)
         }
     }
+
+    @Test
+    fun `mi browser guide page is recognised as a wall and stepped over`() = runTest {
+        // Дамп fresh_browser_guide2: вторая страница мастера «Статусы WhatsApp» не имела
+        // ни одного маркера политики — стена удерживала экран, drill не находил
+        // «Профиль» (прогон rmulhb4yq, browser_sys → not_applicable).
+        withLocale("ru") {
+            val action = ConsentWallHandler.classify(
+                screenText = "Статусы WhatsApp Сохраняйте изображения и видео из статусов " +
+                    "в WhatsApp Пропуск Далее",
+                ownerPackage = "com.mi.globalbrowser",
+                stepPackages = listOf("com.mi.globalbrowser"),
+                stepId = "browser_sys",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = emptyList(),
+                alertDialog = false
+            )
+            assertEquals("welcome", action?.kind)
+            assertEquals("accepted", action?.decision)
+            assertTrue(
+                "кнопка «Пропуск» мастера должна быть в действиях политики",
+                action!!.texts.any { it.equals("Пропуск", ignoreCase = true) }
+            )
+        }
+    }
+
+    @Test
+    fun `file manager first run wall is accepted by its own button`() = runTest {
+        // Дамп before/filemanager: «Добро пожаловать в Проводник» перекрывал маршрут
+        // «Еще → Настройки → Информация» (route 2–4 ok=false, прогон rmulhb4yq).
+        withLocale("ru") {
+            val action = ConsentWallHandler.classify(
+                screenText = "Добро пожаловать в Проводник Добро пожаловать в Проводник! " +
+                    "Помимо основных функций, это приложение также предоставляет следующие " +
+                    "службы Категоризация недавно использованных объектов Просмотр и " +
+                    "редактирование файлов Принять и продолжить Отклонить",
+                ownerPackage = "com.mi.android.globalFileexplorer",
+                stepPackages = listOf("com.mi.android.globalFileexplorer"),
+                stepId = "filemanager",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = emptyList(),
+                alertDialog = false
+            )
+            assertEquals("welcome", action?.kind)
+            assertEquals("app_owned", action?.cause)
+            assertEquals("accepted", action?.decision)
+            assertTrue(
+                "согласие мастера тапается кнопкой «Принять и продолжить»",
+                action!!.texts.any { it.equals("Принять и продолжить", ignoreCase = true) }
+            )
+        }
+    }
 }
