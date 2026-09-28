@@ -22,6 +22,14 @@ import java.util.concurrent.ConcurrentHashMap
  * - uiSteps: дополнительные searchTexts / drillPath / confirmTexts для конкретных шагов
  * - enterSafe: безопасные тексты для входа (не триггерят рекламу)
  *
+ * ВАРИАНТЫ (variants):
+ * - cn_hyperos — базовые данные для CN/HyperOS и для любого не-RU Global. Это НЕ
+ *   замороженная копия: ветка правится только осознанным решением владельца, чужие
+ *   (снятые на global_ru) пути сюда не «подтягиваются». Для sys_recommendations в
+ *   drillPath вернулись уровни fdabc56 («Приложения» → «Ещё»), правка от 3156374
+ *   откачена.
+ * - global_ru — переопределения для Global+RU (replaceDrillPath/drillPath/searchTexts).
+ *
  * МЕТОДЫ МЕРДЖА (используются в SimpleRunner):
  * - mergeSearchTexts()    — базовые + каталожные searchTexts
  * - mergeDrillPath()      — базовый + каталожный drillPath

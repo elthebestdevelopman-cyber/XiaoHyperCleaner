@@ -31,7 +31,7 @@
     },
     "sys_recommendations": {
       "searchTexts": ["Получать рекомендации", "Receive recommendations", "接收推荐", "个性化推荐", "Recibir recomendaciones", "सिफ़ारिशें प्राप्त करें", "Terima rekomendasi", "Receber recomendações", "प्राप्त करें"],
-      "drillPath": [["Ещё", "Еще", "More", "更多", "Más", "अधिक", "⋮"], ["Настройки", "Settings", "设置", "Ajustes", "सेटिंग्स"]]
+      "drillPath": [["Приложения", "Apps", "应用", "Aplicaciones", "ऐप्स"], ["Ещё", "More", "更多", "Más", "अधिक"]]
     },
     "ads_personalization": {
       "searchTexts": ["Персонализация рекламы", "Персонализированная реклама", "Рекламные службы", "Personalization of ads", "Ads personalization", "Personalized ads", "Ad services", "Personalización de anuncios", "Anuncios personalizados", "个性化广告", "वैयक्तिकृत विज्ञापन", "Personalisasi iklan", "Personalização de anúncios"],

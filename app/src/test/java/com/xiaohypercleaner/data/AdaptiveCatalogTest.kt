@@ -230,6 +230,37 @@ class AdaptiveCatalogTest {
         }
     }
 
+    @Test
+    fun `cn branch keeps fdabc56 drill path for sys recommendations`() {
+        // Инвариант «данные cn_hyperos правит только владелец»: коммит 3156374 принёс в
+        // CN-ветку путь, снятый на global_ru («Ещё» → «Настройки»), и шаг на CN-прошивке
+        // уходил не туда. Значение возвращено к состоянию fdabc56.
+        val cnProfile = RomProfile(
+            region = RomRegion.CN,
+            miuiVersion = "V14.0.0",
+            hyperOsHint = false,
+            isTablet = false
+        )
+        withLocale("ru") {
+            AdaptiveCatalog.selectVariant(context, cnProfile)
+
+            val merged = AdaptiveCatalog.mergeDrillPath(context, "sys_recommendations", emptyList())
+
+            assertTrue(
+                "первый уровень cn-ветки — «Приложения» (fdabc56): $merged",
+                merged.any { it == listOf("Приложения", "Apps", "应用", "Aplicaciones", "ऐप्स") }
+            )
+            assertTrue(
+                "второй уровень cn-ветки — «Ещё» (fdabc56): $merged",
+                merged.any { it == listOf("Ещё", "More", "更多", "Más", "अधिक") }
+            )
+            assertFalse(
+                "путь от 3156374 («Ещё» → «Настройки») в cn-ветке не остался: $merged",
+                merged.any { it == listOf("Настройки", "Settings", "设置", "Ajustes", "सेटिंग्स") }
+            )
+        }
+    }
+
     /** Выполняет блок с временно установленной локалью (для диспетчера вариантов). */
     private fun withLocale(lang: String, block: () -> Unit) {
         val original = Locale.getDefault()
