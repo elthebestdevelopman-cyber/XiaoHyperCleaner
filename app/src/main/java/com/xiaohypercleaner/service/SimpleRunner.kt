@@ -156,6 +156,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
         /** Пауза после открытия папки: поповер анимируется. */
         private const val FOLDER_OPEN_DELAY_MS = 500L
 
+        /** Ожидание поповера папки после тапа (анимация MIUI до ~0,5 с). */
+        private const val FOLDER_POPOVER_WAIT_MS = 2_000L
+        private const val FOLDER_POPOVER_POLL_MS = 200L
+        /** Сколько раз пробуем нажать название папки в поповере. */
+        private const val FOLDER_TITLE_TAPS = 2
+        /** Глубина подъёма по предкам при проверке «узел принадлежит иконке рабочего стола». */
+        private const val ICON_ANCESTOR_DEPTH = 6
+
         /** Сколько активностей установщика пробуем, прежде чем признать шаг неприменимым. */
         private const val MAX_INSTALLER_CANDIDATES = 5
 
@@ -2413,7 +2421,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 folderX = rect.centerX().toFloat(),
                 folderY = rect.centerY().toFloat(),
                 menuTexts = menuTexts,
-                editorMarkers = editorMarkers
+                editorMarkers = editorMarkers,
+                toggleTexts = toggleTexts
             )
             if (!editorOpened) {
                 // У ЭТОЙ папки секция/редактор не открылись: первая по дереву папка
@@ -2554,11 +2563,25 @@ class SimpleRunner(private val service: AdbEnablerService) {
         folderX: Float,
         folderY: Float,
         menuTexts: List<String>,
-        editorMarkers: List<String>
+        editorMarkers: List<String>,
+        toggleTexts: List<String>
     ): Boolean {
-        if (tapFolderTitle(folderLabel)) {
-            delay(UI_SETTLE_DELAY_MS)
-            if (isFolderEditorVisible(editorMarkers)) return true
+        // Ждём поповер: без ожидания тап заголовка уходил в иконку рабочего стола ПОЗАДИ
+        // поповера (анимация MIUI), редактор не открывался и шаг шёл искать другие папки
+        // (прогон rmulg783z).
+        if (awaitFolderPopover(FOLDER_POPOVER_WAIT_MS)) {
+            repeat(FOLDER_TITLE_TAPS) { attempt ->
+                if (cancelled) return false
+                if (!tapFolderTitle(folderLabel)) return@repeat
+                delay(UI_SETTLE_DELAY_MS)
+                if (isFolderEditorVisible(editorMarkers, toggleTexts)) return true
+                AppLog.w(
+                    TAG,
+                    "folder: заголовок нажат, редактор не подтверждён (попытка " + (attempt + 1) + ")"
+                )
+            }
+        } else {
+            AppLog.w(TAG, "folder: поповер папки не появился за " + FOLDER_POPOVER_WAIT_MS + "ms")
         }
         if (menuTexts.isEmpty()) return false
         if (!awaitOverlayReadyOrPause()) return false
@@ -2576,17 +2599,27 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val tapped = tapNode(item)
         recycleNode(item); recycleNode(root)
         delay(FOLDER_OPEN_DELAY_MS)
-        return tapped && isFolderEditorVisible(editorMarkers)
+        return tapped && isFolderEditorVisible(editorMarkers, toggleTexts)
     }
 
     /**
-     * Название папки в поповере: узел с её подписью, иначе самый верхний
-     * кликабельный текстовый узел (имя задаёт пользователь — сравнение мягкое).
+     * Название папки ВНУТРИ поповера. Сначала — узел `id=title` (настоящий заголовок
+     * открытой папки), и только потом мягкий поиск по подписи с исключением иконок
+     * рабочего стола: они лежат в том же дереве позади поповера и несут ту же подпись
+     * (`icon_title`), поэтому прежний код тапал именно иконку — редактор не открывался,
+     * и шаг уходил искать другие папки (прогон rmulg783z).
      */
     private suspend fun tapFolderTitle(label: String): Boolean {
+        findFolderTitleNode()?.let { node ->
+            val tapped = tapNode(node)
+            recycleNode(node)
+            if (tapped) return true
+        }
         val root = service.rootInActiveWindow ?: return false
         val candidates = NodeTree.findAllInTree(root, predicate = { node ->
-            !node.text.isNullOrBlank() && clickableAncestorOrSelf(node) != null
+            !node.text.isNullOrBlank() &&
+                clickableAncestorOrSelf(node) != null &&
+                !belongsToDesktopIcon(node)
         })
         recycleNode(root)
         val named = if (label.isNotBlank()) {
@@ -2706,20 +2739,72 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return label?.takeIf { it.isNotEmpty() }
     }
 
-    /** Экран редактора папки: совпал хотя бы один маркер каталога. */
-    private fun isFolderEditorVisible(markers: List<String>): Boolean {
+    /**
+     * Экран редактора папки. Признаки: поле переименования `rename_edit`, найденный
+     * тумблер рекомендаций либо маркеры каталога. Маркеры принимаем ТОЛЬКО когда заголовка
+     * поповера уже нет (в редакторе его место занимает `rename_edit`): иначе фоновые тексты
+     * давали ложное «редактор открыт», и шаг объявлял, что секции рекомендаций нет
+     * (прогон rmulg783z).
+     */
+    private fun isFolderEditorVisible(markers: List<String>, toggleTexts: List<String>): Boolean {
         val root = service.rootInActiveWindow ?: return false
         val text = collectAllText(root)
-        // Признак редактора папки POCO/MIUI — поле переименования rename_edit
-        // (тап по названию папки): маркеров каталога на этом экране может не быть вовсе,
-        // из-за чего шаг считал редактор неоткрытым (прогон rmubgvwm5).
-        val renamed = NodeTree.findAllInTree(root, predicate = { node ->
+        val renamed = NodeTree.findInTree(root) { node ->
             node.viewIdResourceName?.endsWith("rename_edit") == true
-        })
-        val byId = renamed.isNotEmpty()
-        renamed.forEach { recycleNode(it) }
+        }
+        val byRename = renamed != null
+        recycleNode(renamed)
+        val switchNode = findSwitchByText(root, toggleTexts)
+        val bySwitch = switchNode != null
+        recycleNode(switchNode)
+        val titleNode = NodeTree.findInTree(root) { node ->
+            node.viewIdResourceName?.endsWith("/title") == true && !node.text.isNullOrBlank()
+        }
+        val titleGone = titleNode == null
+        recycleNode(titleNode)
         recycleNode(root)
-        return byId || (markers.isNotEmpty() && markers.any { TextMatcher.normalizedContains(text, it) })
+        val byMarkers = markers.isNotEmpty() && markers.any { TextMatcher.normalizedContains(text, it) }
+        return byRename || bySwitch || (byMarkers && titleGone)
+    }
+
+    /** Заголовок открытого поповера: узел `id=title` с непустым текстом. Иконки рабочего
+     *  стола позади поповера такого id не имеют (`icon_title`), поэтому признак отличает
+     *  настоящий заголовок папки от её иконки. */
+    internal fun findFolderTitleNode(): AccessibilityNodeInfo? {
+        val root = service.rootInActiveWindow ?: return null
+        val node = NodeTree.findInTree(root) { n ->
+            n.viewIdResourceName?.endsWith("/title") == true && !n.text.isNullOrBlank()
+        }
+        recycleNode(root)
+        return node
+    }
+
+    /** Ждёт появления поповера папки: признак — заголовок `id=title`. */
+    private suspend fun awaitFolderPopover(timeoutMs: Long): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (cancelled) return false
+            val title = findFolderTitleNode()
+            if (title != null) {
+                recycleNode(title)
+                return true
+            }
+            delay(FOLDER_POPOVER_POLL_MS)
+        }
+        return false
+    }
+
+    /** Узел принадлежит иконке рабочего стола (позади поповера), а не самому поповеру. */
+    internal fun belongsToDesktopIcon(node: AccessibilityNodeInfo): Boolean {
+        var cur: AccessibilityNodeInfo? = node
+        var depth = 0
+        while (cur != null && depth < ICON_ANCESTOR_DEPTH) {
+            val id = cur.viewIdResourceName?.substringAfterLast("/").orEmpty()
+            if (id == "icon_container" || id == "icon_title_container") return true
+            cur = cur.parent
+            depth++
+        }
+        return false
     }
 
     /**

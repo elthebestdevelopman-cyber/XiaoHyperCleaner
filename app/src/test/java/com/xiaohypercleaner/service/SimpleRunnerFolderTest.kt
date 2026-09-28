@@ -3,6 +3,7 @@ package com.xiaohypercleaner.service
 import android.view.accessibility.AccessibilityNodeInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -250,6 +251,38 @@ class SimpleRunnerFolderTest {
             "пустой список подсказок ничего не подтверждает",
             runner.matchesFolderHint("Russia", emptyList())
         )
+    }
+
+    @Test
+    fun `popover title node wins over desktop icon label`() {
+        // Прогон rmulg783z: тап «названия папки» уходил в иконку рабочего стола позади
+        // поповера (у неё та же подпись), редактор не открывался, шаг шёл дальше.
+        val iconTitle = node("android.widget.TextView", text = "Russia")
+        Mockito.`when`(iconTitle.viewIdResourceName).thenReturn("com.miui.home:id/icon_title")
+        val popoverTitle = node("android.widget.TextView", text = "Russia", clickable = true)
+        Mockito.`when`(popoverTitle.viewIdResourceName).thenReturn("com.miui.home:id/title")
+        val root = node("android.widget.FrameLayout", children = arrayOf(iconTitle, popoverTitle))
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        val picked = runner.findFolderTitleNode()
+
+        assertNotNull("заголовок поповера найден", picked)
+        assertEquals("com.miui.home:id/title", picked?.viewIdResourceName)
+    }
+
+    @Test
+    fun `desktop icon labels are excluded from title search`() {
+        val iconTitleContainer = node("android.widget.FrameLayout")
+        Mockito.`when`(iconTitleContainer.viewIdResourceName)
+            .thenReturn("com.miui.home:id/icon_title_container")
+        val iconLabel = node("android.widget.TextView", text = "Russia")
+        Mockito.`when`(iconLabel.parent).thenReturn(iconTitleContainer)
+        val shell = node("android.widget.FrameLayout")
+        val popoverTitle = node("android.widget.TextView", text = "Russia")
+        Mockito.`when`(popoverTitle.parent).thenReturn(shell)
+
+        assertTrue("подпись иконки — это иконка рабочего стола", runner.belongsToDesktopIcon(iconLabel))
+        assertFalse("заголовок поповера — не иконка", runner.belongsToDesktopIcon(popoverTitle))
     }
 }
 
