@@ -209,5 +209,47 @@ class SimpleRunnerFolderTest {
 
         assertFalse("кнопка поиска не является иконкой рабочего стола", runner.isHomeIconNode(mic))
     }
+
+    @Test
+    fun `app icons are not probe candidates for the folder step`() {
+        // Аудит 2026-09-28: в список проб попадали иконки приложений (структура иконки
+        // лаунчера), из-за чего робот «перебирал папки» вместо целевой и жёг бюджет.
+        val iconImage = node("android.widget.ImageView")
+        val container = node("android.widget.FrameLayout", children = arrayOf(iconImage))
+        Mockito.`when`(container.viewIdResourceName).thenReturn("com.miui.home:id/icon_container")
+        val title = node("android.widget.TextView", text = "Проводник")
+        val icon = node(
+            "android.widget.FrameLayout",
+            desc = "Проводник",
+            clickable = true,
+            children = arrayOf(container, title)
+        )
+        val root = node("android.widget.FrameLayout", children = arrayOf(icon))
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        assertTrue(
+            "иконка приложения не должна быть кандидатом-папкой",
+            runner.homeFolderCandidates().isEmpty()
+        )
+    }
+
+    @Test
+    fun `folder hint matching is locale-friendly and hint-only`() {
+        // Подсказка ускоряет порядок проверки и ничего не подтверждает сама по себе:
+        // истина — секция рекомендаций внутри папки (структурный поиск).
+        assertTrue(runner.matchesFolderHint("Russia", listOf("Russia")))
+        assertTrue(
+            "мягкое сравнение по локали",
+            runner.matchesFolderHint("Рекомендации", listOf("Рекомендации"))
+        )
+        assertFalse(
+            "чужая папка не подсказка",
+            runner.matchesFolderHint("Инструменты", listOf("Russia", "Рекомендации"))
+        )
+        assertFalse(
+            "пустой список подсказок ничего не подтверждает",
+            runner.matchesFolderHint("Russia", emptyList())
+        )
+    }
 }
 

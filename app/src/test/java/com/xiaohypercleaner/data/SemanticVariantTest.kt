@@ -156,4 +156,23 @@ class SemanticVariantTest {
             SemanticCatalog.extraTargetsAfterMain("carousel").isEmpty()
         )
     }
+
+    @Test
+    fun `folder name hints come from the catalog for locale and region`() {
+        // Имя папки — только подсказка для порядка проверки, но она обязана быть
+        // проверяемой и обновляемой (каталог), а не зашитой в код.
+        SemanticCatalog.selectVariant(profile(RomFamily.MIUI, "13"))
+
+        val hints = SemanticCatalog.folderNameHints("folder_recommendations", "RU")
+        assertTrue("региональная папка RU", hints.contains("Russia"))
+        assertTrue(
+            "слово локали ru",
+            hints.contains("Рекомендации") || hints.contains("Рекомендуемое")
+        )
+        assertFalse("подсказка чужого региона не подмешивается", hints.contains("India"))
+        assertFalse(
+            "без региона остаются только слова локали",
+            SemanticCatalog.folderNameHints("folder_recommendations", null).contains("India")
+        )
+    }
 }

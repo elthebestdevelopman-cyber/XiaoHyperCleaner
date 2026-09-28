@@ -210,5 +210,10 @@ class SimpleRunnerApplicabilityTest {
             SimpleRunner.classifySkip("folder_switch_absent")
         )
         assertEquals(SimpleRunner.SkipKind.UNRESOLVED, SimpleRunner.classifySkip(null))
+        // Промах на папках рабочего стола — «не нашёл», а не «нет на устройстве».
+        assertEquals(
+            SimpleRunner.SkipKind.UNRESOLVED,
+            SimpleRunner.classifySkip(SimpleRunner.FOLDER_EDITOR_NOT_OPENED)
+        )
     }
 }

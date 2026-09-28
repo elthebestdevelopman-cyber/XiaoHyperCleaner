@@ -147,9 +147,6 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         /** Пакет системных настроек (проверка foreground для системных шагов). */
         private const val SETTINGS_PACKAGE = "com.android.settings"
-        /** Сколько папок рабочего стола перебираем, прежде чем признать шаг неприменимым. */
-        private const val MAX_HOME_FOLDERS = 3
-
         /** Предельная глубина обхода превью папки лаунчера (icon_container → preview → itemN). */
         private const val FOLDER_PREVIEW_DEPTH = 3
 
@@ -162,8 +159,22 @@ class SimpleRunner(private val service: AdbEnablerService) {
         /** Сколько активностей установщика пробуем, прежде чем признать шаг неприменимым. */
         private const val MAX_INSTALLER_CANDIDATES = 5
 
-        /** Сколько иконок рабочего стола проверяем на «это папка», прежде чем сдаться. */
-        private const val MAX_FOLDER_PROBES = 3
+        /**
+         * Сколько папок рабочего стола проверяем за шаг. Папка с рекомендациями может
+         * быть не первой по дереву (POCO: первой стоит «Инструменты»), поэтому шаг
+         * проверяет ВСЕ папки, а не сдаётся после первой (прогон владельца 2026-09-28).
+         */
+        private const val MAX_FOLDER_PROBES = 6
+
+        /**
+         * Сколько папок проверяем структурно, если НИ ОДНО имя не совпало с подсказками
+         * каталога: у пользователя бывает 20 папок, и перебор всех — недопустимо дорогой
+         * путь. Не нашли среди них — честное «не найдено автоматически».
+         */
+        private const val MAX_FOLDER_STRUCTURAL_PROBES = 3
+
+        /** Резерв бюджета шага: ниже него новые папки не пробуем. */
+        private const val FOLDER_BUDGET_RESERVE_MS = 4_000L
 
         /** Пакеты-лаунчеры MIUI: папки рабочего стола есть только в них. */
         private val LAUNCHER_PACKAGES = listOf(
@@ -239,6 +250,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
          * рабочего стола нет ни «Показывать предложения», ни рекомендаций).
          */
         internal const val LAUNCHER_ABSENT = "launcher_setting_absent"
+
+        /**
+         * Поповер папки открылся, но её редактор/секция рекомендаций не открылись ни
+         * тапом по названию, ни контекстным меню: это промах автоматизации, а не
+         * «нет на устройстве» (ведро UNRESOLVED в отчёте).
+         */
+        internal const val FOLDER_EDITOR_NOT_OPENED = "folder_editor_not_opened"
+
+        /** Папки проверены все, секции рекомендаций нет ни в одной. */
+        internal const val FOLDER_SWITCH_ABSENT = "folder_switch_absent"
 
         /**
          * Ведро причины пропуска шага. Статический помощник: его зовёт AdbEnablerService
@@ -2286,22 +2307,71 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * «Рекомендуемое сегодня». Имя папки задаёт пользователь, поэтому папка
      * ищется структурно, а тумблер — по семантике каталога и гейту уверенности.
      */
+    /**
+     * Рекомендации в папках рабочего стола. Порядок работы:
+     * 1) если владелец уже открыл папку или её редактор — работаем в текущем окне
+     *    (resetToHome не делаем: помощь пользователя не выбрасываем);
+     * 2) иначе идём на рабочий стол и проверяем ПАПКИ по очереди;
+     * 3) «секции рекомендаций нет» в одной папке не завершает шаг — проверяем остальные,
+     *    и только пройдя все, отдаём честное «настройки нет на устройстве».
+     */
     internal suspend fun toggleHomeFolderSuggestions(step: SimpleSteps.Step): Result {
         val toggleTexts = SemanticCatalog.itemTexts(step.id)
         val editorMarkers = SemanticCatalog.screenMarkers(step.id)
         val menuTexts = SemanticCatalog.overflowMenuLabels(step.id)
+
+        // Владелец мог открыть папку вручную: сначала пробуем его окно, а не рабочий стол.
+        val openState = currentFolderState(toggleTexts)
+        if (openState != FolderState.NONE) {
+            AppLog.i(TAG, "folder: открытое окно лаунчера ($openState) — работаем в нём")
+            StepDiagnostics.note(step.id, "FOLDER", "resume=" + openState)
+            if (openState == FolderState.POPOVER) {
+                currentFolderTitleLabel()?.let { label ->
+                    if (tapFolderTitle(label)) delay(UI_SETTLE_DELAY_MS)
+                }
+            }
+            toggleWithGate(step, toggleTexts, editorMarkers)?.let { result ->
+                currentFolderTitleLabel()?.let { name -> rememberFolderName(step.id, name) }
+                return result
+            }
+            AppLog.i(TAG, "folder: в открытом окне секции рекомендаций нет")
+        }
+
         resetToHome()
         delay(UI_SETTLE_DELAY_MS)
 
+        // Подсказки имён: сначала запомненное на этом устройстве, затем каталог (слова
+        // локали + имя страны региона). Полного перебора папок нет: у владельца бывает
+        // 20 папок, поэтому сначала идут только «похожие на нужную».
+        val hints = (
+            listOfNotNull(loadFolderHints()[folderHintKey(step.id)]) +
+                SemanticCatalog.folderNameHints(step.id, runCatching { romProfile.regionCode }.getOrNull())
+            ).distinct()
         val candidates = homeFolderCandidates()
-        StepDiagnostics.note(step.id, "FOLDER", "candidates=${candidates.size}")
-        AppLog.i(TAG, "folder: candidates=${candidates.size} step=${step.id}")
+            .sortedByDescending { node -> if (matchesFolderHint(folderLabel(node), hints)) 1 else 0 }
+        val hintMatch = candidates.any { matchesFolderHint(folderLabel(it), hints) }
+        val probeLimit = if (hints.isEmpty() || hintMatch) MAX_FOLDER_PROBES else MAX_FOLDER_STRUCTURAL_PROBES
+        StepDiagnostics.note(
+            step.id, "FOLDER",
+            "candidates=" + candidates.size + " hints=" + hints.size +
+                " hintMatch=" + hintMatch + " limit=" + probeLimit
+        )
+        AppLog.i(
+            TAG,
+            "folder: candidates=" + candidates.size + " hints=" + hints.size +
+                " hintMatch=" + hintMatch + " step=" + step.id
+        )
         if (candidates.isEmpty()) return Result(false, "folder_not_found")
 
         var probed = 0
-        var foldersOpened = 0
+        var foldersChecked = 0
+        var editorMissed = false
         for (candidate in candidates) {
-            if (probed >= MAX_FOLDER_PROBES) break
+            if (probed >= probeLimit) break
+            if (remainingBudgetMs() < FOLDER_BUDGET_RESERVE_MS) {
+                AppLog.w(TAG, "folder: бюджет шага на исходе, папки не проверяем дальше")
+                break
+            }
             probed++
             if (cancelled) return Result(false, "cancelled")
             if (!awaitOverlayReadyOrPause()) return Result(false, "overlay_lost")
@@ -2311,32 +2381,32 @@ class SimpleRunner(private val service: AdbEnablerService) {
             candidate.getBoundsInScreen(rect)
             StepDiagnostics.note(
                 step.id, "FOLDER",
-                "probe=$probed name='$label' class=${candidate.className}"
+                "probe=" + probed + " name=" + label +
+                    " hint=" + matchesFolderHint(label, hints) + " class=" + candidate.className
             )
             val tapped = tapNode(candidate)
             recycleNode(candidate)
             if (!tapped) {
-                AppLog.w(TAG, "folder: tap failed for '$label'")
+                AppLog.w(TAG, "folder: tap failed for " + label)
                 continue
             }
             delay(FOLDER_OPEN_DELAY_MS)
 
-            // Папка внешне неотличима от иконки приложения (дамп POCO Launcher:
-            // одинаковые FrameLayout с icon_container/icon_title). Признак папки —
-            // лаунчер остался в фокусе: тап по приложению сменил бы пакет.
+            // Иконка приложения внешне похожа на папку: признак папки — лаунчер остался
+            // в фокусе (тап по приложению сменил бы пакет).
             val foreground = activePackage()
             if (foreground != null && !isLauncherPackage(foreground)) {
                 StepDiagnostics.note(
                     step.id, "FOLDER",
-                    "probe=$probed name='$label' not_a_folder fg=$foreground"
+                    "probe=" + probed + " name=" + label + " not_a_folder fg=" + foreground
                 )
-                AppLog.i(TAG, "folder: '$label' is not a folder (fg=$foreground)")
+                AppLog.i(TAG, "folder: " + label + " не папка (fg=" + foreground + ")")
                 resetToHome()
                 delay(UI_SETTLE_DELAY_MS)
                 continue
             }
-            AppLog.i(TAG, "folder: popup opened for '$label'")
-            foldersOpened++
+            AppLog.i(TAG, "folder: popover opened for " + label)
+            foldersChecked++
 
             val editorOpened = openFolderEditor(
                 folderLabel = label,
@@ -2346,42 +2416,42 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 editorMarkers = editorMarkers
             )
             if (!editorOpened) {
-                // S14: поповер открылся, но редактор папки не открылся и тумблера в поповере
-                // нет — честное «неприменимо» после ПЕРВОЙ такой пробы: чекбокс живёт в
-                // редакторе, перебор остальных иконок только жжёт бюджет шага.
-                AppLog.w(TAG, "folder: popover opened, editor not opened for '$label'")
-                StepDiagnostics.note(
-                    step.id,
-                    "APPLICABILITY",
-                    "folder_switch_absent editor_not_opened name='$label'"
-                )
+                // У ЭТОЙ папки секция/редактор не открылись: первая по дереву папка
+                // может быть не той (владелец: робот открывает не те папки) — проверяем
+                // следующую, а не объявляем шаг неприменимым.
+                AppLog.w(TAG, "folder: editor not opened for " + label + " — следующая папка")
+                StepDiagnostics.note(step.id, "FOLDER", "editor_not_opened name=" + label)
+                editorMissed = true
                 leaveFolderEditor()
-                return Result(false, NOT_APPLICABLE)
+                continue
             }
             val result = toggleWithGate(step, toggleTexts, editorMarkers)
             leaveFolderEditor()
-            if (result != null) return result
-            // Редактор папки открылся, но тумблера рекомендаций в нём нет: значит
-            // рекомендации в папках уже выключены (владелец: после отключения
-            // msa/персонализации чекбокс из папки исчез) — честное «неприменимо»
-            // вместо перебора остальных иконок (прогон rmubgvwm5).
-            AppLog.i(TAG, "folder: editor has no suggestions switch ('$label')")
-            StepDiagnostics.note(step.id, "APPLICABILITY", "folder_switch_absent name='$label'")
-            return Result(false, NOT_APPLICABLE)
+            if (result != null) {
+                // Секция рекомендаций подтвердила папку: запоминаем имя, чтобы больше не
+                // перебирать папки и не зависеть от переименований на прошивке.
+                rememberFolderName(step.id, label)
+                return result
+            }
+            AppLog.i(TAG, "folder: в папке " + label + " секции рекомендаций нет — следующая")
+            StepDiagnostics.note(step.id, "FOLDER", "no_suggestions name=" + label)
         }
-        if (foldersOpened > 0) {
-            // Папка открылась, но тумблера рекомендаций в ней нет ни в поповере, ни в
-            // редакторе: после отключения рекомендаций поставщика (msa/персонализация)
-            // блок «Рекомендуемое сегодня» пропадает из папки вовсе (владелец: папка
-            // «Russia», POCO X3 Pro/MIUI 13, прогоны rmuehut5w и rmueihkd3) — честное
-            // «неприменимо» вместо FAIL: отчёт не должен врать.
-            AppLog.i(TAG, "folder: no suggestions switch in $foldersOpened opened folder(s)")
+
+        if (foldersChecked > 0 && !editorMissed) {
+            // Проверили все папки: секции рекомендаций нет ни в одной — состояние
+            // устройства (выключено вместе с msa/персонализацией), а не промах.
+            AppLog.i(TAG, "folder: секции рекомендаций нет в " + foldersChecked + " папках")
             StepDiagnostics.note(
-                step.id, "APPLICABILITY", "folder_switch_absent folders=$foldersOpened"
+                step.id, "APPLICABILITY", "folder_switch_absent folders=" + foldersChecked
             )
             return Result(false, NOT_APPLICABLE)
         }
-        return Result(false, "switch_not_found")
+        // Папки есть, но ни одну не довели до секции: честный промах автоматизации
+        // (ведро «не нашёл» в отчёте), а не «нет на устройстве».
+        StepDiagnostics.note(
+            step.id, "APPLICABILITY", "folder_editor_not_opened folders=" + foldersChecked
+        )
+        return Result(false, FOLDER_EDITOR_NOT_OPENED)
     }
 
     /**
@@ -2391,8 +2461,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * остальные, а фактический признак проверяется в рутине (фокус остался лаунчером).
      */
     internal fun homeFolderCandidates(): List<AccessibilityNodeInfo> =
-        scanHomeRoot { isHomeIconNode(it) }
-            .sortedByDescending { node -> if (isFolderCandidate(node)) 1 else 0 }
+        // Только папки: иконка приложения секции рекомендаций не содержит, а пробы по
+        // ним жгли бюджет шага (прогон rmua2sd7x: probes 1-6 = Проводник, Заметки…).
+        scanHomeRoot { isFolderCandidate(it) }
 
     /** Иконка рабочего стола: кликабельный узел с подписью и структурой иконки. */
     internal fun isHomeIconNode(node: AccessibilityNodeInfo): Boolean {
@@ -2535,6 +2606,104 @@ class SimpleRunner(private val service: AdbEnablerService) {
         recycleNode(chosen)
         if (title !== chosen) recycleNode(title)
         return tapped
+    }
+
+    /**
+     * Имя папки совпало с подсказкой (каталог или обучение): сравнение мягкое, по локали.
+     * Имя — только подсказка для порядка проверки: истина — наличие секции рекомендаций
+     * внутри папки, поэтому переименование на прошивке не ломает поиск.
+     */
+    internal fun matchesFolderHint(label: String, hints: List<String>): Boolean {
+        if (label.isBlank() || hints.isEmpty()) return false
+        return hints.any { TextMatcher.normalizedContains(label, it) }
+    }
+
+    /**
+     * Ключ обучения: шаг + регион + локаль. Имя папки задаёт прошивка региона, поэтому
+     * после смены региона/локали запомненное имя не применяется (и перезапишется новым).
+     */
+    private fun folderHintKey(stepId: String): String {
+        val region = runCatching { romProfile.regionCode }.getOrDefault("")
+        return stepId + "|" + region + "|" + Locale.getDefault().language
+    }
+
+    /** Запомненные имена папок: читаются из DataStore один раз за прогон. */
+    private var folderHintsCache: MutableMap<String, String>? = null
+
+    private suspend fun loadFolderHints(): Map<String, String> {
+        folderHintsCache?.let { return it }
+        val store = prefs ?: return emptyMap()
+        val json = runCatching { store.getFolderNameHints() }.getOrNull().orEmpty()
+        if (json.isBlank()) return emptyMap()
+        val cache = LinkedHashMap<String, String>()
+        runCatching {
+            val obj = org.json.JSONObject(json)
+            obj.keys().forEach { key ->
+                obj.optString(key).takeIf { it.isNotBlank() }?.let { cache[key] = it }
+            }
+        }.onFailure { AppLog.w(TAG, "folder hints parse failed: " + it.message) }
+        folderHintsCache = cache
+        return cache
+    }
+
+    /** Запоминает папку, в которой реально подтверждена секция рекомендаций. */
+    private suspend fun rememberFolderName(stepId: String, label: String) {
+        if (label.isBlank()) return
+        val store = prefs ?: return
+        val key = folderHintKey(stepId)
+        val cache = folderHintsCache ?: loadFolderHints().toMutableMap().also { folderHintsCache = it }
+        if (cache[key] == label) return
+        cache[key] = label
+        val json = cache.entries.joinToString(prefix = "{", postfix = "}") { (k, v) ->
+            org.json.JSONObject.quote(k) + ":" + org.json.JSONObject.quote(v)
+        }
+        runCatching { store.saveFolderNameHints(json) }
+            .onFailure { AppLog.w(TAG, "rememberFolderName failed: " + it.message) }
+        StepDiagnostics.note(stepId, "FOLDER", "learned name=" + label)
+    }
+
+    /** Что сейчас открыто поверх рабочего стола: поповер папки, её редактор или ничего. */
+    private enum class FolderState { NONE, POPOVER, EDITOR }
+
+    /**
+     * Состояние лаунчера: EDITOR — виден тумблер рекомендаций или поле переименования,
+     * POPOVER — открыт поповер папки (есть её название `id=title`), NONE — рабочий стол
+     * или чужое приложение. Нужно, чтобы не выбрасывать владельца с открытой папки на
+     * рабочий стол (resetToHome) и работать в его окне.
+     */
+    private fun currentFolderState(toggleTexts: List<String>): FolderState {
+        val root = service.rootInActiveWindow ?: return FolderState.NONE
+        val pkg = root.packageName?.toString()
+        if (pkg == null || !isLauncherPackage(pkg)) {
+            recycleNode(root)
+            return FolderState.NONE
+        }
+        val row = findSwitchByText(root, toggleTexts)
+        val editor = NodeTree.findInTree(root) { n ->
+            n.viewIdResourceName?.endsWith("rename_edit") == true
+        }
+        val title = NodeTree.findInTree(root) { n ->
+            n.viewIdResourceName?.endsWith("/title") == true && !n.text.isNullOrBlank()
+        }
+        recycleNode(row); recycleNode(editor); recycleNode(title)
+        recycleNode(root)
+        return when {
+            row != null || editor != null -> FolderState.EDITOR
+            title != null -> FolderState.POPOVER
+            else -> FolderState.NONE
+        }
+    }
+
+    /** Название папки в открытом поповере (узел `id=title` лаунчера). */
+    private fun currentFolderTitleLabel(): String? {
+        val root = service.rootInActiveWindow ?: return null
+        val node = NodeTree.findInTree(root) { n ->
+            n.viewIdResourceName?.endsWith("/title") == true && !n.text.isNullOrBlank()
+        }
+        val label = node?.text?.toString()?.trim()
+        recycleNode(node)
+        recycleNode(root)
+        return label?.takeIf { it.isNotEmpty() }
     }
 
     /** Экран редактора папки: совпал хотя бы один маркер каталога. */

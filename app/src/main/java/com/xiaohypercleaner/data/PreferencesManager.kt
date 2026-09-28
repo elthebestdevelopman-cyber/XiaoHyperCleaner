@@ -96,6 +96,11 @@ sealed interface PreferenceKey {
     data object CrawlReportJson : PreferenceKey {
         override val name = "crawl_report_json"
     }
+
+    /** Запомненные имена папок рабочего стола по шагам (обучение шага папок). */
+    data object FolderNameHintsJson : PreferenceKey {
+        override val name = "folder_name_hints_json"
+    }
 }
 
 /**
@@ -125,6 +130,8 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
             stringPreferencesKey(PreferenceKey.DiagLevelOverride.name)
         private val CRAWL_REPORT_KEY =
             stringPreferencesKey(PreferenceKey.CrawlReportJson.name)
+        private val FOLDER_NAME_HINTS_KEY =
+            stringPreferencesKey(PreferenceKey.FolderNameHintsJson.name)
 
         /** Префикс динамических ключей кэша активностей (ActivityCacheStore). */
         private const val ACTIVITY_CACHE_PREFIX = "act_cache_"
@@ -433,6 +440,27 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
 
     suspend fun getCrawlReport(): String? = runCatching {
         context.dataStore.data.first()[stringPreferencesKey(CRAWL_REPORT_KEY.name)]
+    }.getOrNull()
+
+    // ═══════════════════════════════════════════════════════════════
+    // Имена папок рабочего стола (обучение шага «Рекомендации в папках»)
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Запоминает имена папок, в которых реально нашлась секция рекомендаций: следующий
+     * прогон на этом устройстве открывает их сразу, без перебора. Карта `ключ → имя`
+     * в JSON перезаписывается целиком (ключ = шаг + регион + локаль).
+     */
+    suspend fun saveFolderNameHints(json: String) {
+        runCatching {
+            context.dataStore.edit { prefs ->
+                prefs[stringPreferencesKey(FOLDER_NAME_HINTS_KEY.name)] = json
+            }
+        }.onFailure { e -> AppLog.e(TAG, "saveFolderNameHints failed: ${e.message}") }
+    }
+
+    suspend fun getFolderNameHints(): String? = runCatching {
+        context.dataStore.data.first()[stringPreferencesKey(FOLDER_NAME_HINTS_KEY.name)]
     }.getOrNull()
 
     // ═══════════════════════════════════════════════════════════════

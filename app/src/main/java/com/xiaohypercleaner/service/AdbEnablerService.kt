@@ -391,6 +391,7 @@ class AdbEnablerService : AccessibilityService() {
                         result.reason == "foreign_screen" ||
                         result.reason == "installer_settings_not_found" ||
                         result.reason == "folder_switch_absent" ||
+                        result.reason == SimpleRunner.FOLDER_EDITOR_NOT_OPENED ||
                         result.reason == SimpleRunner.LAUNCHER_ABSENT ||
                         result.reason == SimpleRunner.NOT_APPLICABLE
                     )

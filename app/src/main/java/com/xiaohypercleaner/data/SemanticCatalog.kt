@@ -67,6 +67,15 @@ object SemanticCatalog {
         val localeCoverage: List<String>,
         /** Пакеты-цели шага (видимость задаётся <queries> манифеста). */
         val requiredPackages: List<String> = emptyList(),
+        /**
+         * Подсказки имени папки рабочего стола (7 локалей): «Рекомендуемое», «Рекомендации»,
+         * «Recommended», country-имя региона задаётся отдельно. Имя — только ПОДСКАЗКА:
+         * истина — наличие секции рекомендаций внутри папки, поэтому переименование
+         * на прошивке не ломает поиск.
+         */
+        val folderNames: Map<String, List<String>> = emptyMap(),
+        /** Имя региональной папки-предустановки (RU → Russia), ключ — код региона. */
+        val folderNamesByRegion: Map<String, List<String>> = emptyMap(),
         /** Варианты шага под версии оболочки (variants[] каталога). */
         val variants: List<StepVariant> = emptyList(),
         /**
@@ -99,6 +108,8 @@ object SemanticCatalog {
         val route: List<RouteItem> = emptyList(),
         /** Точка входа: "settings" — маршрут через Настройки, а не через приложение. */
         val entry: String?,
+        /** Подсказки имени папки рабочего стола на уровне варианта (если отличаются). */
+        val folderNames: Map<String, List<String>> = emptyMap(),
         /**
          * Тексты кнопки-отказа диалога, который оболочка показывает ПОСЛЕ главного
          * тумблера (Карусель обоев: «Нет, спасибо»). Тап по этой кнопке — часть шага:
@@ -339,6 +350,20 @@ object SemanticCatalog {
     /** Тексты кнопки-отказа диалога, который оболочка показывает после главного тумблера. */
     fun toggleDeclineTexts(id: String): List<String> =
         localizedTexts(selection(id)?.variant?.toggleDeclineTexts)
+
+    /**
+     * Подсказки имени папки рабочего стола: имя страны региона, затем вариант, затем
+     * слова локали. Имя — подсказка для порядка проверки; истина — секция рекомендаций
+     * внутри папки (структурный поиск), поэтому переименование папки не ломает шаг.
+     */
+    fun folderNameHints(id: String, regionCode: String?): List<String> {
+        val region = regionCode?.trim()?.uppercase(Locale.ROOT)
+            ?.let { code -> step(id)?.folderNamesByRegion?.get(code) }
+            .orEmpty()
+        val fromVariant = localizedTexts(selection(id)?.variant?.folderNames)
+        val fromStep = localizedTexts(step(id)?.folderNames)
+        return (region + fromVariant + fromStep).distinct()
+    }
 
     /** Фолбэк-действие варианта (например `clear_data_decline` для Проводника). */
     fun fallbackAction(id: String): String? = selection(id)?.variant?.fallbackAction
@@ -586,6 +611,8 @@ object SemanticCatalog {
         safe = o.optBoolean("safe", true),
         localeCoverage = parseStringArray(o.optJSONArray("localeCoverage")),
         requiredPackages = parseStringArray(o.optJSONArray("requiredPackages")),
+        folderNames = parseListMap(o.optJSONObject("folderNames")),
+        folderNamesByRegion = parseListMap(o.optJSONObject("folderNamesByRegion")),
         variants = parseVariants(o.optJSONArray("variants")),
         destructiveAction = o.optString("destructiveAction").takeIf { it.isNotEmpty() }
     )
@@ -611,6 +638,7 @@ object SemanticCatalog {
                     control = o.optString("control").takeIf { it.isNotEmpty() }?.let { ActionType.from(it) },
                     extraTargets = parseExtraTargets(o.optJSONArray("extraTargets")),
                     toggleDeclineTexts = parseListMap(o.optJSONObject("toggleDeclineTexts")),
+                    folderNames = parseListMap(o.optJSONObject("folderNames")),
                     fallbackAction = o.optString("fallbackAction").takeIf { it.isNotEmpty() },
                     route = parseRoute(o.optJSONArray("route")),
                     entry = o.optString("entry").takeIf { it.isNotEmpty() }
