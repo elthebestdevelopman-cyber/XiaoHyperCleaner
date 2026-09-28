@@ -1861,11 +1861,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Тумблер мог найтись ЗА нижней границей экрана (Mi Видео: строка «Онлайн-
         // рекомендации» в самом низу, bounds уходят под навбар) — тап по невидимой
         // области не переключает, шаг падал `verify_failed` (прогон rmua2sd7x).
-        val firstSwitch = switchNode ?: run {
-            recycleNode(currentRoot)
-            return Result(false, "switch_not_found")
-        }
-        var targetSwitch: AccessibilityNodeInfo = firstSwitch
+        // Ненайденный тумблер обработан гейтом/фолбэком выше — здесь он не null.
+        var targetSwitch: AccessibilityNodeInfo = switchNode
         for (attempt in 0 until SWITCH_FALLBACK_SCROLLS) {
             if (isFullyVisible(targetSwitch)) break
             if (cancelled) {
@@ -3124,6 +3121,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
             texts: List<String>,
             avoidTexts: List<String>
         ): Boolean = tapSystemDialogButton(texts, requireEnabled = true, avoidTexts = avoidTexts)
+
+        override suspend fun tapByIds(ids: List<String>): Boolean = tapSystemNodeByIds(ids)
     }
 
     /**
@@ -3261,6 +3260,32 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
         recycleNode(root)
         return false
+    }
+
+    /**
+     * Тап по узлу, resource-id которого заканчивается одним из [ids]: крестик обманки
+     * («upgrade_x_out» у апдейт-промпта GetApps) своей подписи не имеет, текстом его
+     * не найти — закрываем по id. Кнопка «Обновить» не нажимается: её id в списке нет.
+     */
+    private suspend fun tapSystemNodeByIds(ids: List<String>): Boolean {
+        if (ids.isEmpty()) return false
+        val root = service.rootInActiveWindow ?: return false
+        val node = NodeTree.findAllInTree(root, predicate = { n ->
+            val id = n.viewIdResourceName ?: ""
+            id.isNotEmpty() && ids.any { id.endsWith(it, ignoreCase = true) }
+        }).firstOrNull { clickableAncestorOrSelf(it) != null }
+        if (node == null) {
+            recycleNode(root)
+            AppLog.i(TAG, "consent: close id not found ids=$ids")
+            return false
+        }
+        val target = clickableAncestorOrSelf(node) ?: node
+        val tapped = tapNode(target)
+        if (target !== node) recycleNode(target)
+        recycleNode(node)
+        recycleNode(root)
+        AppLog.i(TAG, "consent: close by id ids=$ids ok=$tapped")
+        return tapped
     }
 
     /**

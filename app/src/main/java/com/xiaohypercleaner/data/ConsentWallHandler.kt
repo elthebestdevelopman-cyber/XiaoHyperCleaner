@@ -135,6 +135,13 @@ object ConsentWallHandler {
             texts: List<String>,
             avoidTexts: List<String>
         ): Boolean = tapEnabledByTexts(texts)
+
+        /**
+         * Тап по resource-id: крестик закрытия обманки-промпта (GetApps «Доступно
+         * обновление») текста не имеет — закрыть его можно только по id.
+         * По умолчанию — «не найдено» (обратная совместимость тестовых мостов).
+         */
+        suspend fun tapByIds(ids: List<String>): Boolean = false
     }
 
     /** Разобранный диалог: что это и каким действием он закрывается. */
@@ -143,7 +150,9 @@ object ConsentWallHandler {
         val decision: String,
         val cause: String,
         val texts: List<String>,
-        val markers: List<String>
+        val markers: List<String>,
+        /** Resource-id кнопок закрытия (крестик обманки-промпта: текста у него нет). */
+        val ids: List<String> = emptyList()
     )
 
     /**
@@ -199,7 +208,7 @@ object ConsentWallHandler {
         }
 
         var verified = settled(service, screenText)
-        if (!verified && action.kind == "dialog") {
+        if (!verified && (action.kind == "dialog" || action.kind == "decoy")) {
             // Первый тап мог не попасть (MIUI меняет подпись кнопки после
             // анимации): один повтор расширенным набором, затем честный отказ.
             val retry = action.copy(
@@ -223,11 +232,14 @@ object ConsentWallHandler {
         if (action.kind == "welcome") {
             bridge.tapEnabledDialogButtonByTexts(action.texts, action.markers)
         } else {
-            // Стена-промо без отрицательной кнопки (Mi Браузер: «Совершенно новые
-            // AI-функции», «Приватные файлы»): у неё есть только кнопка продолжения,
-            // поэтому после отказа по dismiss-текстам пробуем действия стены.
-            // Только для kind=dismiss: permission-диалоги этот путь не трогает.
-            bridge.tapDialogButtonByTexts(action.texts, action.markers) ||
+            // Обманка закрывается крестиком по id; если крестика в дереве нет —
+            // отрицательная кнопка/текст, как у обычного диалога.
+            bridge.tapByIds(action.ids) ||
+                bridge.tapDialogButtonByTexts(action.texts, action.markers) ||
+                // Стена-промо без отрицательной кнопки (Mi Браузер: «Совершенно новые
+                // AI-функции», «Приватные файлы»): у неё есть только кнопка продолжения,
+                // поэтому после отказа по dismiss-текстам пробуем действия стены.
+                // Только для kind=dismiss: permission-диалоги этот путь не трогает.
                 (action.kind == "dismiss" && bridge.tapEnabledDialogButtonByTexts(
                     (SemanticCatalog.welcomeActions() + action.texts).distinct(),
                     action.markers
@@ -285,7 +297,24 @@ object ConsentWallHandler {
             )
         }
 
-        // 2. Диалог-заглушка внутри шага («Произошла ошибка сети» → «Понятно»).
+        // 2. Обманка-промпт («Доступно обновление» GetApps и подобные): закрываем
+        //    крестиком по id, «Обновить» не нажимаем никогда. Классифицируется ДО
+        //    диалогов-заглушек: у обманки нет ни текстовой кнопки закрытия, ни
+        //    alertTitle, поэтому прежняя политика её не видела вовсе (прогон
+        //    rmulhb4yq: апдейт-промпт закрывал экран GetApps, и шаг уходил в
+        //    not_applicable «уровень маршрута отсутствует»).
+        if (shortDialog && markerHit(screenText, SemanticCatalog.decoyMarkers())) {
+            return DialogAction(
+                kind = "decoy",
+                decision = "dismissed",
+                cause = "update_prompt",
+                texts = (ALERT_NEGATIVE_TEXTS + dismissTexts).distinct(),
+                markers = SemanticCatalog.decoyMarkers(),
+                ids = SemanticCatalog.decoyCloseIds()
+            )
+        }
+
+        // 3. Диалог-заглушка внутри шага («Произошла ошибка сети» → «Понятно»).
         //    Только когда это НЕ системный alert-диалог: иначе общая кнопка «Отмена»
         //    перехватывала «Установить … по умолчанию?» и kind уезжал с dialog на dismiss.
         //    Дополнительный гейт: на ЧУЖОМ экране (текст виджета POCO Launcher
@@ -305,7 +334,7 @@ object ConsentWallHandler {
         val welcomeHit = markerHit(screenText, welcomeMarkers)
         val permissionHit = markerHit(screenText, permissionMarkers)
 
-        // 3. Диалог принадлежит приложению шага: «Отмена» на нём означает, что
+        // 4. Диалог принадлежит приложению шага: «Отмена» на нём означает, что
         //    приложение не открылось, — соглашаемся (Проводник, Музыка, Браузер).
         if (appOwned && (welcomeHit || permissionHit) &&
             SemanticCatalog.appOwnedDecision() == "accept"
@@ -329,7 +358,7 @@ object ConsentWallHandler {
             }
         }
 
-        // 4. Welcome-стена: тапаем согласие и продолжаем шаг.
+        // 5. Welcome-стена: тапаем согласие и продолжаем шаг.
         if (!onTargetScreen && welcomeHit) {
             return DialogAction(
                 kind = "welcome",
@@ -340,7 +369,7 @@ object ConsentWallHandler {
             )
         }
 
-        // 5. Runtime-permission: deny по умолчанию, allow — по политике каталога
+        // 6. Runtime-permission: deny по умолчанию, allow — по политике каталога
         //    ИЛИ когда доступ запрашивают для приложения-цели шага: без этого
         //    разрешения приложение не пускает дальше (Проводник: «Нет доступа к
         //    файлам» — доступ к фото/мультимедиа был отклонён, прогон rmua0pt7i).
@@ -360,7 +389,7 @@ object ConsentWallHandler {
             )
         }
 
-        // 6. Прочий AlertDialog (ни стена, ни разрешение не найдены): закрываем
+        // 7. Прочий AlertDialog (ни стена, ни разрешение не найдены): закрываем
         //    отрицательной кнопкой и продолжаем шаг — прежнее поведение.
         if (alertDialog) {
             return DialogAction(

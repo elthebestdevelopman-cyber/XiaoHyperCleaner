@@ -54,13 +54,13 @@
       "id": ["Pilih semua", "Saya setuju dengan semua", "(wajib)", "wajib"]
     },
     "dismissMarkers": {
-      "ru": ["Произошла ошибка сети", "Ошибка сети", "Нет подключения к сети", "Вам нравится Mi Браузер?", "Оцените приложение", "Ярлыки функций доступны сейчас", "Приложение не отвечает", "РЕКЛАМА", "Совершенно новые AI-функции", "Приватные файлы"],
-      "en": ["Network error occurred", "Network error", "No network connection", "Do you like Mi Browser?", "Rate the app", "Feature shortcuts are available now", "App isn't responding", "AD", "Brand-new AI features", "Private files"],
-      "es": ["Se produjo un error de red", "Error de red", "ANUNCIO", "Nuevas funciones de IA", "Archivos privados"],
-      "zh": ["网络错误", "发生网络错误", "广告", "全新 AI 功能", "私人文件"],
-      "hi": ["नेटवर्क त्रुटि", "नेटवर्क त्रुटि हुई", "विज्ञापन", "नई AI सुविधाएँ", "निजी फ़ाइलें"],
-      "pt": ["Ocorreu um erro de rede", "Erro de rede", "ANÚNCIO", "Novos recursos de IA", "Arquivos privados"],
-      "id": ["Terjadi kesalahan jaringan", "Kesalahan jaringan", "IKLAN", "Fitur AI terbaru", "File pribadi"]
+      "ru": ["Произошла ошибка сети", "Ошибка сети", "Нет подключения к сети", "Вам нравится Mi Браузер?", "Оцените приложение", "Ярлыки функций доступны сейчас", "Приложение не отвечает", "РЕКЛАМА", "Совершенно новые AI-функции", "Приватные файлы", "Доступно обновление", "Улучшена стабильность и производительность"],
+      "en": ["Network error occurred", "Network error", "No network connection", "Do you like Mi Browser?", "Rate the app", "Feature shortcuts are available now", "App isn't responding", "AD", "Brand-new AI features", "Private files", "Update available", "Improved stability and performance"],
+      "es": ["Se produjo un error de red", "Error de red", "ANUNCIO", "Nuevas funciones de IA", "Archivos privados", "Actualización disponible", "Mejora de la estabilidad y el rendimiento"],
+      "zh": ["网络错误", "发生网络错误", "广告", "全新 AI 功能", "私人文件", "有可用更新", "提高了稳定性和性能"],
+      "hi": ["नेटवर्क त्रुटि", "नेटवर्क त्रुटि हुई", "विज्ञापन", "नई AI सुविधाएँ", "निजी फ़ाइलें", "अपडेट उपलब्ध है"],
+      "pt": ["Ocorreu um erro de rede", "Erro de rede", "ANÚNCIO", "Novos recursos de IA", "Arquivos privados", "Atualização disponível"],
+      "id": ["Terjadi kesalahan jaringan", "Kesalahan jaringan", "IKLAN", "Fitur AI terbaru", "File pribadi", "Pembaruan tersedia"]
     },
     "dismissTexts": {
       "ru": ["Нет, спасибо", "Понятно", "Закрыть", "Отмена", "Позже", "OK", "Вернуться в приложение"],
@@ -98,6 +98,16 @@
       "pt": ["padrão"],
       "id": ["bawaan"]
     },
+    "decoyMarkers": {
+      "ru": ["Доступно обновление", "Доступна новая версия", "Новая версия GetApps", "Улучшена стабильность и производительность"],
+      "en": ["Update available", "A new version is available", "New version available", "Improved stability and performance"],
+      "es": ["Actualización disponible", "Nueva versión disponible", "Mejora de la estabilidad y el rendimiento"],
+      "zh": ["有可用更新", "新版本可用", "提高了稳定性和性能"],
+      "hi": ["अपडेट उपलब्ध है", "नया संस्करण उपलब्ध है"],
+      "pt": ["Atualização disponível", "Nova versão disponível"],
+      "id": ["Pembaruan tersedia", "Versi baru tersedia"]
+    },
+    "decoyCloseIds": ["upgrade_x_out", "iv_close", "close_button", "btn_close"],
     "appOwnedDecision": "accept"
   },
   "manualSteps": [

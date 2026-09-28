@@ -3,6 +3,7 @@ package com.xiaohypercleaner.data
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -242,6 +243,24 @@ class SemanticCatalogTest {
         } finally {
             Locale.setDefault(original)
         }
+    }
+
+    @Test
+    fun `consent policy keeps locale parity for welcome and decoy machine fields`() {
+        val policy = SemanticCatalog.policy()
+        assertNotNull("политика согласий должна загружаться", policy)
+        val locales = SemanticCatalog.LOCALES.sorted()
+        assertEquals("welcomeMarkers: 7 локалей", locales, policy!!.welcomeMarkers.keys.sorted())
+        assertEquals("welcomeActions: 7 локалей", locales, policy.welcomeActions.keys.sorted())
+        assertEquals("decoyMarkers: 7 локалей", locales, policy.decoyMarkers.keys.sorted())
+        assertTrue(
+            "крестик апдейт-промпта GetApps закрывается по id",
+            policy.decoyCloseIds.contains("upgrade_x_out")
+        )
+        assertFalse(
+            "среди маркеров обманки нет кнопки «Обновить» — обновление не нажимаем",
+            policy.decoyMarkers.values.flatten().any { it.trim() == "Обновить" }
+        )
     }
 
     @Test

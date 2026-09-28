@@ -197,6 +197,13 @@ object SemanticCatalog {
         val crashReportMarkers: Map<String, List<String>> = emptyMap(),
         /** Маркеры диалога «Установить … по умолчанию?» (браузер и лаунчер). */
         val defaultAppMarkers: Map<String, List<String>> = emptyMap(),
+        /**
+         * Обманки-промпты (апдейт-промпт GetApps и подобные): закрываются, а не
+         * принимаются — «Обновить»/«Скачать» на них не нажимаем никогда.
+         */
+        val decoyMarkers: Map<String, List<String>> = emptyMap(),
+        /** Resource-id крестиков закрытия обманок (машинные, без локалей). */
+        val decoyCloseIds: List<String> = emptyList(),
         /** Решение для диалога, которым владеет приложение шага (accept). */
         val appOwnedDecision: String = "accept"
     )
@@ -538,6 +545,12 @@ object SemanticCatalog {
     /** Маркеры диалога «Установить … по умолчанию?» (браузер и лаунчер). */
     fun defaultAppMarkers(): List<String> = localizedTexts(consentPolicy?.defaultAppMarkers)
 
+    /** Маркеры обманок-промптов (апдейт-промпт GetApps и подобные). */
+    fun decoyMarkers(): List<String> = localizedTexts(consentPolicy?.decoyMarkers)
+
+    /** Resource-id крестиков закрытия обманок (машинные, без локалей). */
+    fun decoyCloseIds(): List<String> = consentPolicy?.decoyCloseIds.orEmpty()
+
     /** Решение для диалога, которым владеет приложение шага (accept). */
     fun appOwnedDecision(): String = consentPolicy?.appOwnedDecision ?: "accept"
 
@@ -547,7 +560,7 @@ object SemanticCatalog {
      */
     fun alertMarkerTexts(): List<String> = listOf(
         forceStopMarkers(), crashReportMarkers(), defaultAppMarkers(),
-        welcomeMarkers(), permissionMarkers(), dismissMarkers()
+        welcomeMarkers(), permissionMarkers(), dismissMarkers(), decoyMarkers()
     ).flatten().filter { it.isNotBlank() }.distinct()
 
     fun shouldAllow(stepId: String): Boolean =
@@ -739,6 +752,8 @@ object SemanticCatalog {
             forceStopMarkers = parseListMap(o.optJSONObject("forceStopMarkers")),
             crashReportMarkers = parseListMap(o.optJSONObject("crashReportMarkers")),
             defaultAppMarkers = parseListMap(o.optJSONObject("defaultAppMarkers")),
+            decoyMarkers = parseListMap(o.optJSONObject("decoyMarkers")),
+            decoyCloseIds = parseStringArray(o.optJSONArray("decoyCloseIds")),
             appOwnedDecision = o.optString("appOwnedDecision", "accept")
         )
     }

@@ -30,6 +30,9 @@ class ConsentWallTest {
     private lateinit var service: AccessibilityService
     private val tappedTexts = mutableListOf<String>()
 
+    /** Resource-id, по которым тапнул мост (закрытие обманки-промпта). */
+    private val tappedIds = mutableListOf<String>()
+
     /** Маркеры, переданные мосту как avoid-список (по ним тапать запрещено). */
     private var avoidTexts: List<String> = emptyList()
 
@@ -48,6 +51,13 @@ class ConsentWallTest {
             this@ConsentWallTest.avoidTexts = avoidTexts
             return tapByTexts(texts)
         }
+
+        override suspend fun tapByIds(ids: List<String>): Boolean {
+            // Пустой список id — «идти текстовым путём», как в боевом мосте.
+            if (ids.isEmpty() || !tapResult) return false
+            tappedIds.addAll(ids)
+            return true
+        }
     }
 
     @Before
@@ -55,6 +65,7 @@ class ConsentWallTest {
         SemanticCatalog.resetForTest()
         SemanticCatalog.ensureLoaded(RuntimeEnvironment.getApplication())
         tappedTexts.clear()
+        tappedIds.clear()
         service = Mockito.mock(AccessibilityService::class.java)
     }
 
@@ -471,6 +482,34 @@ class ConsentWallTest {
             )
             assertEquals("permission", action?.kind)
             assertEquals("deny", action?.decision)
+        }
+    }
+
+    @Test
+    fun `update prompt is closed by the cross id and never by the update button`() = runTest {
+        // Прогон rmulhb4yq (GetApps): апдейт-промпт «Доступно обновление … Обновить»
+        // перекрывал экран, политика его не видела — drill не находил «Профиль», и шаг
+        // объявлялся неприменимым (drill_level_absent) вместо закрытия промпта.
+        withLocale("ru") {
+            val node = screen(
+                "Доступно обновление Версия 6021644 64.3M Улучшена стабильность и " +
+                    "производительность. Также были исправлены ошибки. Обновить"
+            )
+            Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
+
+            val outcome = ConsentWallHandler.handleOnce(service, bridge, "getapps")
+
+            assertTrue("промпт-обманка должен обрабатываться", outcome.handled)
+            assertEquals("decoy", outcome.kind)
+            assertEquals("dismissed", outcome.decision)
+            assertTrue(
+                "крестик закрывается по id: $tappedIds",
+                tappedIds.any { it.equals("upgrade_x_out", ignoreCase = true) }
+            )
+            assertTrue(
+                "кнопка «Обновить» не нажимается никогда",
+                tappedTexts.none { it.contains("Обновить") }
+            )
         }
     }
 
