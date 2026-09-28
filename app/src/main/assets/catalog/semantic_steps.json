@@ -2062,13 +2062,13 @@
       ],
       "launchPackage": "com.android.providers.downloads.ui",
       "confirmTexts": {
-        "ru": ["Отключить"],
-        "en": ["Turn off", "Disable"],
-        "es": ["Desactivar"],
-        "zh": ["关闭"],
-        "hi": ["बंद करें"],
-        "pt": ["Desativar"],
-        "id": ["Matikan"]
+        "ru": ["OK", "ОК", "Отключить"],
+        "en": ["OK", "Turn off", "Disable"],
+        "es": ["Aceptar", "OK", "Desactivar"],
+        "zh": ["确定", "OK", "关闭"],
+        "hi": ["ठीक है", "OK", "बंद करें"],
+        "pt": ["OK", "Desativar"],
+        "id": ["OK", "Matikan"]
       }
     },
     {

@@ -243,4 +243,21 @@ class SemanticCatalogTest {
             Locale.setDefault(original)
         }
     }
+
+    @Test
+    fun `downloads confirm text is the dialog button, not the dialog title`() {
+        // Прогон rmulhb4yq: `confirmTexts.downloads.ru = ["Отключить"]` совпал с ЗАГОЛОВКОМ
+        // диалога «Отключить рекомендации?» — тап уходил в контейнер диалога без подписи
+        // (`confirm: tapped 'null'` ×2, диалог закрывался побочно). Первым текстом обязана
+        // идти подпись КНОПКИ диалога.
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale("ru"))
+            val texts = SemanticCatalog.confirmTexts("downloads")
+            assertEquals("подпись кнопки диалога идёт первой", "OK", texts.first())
+            assertTrue("подпись кнопки MIUI тоже принимается", texts.contains("ОК"))
+        } finally {
+            Locale.setDefault(original)
+        }
+    }
 }

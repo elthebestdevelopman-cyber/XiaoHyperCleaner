@@ -245,6 +245,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
         /** Ожидание кнопки-отказа после главного тумблера (Карусель: «Нет, спасибо»). */
         private const val TOGGLE_DECLINE_WAIT_MS = 2500L
         private const val CONFIRM_RETRY_MS = 1500L
+
+        /**
+         * Попыток подтверждения диалога: основная + один повтор. Дальше — честный провал
+         * шага (`confirm_not_closed`): подтверждение, которое не нажалось, оставляет диалог
+         * открытым и ломает следующий шаг (прогон rmulhb4yq, downloads).
+         */
+        private const val CONFIRM_ATTEMPTS = 2
         private const val SWITCH_FALLBACK_SCROLLS = 4
 
         /**
@@ -314,8 +321,6 @@ class SimpleRunner(private val service: AdbEnablerService) {
         private const val TOGGLE_BUDGET_RESERVE_MS = 4000L
 
         /** Сколько ждать появления диалога подтверждения (confirmTexts) после тумблера. */
-        private const val CONFIRM_DIALOG_WAIT_MS = 5000L
-
         /** Пауза после тапа подтверждения: проверяем, что диалог действительно закрылся. */
         private const val CONFIRM_SETTLE_MS = 400L
 
@@ -1925,7 +1930,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Вы не сможете использовать Ленту виджетов… Отключить её?» — дамп owner_06).
         // Подтверждаем ДО проверки состояния, иначе verify не видит переключения и шаг
         // уходит в retry → verify_failed.
-        tapConfirmIfNeeded(step)
+        if (tapConfirmIfNeeded(step) == ConfirmOutcome.FAILED) {
+            return Result(false, "confirm_not_closed")
+        }
         if (!verifySwitchState(step, mergedSearchTexts)) {
             val retryRoot = service.rootInActiveWindow ?: return Result(false, "no_root_window")
             val retryNode = findSwitchByText(retryRoot, mergedSearchTexts)
@@ -1933,7 +1940,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
             recycleNode(retryNode); recycleNode(retryRoot)
             delay(600)
             tapToggleDeclineIfNeeded(step)
-            tapConfirmIfNeeded(step)
+            if (tapConfirmIfNeeded(step) == ConfirmOutcome.FAILED) {
+                return Result(false, "confirm_not_closed")
+            }
             if (!verifySwitchState(step, mergedSearchTexts)) return Result(false, "verify_failed")
         }
 
@@ -1944,7 +1953,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 return Result(false, "revoke_not_confirmed")
             }
         } else {
-            tapConfirmIfNeeded(step)
+            // Незакрытый после тапа диалог — провал шага, а не «почти получилось»:
+            // открытый диалог уносит следующий шаг в чужой экран.
+            if (tapConfirmIfNeeded(step) == ConfirmOutcome.FAILED) {
+                return Result(false, "confirm_not_closed")
+            }
         }
 
         // П.3: Дополнительные переключатели. В списке лежат переводы одной и той же строки
@@ -1996,7 +2009,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
         recycleNode(node)
         delay(600)
-        tapConfirmIfNeeded(step)
+        if (tapConfirmIfNeeded(step) == ConfirmOutcome.FAILED) {
+            return Result(false, "confirm_not_closed")
+        }
         return Result(true, "tapped_fallback")
     }
 
@@ -2072,49 +2087,83 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
     }
 
-    /** Тапает кнопку подтверждения диалога, если он появился (confirmTexts шага). */
-    private suspend fun tapConfirmIfNeeded(step: SimpleSteps.Step) {
+    /**
+     * Исход обработки диалога подтверждения. Смешивать «диалога не было» и «диалог
+     * не закрылся» нельзя: второе означает провал шага ([Result] с
+     * `confirm_not_closed`), открытый диалог уносит следующий шаг в чужой экран.
+     */
+    internal enum class ConfirmOutcome { ABSENT, CLOSED, FAILED }
+
+    /**
+     * Тапает кнопку подтверждения диалога, если он появился (confirmTexts шага).
+     *
+     * Правила:
+     * - кнопка ищется по СВОЕЙ подписи ([findDialogConfirmButton]: точное совпадение
+     *   подписи узла, затем button-роль) — заголовок диалога («Отключить
+     *   рекомендации?») кнопкой не считается;
+     * - узел без собственной подписи (контейнер диалога) НЕ тапается: слепой тап по его
+     *   центру диалог не закрывает, зато даёт ложное «подтверждено» (прогон rmulhb4yq:
+     *   `confirm: tapped 'null'` ×2) — пишем `confirm: label unresolved`;
+     * - не вышло с первого раза — ровно один повтор, затем честный провал;
+     * - диалог, оставшийся открытым после тапа, — тоже провал.
+     */
+    private suspend fun tapConfirmIfNeeded(step: SimpleSteps.Step): ConfirmOutcome {
         // У DELAYED_CONFIRM (msa) свой путь: кнопка активируется только после отсчёта,
         // здесь она не кликабельна и только жгла бы повторы.
-        if (SemanticCatalog.sequenceKind(step.id) == SemanticCatalog.SequenceKind.DELAYED_CONFIRM) return
+        if (SemanticCatalog.sequenceKind(step.id) == SemanticCatalog.SequenceKind.DELAYED_CONFIRM) {
+            return ConfirmOutcome.ABSENT
+        }
         val mergedConfirmTexts = confirmTextsFor(step)
-        if (mergedConfirmTexts.isEmpty()) return
+        if (mergedConfirmTexts.isEmpty()) return ConfirmOutcome.ABSENT
         val waitMs = SemanticCatalog.confirmWaitMs(step.id, step.confirmWaitMs)
         if (waitMs > 0) delay(waitMs)
-        // S3: диалог подтверждения (downloads: «Отключить рекомендации?») обязан быть
-        // закрыт ДО выхода из шага. Ждём его по бюджету, а не тремя фиксированными
-        // попытками: иначе диалог остаётся открытым и ломает следующий шаг.
-        val deadline = System.currentTimeMillis() +
-            minOf(CONFIRM_DIALOG_WAIT_MS, maxOf(0L, remainingBudgetMs() - 1000L))
-        var attempt = 0
-        while (!cancelled) {
-            attempt++
+        for (attempt in 1..CONFIRM_ATTEMPTS) {
+            if (cancelled) return ConfirmOutcome.ABSENT
             val confirmRoot = service.rootInActiveWindow
-            val confirmNode = confirmRoot?.let { findClickableByText(it, mergedConfirmTexts) }
+            val confirmNode = findDialogConfirmButton(confirmRoot, mergedConfirmTexts)
             if (confirmRoot != null) recycleNode(confirmRoot)
-            if (confirmNode != null) {
-                val label = buttonLabel(confirmNode)
-                val tapped = tapNode(confirmNode)
-                recycleNode(confirmNode)
-                AppLog.i(TAG, "confirm: tapped '$label' ok=$tapped step=${step.id}")
-                if (tapped) {
-                    delay(CONFIRM_SETTLE_MS)
-                    val afterRoot = service.rootInActiveWindow
-                    val stillOpen = afterRoot?.let { findClickableByText(it, mergedConfirmTexts) }
-                    if (afterRoot != null) recycleNode(afterRoot)
-                    if (stillOpen != null) {
-                        recycleNode(stillOpen)
-                        AppLog.w(TAG, "confirm: dialog still open after tap step=${step.id}")
-                    }
-                    return
+            if (confirmNode == null) {
+                // Диалога нет вовсе — это не провал: у большинства шагов подтверждения
+                // не бывает. Ждём только на первой попытке (диалог мог отрисоваться позже).
+                if (attempt < CONFIRM_ATTEMPTS) {
+                    delay(CONFIRM_RETRY_MS)
+                    continue
                 }
+                AppLog.i(TAG, "confirm: dialog not found step=${step.id}")
+                return ConfirmOutcome.ABSENT
             }
-            if (System.currentTimeMillis() >= deadline) {
-                AppLog.i(TAG, "confirm: dialog not found after ${attempt} attempt(s) step=${step.id}")
-                return
+            val label = buttonLabel(confirmNode)
+            if (label == null) {
+                recycleNode(confirmNode)
+                AppLog.w(TAG, "confirm: label unresolved step=${step.id} attempt=$attempt")
+                StepDiagnostics.note(step.id, "CONFIRM", "label_unresolved attempt=$attempt")
+                if (attempt < CONFIRM_ATTEMPTS) {
+                    delay(CONFIRM_RETRY_MS)
+                    continue
+                }
+                return ConfirmOutcome.FAILED
             }
-            delay(CONFIRM_RETRY_MS)
+            val tapped = tapNode(confirmNode)
+            recycleNode(confirmNode)
+            AppLog.i(TAG, "confirm: tapped '$label' ok=$tapped step=${step.id}")
+            if (!tapped) {
+                if (attempt < CONFIRM_ATTEMPTS) {
+                    delay(CONFIRM_RETRY_MS)
+                    continue
+                }
+                return ConfirmOutcome.FAILED
+            }
+            delay(CONFIRM_SETTLE_MS)
+            val afterRoot = service.rootInActiveWindow
+            val stillOpen = findDialogConfirmButton(afterRoot, mergedConfirmTexts)
+            if (afterRoot != null) recycleNode(afterRoot)
+            if (stillOpen == null) return ConfirmOutcome.CLOSED
+            recycleNode(stillOpen)
+            AppLog.w(TAG, "confirm: dialog still open after tap step=${step.id}")
+            StepDiagnostics.note(step.id, "CONFIRM", "still_open after_tap attempt=$attempt")
+            if (attempt < CONFIRM_ATTEMPTS) delay(CONFIRM_RETRY_MS)
         }
+        return ConfirmOutcome.FAILED
     }
 
     private suspend fun verifySwitchState(step: SimpleSteps.Step, texts: List<String>): Boolean {
