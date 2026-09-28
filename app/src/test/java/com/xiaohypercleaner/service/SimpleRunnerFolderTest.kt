@@ -261,6 +261,7 @@ class SimpleRunnerFolderTest {
         Mockito.`when`(iconTitle.viewIdResourceName).thenReturn("com.miui.home:id/icon_title")
         val popoverTitle = node("android.widget.TextView", text = "Russia", clickable = true)
         Mockito.`when`(popoverTitle.viewIdResourceName).thenReturn("com.miui.home:id/title")
+        Mockito.`when`(popoverTitle.packageName).thenReturn("com.miui.home")
         val root = node("android.widget.FrameLayout", children = arrayOf(iconTitle, popoverTitle))
         Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
 
@@ -283,6 +284,22 @@ class SimpleRunnerFolderTest {
 
         assertTrue("подпись иконки — это иконка рабочего стола", runner.belongsToDesktopIcon(iconLabel))
         assertFalse("заголовок поповера — не иконка", runner.belongsToDesktopIcon(popoverTitle))
+    }
+
+    @Test
+    fun `foreign app title node is not a folder title`() {
+        // Прогон rmulgzmdg: виджет «Поиск в Chrome» имеет id com.android.chrome:id/title.
+        val chromeTitle = node("android.widget.TextView", text = "Поиск в Chrome", clickable = true)
+        Mockito.`when`(chromeTitle.viewIdResourceName).thenReturn("com.android.chrome:id/title")
+        Mockito.`when`(chromeTitle.packageName).thenReturn("com.android.chrome")
+        val popoverTitle = node("android.widget.TextView", text = "Russia", clickable = true)
+        Mockito.`when`(popoverTitle.viewIdResourceName).thenReturn("com.miui.home:id/title")
+        Mockito.`when`(popoverTitle.packageName).thenReturn("com.miui.home")
+        val root = node("android.widget.FrameLayout", children = arrayOf(chromeTitle, popoverTitle))
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        assertFalse("чужой заголовок не подходит", runner.isFolderTitleNode(chromeTitle))
+        assertEquals("com.miui.home:id/title", runner.findFolderTitleNode()?.viewIdResourceName)
     }
 }
 

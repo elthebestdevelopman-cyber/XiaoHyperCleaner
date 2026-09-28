@@ -2715,9 +2715,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val editor = NodeTree.findInTree(root) { n ->
             n.viewIdResourceName?.endsWith("rename_edit") == true
         }
-        val title = NodeTree.findInTree(root) { n ->
-            n.viewIdResourceName?.endsWith("/title") == true && !n.text.isNullOrBlank()
-        }
+        val title = NodeTree.findInTree(root) { n -> isFolderTitleNode(n) }
         recycleNode(row); recycleNode(editor); recycleNode(title)
         recycleNode(root)
         return when {
@@ -2730,9 +2728,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
     /** Название папки в открытом поповере (узел `id=title` лаунчера). */
     private fun currentFolderTitleLabel(): String? {
         val root = service.rootInActiveWindow ?: return null
-        val node = NodeTree.findInTree(root) { n ->
-            n.viewIdResourceName?.endsWith("/title") == true && !n.text.isNullOrBlank()
-        }
+        val node = NodeTree.findInTree(root) { n -> isFolderTitleNode(n) }
         val label = node?.text?.toString()?.trim()
         recycleNode(node)
         recycleNode(root)
@@ -2757,9 +2753,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val switchNode = findSwitchByText(root, toggleTexts)
         val bySwitch = switchNode != null
         recycleNode(switchNode)
-        val titleNode = NodeTree.findInTree(root) { node ->
-            node.viewIdResourceName?.endsWith("/title") == true && !node.text.isNullOrBlank()
-        }
+        val titleNode = NodeTree.findInTree(root) { node -> isFolderTitleNode(node) }
         val titleGone = titleNode == null
         recycleNode(titleNode)
         recycleNode(root)
@@ -2772,11 +2766,22 @@ class SimpleRunner(private val service: AdbEnablerService) {
      *  настоящий заголовок папки от её иконки. */
     internal fun findFolderTitleNode(): AccessibilityNodeInfo? {
         val root = service.rootInActiveWindow ?: return null
-        val node = NodeTree.findInTree(root) { n ->
-            n.viewIdResourceName?.endsWith("/title") == true && !n.text.isNullOrBlank()
-        }
+        val node = NodeTree.findInTree(root) { n -> isFolderTitleNode(n) }
         recycleNode(root)
         return node
+    }
+
+    /**
+     * Заголовок папки лаунчера: ресурс ИМЕННО лаунчера `...:id/title` с непустым текстом.
+     * Проверка только по суффиксу id находила ЧУЖИЕ заголовки: на рабочем столе есть виджеты
+     * приложений с тем же суффиксом (`com.android.chrome:id/title` — виджет поиска), и тап
+     * уходил в виджет вместо редактора папки (прогон rmulgzmdg).
+     */
+    internal fun isFolderTitleNode(node: AccessibilityNodeInfo): Boolean {
+        if (!node.viewIdResourceName.orEmpty().endsWith("/title")) return false
+        if (node.text.isNullOrBlank()) return false
+        val pkg = node.packageName?.toString() ?: return false
+        return isLauncherPackage(pkg)
     }
 
     /** Ждёт появления поповера папки: признак — заголовок `id=title`. */
