@@ -1974,11 +1974,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
             StepDiagnostics.note(
                 step.id, "VERDICT",
                 "already_" + (if (step.targetChecked) "done" else "off") +
+                    " checked=" + isChecked +
                     " label=" + text + " bounds=[" + bounds.left + "," + bounds.top + "," +
                     bounds.right + "," + bounds.bottom + "] markers=" + markerState
             )
             recycleNode(targetSwitch); recycleNode(currentRoot)
-            // Уже в целевом состоянии: тумблить нечего, откат этот шаг не трогает.
+            // Дополнительные строки варианта НЕ зависят от главного тумблера: у Mi Music
+            // главный («Показывать рекламу») часто уже выключен, а «Персональные
+            // рекомендации» — нет; прежний ранний return оставлял их включёнными.
+            runExtraTargets(step, SemanticCatalog.extraTargetsAfterMain(step.id))
             return Result(true, if (step.targetChecked) "already_done" else "already_off")
         }
 
