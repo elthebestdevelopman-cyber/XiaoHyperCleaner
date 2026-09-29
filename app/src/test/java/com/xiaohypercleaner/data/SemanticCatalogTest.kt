@@ -135,25 +135,29 @@ class SemanticCatalogTest {
             )
         )
 
-        assertTrue("до главного тумблера целей нет", variant.extraTargets.none { it.beforeMain })
-        val targets = variant.extraTargets.filterNot { it.beforeMain }
-        assertEquals("четыре зависимые строки", 4, targets.size)
+        assertTrue("до главного тумблера — все зависимые строки", variant.extraTargets.all { it.beforeMain })
+        val targets = variant.extraTargets.filter { it.beforeMain }
+        assertEquals("три цели (пять тумблеров вместе с главным)", 3, targets.size)
         assertEquals(
             listOf(
-                "Проведите вправо по Экрану блокировки",
-                "Обновлять через мобильный Интернет",
                 "Реклама на Экране блокировки",
-                "Включить персонализированные услуги"
+                "Обновлять через мобильный Интернет",
+                "Проведите вправо по Экрану блокировки"
             ),
             targets.map { it.itemTexts["ru"].orEmpty().first() }
         )
         assertEquals(
-            listOf("Подтвердить"),
-            targets.first().confirmTexts["ru"].orEmpty()
+            "в подменю приватности гасятся обе строки",
+            listOf("Реклама на Экране блокировки", "Включить персонализированные услуги"),
+            targets.first().itemTexts["ru"].orEmpty()
         )
         assertEquals(
             listOf(listOf("Политика конфиденциальности", "Privacy policy")),
-            targets[2].drillPath
+            targets.first().drillPath
+        )
+        assertEquals(
+            listOf("Подтвердить"),
+            targets.last().confirmTexts["ru"].orEmpty()
         )
         assertTrue("все цели выключаются", targets.all { !it.targetChecked })
     }
@@ -294,12 +298,12 @@ class SemanticCatalogTest {
 
     @Test
     fun `carousel step covers all five toggles and both dialogs`() {
-        // Прогон rmumuqr53: карусель снова не отключилась — экран занимал внешний промпт
-        // «Наслаждайтесь еще лучшим экраном блокировки» (кнопки «Отклонить»/«Согласиться»),
-        // а сама настройка требует пяти тумблеров и двух разных диалогов (отмена на
-        // «Добавить в выбранные фото?», подтверждение на «Выключить карусель экрана
-        // блокировки?»). Данные сняты с устройства (дампы after/car_main.xml, car_dlg2.xml,
-        // car_priv.xml, p_car_dlg_cancel.xml).
+        // Прогон rmumuqr53 (второй, 23:49): карусель ушла в skip из-за внешнего промпта,
+        // а зависимые строки гасли ПОСЛЕ главного тумблера — активность уже закрывалась,
+        // и drill «Политика конфиденциальности» шёл по чужим экранам. Контракт: все
+        // зависимые строки — ДО главного тумблера, главный последний; диалоги: «Отмена»
+        // на «Добавить в выбранные фото?», «Подтвердить» на «Выключить карусель…?».
+        // Строки — из дампов after/car_main.xml, car_dlg2.xml, car_priv.xml.
         val original = Locale.getDefault()
         try {
             Locale.setDefault(Locale("ru"))
@@ -316,30 +320,38 @@ class SemanticCatalogTest {
                 listOf("Карусель экрана блокировки"),
                 SemanticCatalog.itemTexts("carousel")
             )
-            val targets = SemanticCatalog.extraTargetsAfterMain("carousel")
-            assertEquals("четыре дополнительные строки настроек", 4, targets.size)
+            assertTrue(
+                "целей после главного тумблера нет: активность закрывается сразу",
+                SemanticCatalog.extraTargetsAfterMain("carousel").isEmpty()
+            )
+            val targets = SemanticCatalog.extraTargetsBeforeMain("carousel")
+            assertEquals("три цели до главного тумблера", 3, targets.size)
             assertEquals(
+                "порядок: подменю приватности -> мобильные данные -> свайп",
                 listOf(
-                    "Проведите вправо по Экрану блокировки",
-                    "Обновлять через мобильный Интернет",
                     "Реклама на Экране блокировки",
-                    "Включить персонализированные услуги"
+                    "Обновлять через мобильный Интернет",
+                    "Проведите вправо по Экрану блокировки"
                 ),
                 targets.map { it.itemTexts.first() }
             )
             assertEquals(
+                "в подменю приватности гасятся ОБЕ строки",
+                listOf("Реклама на Экране блокировки", "Включить персонализированные услуги"),
+                targets.first().itemTexts
+            )
+            assertEquals(
+                listOf(listOf("Политика конфиденциальности", "Privacy policy")),
+                targets.first().drillPath
+            )
+            assertEquals(
                 "у «Проведите вправо…» диалог подтверждается, а не отменяется",
                 listOf("Подтвердить"),
-                targets.first().confirmTexts
+                targets.last().confirmTexts
             )
             assertTrue(
                 "у остальных целей подтверждения нет (иначе «Отмена» отменит саму цель)",
-                targets.drop(1).all { it.confirmTexts.isEmpty() }
-            )
-            assertEquals(
-                "две последние цели живут в подменю «Политика конфиденциальности»",
-                listOf(listOf("Политика конфиденциальности", "Privacy policy")),
-                targets[2].drillPath
+                targets.dropLast(1).all { it.confirmTexts.isEmpty() }
             )
             assertEquals(
                 "главный тумблер закрывается отказом «Отмена»",

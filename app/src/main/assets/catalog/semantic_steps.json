@@ -986,29 +986,26 @@
           },
           "extraTargets": [
             {
-              "back": 0,
-              "drillPath": [],
-              "itemTexts": { "ru": ["Проведите вправо по Экрану блокировки"], "en": ["Swipe right on the Lock screen"] },
-              "control": "toggle",
-              "confirmTexts": { "ru": ["Подтвердить"], "en": ["Confirm"] }
+              "beforeMain": true,
+              "back": 1,
+              "drillPath": [["Политика конфиденциальности", "Privacy policy"]],
+              "itemTexts": { "ru": ["Реклама на Экране блокировки", "Включить персонализированные услуги"], "en": ["Ads on the Lock screen", "Enable personalized services"] },
+              "control": "toggle"
             },
             {
+              "beforeMain": true,
               "back": 0,
               "drillPath": [],
               "itemTexts": { "ru": ["Обновлять через мобильный Интернет"], "en": ["Update via mobile network"] },
               "control": "toggle"
             },
             {
-              "back": 1,
-              "drillPath": [["Политика конфиденциальности", "Privacy policy"]],
-              "itemTexts": { "ru": ["Реклама на Экране блокировки"], "en": ["Ads on the Lock screen"] },
-              "control": "toggle"
-            },
-            {
-              "back": 1,
-              "drillPath": [["Политика конфиденциальности", "Privacy policy"]],
-              "itemTexts": { "ru": ["Включить персонализированные услуги"], "en": ["Enable personalized services"] },
-              "control": "toggle"
+              "beforeMain": true,
+              "back": 0,
+              "drillPath": [],
+              "itemTexts": { "ru": ["Проведите вправо по Экрану блокировки"], "en": ["Swipe right on the Lock screen"] },
+              "control": "toggle",
+              "confirmTexts": { "ru": ["Подтвердить"], "en": ["Confirm"] }
             }
           ]
         },

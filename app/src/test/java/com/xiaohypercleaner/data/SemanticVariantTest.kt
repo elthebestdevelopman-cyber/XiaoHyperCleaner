@@ -151,15 +151,12 @@ class SemanticVariantTest {
         assertTrue(SemanticCatalog.toggleDeclineTexts("carousel").contains("Отмена"))
 
         val preTargets = SemanticCatalog.extraTargetsBeforeMain("carousel")
-        assertTrue("до главного тумблера целей нет: строки живут на том же экране", preTargets.isEmpty())
-
-        val postTargets = SemanticCatalog.extraTargetsAfterMain("carousel")
-        assertEquals(4, postTargets.size)
-        assertEquals("Проведите вправо по Экрану блокировки", postTargets.first().itemTexts.first())
-        assertEquals(listOf("Подтвердить"), postTargets.first().confirmTexts)
+        assertEquals("все зависимые строки — до главного тумблера", 3, preTargets.size)
+        assertEquals("Реклама на Экране блокировки", preTargets.first().itemTexts.first())
+        assertEquals(listOf("Подтвердить"), preTargets.last().confirmTexts)
         assertTrue(
-            "остальные цели закрываются отказом, а не подтверждением",
-            postTargets.drop(1).all { it.confirmTexts.isEmpty() }
+            "после главного тумблера целей нет: активность может закрыться",
+            SemanticCatalog.extraTargetsAfterMain("carousel").isEmpty()
         )
     }
 

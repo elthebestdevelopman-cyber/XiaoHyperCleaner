@@ -1583,60 +1583,76 @@ class SimpleRunner(private val service: AdbEnablerService) {
             handleConsentWalls(step)
         }
         if (target.itemTexts.isEmpty()) return false
-        handleConsentWalls(step)
-
-        val root = service.rootInActiveWindow ?: return false
-        val switch = findSwitchByText(root, target.itemTexts)
-        if (switch != null) {
-            val checked = SwitchFinder.isChecked(switch)
-            // Цель может требовать включения, поэтому целевое состояние берём
-            // у цели, а не у шага.
-            val needed = checked != target.targetChecked
-            val tapped = if (needed) tapNode(switch) else true
-            recycleNode(switch); recycleNode(root)
-            if (!tapped) return false
-            if (!needed) return true
-            delay(600)
-            // У цели бывает свой диалог: отказ («Отмена» на «Добавить в выбранные фото?»)
-            // ИЛИ подтверждение («Выключить карусель экрана блокировки?» → «Подтвердить»,
-            // дамп car_dlg2.xml). Взаимоисключающе: на диалоге подтверждения «Отмена»
-            // отменила бы саму цель, поэтому confirmTexts цели отключает decline-путь.
-            if (target.confirmTexts.isNotEmpty()) {
-                if (tapConfirmIfNeeded(step, target.confirmTexts) == ConfirmOutcome.FAILED) {
-                    AppLog.w(
-                        TAG,
-                        "extra target confirm failed step=" + step.id +
-                            " text=" + target.itemTexts.firstOrNull()
-                    )
-                    return false
-                }
-            } else {
-                // Диалог-заглушка после тапа цели (Карусель обоев: «Нет, спасибо»/«Отмена»).
-                tapToggleDeclineIfNeeded(step)
-            }
-            // Без подтверждения фактического состояния цель «выполнено» не объявляет.
-            if (!verifyExtraTargetState(target)) {
-                AppLog.w(
-                    TAG,
-                    "extra target not verified step=" + step.id + " text=" + target.itemTexts.firstOrNull()
-                )
-                return false
-            }
-            if (tapped) {
-                AppLog.i(TAG, "extra target toggled step=${step.id} text='${target.itemTexts.first()}'")
-            }
-            return tapped
+        // Строк-целей в одной цели может быть несколько (Карусель: «Реклама на Экране
+        // блокировки» + «Включить персонализированные услуги» в том же подменю) —
+        // каждая проверяется и гасится отдельно, со своим логом результата.
+        var allRowsOk = true
+        for (text in target.itemTexts) {
+            if (cancelled) return false
+            if (!toggleExtraRow(step, target, text)) allRowsOk = false
         }
-        recycleNode(root)
-        if (target.control == SemanticCatalog.ActionType.TAP_CONFIRM) {
+        if (!allRowsOk && target.control == SemanticCatalog.ActionType.TAP_CONFIRM) {
+            // Экран без тумблера: кнопка-действие (Google «Реклама»).
             return tapActionButton(step, target.itemTexts).success
         }
-        // Строки нет на экране: на повторном прогоне главная цель уже выключена и
-        // зависимая строка исчезла (Карусель) — делать нечего, это не сбой.
-        AppLog.i(
-            TAG,
-            "extra target absent on screen step=" + step.id + " text=" + target.itemTexts.firstOrNull()
-        )
+        return allRowsOk
+    }
+
+    /**
+     * Одна строка-цель: состояние читается до тапа, тапаем только при несовпадении,
+     * результат пишется в лог (`extra target toggled|already_off|absent step=… text='…'`).
+     * Исчезнувшая строка не считается сбоем: на повторном прогоне зависимая строка
+     * пропадает вместе с главным тумблером.
+     */
+    private suspend fun toggleExtraRow(
+        step: SimpleSteps.Step,
+        target: SemanticCatalog.ExtraTarget,
+        text: String
+    ): Boolean {
+        handleConsentWalls(step)
+        val root = service.rootInActiveWindow ?: return false
+        val switch = findSwitchByText(root, listOf(text))
+        if (switch == null) {
+            recycleNode(root)
+            AppLog.i(TAG, "extra target absent step=${step.id} text='$text'")
+            StepDiagnostics.note(step.id, "EXTRA", "absent text=$text")
+            return true
+        }
+        val checked = SwitchFinder.isChecked(switch)
+        // Цель может требовать включения, поэтому целевое состояние берём у цели,
+        // а не у шага.
+        val needed = checked != target.targetChecked
+        if (!needed) {
+            recycleNode(switch); recycleNode(root)
+            AppLog.i(TAG, "extra target already_off step=${step.id} text='$text'")
+            return true
+        }
+        val tapped = tapNode(switch)
+        recycleNode(switch); recycleNode(root)
+        if (!tapped) {
+            AppLog.w(TAG, "extra target tap failed step=${step.id} text='$text'")
+            return false
+        }
+        delay(600)
+        // У цели бывает свой диалог: отказ («Отмена» на «Добавить в выбранные фото?»)
+        // ИЛИ подтверждение («Выключить карусель экрана блокировки?» → «Подтвердить»,
+        // дамп car_dlg2.xml). Взаимоисключающе: на диалоге подтверждения «Отмена»
+        // отменила бы саму цель, поэтому confirmTexts цели отключает decline-путь.
+        if (target.confirmTexts.isNotEmpty()) {
+            if (tapConfirmIfNeeded(step, target.confirmTexts) == ConfirmOutcome.FAILED) {
+                AppLog.w(TAG, "extra target confirm failed step=${step.id} text='$text'")
+                return false
+            }
+        } else {
+            // Диалог-заглушка после тапа цели (Карусель обоев: «Отмена»).
+            tapToggleDeclineIfNeeded(step)
+        }
+        // Без подтверждения фактического состояния цель «выполнено» не объявляет.
+        if (!verifyExtraTargetState(target, listOf(text))) {
+            AppLog.w(TAG, "extra target not verified step=${step.id} text='$text'")
+            return false
+        }
+        AppLog.i(TAG, "extra target toggled step=${step.id} text='$text'")
         return true
     }
 
@@ -2122,11 +2138,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * Фактическое состояние дополнительной цели после тапа. Строка, исчезнувшая с экрана
      * (карусель выключена — зависимая строка пропала), считается достигнутой целью.
      */
-    private suspend fun verifyExtraTargetState(target: SemanticCatalog.ExtraTarget): Boolean {
+    private suspend fun verifyExtraTargetState(
+        target: SemanticCatalog.ExtraTarget,
+        texts: List<String> = target.itemTexts
+    ): Boolean {
         repeat(SWITCH_VERIFY_ATTEMPTS) { attempt ->
             if (attempt > 0) delay(SWITCH_VERIFY_RETRY_DELAY_MS)
             val root = service.rootInActiveWindow ?: return false
-            val node = findSwitchByText(root, target.itemTexts)
+            val node = findSwitchByText(root, texts)
             val state = node?.let { SwitchFinder.isChecked(it) }
             recycleNode(node); recycleNode(root)
             if (state == null || state == target.targetChecked) return true
