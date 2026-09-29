@@ -486,6 +486,30 @@ class ConsentWallTest {
     }
 
     @Test
+    fun `open with chooser is dismissed and never resolved`() = runTest {
+        // Прогон rmumuqr53: appvault_services и appvault_about упёрлись в системный выбор
+        // «Открыть с помощью приложения: Mi Браузер … Отмена» и ушли в
+        // not_applicable/timeout. Диалог закрывается, приложение-получатель не выбирается.
+        withLocale("ru") {
+            val action = ConsentWallHandler.classify(
+                screenText = "Открыть с помощью приложения: Mi Браузер Ещё Запомнить выбор Отмена",
+                ownerPackage = "android",
+                stepPackages = listOf("com.mi.android.globalminusscreen"),
+                stepId = "appvault_services",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = emptyList(),
+                alertDialog = false
+            )
+            assertEquals("выбор получателя — диалог-заглушка", "dismiss", action?.kind)
+            assertEquals("closed", action?.decision)
+            assertFalse(
+                "«Mi Браузер» из списка приложений не нажимается",
+                action!!.texts.any { it.contains("Mi Браузер") }
+            )
+        }
+    }
+
+    @Test
     fun `update prompt is closed by the cross id and never by the update button`() = runTest {
         // Прогон rmulhb4yq (GetApps): апдейт-промпт «Доступно обновление … Обновить»
         // перекрывал экран, политика его не видела — drill не находил «Профиль», и шаг
