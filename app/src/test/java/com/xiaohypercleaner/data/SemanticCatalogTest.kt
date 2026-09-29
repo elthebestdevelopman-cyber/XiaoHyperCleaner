@@ -297,6 +297,60 @@ class SemanticCatalogTest {
     }
 
     @Test
+    fun `browser route enters settings by component and skips the profile tab`() {
+        // Прогон rmumuqr53 (второй, 23:49): drill «Профиль» ударил по action_my (тап
+        // ушёл в оверлей без passthrough), затем по action_tabs («Закрытие всех вкладок»)
+        // → drill_failed. Вердикты p_browser_comp_settings/p_browser_act_open = OK:
+        // BrowserSettingsActivity открывает «Основные настройки» напрямую, вкладка
+        // «Профиль» не нужна. Строки уровней — owner_recon/browser_settings2.xml
+        // («Прочее» → «Дополнительные настройки»), browser_advanced.xml, browser_security.xml.
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale("ru"))
+            SemanticCatalog.selectVariant(
+                RomProfile(
+                    region = RomRegion.GLOBAL,
+                    miuiVersion = "V13.0.5.0",
+                    hyperOsHint = false,
+                    isTablet = false
+                )
+            )
+            val route = SemanticCatalog.route("browser_sys")
+            assertEquals(
+                "первым идёт проверенная компонента экрана настроек",
+                "com.mi.globalbrowser/com.android.browser.BrowserSettingsActivity",
+                route.first().intent
+            )
+            val routeWhat = route.map { it.intent ?: it.tapText ?: it.tapDesc ?: it.tapId ?: "scroll" }
+            val routeScroll = route.any { it.scroll }
+            val routeTap = route.any { it.tapText == "Дополнительные настройки" }
+            assertTrue(
+                "дальше — скролл и «Дополнительные настройки»: $routeWhat",
+                routeScroll && routeTap
+            )
+            assertFalse(
+                "маршрут через вкладку «Профиль» убран целиком",
+                route.any { (it.tapText ?: it.tapDesc ?: "").contains("Профиль") }
+            )
+            assertFalse(
+                "и из drill-подсказки тоже",
+                SemanticCatalog.variantDrillPath("browser_sys")
+                    .any { level -> level.any { it.equals("Профиль", ignoreCase = true) } }
+            )
+            val extra = SemanticCatalog.extraTargetsAfterMain("browser_sys").first()
+            assertEquals(
+                "второй экран — «Безопасность» из меню настроек",
+                listOf(listOf("Безопасность", "Security", "安全")),
+                extra.drillPath
+            )
+            assertEquals(1, extra.back)
+            assertEquals(listOf("Персонализация услуг"), extra.itemTexts)
+        } finally {
+            Locale.setDefault(original)
+        }
+    }
+
+    @Test
     fun `carousel step covers all five toggles and both dialogs`() {
         // Прогон rmumuqr53 (второй, 23:49): карусель ушла в skip из-за внешнего промпта,
         // а зависимые строки гасли ПОСЛЕ главного тумблера — активность уже закрывалась,

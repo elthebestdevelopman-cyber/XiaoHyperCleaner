@@ -553,10 +553,10 @@ class ConsentWallTest {
                 stepConsentTexts = emptyList(),
                 alertDialog = false
             )
-            assertEquals("welcome", action?.kind)
-            assertEquals("accepted", action?.decision)
+            assertEquals("стена мастера закрывается «Пропуском» (dismiss-путь)", "dismiss", action?.kind)
+            assertEquals("closed", action?.decision)
             assertTrue(
-                "кнопка «Пропуск» мастера должна быть в действиях политики",
+                "кнопка «Пропуск» мастера — в текстах отказа",
                 action!!.texts.any { it.equals("Пропуск", ignoreCase = true) }
             )
         }

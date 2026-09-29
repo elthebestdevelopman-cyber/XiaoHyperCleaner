@@ -63,13 +63,13 @@
       "id": ["Terjadi kesalahan jaringan", "Kesalahan jaringan", "IKLAN", "Fitur AI terbaru", "File pribadi", "Pembaruan tersedia", "Buka dengan"]
     },
     "dismissTexts": {
-      "ru": ["Нет, спасибо", "Понятно", "Закрыть", "Отмена", "Позже", "OK", "Вернуться в приложение"],
-      "en": ["No, thanks", "No thanks", "Got it", "Close", "Cancel", "Later", "OK", "Return to app"],
-      "es": ["No, gracias", "Entendido", "Cerrar", "Volver a la aplicación"],
-      "zh": ["不用了，谢谢", "知道了", "关闭", "返回应用"],
-      "hi": ["नहीं, धन्यवाद", "समझ गया", "बंद करें", "ऐप पर वापस जाएं"],
-      "pt": ["Não, obrigado", "Entendi", "Fechar", "Voltar ao app"],
-      "id": ["Tidak, terima kasih", "Mengerti", "Tutup", "Kembali ke aplikasi"]
+      "ru": ["Нет, спасибо", "Понятно", "Закрыть", "Отмена", "Позже", "OK", "Вернуться в приложение", "Пропуск"],
+      "en": ["No, thanks", "No thanks", "Got it", "Close", "Cancel", "Later", "OK", "Return to app", "Skip"],
+      "es": ["No, gracias", "Entendido", "Cerrar", "Volver a la aplicación", "Saltar"],
+      "zh": ["不用了，谢谢", "知道了", "关闭", "返回应用", "跳过"],
+      "hi": ["नहीं, धन्यवाद", "समझ गया", "बंद करें", "ऐप पर वापस जाएं", "छोड़ें"],
+      "pt": ["Não, obrigado", "Entendi", "Fechar", "Voltar ao app", "Pular"],
+      "id": ["Tidak, terima kasih", "Mengerti", "Tutup", "Kembali ke aplikasi", "Lewati"]
     },
     "forceStopMarkers": {
       "ru": ["Закрыть принудительно?", "Закрыть принудительно", "Принудительное закрытие"],
@@ -1367,9 +1367,12 @@
           "id": "miui12_14",
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
+          "route": [
+            { "intent": "com.mi.globalbrowser/com.android.browser.BrowserSettingsActivity", "waitMs": 1500 },
+            { "scroll": true, "waitMs": 700 },
+            { "tapText": "Дополнительные настройки", "waitMs": 1000 }
+          ],
           "drillPath": [
-            ["Профиль", "Profile", "我的", "Perfil"],
-            ["", "⚙️", "Настройки", "Settings"],
             ["Дополнительные настройки", "Additional settings", "更多设置"]
           ],
           "screenMarkers": {
