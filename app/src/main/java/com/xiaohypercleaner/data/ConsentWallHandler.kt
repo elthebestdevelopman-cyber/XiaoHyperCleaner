@@ -121,6 +121,13 @@ object ConsentWallHandler {
 
     /** Мост нажатий: реализует SimpleRunner (поиск узла по текстам). */
     interface TapBridge {
+        /**
+         * Подпись последней нажатой кнопки — для лога `tapped='…'`: по нему видно,
+         * какая именно кнопка стены нажата (приёмка прогонов). Пусто — мост подписи
+         * не отдаёт (тестовые фейки).
+         */
+        val lastTappedText: String get() = ""
+
         suspend fun tapByTexts(texts: List<String>): Boolean
 
         /**
@@ -264,7 +271,8 @@ object ConsentWallHandler {
             ownerPackage = owner,
             verified = verified,
             decision = if (verified) action.decision else "${action.decision}:unverified",
-            screenText = screenText
+            screenText = screenText,
+            tapped = if (action.kind == "welcome") bridge.lastTappedText else ""
         )
         return Outcome(true, action.kind, action.decision, verified)
     }
@@ -378,6 +386,17 @@ object ConsentWallHandler {
         val permissionHit = markerHit(screenText, permissionMarkers)
         val welcomeMarker = welcomeMarkers.firstOrNull { TextMatcher.normalizedContains(screenText, it) }.orEmpty()
 
+        // Кнопки согласия: пер-шаговый набор стены идёт первым (стена «Загрузок»),
+        // «пропуск» шага из набора исключён — пропуск согласием не является.
+        val skipBlocked = SemanticCatalog.stepWelcomeSkipTexts(stepId)
+        val welcomeTexts = (stepConsentTexts + SemanticCatalog.stepWelcomeAcceptTexts(stepId) +
+            SemanticCatalog.welcomeActions())
+            .distinct()
+            .filterNot { candidate -> skipBlocked.any { it.equals(candidate, ignoreCase = true) } }
+        // Шаг объявил стену обязательной к принятию: её текст может совпадать со
+        // screenMarkers шага (PrivacyGrantDialog Загрузок упоминает «Загрузки»).
+        val stepAcceptsWall = SemanticCatalog.stepWelcomeDecision(stepId) == "accept"
+
         // 4. Диалог принадлежит приложению шага: «Отмена» на нём означает, что
         //    приложение не открылось, — соглашаемся (Проводник, Музыка, Браузер).
         //    Welcome-ветка отключается для шагов с RouteScript (allowWelcome=false):
@@ -398,20 +417,22 @@ object ConsentWallHandler {
                     kind = "welcome",
                     decision = "accepted",
                     cause = "app_owned",
-                    texts = (stepConsentTexts + SemanticCatalog.welcomeActions()).distinct(),
+                    texts = welcomeTexts,
                     markers = welcomeMarkers,
                     marker = welcomeMarker
                 )
             }
         }
 
-        // 5. Welcome-стена: тапаем согласие и продолжаем шаг.
-        if (allowWelcome && !onTargetScreen && welcomeHit) {
+        // 5. Welcome-стена: тапаем согласие и продолжаем шаг. Стена шага, объявленного
+        //    через welcomeDecision=accept, принимается и тогда, когда её текст совпал
+        //    со screenMarkers шага (PrivacyGrantDialog Загрузок: «…приложению Загрузки…»).
+        if (allowWelcome && (stepAcceptsWall || !onTargetScreen) && welcomeHit) {
             return DialogAction(
                 kind = "welcome",
                 decision = "accepted",
-                cause = "wall",
-                texts = (stepConsentTexts + SemanticCatalog.welcomeActions()).distinct(),
+                cause = if (stepAcceptsWall && onTargetScreen) "wall_step" else "wall",
+                texts = welcomeTexts,
                 markers = welcomeMarkers,
                 marker = welcomeMarker
             )
@@ -565,12 +586,15 @@ object ConsentWallHandler {
         ownerPackage: String?,
         verified: Boolean,
         decision: String,
-        screenText: String
+        screenText: String,
+        /** Подпись нажатой кнопки стены (`tapped='Согласен'`). */
+        tapped: String = ""
     ) {
         AppLog.i(
             TAG,
             "consent: kind=${action.kind} decision=$decision step=$stepId cause=${action.cause} " +
-                "pkg=${ownerPackage ?: "-"} verified=$verified text='${screenText.take(80)}'"
+                "pkg=${ownerPackage ?: "-"} verified=$verified tapped='$tapped' " +
+                "text='${screenText.take(80)}'"
         )
     }
 

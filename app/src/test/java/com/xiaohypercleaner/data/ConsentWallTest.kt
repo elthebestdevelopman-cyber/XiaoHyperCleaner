@@ -159,6 +159,31 @@ class ConsentWallTest {
     }
 
     @Test
+    fun `downloads wall is accepted by its own button and skip is not tapped`() = runTest {
+        // Стена Загрузок — системный PrivacyGrantDialog с кнопками «Отмена»/«Согласен»;
+        // её текст упоминает «Загрузки», поэтому шаг объявляет welcomeDecision=accept,
+        // а «Пропуск»/«Пропустить» согласием на этом шаге не считаются.
+        withLocale("ru") {
+            val action = ConsentWallHandler.classify(
+                screenText = "Условия использования Добро пожаловать в Загрузки! " +
+                    "Приложению Загрузки требуется осуществлять сбор информации. Отмена Согласен",
+                ownerPackage = "com.android.settings",
+                stepPackages = listOf("com.android.providers.downloads.ui"),
+                stepId = "downloads",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = emptyList(),
+                alertDialog = true
+            )
+
+            assertEquals("welcome", action?.kind)
+            assertEquals("accepted", action?.decision)
+            assertEquals("Согласен", action?.texts?.firstOrNull())
+            assertFalse("пропуск не согласие", action!!.texts.contains("Пропуск"))
+            assertFalse("пропуск не согласие", action.texts.contains("Пропустить"))
+        }
+    }
+
+    @Test
     fun `permission dialog is denied by default`() = runTest {
         val node = screen("Allow app to access files permission request")
         Mockito.`when`(service.rootInActiveWindow).thenReturn(node)

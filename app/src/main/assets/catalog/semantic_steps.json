@@ -1985,6 +1985,25 @@
     },
     {
       "id": "downloads",
+      "welcomeDecision": "accept",
+      "welcomeAcceptTexts": {
+        "ru": ["Согласен", "Согласиться", "Принять", "Принять и продолжить"],
+        "en": ["I agree", "Agree", "Accept", "Accept and continue"],
+        "es": ["Acepto", "Aceptar", "Aceptar y continuar"],
+        "zh": ["同意", "接受", "同意并继续"],
+        "hi": ["सहमत हूँ", "स्वीकार करें", "स्वीकारें और जारी रखें"],
+        "pt": ["Concordo", "Aceitar", "Aceitar e continuar"],
+        "id": ["Setuju", "Terima", "Terima dan lanjutkan"]
+      },
+      "welcomeSkipTexts": {
+        "ru": ["Пропуск", "Пропустить"],
+        "en": ["Skip"],
+        "es": ["Omitir", "Saltar"],
+        "zh": ["跳过"],
+        "hi": ["छोड़ें"],
+        "pt": ["Pular"],
+        "id": ["Lewati"]
+      },
       "variants": [
         {
           "id": "miui12_14",

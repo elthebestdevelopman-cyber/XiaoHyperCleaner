@@ -74,6 +74,19 @@ object SemanticCatalog {
          * медиа-громкость глушится на время шага и возвращается в конце.
          */
         val muteMediaOnLaunch: Boolean = false,
+        /**
+         * Решение по welcome-стене ЭТОГО шага: "accept" — принимать её даже когда
+         * текст стены совпал со screenMarkers шага. Стена «Загрузок» — системный
+         * `PrivacyGrantDialog` («Условия использования», кнопки «Отмена»/«Согласен»),
+         * в тексте которого есть слово «Загрузки»: без этого поля правило стены
+         * отступало, и шаг уходил на «запустите приложение вручную»
+         * (дамп `diag-dumps/fresh2/g_downloads_wall.xml`).
+         */
+        val welcomeDecision: String = "",
+        /** Кнопки согласия стены шага (ru — точная строка устройства). */
+        val welcomeAcceptTexts: Map<String, List<String>> = emptyMap(),
+        /** Тексты «пропуска» стены шага: согласием не считаются и не тапаются. */
+        val welcomeSkipTexts: Map<String, List<String>> = emptyMap(),
         val safe: Boolean,
         val localeCoverage: List<String>,
         /** Пакеты-цели шага (видимость задаётся <queries> манифеста). */
@@ -526,6 +539,18 @@ object SemanticCatalog {
      */
     fun welcomeAllowed(id: String): Boolean = step(id)?.welcomeAllowed ?: true
 
+    /**
+     * Решение шага по welcome-стене: "accept" — стена принимается даже тогда, когда
+     * её текст совпал со screenMarkers самого шага (стена «Загрузок»).
+     */
+    fun stepWelcomeDecision(id: String): String = step(id)?.welcomeDecision.orEmpty()
+
+    /** Кнопки согласия стены шага: объединяются с `welcomeActions` и идут первыми. */
+    fun stepWelcomeAcceptTexts(id: String): List<String> = localizedTexts(step(id)?.welcomeAcceptTexts)
+
+    /** Тексты «пропуска» стены шага: из набора согласия исключаются. */
+    fun stepWelcomeSkipTexts(id: String): List<String> = localizedTexts(step(id)?.welcomeSkipTexts)
+
     /** Шаг глушит медиа-звук на время запуска (Mi Video: автоплей промо-ролика). */
     fun muteMediaOnLaunch(id: String): Boolean = step(id)?.muteMediaOnLaunch ?: false
 
@@ -660,6 +685,9 @@ object SemanticCatalog {
         skipReason = o.optString("skipReason").takeIf { it.isNotEmpty() },
         fallbackDrillPath = parseDrillPath(o.optJSONArray("fallbackDrillPath")),
         welcomeAllowed = o.optBoolean("welcomeAllowed", true),
+        welcomeDecision = o.optString("welcomeDecision").takeIf { it.isNotEmpty() }.orEmpty(),
+        welcomeAcceptTexts = parseListMap(o.optJSONObject("welcomeAcceptTexts")),
+        welcomeSkipTexts = parseListMap(o.optJSONObject("welcomeSkipTexts")),
         muteMediaOnLaunch = o.optBoolean("muteMediaOnLaunch", false),
         safe = o.optBoolean("safe", true),
         localeCoverage = parseStringArray(o.optJSONArray("localeCoverage")),

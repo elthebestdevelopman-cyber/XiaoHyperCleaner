@@ -3235,8 +3235,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     // Consent-стены (welcome/permission) — см. handleConsentWalls + ConsentWallHandler
     // ═════════════════════════════════════════════════════════════════════
+    /** Подпись последней нажатой кнопки диалога: идёт в лог стены (`tapped='…'`). */
+    @Volatile
+    private var lastDialogTapText: String = ""
+
     /** Мост нажатий для ConsentWallHandler (поиск кликабельного узла по текстам). */
     private val consentTapBridge = object : ConsentWallHandler.TapBridge {
+        override val lastTappedText: String get() = lastDialogTapText
+
         override suspend fun tapByTexts(texts: List<String>): Boolean = tapSystemDialogButton(texts)
 
         override suspend fun tapEnabledByTexts(texts: List<String>): Boolean =
@@ -3387,6 +3393,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val root = service.rootInActiveWindow ?: return false
         val node = findDialogButton(root, texts, avoidTexts, requireEnabled)
         if (node != null) {
+            // Подпись нажатой кнопки идёт в лог стены (`tapped='Согласен'`).
+            lastDialogTapText = TextMatcher.normalize(
+                node.text?.toString() ?: node.contentDescription?.toString().orEmpty()
+            )
             val tapped = tapNode(node)
             recycleNode(node); recycleNode(root)
             if (!tapped && requireEnabled) AppLog.w(TAG, "consent: button found but not tappable")
