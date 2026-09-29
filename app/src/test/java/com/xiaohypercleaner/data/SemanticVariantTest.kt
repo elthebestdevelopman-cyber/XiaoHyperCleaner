@@ -144,16 +144,22 @@ class SemanticVariantTest {
         val path = SemanticCatalog.variantDrillPath("carousel")
         assertEquals("Блокировка экрана", path.first().first())
         assertEquals("Карусель обоев", path.last().first())
-        assertTrue(SemanticCatalog.itemTexts("carousel").contains("Включить"))
-        assertTrue(SemanticCatalog.toggleDeclineTexts("carousel").contains("Нет, спасибо"))
+        // Устройство-верифицированный контракт (дампы after/car_main.xml, car_dlg2.xml,
+        // car_priv.xml): главный тумблер «Карусель экрана блокировки», отказ «Отмена»,
+        // четыре зависимые строки после главной (одна из них — с подтверждением).
+        assertTrue(SemanticCatalog.itemTexts("carousel").contains("Карусель экрана блокировки"))
+        assertTrue(SemanticCatalog.toggleDeclineTexts("carousel").contains("Отмена"))
 
         val preTargets = SemanticCatalog.extraTargetsBeforeMain("carousel")
-        assertEquals(1, preTargets.size)
-        assertEquals("Обновлять через мобильный интернет", preTargets.first().itemTexts.first())
-        assertFalse(preTargets.first().targetChecked)
+        assertTrue("до главного тумблера целей нет: строки живут на том же экране", preTargets.isEmpty())
+
+        val postTargets = SemanticCatalog.extraTargetsAfterMain("carousel")
+        assertEquals(4, postTargets.size)
+        assertEquals("Проведите вправо по Экрану блокировки", postTargets.first().itemTexts.first())
+        assertEquals(listOf("Подтвердить"), postTargets.first().confirmTexts)
         assertTrue(
-            "зависимая строка гасится до главного тумблера",
-            SemanticCatalog.extraTargetsAfterMain("carousel").isEmpty()
+            "остальные цели закрываются отказом, а не подтверждением",
+            postTargets.drop(1).all { it.confirmTexts.isEmpty() }
         )
     }
 

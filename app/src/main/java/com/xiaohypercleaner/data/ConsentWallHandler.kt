@@ -95,8 +95,17 @@ object ConsentWallHandler {
     private val ALERT_NEGATIVE_TEXTS = listOf(
         "Отмена", "Отменить", "Cancel", "Abbrechen", "Cancelar", "Batal",
         "Позже", "Later", "Не сейчас", "Not now", "Пропустить", "Skip",
-        "Нет", "No", "取消", "취소"
+        "Нет", "No", "取消", "취소",
+        // «Отклонить» — негативная кнопка MIUI-диалогов Glance/Карусели обоев
+        // («Наслаждайтесь еще лучшим экраном блокировки» → «Отклонить»/«Согласиться»,
+        // дамп after/diagnostic_snapshot_carousel_*). В dismissTexts её быть не должно:
+        // «Отклонить» встречается на welcome-стенах Проводника и permission-диалогах,
+        // и dismiss-правило перехватывало их раньше welcome/permission.
+        "Отклонить", "Decline"
     )
+
+    /** Отрицательные кнопки диалогов (для теста: «Отклонить» — из промпта карусели). */
+    internal fun alertNegativeTextsForTest(): List<String> = ALERT_NEGATIVE_TEXTS
 
     /** Обобщённые подтверждения: не считаются «владением» диалога шагом. */
     private val GENERIC_CONFIRM_TEXTS =

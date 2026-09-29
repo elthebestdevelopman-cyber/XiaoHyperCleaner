@@ -101,32 +101,61 @@ class SemanticCatalogTest {
 
     @Test
     fun `carousel on miui12_14 turns the carousel off through the lock screen route`() {
-        // Владелец + разведка на POCO X3 Pro (MIUI 13): Настройки → Блокировка экрана →
-        // Карусель обоев → KSettingActivity. Главный тумблер «Включить» гасится через
-        // диалог-заглушку («Нет, спасибо»), зависимый «Обновлять через мобильный интернет» —
-        // ДО него: строка исчезает вместе с каруселью
-        // (дампы diag-dumps/fresh/carousel_open|after_tap1|optout_wait).
+        // Владелец + разведка агента на POCO X3 Pro (MIUI 13), прогон rmumuqr53:
+        // вход компонентой SettingActivity (verdict OK), на экране ПЯТЬ тумблеров:
+        // «Карусель экрана блокировки» (главный, диалог «Добавить в выбранные фото?» →
+        // «Отмена»), «Проведите вправо по Экрану блокировки» (диалог подтверждается),
+        // «Обновлять через мобильный Интернет» и подменю «Политика конфиденциальности»:
+        // «Реклама на Экране блокировки» + «Включить персонализированные услуги».
+        // Дампы: after/car_main.xml, after/car_dlg2.xml, after/car_priv.xml,
+        // p_car_dlg_cancel.xml.
         val variant = SemanticCatalog.step("carousel")?.variants
             .orEmpty()
             .first { it.id == "miui12_14" }
 
         assertEquals("Блокировка экрана", variant.drillPath.first().first())
         assertEquals("Карусель обоев", variant.drillPath.last().first())
-        assertEquals(listOf("Включить"), variant.itemTexts["ru"])
-        assertEquals(listOf("Нет, спасибо"), variant.toggleDeclineTexts["ru"])
         assertEquals(
-            listOf("Карусель обоев", "Включить", "Обновлять через мобильный интернет"),
-            variant.screenMarkers["ru"]
+            "первым идёт проверенный интент экрана настроек",
+            "com.miui.android.fashiongallery/com.miui.cw.feature.ui.setting.SettingActivity",
+            variant.route.first().intent
+        )
+        assertEquals(listOf("Карусель экрана блокировки"), variant.itemTexts["ru"])
+        assertEquals(listOf("Отмена"), variant.toggleDeclineTexts["ru"])
+        assertTrue(
+            "маркеры экрана — строки устройства: ${variant.screenMarkers["ru"]}",
+            variant.screenMarkers["ru"].orEmpty().containsAll(
+                listOf(
+                    "Карусель обоев",
+                    "Карусель экрана блокировки",
+                    "Дополнительные настройки",
+                    "Предпочтения",
+                    "Политика конфиденциальности"
+                )
+            )
         )
 
-        val preTargets = variant.extraTargets.filter { it.beforeMain }
-        assertEquals("зависимый тумблер объявлен один", 1, preTargets.size)
+        assertTrue("до главного тумблера целей нет", variant.extraTargets.none { it.beforeMain })
+        val targets = variant.extraTargets.filterNot { it.beforeMain }
+        assertEquals("четыре зависимые строки", 4, targets.size)
         assertEquals(
-            listOf("Обновлять через мобильный интернет"),
-            preTargets.first().itemTexts["ru"]
+            listOf(
+                "Проведите вправо по Экрану блокировки",
+                "Обновлять через мобильный Интернет",
+                "Реклама на Экране блокировки",
+                "Включить персонализированные услуги"
+            ),
+            targets.map { it.itemTexts["ru"].orEmpty().first() }
         )
-        assertFalse("зависимый тумблер выключается, а не включается", preTargets.first().targetChecked)
-        assertTrue("целей после главного тумблера нет", variant.extraTargets.none { !it.beforeMain })
+        assertEquals(
+            listOf("Подтвердить"),
+            targets.first().confirmTexts["ru"].orEmpty()
+        )
+        assertEquals(
+            listOf(listOf("Политика конфиденциальности", "Privacy policy")),
+            targets[2].drillPath
+        )
+        assertTrue("все цели выключаются", targets.all { !it.targetChecked })
     }
 
     @Test
@@ -261,6 +290,96 @@ class SemanticCatalogTest {
             "среди маркеров обманки нет кнопки «Обновить» — обновление не нажимаем",
             policy.decoyMarkers.values.flatten().any { it.trim() == "Обновить" }
         )
+    }
+
+    @Test
+    fun `carousel step covers all five toggles and both dialogs`() {
+        // Прогон rmumuqr53: карусель снова не отключилась — экран занимал внешний промпт
+        // «Наслаждайтесь еще лучшим экраном блокировки» (кнопки «Отклонить»/«Согласиться»),
+        // а сама настройка требует пяти тумблеров и двух разных диалогов (отмена на
+        // «Добавить в выбранные фото?», подтверждение на «Выключить карусель экрана
+        // блокировки?»). Данные сняты с устройства (дампы after/car_main.xml, car_dlg2.xml,
+        // car_priv.xml, p_car_dlg_cancel.xml).
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale("ru"))
+            SemanticCatalog.selectVariant(
+                RomProfile(
+                    region = RomRegion.GLOBAL,
+                    miuiVersion = "V13.0.5.0",
+                    hyperOsHint = false,
+                    isTablet = false
+                )
+            )
+            assertEquals(
+                "главный тумблер — именно «Карусель экрана блокировки»",
+                listOf("Карусель экрана блокировки"),
+                SemanticCatalog.itemTexts("carousel")
+            )
+            val targets = SemanticCatalog.extraTargetsAfterMain("carousel")
+            assertEquals("четыре дополнительные строки настроек", 4, targets.size)
+            assertEquals(
+                listOf(
+                    "Проведите вправо по Экрану блокировки",
+                    "Обновлять через мобильный Интернет",
+                    "Реклама на Экране блокировки",
+                    "Включить персонализированные услуги"
+                ),
+                targets.map { it.itemTexts.first() }
+            )
+            assertEquals(
+                "у «Проведите вправо…» диалог подтверждается, а не отменяется",
+                listOf("Подтвердить"),
+                targets.first().confirmTexts
+            )
+            assertTrue(
+                "у остальных целей подтверждения нет (иначе «Отмена» отменит саму цель)",
+                targets.drop(1).all { it.confirmTexts.isEmpty() }
+            )
+            assertEquals(
+                "две последние цели живут в подменю «Политика конфиденциальности»",
+                listOf(listOf("Политика конфиденциальности", "Privacy policy")),
+                targets[2].drillPath
+            )
+            assertEquals(
+                "главный тумблер закрывается отказом «Отмена»",
+                listOf("Отмена"),
+                SemanticCatalog.toggleDeclineTexts("carousel")
+            )
+        } finally {
+            Locale.setDefault(original)
+        }
+    }
+
+    @Test
+    fun `carousel promo dialog is dismissed by the decline button`() {
+        // Промпт «Наслаждайтесь еще лучшим экраном блокировки» (кнопки «Отклонить»/
+        // «Согласиться») — из дампа after/diagnostic_snapshot_carousel_*: он и занял экран
+        // в прогоне rmumuqr53. Классифицируется как обманка (rule decoy), а «Отклонить»
+        // живёт в негативных кнопках alert-путей — не в dismissTexts, иначе dismiss
+        // перехватывает welcome-стены Проводника и permission-диалоги (регресс тестов
+        // ConsentWallTest).
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale("ru"))
+            assertTrue(
+                "маркер промпта карусели — среди обманок: ${SemanticCatalog.decoyMarkers()}",
+                SemanticCatalog.decoyMarkers().any {
+                    it.contains("Наслаждайтесь еще лучшим экраном блокировки")
+                }
+            )
+            assertFalse(
+                "«Отклонить» не должно быть в dismissTexts",
+                SemanticCatalog.dismissTexts().any { it.equals("Отклонить", ignoreCase = true) }
+            )
+            assertTrue(
+                "«Отклонить» доступно как негативная кнопка диалога",
+                ConsentWallHandler.alertNegativeTextsForTest()
+                    .any { it.equals("Отклонить", ignoreCase = true) }
+            )
+        } finally {
+            Locale.setDefault(original)
+        }
     }
 
     @Test

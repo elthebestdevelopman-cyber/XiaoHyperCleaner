@@ -99,13 +99,13 @@
       "id": ["bawaan"]
     },
     "decoyMarkers": {
-      "ru": ["Доступно обновление", "Доступна новая версия", "Новая версия GetApps", "Улучшена стабильность и производительность"],
-      "en": ["Update available", "A new version is available", "New version available", "Improved stability and performance"],
-      "es": ["Actualización disponible", "Nueva versión disponible", "Mejora de la estabilidad y el rendimiento"],
-      "zh": ["有可用更新", "新版本可用", "提高了稳定性和性能"],
-      "hi": ["अपडेट उपलब्ध है", "नया संस्करण उपलब्ध है"],
-      "pt": ["Atualização disponível", "Nova versão disponível"],
-      "id": ["Pembaruan tersedia", "Versi baru tersedia"]
+      "ru": ["Доступно обновление", "Доступна новая версия", "Новая версия GetApps", "Улучшена стабильность и производительность", "Наслаждайтесь еще лучшим экраном блокировки", "Просматривайте выбранные обои и истории"],
+      "en": ["Update available", "A new version is available", "New version available", "Improved stability and performance", "Enjoy an even better lock screen", "Browse selected wallpapers and stories"],
+      "es": ["Actualización disponible", "Nueva versión disponible", "Mejora de la estabilidad y el rendimiento", "Disfruta de una mejor pantalla de bloqueo"],
+      "zh": ["有可用更新", "新版本可用", "提高了稳定性和性能", "享受更好的锁屏体验"],
+      "hi": ["अपडेट उपलब्ध है", "नया संस्करण उपलब्ध है", "बेहतर लॉक स्क्रीन का आनंद लें"],
+      "pt": ["Atualização disponível", "Nova versão disponível", "Aproveite uma tela de bloqueio melhor"],
+      "id": ["Pembaruan tersedia", "Versi baru tersedia", "Nikmati layar kunci yang lebih baik"]
     },
     "decoyCloseIds": ["upgrade_x_out", "iv_close", "close_button", "btn_close"],
     "appOwnedDecision": "accept"
@@ -968,25 +968,46 @@
           "id": "miui12_14",
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
+          "route": [
+            { "intent": "com.miui.android.fashiongallery/com.miui.cw.feature.ui.setting.SettingActivity", "waitMs": 3000 }
+          ],
           "drillPath": [
             ["Блокировка экрана", "Lock screen"],
             ["Карусель обоев", "Wallpaper Carousel"]
           ],
-          "screenMarkers": { "ru": ["Карусель обоев", "Включить", "Обновлять через мобильный интернет"], "en": ["Wallpaper Carousel", "Enable", "Update via mobile network"], "zh": ["壁纸轮播"] },
+          "screenMarkers": { "ru": ["Карусель обоев", "Карусель экрана блокировки", "Дополнительные настройки", "Предпочтения", "Политика конфиденциальности"], "en": ["Wallpaper Carousel", "Lock screen carousel", "Additional settings", "Preferences", "Privacy policy"], "zh": ["壁纸轮播"] },
           "itemTexts": {
-            "ru": ["Включить"],
-            "en": ["Enable"]
+            "ru": ["Карусель экрана блокировки"],
+            "en": ["Lock screen carousel"]
           },
           "toggleDeclineTexts": {
-            "ru": ["Нет, спасибо"],
-            "en": ["No, thanks"]
+            "ru": ["Отмена"],
+            "en": ["Cancel"]
           },
           "extraTargets": [
             {
               "back": 0,
               "drillPath": [],
-              "beforeMain": true,
-              "itemTexts": { "ru": ["Обновлять через мобильный интернет"], "en": ["Update via mobile network"] },
+              "itemTexts": { "ru": ["Проведите вправо по Экрану блокировки"], "en": ["Swipe right on the Lock screen"] },
+              "control": "toggle",
+              "confirmTexts": { "ru": ["Подтвердить"], "en": ["Confirm"] }
+            },
+            {
+              "back": 0,
+              "drillPath": [],
+              "itemTexts": { "ru": ["Обновлять через мобильный Интернет"], "en": ["Update via mobile network"] },
+              "control": "toggle"
+            },
+            {
+              "back": 1,
+              "drillPath": [["Политика конфиденциальности", "Privacy policy"]],
+              "itemTexts": { "ru": ["Реклама на Экране блокировки"], "en": ["Ads on the Lock screen"] },
+              "control": "toggle"
+            },
+            {
+              "back": 1,
+              "drillPath": [["Политика конфиденциальности", "Privacy policy"]],
+              "itemTexts": { "ru": ["Включить персонализированные услуги"], "en": ["Enable personalized services"] },
               "control": "toggle"
             }
           ]

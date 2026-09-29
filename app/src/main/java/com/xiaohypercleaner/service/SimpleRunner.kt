@@ -1561,8 +1561,23 @@ class SimpleRunner(private val service: AdbEnablerService) {
             if (!tapped) return false
             if (!needed) return true
             delay(600)
-            // Диалог-заглушка после тапа цели (Карусель обоев: «Нет, спасибо»).
-            tapToggleDeclineIfNeeded(step)
+            // У цели бывает свой диалог: отказ («Отмена» на «Добавить в выбранные фото?»)
+            // ИЛИ подтверждение («Выключить карусель экрана блокировки?» → «Подтвердить»,
+            // дамп car_dlg2.xml). Взаимоисключающе: на диалоге подтверждения «Отмена»
+            // отменила бы саму цель, поэтому confirmTexts цели отключает decline-путь.
+            if (target.confirmTexts.isNotEmpty()) {
+                if (tapConfirmIfNeeded(step, target.confirmTexts) == ConfirmOutcome.FAILED) {
+                    AppLog.w(
+                        TAG,
+                        "extra target confirm failed step=" + step.id +
+                            " text=" + target.itemTexts.firstOrNull()
+                    )
+                    return false
+                }
+            } else {
+                // Диалог-заглушка после тапа цели (Карусель обоев: «Нет, спасибо»/«Отмена»).
+                tapToggleDeclineIfNeeded(step)
+            }
             // Без подтверждения фактического состояния цель «выполнено» не объявляет.
             if (!verifyExtraTargetState(target)) {
                 AppLog.w(
@@ -2135,13 +2150,24 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * - не вышло с первого раза — ровно один повтор, затем честный провал;
      * - диалог, оставшийся открытым после тапа, — тоже провал.
      */
-    private suspend fun tapConfirmIfNeeded(step: SimpleSteps.Step): ConfirmOutcome {
+    private suspend fun tapConfirmIfNeeded(step: SimpleSteps.Step): ConfirmOutcome =
+        tapConfirmIfNeeded(step, confirmTextsFor(step))
+
+    /**
+     * То же, но с явным набором кнопок подтверждения: диалог бывает у ОТДЕЛЬНОЙ цели
+     * шага («Проведите вправо по Экрану блокировки» → «Выключить карусель экрана
+     * блокировки?» → «Подтвердить»), и его кнопки не совпадают с confirmTexts шага.
+     */
+    private suspend fun tapConfirmIfNeeded(
+        step: SimpleSteps.Step,
+        texts: List<String>
+    ): ConfirmOutcome {
         // У DELAYED_CONFIRM (msa) свой путь: кнопка активируется только после отсчёта,
         // здесь она не кликабельна и только жгла бы повторы.
         if (SemanticCatalog.sequenceKind(step.id) == SemanticCatalog.SequenceKind.DELAYED_CONFIRM) {
             return ConfirmOutcome.ABSENT
         }
-        val mergedConfirmTexts = confirmTextsFor(step)
+        val mergedConfirmTexts = texts.filter { it.isNotBlank() }.distinct()
         if (mergedConfirmTexts.isEmpty()) return ConfirmOutcome.ABSENT
         val waitMs = SemanticCatalog.confirmWaitMs(step.id, step.confirmWaitMs)
         if (waitMs > 0) delay(waitMs)

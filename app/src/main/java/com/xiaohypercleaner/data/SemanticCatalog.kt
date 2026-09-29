@@ -151,6 +151,13 @@ object SemanticCatalog {
         val drillPath: List<List<String>>,
         val itemTexts: Map<String, List<String>>,
         val control: ActionType?,
+        /**
+         * Кнопки подтверждения ДИАЛОГА ЦЕЛИ: MIUI спрашивает подтверждение именно у
+         * отдельной строки («Проведите вправо по Экрану блокировки» →
+         * «Выключить карусель экрана блокировки?» → «Подтвердить», дамп car_dlg2.xml).
+         * Пустой список = подтверждения у цели нет.
+         */
+        val confirmTexts: Map<String, List<String>> = emptyMap(),
         /** Целевое состояние тумблера цели: по умолчанию выключить (как раньше). */
         val targetChecked: Boolean = false,
         /**
@@ -320,6 +327,8 @@ object SemanticCatalog {
         val drillPath: List<List<String>>,
         val itemTexts: List<String>,
         val control: ActionType,
+        /** Кнопки подтверждения диалога цели (пусто = подтверждения у цели нет). */
+        val confirmTexts: List<String> = emptyList(),
         /** Целевое состояние тумблера цели (включается, если true). */
         val targetChecked: Boolean = false,
         /** Цель-«до главного тумблера»: её строка исчезает после выключения главной. */
@@ -341,6 +350,7 @@ object SemanticCatalog {
                 drillPath = target.drillPath,
                 itemTexts = localizedTexts(target.itemTexts),
                 control = target.control ?: ActionType.TOGGLE,
+                confirmTexts = localizedTexts(target.confirmTexts),
                 targetChecked = target.targetChecked,
                 beforeMain = target.beforeMain
             )
@@ -702,6 +712,7 @@ object SemanticCatalog {
                     drillPath = parseDrillPath(o.optJSONArray("drillPath")),
                     itemTexts = parseListMap(o.optJSONObject("itemTexts")),
                     control = o.optString("control").takeIf { it.isNotEmpty() }?.let { ActionType.from(it) },
+                    confirmTexts = parseListMap(o.optJSONObject("confirmTexts")),
                     targetChecked = o.optBoolean("target", false),
                     beforeMain = o.optBoolean("beforeMain", false)
                 )
