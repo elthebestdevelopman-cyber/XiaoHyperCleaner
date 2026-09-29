@@ -319,6 +319,19 @@ class SimpleRunner(private val service: AdbEnablerService) {
         private const val OVERLAY_GATE_POLL_MS = 100L
 
         /**
+         * Ожидание ПОДТВЕРЖДЕНИЯ passthrough-окна перед инъекцией жеста.
+         * Запрос уходит в OverlayService через `startService` (асинхронно): жест,
+         * отправленный сразу, попадает в ещё-перехватывающее окно — прогон rmumuqr53:
+         * `tap: … via=node` → `touch intercepted x=972 y=2182` → пассивный канал
+         * открылся на 60 мс позже, тап пропал, ретрай ударил по соседнему узлу.
+         */
+        private const val OVERLAY_PASSTHROUGH_WAIT_MS = 500L
+        private const val OVERLAY_PASSTHROUGH_POLL_MS = 25L
+
+        /** Повторы ТОГО ЖЕ узла уровня drill до перехода к следующему кандидату. */
+        private const val DRILL_NODE_RETRIES = 2
+
+        /**
          * Окно пропуска касаний оверлеем вокруг нашей инъекции (dispatchGesture):
          * покрывает settle сервиса, сам жест и обработку. Отсчёт идёт от постановки
          * запроса, поэтому берём с запасом (S4: ±500 мс вокруг жеста).
@@ -1175,19 +1188,42 @@ class SimpleRunner(private val service: AdbEnablerService) {
             attempt++
             if (attempt > 1 && !returnToDrillBase(screenText)) break
             val rect = Rect().also { candidate.getBoundsInScreen(it) }
-            // База для проверки «экран сменился» — текст НЕПОСРЕДСТВЕННО перед тапом:
-            // screenText снят до прокруток поиска кандидатов, и один только скролл давал
-            // ложное «уровень пройден» (ux_program: прокрутили главный список Настроек
-            // вместо тапа, шаг ушёл искать тумблер и падал switch_not_found, прогон rmubgvwm5).
-            val beforeTapText = currentScreenText()
-            val tapped = tapNode(candidate)
-            recycleNode(candidate)
-            if (!tapped) continue
-            if (levelLanded(nextTexts, beforeTapText)) return true
-            if (tapAt(rect.centerX(), rect.centerY())) {
-                delay(UI_SETTLE_DELAY_MS)
-                if (levelLanded(nextTexts, beforeTapText)) return true
+            val nodeId = candidate.viewIdResourceName ?: ""
+            val nodeBounds = "[${rect.left},${rect.top},${rect.right},${rect.bottom}]"
+            // Один и тот же узел пробуется повторами (те же bounds/id), и только после
+            // исчерпания повторов берётся следующий кандидат: иначе «ретрай» уходит на
+            // соседний элемент — прогон rmumuqr53: повтор ударил по action_tabs и открыл
+            // диалог «Закрытие всех вкладок» вместо настроек.
+            var landed = false
+            for (retry in 0..DRILL_NODE_RETRIES) {
+                if (cancelled) return false
+                if (retry > 0) {
+                    AppLog.i(
+                        TAG,
+                        "drill: retry same node $retry/$DRILL_NODE_RETRIES id=$nodeId bounds=$nodeBounds"
+                    )
+                    StepDiagnostics.note(step.id, "DRILL", "retry_same_node id=$nodeId retry=$retry")
+                }
+                // База для проверки «экран сменился» — текст НЕПОСРЕДСТВЕННО перед тапом:
+                // screenText снят до прокруток поиска кандидатов, и один только скролл давал
+                // ложное «уровень пройден» (ux_program: прокрутили главный список Настроек
+                // вместо тапа, шаг ушёл искать тумблер и падал switch_not_found, прогон rmubgvwm5).
+                val beforeTapText = currentScreenText()
+                val tapped = tapNode(candidate)
+                if (tapped && levelLanded(nextTexts, beforeTapText)) {
+                    landed = true
+                    break
+                }
+                if (tapAt(rect.centerX(), rect.centerY())) {
+                    delay(UI_SETTLE_DELAY_MS)
+                    if (levelLanded(nextTexts, beforeTapText)) {
+                        landed = true
+                        break
+                    }
+                }
             }
+            recycleNode(candidate)
+            if (landed) return true
         }
         AppLog.w(
             TAG,
@@ -2384,7 +2420,26 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // touch-listener'е: на MIUI 13 смена FLAG_NOT_TOUCHABLE схлопывает
         // ACCESSIBILITY_OVERLAY в 0x0 и больше его не восстановить (прогон rmuih76mh).
         OverlayController.setPassthrough(service, OVERLAY_PASSTHROUGH_WINDOW_MS)
+        // Запрос доезжает до сервиса асинхронно (`startService`): жест, отданный сразу,
+        // попадает в ещё-перехватывающее окно и пропадает (прогон rmumuqr53:
+        // `tap … via=node` → `touch intercepted x=972 y=2182`, окно открылось на 60 мс
+        // позже, а ретрай ударил по соседнему узлу). Ждём подтверждение ПЕРЕД инъекцией.
+        awaitPassthrough()
         return block()
+    }
+
+    /**
+     * Ждёт подтверждения passthrough-окна (сервис зовёт [OverlayController.markPassthrough]).
+     * Если оверлей не прикреплён (тесты, Про-режим), ждать нечего — инжектим сразу.
+     */
+    private suspend fun awaitPassthrough(timeoutMs: Long = OVERLAY_PASSTHROUGH_WAIT_MS) {
+        if (!OverlayController.isAttached) return
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (OverlayController.isPassthroughActive()) return
+            delay(OVERLAY_PASSTHROUGH_POLL_MS)
+        }
+        AppLog.w(TAG, "overlay passthrough not confirmed within ${timeoutMs}ms — injecting anyway")
     }
 
     private suspend fun tapAtRaw(x: Int, y: Int): Boolean {
@@ -3798,6 +3853,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
             }
             parent = parent.parent
             depth++
+        }
+        // ACTION_CLICK не сработал: координатный повтор ТОГО ЖЕ узла — строго внутри
+        // passthrough-окна. Прежний порядок (сначала жест, окно позже) давал
+        // `touch intercepted` и потерю тапа (прогон rmumuqr53).
+        val retried = withOverlayPassthrough { tapAtRaw(rect.centerX(), rect.centerY()) }
+        if (retried) {
+            AppLog.i(
+                TAG,
+                "tap: coordinate retry inside passthrough bounds=$bounds " +
+                    "id=$id center=(${rect.centerX()},${rect.centerY()})"
+            )
+            return true
         }
         AppLog.i(
             TAG,

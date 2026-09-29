@@ -235,6 +235,8 @@ class OverlayService : Service() {
      */
     private fun setPassthrough(ms: Long) {
         passthroughUntilMs = System.currentTimeMillis() + ms.coerceIn(100L, 3000L)
+        // Подтверждение для раннера: он ждёт это окно перед инъекцией жеста.
+        OverlayController.markPassthrough(ms)
         AppLog.i(TAG, "overlay passthrough until=${passthroughUntilMs} (${ms}ms)")
     }
 

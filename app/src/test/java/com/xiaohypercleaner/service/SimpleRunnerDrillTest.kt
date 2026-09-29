@@ -8,6 +8,8 @@ import com.xiaohypercleaner.data.RomProfile
 import com.xiaohypercleaner.data.RomRegion
 import com.xiaohypercleaner.data.SemanticCatalog
 import com.xiaohypercleaner.data.SimpleSteps
+import android.accessibilityservice.GestureDescription
+import android.graphics.RectF
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -304,6 +306,97 @@ class SimpleRunnerDrillTest {
         assertTrue(
             "альтернативный узел уровня должен быть опробован",
             runner.drillIntoLevel(step("getapps"), 1, path[1], path)
+        )
+    }
+
+    /** Границы узла: `getBoundsInScreen` заполняет переданный Rect. */
+    private fun bounds(n: AccessibilityNodeInfo, l: Int, t: Int, r: Int, b: Int) {
+        Mockito.`when`(n.getBoundsInScreen(Mockito.any(android.graphics.Rect::class.java)))
+            .thenAnswer { inv ->
+                (inv.arguments[0] as android.graphics.Rect).set(l, t, r, b)
+                null
+            }
+    }
+
+    /** Координаты центров инжектированных жестов (для проверки «тот же узел»). */
+    private val gestureCenters = mutableListOf<Pair<Float, Float>>()
+
+    private fun captureGestures() {
+        gestureCenters.clear()
+        Mockito.`when`(service.dispatchGesture(Mockito.any(), Mockito.any(), Mockito.any()))
+            .thenAnswer { inv ->
+                val gesture = inv.arguments[0] as GestureDescription
+                val path = gesture.getStroke(0).path
+                val rect = RectF()
+                path.computeBounds(rect, true)
+                gestureCenters.add(rect.centerX() to rect.centerY())
+                (inv.arguments[1] as AccessibilityService.GestureResultCallback).onCompleted(gesture)
+                true
+            }
+    }
+
+    @Test
+    fun `coordinate retry is injected inside the passthrough window`() = runTest {
+        // Прогон rmumuqr53: `tap: Button id=action_my … via=node` отчитался успехом, а
+        // координатный повтор ушёл в перехватывающее окно (`touch intercepted x=972 y=2182`),
+        // passthrough открылся на 60 мс позже — тап пропал. Повтор обязан идти ПОСЛЕ
+        // подтверждения окна, то есть между запросом passthrough и инъекцией жеста.
+        val row = node(
+            text = "Дополнительные настройки",
+            clickable = true,
+            className = "android.widget.TextView"
+        )
+        Mockito.`when`(row.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(false)
+        bounds(row, 100, 200, 300, 400)
+        val root = node(children = arrayOf(row))
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+        captureGestures()
+
+        runner.drillIntoLevel(
+            step("browser_sys"),
+            0,
+            listOf("Дополнительные настройки"),
+            listOf(listOf("Дополнительные настройки"))
+        )
+
+        val order = Mockito.inOrder(service)
+        order.verify(service).startService(Mockito.any())
+        order.verify(service).dispatchGesture(Mockito.any(), Mockito.any(), Mockito.any())
+        assertTrue("повтор ушёл в центр того же узла", gestureCenters.contains(200f to 300f))
+    }
+
+    @Test
+    fun `drill retries the same node before switching to another candidate`() = runTest {
+        // Прогон rmumuqr53: ретрай уровня ударил по СОСЕДНЕМУ узлу (action_tabs вместо
+        // action_my) и открыл диалог «Закрытие всех вкладок». Повтор обязан держать
+        // тот же узел (те же bounds/id), а новый кандидат — только после повторов.
+        val my = node(text = "Настройки", clickable = true, className = "android.widget.Button")
+        Mockito.`when`(my.viewIdResourceName).thenReturn("com.mi.globalbrowser:id/action_my")
+        Mockito.`when`(my.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(false)
+        bounds(my, 100, 200, 300, 400)
+        val tabs = node(text = "Настройки", clickable = true, className = "android.widget.Button")
+        Mockito.`when`(tabs.viewIdResourceName).thenReturn("com.mi.globalbrowser:id/action_tabs")
+        Mockito.`when`(tabs.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(false)
+        bounds(tabs, 600, 200, 800, 400)
+        val root = node(children = arrayOf(my, tabs))
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+        captureGestures()
+
+        runner.drillIntoLevel(
+            step("browser_sys"),
+            0,
+            listOf("Настройки"),
+            listOf(listOf("Настройки"))
+        )
+
+        val firstCandidateHits = gestureCenters.takeWhile { it == 200f to 300f }.size
+        assertTrue(
+            "повторы держат тот же узел до исчерпания: центры=$gestureCenters",
+            firstCandidateHits >= 3
+        )
+        assertTrue(
+            "соседний узел трогается только после повторов: центры=$gestureCenters",
+            gestureCenters.drop(firstCandidateHits).contains(700f to 300f)
         )
     }
 

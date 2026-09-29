@@ -30,6 +30,23 @@ object OverlayController {
     var isVisible: Boolean = false
         private set
 
+    /**
+     * Подтверждённое окно пропуска касаний: сервис получил запрос passthrough.
+     * Нужно раннеру, чтобы не инжектить жест раньше, чем окно реально пропускает
+     * касания (запрос идёт через `startService` — асинхронно, прогон rmumuqr53).
+     */
+    @Volatile
+    var passthroughUntilMs: Long = 0L
+        private set
+
+    /** Окно passthrough уже действует. */
+    fun isPassthroughActive(): Boolean = System.currentTimeMillis() < passthroughUntilMs
+
+    /** Сервис подтверждает запрос passthrough (зовётся из OverlayService.setPassthrough). */
+    fun markPassthrough(ms: Long) {
+        passthroughUntilMs = System.currentTimeMillis() + ms.coerceIn(100L, 3000L)
+    }
+
     /** Флаг защищённой фазы: hide() между startAutomation и showResult → illegal. */
     @Volatile
     var phaseRunning: Boolean = false
