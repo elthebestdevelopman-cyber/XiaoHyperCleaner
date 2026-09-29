@@ -297,6 +297,37 @@ class SemanticCatalogTest {
     }
 
     @Test
+    fun `mi video mutes media while launching the promo`() {
+        // F5: Mi Video при запуске автопроигрывает промо-ролик со звуком. Каталог
+        // помечает шаг `muteMediaOnLaunch`, раннер глушит STREAM_MUSIC на время шага
+        // и возвращает громкость в конце (restoreStepMute).
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale("ru"))
+            assertTrue(
+                "mivideo глушит медиа при запуске",
+                SemanticCatalog.muteMediaOnLaunch("mivideo")
+            )
+            assertFalse(
+                "остальные шаги звук не трогают",
+                SemanticCatalog.muteMediaOnLaunch("music_sys") ||
+                    SemanticCatalog.muteMediaOnLaunch("carousel")
+            )
+        } finally {
+            Locale.setDefault(original)
+        }
+    }
+
+    @Test
+    fun `filemanager step rejects welcome walls, others allow them`() {
+        // F7: route-шаг Проводника не принимает welcome-стены (рабочие экраны совпадают
+        // словами с welcomeActions), остальные шаги — принимают.
+        assertFalse("Проводник — route-шаг", SemanticCatalog.welcomeAllowed("filemanager"))
+        assertTrue("обычные шаги стены принимают", SemanticCatalog.welcomeAllowed("carousel"))
+        assertTrue("по умолчанию тоже принимают", SemanticCatalog.welcomeAllowed("unknown_step"))
+    }
+
+    @Test
     fun `browser route enters settings by component and skips the profile tab`() {
         // Прогон rmumuqr53 (второй, 23:49): drill «Профиль» ударил по action_my (тап
         // ушёл в оверлей без passthrough), затем по action_tabs («Закрытие всех вкладок»)

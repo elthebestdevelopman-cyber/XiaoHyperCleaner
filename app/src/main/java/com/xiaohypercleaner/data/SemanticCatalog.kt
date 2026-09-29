@@ -69,6 +69,11 @@ object SemanticCatalog {
          * и «принятие» стены ломает маршрут (прогон rmumuqr53).
          */
         val welcomeAllowed: Boolean = true,
+        /**
+         * Приложение шага при запуске проигрывает промо-ролик со звуком (Mi Video):
+         * медиа-громкость глушится на время шага и возвращается в конце.
+         */
+        val muteMediaOnLaunch: Boolean = false,
         val safe: Boolean,
         val localeCoverage: List<String>,
         /** Пакеты-цели шага (видимость задаётся <queries> манифеста). */
@@ -521,6 +526,9 @@ object SemanticCatalog {
      */
     fun welcomeAllowed(id: String): Boolean = step(id)?.welcomeAllowed ?: true
 
+    /** Шаг глушит медиа-звук на время запуска (Mi Video: автоплей промо-ролика). */
+    fun muteMediaOnLaunch(id: String): Boolean = step(id)?.muteMediaOnLaunch ?: false
+
     /** Подсказки-фолбэки drillPath (старые вариантные пути + путь фолбэк-варианта). */
     fun fallbackDrillPath(id: String): List<List<String>> {
         val base = step(id)?.fallbackDrillPath.orEmpty()
@@ -652,6 +660,7 @@ object SemanticCatalog {
         skipReason = o.optString("skipReason").takeIf { it.isNotEmpty() },
         fallbackDrillPath = parseDrillPath(o.optJSONArray("fallbackDrillPath")),
         welcomeAllowed = o.optBoolean("welcomeAllowed", true),
+        muteMediaOnLaunch = o.optBoolean("muteMediaOnLaunch", false),
         safe = o.optBoolean("safe", true),
         localeCoverage = parseStringArray(o.optJSONArray("localeCoverage")),
         requiredPackages = parseStringArray(o.optJSONArray("requiredPackages")),

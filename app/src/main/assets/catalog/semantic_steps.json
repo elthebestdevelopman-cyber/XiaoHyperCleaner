@@ -2341,6 +2341,7 @@
     },
     {
       "id": "mivideo",
+      "muteMediaOnLaunch": true,
       "variants": [
         {
           "id": "miui12_14",

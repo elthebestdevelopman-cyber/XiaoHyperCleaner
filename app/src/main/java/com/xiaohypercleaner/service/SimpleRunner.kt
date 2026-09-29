@@ -398,6 +398,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
     private var mutedForFreshDevice = false
     private var originalVolume: Int = -1
 
+    /** Громкость, снятая на время шага с `muteMediaOnLaunch` (Mi Video: автоплей промо). */
+    private var mutedForStep: Int = -1
+
     private fun muteMediaVolume(): Int {
         val audio = service.getSystemService(AudioManager::class.java) ?: return -1
         val prev = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
@@ -424,10 +427,30 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     private fun cleanupFreshDevice() {
+        restoreStepMute()
         if (!freshDeviceActive) return
         if (mutedForFreshDevice) restoreMediaVolume(originalVolume)
         freshDeviceActive = false
         mutedForFreshDevice = false
+    }
+
+    /**
+     * Шаги с `muteMediaOnLaunch` (Mi Video) открываются с автопроигрыванием промо-ролика:
+     * медиа-звук глушится на время шага и возвращается в [restoreStepMute].
+     */
+    private fun muteForStepIfNeeded(step: SimpleSteps.Step) {
+        restoreStepMute()
+        if (step.launchPackage == null || !SemanticCatalog.muteMediaOnLaunch(step.id)) return
+        val prev = muteMediaVolume()
+        if (prev < 0) return
+        mutedForStep = prev
+        AppLog.i(TAG, "media muted for step ${step.id} (muteMediaOnLaunch)")
+    }
+
+    private fun restoreStepMute() {
+        if (mutedForStep < 0) return
+        restoreMediaVolume(mutedForStep)
+        mutedForStep = -1
         freshDeviceDismisses = 0
         originalVolume = -1
     }
@@ -757,6 +780,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         if (!screenOpened) return Result(false, "no_screen_opened")
 
         delay(if (step.launchPackage != null) APP_LAUNCH_DELAY_MS else UI_SETTLE_DELAY_MS)
+        // Mi Video (muteMediaOnLaunch): промо-ролик стартует со звуком — глушим до
+        // запуска, возвращаем громкость в конце шага (restoreStepMute).
+        muteForStepIfNeeded(step)
         // Закрытие видеорекламы при запуске приложения (Mi Music, GetApps и др.).
         // Реклама блокирует доступ к настройкам — ищем крестик или кнопку "Пропустить".
         if (step.launchPackage != null) {
