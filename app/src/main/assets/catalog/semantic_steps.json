@@ -2600,6 +2600,7 @@
     },
     {
       "id": "filemanager",
+      "welcomeAllowed": false,
       "variants": [
         {
           "id": "miui12_14",
@@ -2607,7 +2608,7 @@
           "fallback": true,
           "route": [
             { "intent": "com.mi.android.globalFileexplorer/com.android.fileexplorer.FileExplorerTabActivity", "waitMs": 3000 },
-            { "tapDesc": "Еще", "waitMs": 1000 },
+            { "tapId": "more_action_btn", "waitMs": 600 },
             { "tapText": "Настройки", "waitMs": 1000 },
             { "tapText": "Информация", "waitMs": 1000 }
           ],

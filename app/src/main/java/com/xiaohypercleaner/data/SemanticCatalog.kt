@@ -63,6 +63,12 @@ object SemanticCatalog {
         val route: List<RouteItem> = emptyList(),
         val skipReason: String?,
         val fallbackDrillPath: List<List<String>>,
+        /**
+         * Шаг принимает welcome-стены. У route-шагов — false: их рабочие экраны
+         * (drawer Проводника, список файлов) совпадают словами с welcomeActions,
+         * и «принятие» стены ломает маршрут (прогон rmumuqr53).
+         */
+        val welcomeAllowed: Boolean = true,
         val safe: Boolean,
         val localeCoverage: List<String>,
         /** Пакеты-цели шага (видимость задаётся <queries> манифеста). */
@@ -508,6 +514,13 @@ object SemanticCatalog {
 
     fun skipReason(id: String): String? = step(id)?.skipReason
 
+    /**
+     * Шаг принимает welcome-стены. false у route-шагов: их рабочие экраны (drawer
+     * Проводника, список файлов) совпадают словами с welcomeActions, и «принятие»
+     * стены тапает рабочую кнопку, ломая маршрут (прогон rmumuqr53).
+     */
+    fun welcomeAllowed(id: String): Boolean = step(id)?.welcomeAllowed ?: true
+
     /** Подсказки-фолбэки drillPath (старые вариантные пути + путь фолбэк-варианта). */
     fun fallbackDrillPath(id: String): List<List<String>> {
         val base = step(id)?.fallbackDrillPath.orEmpty()
@@ -530,6 +543,13 @@ object SemanticCatalog {
     fun welcomeMarkers(): List<String> = localizedTexts(consentPolicy?.welcomeMarkers)
 
     fun welcomeActions(): List<String> = localizedTexts(consentPolicy?.welcomeActions)
+
+    /**
+     * Кнопки согласия на ВСЕХ локалях: guard welcome-стены ищет живую кнопку, а
+     * язык стены может отличаться от языка интерфейса приложения.
+     */
+    fun welcomeActionsAllLocales(): List<String> =
+        (consentPolicy?.welcomeActions?.values?.flatten() ?: emptyList()).distinct()
 
     fun permissionMarkers(): List<String> = localizedTexts(consentPolicy?.permissionMarkers)
 
@@ -631,6 +651,7 @@ object SemanticCatalog {
         route = parseRoute(o.optJSONArray("route")),
         skipReason = o.optString("skipReason").takeIf { it.isNotEmpty() },
         fallbackDrillPath = parseDrillPath(o.optJSONArray("fallbackDrillPath")),
+        welcomeAllowed = o.optBoolean("welcomeAllowed", true),
         safe = o.optBoolean("safe", true),
         localeCoverage = parseStringArray(o.optJSONArray("localeCoverage")),
         requiredPackages = parseStringArray(o.optJSONArray("requiredPackages")),

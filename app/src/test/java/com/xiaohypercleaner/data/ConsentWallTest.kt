@@ -6,6 +6,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -82,6 +83,31 @@ class ConsentWallTest {
         return node
     }
 
+    /**
+     * Стена с ЖИВОЙ кнопкой согласия: welcome принимается только при наличии
+     * enabled-кнопки из welcomeActions (иначе рабочие экраны Проводника, где слова
+     * «Еще»/«Настройки» совпадают с действиями стены, ломали маршрут — прогон rmumuqr53).
+     */
+    private fun wallScreen(
+        text: String,
+        button: String,
+        extraChild: AccessibilityNodeInfo? = null
+    ): AccessibilityNodeInfo {
+        val root = screen(text)
+        val btn = Mockito.mock(AccessibilityNodeInfo::class.java)
+        Mockito.`when`(btn.text).thenReturn(button)
+        Mockito.`when`(btn.isEnabled).thenReturn(true)
+        Mockito.`when`(btn.isClickable).thenReturn(true)
+        Mockito.`when`(btn.childCount).thenReturn(0)
+        val children = listOfNotNull(extraChild, btn)
+        Mockito.`when`(root.childCount).thenReturn(children.size)
+        children.forEachIndexed { index, child ->
+            Mockito.`when`(root.getChild(index)).thenReturn(child)
+        }
+        Mockito.`when`(btn.parent).thenReturn(root)
+        return root
+    }
+
     @Test
     fun `no dialog leads to no action`() = runTest {
         val node = screen("Настройки Отпечатки")
@@ -98,10 +124,11 @@ class ConsentWallTest {
         // MiDrop/ShareMe: «…ознакомьтесь и согласитесь с нашими Условиями
         // использования и Политикой конфиденциальности» — маркеры в именительном
         // падеже эту стену не ловили (прогон rmua2sd7x, shareme).
-        val node = screen(
+        val node = wallScreen(
             "Переносить любые типы файлов Предже чем продолжить, ознакомьтесь и согласитесь " +
                 "с нашими Условиями использования и Политикой конфиденциальности. " +
-                "Согласиться Отклонить"
+                "Согласиться Отклонить",
+            "Согласиться"
         )
         Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
 
@@ -119,7 +146,7 @@ class ConsentWallTest {
 
     @Test
     fun `welcome wall is accepted with policy action`() = runTest {
-        val node = screen("Welcome to Themes Terms of Service")
+        val node = wallScreen("Welcome to Themes Terms of Service", "Принять")
         Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
 
         val outcome = ConsentWallHandler.handleOnce(
@@ -167,7 +194,15 @@ class ConsentWallTest {
         val node = Mockito.mock(AccessibilityNodeInfo::class.java)
         var counter = 0
         Mockito.`when`(node.text).thenAnswer { "Welcome to Themes Terms of Service ${counter++}" }
-        Mockito.`when`(node.childCount).thenReturn(0)
+        // Живая кнопка согласия: без неё стена теперь не принимается (guard F7).
+        val acceptBtn = Mockito.mock(AccessibilityNodeInfo::class.java)
+        Mockito.`when`(acceptBtn.text).thenReturn("Принять")
+        Mockito.`when`(acceptBtn.isEnabled).thenReturn(true)
+        Mockito.`when`(acceptBtn.isClickable).thenReturn(true)
+        Mockito.`when`(acceptBtn.childCount).thenReturn(0)
+        Mockito.`when`(node.childCount).thenReturn(1)
+        Mockito.`when`(node.getChild(0)).thenReturn(acceptBtn)
+        Mockito.`when`(acceptBtn.parent).thenReturn(node)
         Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
 
         val handled = ConsentWallHandler.handleUntilSettled(
@@ -184,7 +219,7 @@ class ConsentWallTest {
     fun `stubborn wall is not tapped twice on unchanged screen`() = runTest {
         // Реальный баг прогона rmu8lzcu9: одна и та же стена «принималась» трижды
         // (browser_sys/music_sys), потому что цикл не проверял прогресс.
-        val node = screen("Welcome to Themes Terms of Service")
+        val node = wallScreen("Welcome to Themes Terms of Service", "Принять")
         Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
 
         val handled = ConsentWallHandler.handleUntilSettled(
@@ -287,7 +322,11 @@ class ConsentWallTest {
 
     @Test
     fun `welcome wall with checkboxes marks them before the enabled button`() = runTest {
-        val node = screen("Terms of Service Select all (required)")
+        val checkbox = Mockito.mock(AccessibilityNodeInfo::class.java)
+        Mockito.`when`(checkbox.text).thenReturn(SemanticCatalog.checkboxTexts().first())
+        Mockito.`when`(checkbox.isClickable).thenReturn(true)
+        Mockito.`when`(checkbox.childCount).thenReturn(0)
+        val node = wallScreen("Terms of Service Select all (required)", "Принять", checkbox)
         Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
         var enabledTaps = 0
         val bridge = object : ConsentWallHandler.TapBridge {
@@ -482,6 +521,43 @@ class ConsentWallTest {
             )
             assertEquals("permission", action?.kind)
             assertEquals("deny", action?.decision)
+        }
+    }
+
+    @Test
+    fun `welcome without an enabled accept button is not accepted`() = runTest {
+        // Прогон rmumuqr53: consent: kind=welcome decision=accepted на РАБОЧИХ экранах
+        // Проводника («Недавние Память Еще Поиск…», drawer) — слова «Еще»/«Настройки»
+        // совпадают с welcomeActions. Guard: маркер стены без живой кнопки согласия —
+        // не стена.
+        withLocale("ru") {
+            val listScreen = screen("Недавние Память Еще Поиск Документы Настройки Очистить")
+            Mockito.`when`(service.rootInActiveWindow).thenReturn(listScreen)
+
+            val outcome = ConsentWallHandler.handleOnce(service, bridge, "filemanager")
+
+            assertFalse("без кнопки согласия welcome не принимается", outcome.handled)
+            assertTrue("ничего не тапаем", tappedTexts.isEmpty())
+        }
+    }
+
+    @Test
+    fun `route step never accepts a welcome wall`() = runTest {
+        // У шагов с RouteScript (Проводник) welcome-политика выключена каталогом:
+        // принимается только dismiss/decoy/alert, иначе рабочий экран «принимается»
+        // и drawer схлопывается (route 3/4 и 4/4 = ok=false в прогоне rmumuqr53).
+        withLocale("ru") {
+            val action = ConsentWallHandler.classify(
+                screenText = "Добро пожаловать в Проводник Принять и продолжить",
+                ownerPackage = "com.mi.android.globalFileexplorer",
+                stepPackages = listOf("com.mi.android.globalFileexplorer"),
+                stepId = "filemanager",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = emptyList(),
+                alertDialog = false,
+                allowWelcome = false
+            )
+            assertNull("welcome-стена не классифицируется у route-шага", action?.takeIf { it.kind == "welcome" })
         }
     }
 

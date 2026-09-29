@@ -161,7 +161,9 @@ object ConsentWallHandler {
         val texts: List<String>,
         val markers: List<String>,
         /** Resource-id кнопок закрытия (крестик обманки-промпта: текста у него нет). */
-        val ids: List<String> = emptyList()
+        val ids: List<String> = emptyList(),
+        /** Сработавший маркер — для лога welcome (`matched=<маркер>`). */
+        val marker: String = ""
     )
 
     /**
@@ -180,14 +182,21 @@ object ConsentWallHandler {
         stepPackages: List<String> = emptyList(),
         isCancelled: () -> Boolean = { false },
         /** Подписи приложений-целей шага: по ним узнаём адресата permission-запроса. */
-        stepLabels: List<String> = emptyList()
+        stepLabels: List<String> = emptyList(),
+        /**
+         * Шаг разрешает обработку welcome-стен. У шагов с RouteScript — запрещено
+         * (`welcomeAllowed: false`): на рабочих экранах drawer/списка находится
+         * «Еще»/«Настройки» из welcomeActions, классификатор тапал их и ломал маршрут
+         * (прогон rmumuqr53: три ложных `kind=welcome` на step=filemanager,
+         * route 3/4 и 4/4 = ok=false).
+         */
+        allowWelcome: Boolean = true
     ): Outcome {
         if (isCancelled()) return Outcome(false, "none", "cancelled")
         val root = service.rootInActiveWindow ?: return Outcome(false, "none", "no_window")
         val owner = root.packageName?.toString()
         val screenText = NodeTree.collectText(root)
         val alertDialog = isAlertDialog(root)
-        recycle(root)
 
         val action = classify(
             screenText = screenText,
@@ -197,8 +206,31 @@ object ConsentWallHandler {
             stepConfirmTexts = stepConfirmTexts,
             stepConsentTexts = stepConsentTexts,
             alertDialog = alertDialog,
-            stepLabels = stepLabels
-        ) ?: return Outcome(false, "none", "no_dialog")
+            stepLabels = stepLabels,
+            allowWelcome = allowWelcome
+        )
+        if (action == null) {
+            recycle(root)
+            return Outcome(false, "none", "no_dialog")
+        }
+        // Welcome-стена — только при НАЛИЧИИ живой кнопки согласия: на обычных экранах
+        // (список Проводника, drawer) слова «Еще»/«Настройки» совпадают с welcomeActions,
+        // и без этой проверки робот «принимал» рабочую страницу, схлопывая drawer.
+        if (action.kind == "welcome" &&
+            !hasEnabledAction(
+                root,
+                (action.texts + SemanticCatalog.welcomeActionsAllLocales()).distinct()
+            )
+        ) {
+            recycle(root)
+            AppLog.i(
+                TAG,
+                "consent: kind=welcome decision=skipped_no_button step=$stepId " +
+                    "matched='${action.marker}' cause=${action.cause}"
+            )
+            return Outcome(false, "none", "welcome_without_button", true)
+        }
+        recycle(root)
 
         if (action.kind == "welcome") {
             // Стена с чекбоксами: сначала отмечаем «Выбрать все»/обязательные
@@ -269,7 +301,9 @@ object ConsentWallHandler {
         stepConsentTexts: List<String>,
         alertDialog: Boolean,
         /** Подписи приложений-целей шага («Проводник», «Музыка»): по ним узнаём адресата запроса. */
-        stepLabels: List<String> = emptyList()
+        stepLabels: List<String> = emptyList(),
+        /** Welcome-стены разрешены только на стенах, не на рабочих экранах route-шагов. */
+        allowWelcome: Boolean = true
     ): DialogAction? {
         if (ownsDialog(screenText, stepConfirmTexts)) return null
 
@@ -342,10 +376,13 @@ object ConsentWallHandler {
 
         val welcomeHit = markerHit(screenText, welcomeMarkers)
         val permissionHit = markerHit(screenText, permissionMarkers)
+        val welcomeMarker = welcomeMarkers.firstOrNull { TextMatcher.normalizedContains(screenText, it) }.orEmpty()
 
         // 4. Диалог принадлежит приложению шага: «Отмена» на нём означает, что
         //    приложение не открылось, — соглашаемся (Проводник, Музыка, Браузер).
-        if (appOwned && (welcomeHit || permissionHit) &&
+        //    Welcome-ветка отключается для шагов с RouteScript (allowWelcome=false):
+        //    на их рабочих экранах «Еще»/«Настройки» из welcomeActions давали ложные стены.
+        if (appOwned && (welcomeHit || permissionHit) && (allowWelcome || permissionHit) &&
             SemanticCatalog.appOwnedDecision() == "accept"
         ) {
             return if (permissionHit && !welcomeHit) {
@@ -362,19 +399,21 @@ object ConsentWallHandler {
                     decision = "accepted",
                     cause = "app_owned",
                     texts = (stepConsentTexts + SemanticCatalog.welcomeActions()).distinct(),
-                    markers = welcomeMarkers
+                    markers = welcomeMarkers,
+                    marker = welcomeMarker
                 )
             }
         }
 
         // 5. Welcome-стена: тапаем согласие и продолжаем шаг.
-        if (!onTargetScreen && welcomeHit) {
+        if (allowWelcome && !onTargetScreen && welcomeHit) {
             return DialogAction(
                 kind = "welcome",
                 decision = "accepted",
                 cause = "wall",
                 texts = (stepConsentTexts + SemanticCatalog.welcomeActions()).distinct(),
-                markers = welcomeMarkers
+                markers = welcomeMarkers,
+                marker = welcomeMarker
             )
         }
 
@@ -427,7 +466,9 @@ object ConsentWallHandler {
         maxIterations: Int = SemanticCatalog.maxConsentIterationsPolicy(),
         isCancelled: () -> Boolean = { false },
         /** Подписи приложений-целей шага: по ним узнаём адресата permission-запроса. */
-        stepLabels: List<String> = emptyList()
+        stepLabels: List<String> = emptyList(),
+        /** Welcome-стены шага (route-шаги их не принимают: `welcomeAllowed: false`). */
+        allowWelcome: Boolean = true
     ): Int {
         var handled = 0
         val limit = maxIterations.coerceAtLeast(1)
@@ -439,7 +480,7 @@ object ConsentWallHandler {
             if (isCancelled()) break
             val outcome = handleOnce(
                 service, bridge, stepId, stepConsentTexts, stepConfirmTexts, stepPackages,
-                isCancelled, stepLabels
+                isCancelled, stepLabels, allowWelcome
             )
             if (!outcome.handled) break
             handled++
@@ -449,6 +490,15 @@ object ConsentWallHandler {
         }
         return handled
     }
+
+    /** Хотя бы одна КНОПКА диалога доступна: маркер сам по себе стену не подтверждает. */
+    private fun hasEnabledAction(root: AccessibilityNodeInfo, texts: List<String>): Boolean =
+        texts.isNotEmpty() && NodeTree.findInTree(root) { node ->
+            // enabled НЕ требуем: на стенах с чекбоксами кнопка согласия активна только
+            // после отметки обязательных пунктов (её тапает tapEnabledByTexts).
+            NodeTree.matchesAny(node, texts) &&
+                NodeTree.clickableAncestorOrSelf(node) != null
+        } != null
 
     /** Текст-маркер считается вхождением по нормализованному тексту экрана. */
     private fun markerHit(screenText: String, markers: List<String>): Boolean =

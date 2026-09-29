@@ -3244,6 +3244,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
             // «приложению Проводник» — по подписи понимаем, что это доступ для
             // шага, и разрешаем (иначе приложение не пускает дальше).
             stepLabels = stepPackagesFor(step).mapNotNull { appLabel(it) },
+            // Welcome-стены запрещены шагам с RouteScript (Проводник): их рабочие
+            // экраны совпадают словами с welcomeActions (прогон rmumuqr53).
+            allowWelcome = SemanticCatalog.welcomeAllowed(step.id),
             maxIterations = SemanticCatalog.maxConsentIterations(
                 step.id,
                 SemanticCatalog.maxConsentIterationsPolicy()
@@ -3521,9 +3524,29 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 item.tapId != null -> tapRouteNode(step, id = item.tapId)
                 else -> false
             }
+            // Один ретрай тапа по тексту через 400 мс: drawer/список MIUI анимируется,
+            // и первый тап может прийтись мимо строки (прогон rmumuqr53: route
+            // filemanager 3/4 «Настройки» и 4/4 «Информация» = ok=false).
+            var retried = false
+            val finalOk = if (!ok && (item.tapText != null || item.tapDesc != null)) {
+                delay(400)
+                retried = true
+                if (item.tapText != null) tapRouteNode(step, text = item.tapText)
+                else tapRouteNode(step, desc = item.tapDesc!!)
+            } else {
+                ok
+            }
             val what = item.intent ?: item.tapText ?: item.tapDesc ?: item.tapId ?: "scroll"
-            AppLog.i(TAG, "route ${step.id}: ${index + 1}/${route.size} '$what' ok=$ok")
-            StepDiagnostics.note(step.id, "ROUTE", "step=${index + 1} what='$what' ok=$ok")
+            AppLog.i(
+                TAG,
+                "route ${step.id}: ${index + 1}/${route.size} '$what' ok=$finalOk" +
+                    if (retried) " retry=true" else ""
+            )
+            StepDiagnostics.note(
+                step.id,
+                "ROUTE",
+                "step=${index + 1} what='$what' ok=$finalOk" + if (retried) " retry=true" else ""
+            )
             delay(item.waitMs)
             // Поверх маршрута встаёт стена первого запуска (Проводник: «Добро пожаловать
             // в Проводник» перекрывает «Еще» → «Настройки» → «Информация»; Mi Браузер:
