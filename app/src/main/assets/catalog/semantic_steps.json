@@ -108,6 +108,14 @@
       "id": ["Pembaruan tersedia", "Versi baru tersedia", "Nikmati layar kunci yang lebih baik"]
     },
     "decoyCloseIds": ["upgrade_x_out", "iv_close", "close_button", "btn_close"],
+    "uncheckIds": {
+      "browser_sys": ["cb_service"],
+      "themes": ["cb_personal"]
+    },
+    "uncheckTexts": {
+      "browser_sys": ["Персонализация услуг"],
+      "themes": ["Персональные рекомендации"]
+    },
     "appOwnedDecision": "accept"
   },
   "manualSteps": [

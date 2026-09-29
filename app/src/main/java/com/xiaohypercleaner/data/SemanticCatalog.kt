@@ -236,7 +236,17 @@ object SemanticCatalog {
         /** Resource-id крестиков закрытия обманок (машинные, без локалей). */
         val decoyCloseIds: List<String> = emptyList(),
         /** Решение для диалога, которым владеет приложение шага (accept). */
-        val appOwnedDecision: String = "accept"
+        val appOwnedDecision: String = "accept",
+        /**
+         * Чекбоксы персонализации, снимаемые ДО тапа согласия (ключ — id шага):
+         * стена Mi Браузера `cb_service` и стена Тём `cb_personal` отмечены по
+         * умолчанию, и согласие «как есть» включало бы сбор данных
+         * (дампы `diag-dumps/fresh/fresh_browser_after_consent.xml`,
+         * `diag-dumps/fresh/fresh_now2.xml`).
+         */
+        val uncheckIds: Map<String, List<String>> = emptyMap(),
+        /** Подписи тех же чекбоксов — для лога `decision=checkbox_unchecked text='…'`. */
+        val uncheckTexts: Map<String, List<String>> = emptyMap()
     )
 
     @Volatile
@@ -617,6 +627,12 @@ object SemanticCatalog {
     /** Решение для диалога, которым владеет приложение шага (accept). */
     fun appOwnedDecision(): String = consentPolicy?.appOwnedDecision ?: "accept"
 
+    /** Resource-id чекбоксов персонализации шага: снимаются до тапа согласия. */
+    fun uncheckIds(stepId: String): List<String> = consentPolicy?.uncheckIds?.get(stepId).orEmpty()
+
+    /** Подписи этих чекбоксов: только для лога `checkbox_unchecked text='…'`. */
+    fun uncheckTexts(stepId: String): List<String> = consentPolicy?.uncheckTexts?.get(stepId).orEmpty()
+
     /**
      * Тексты-маркеры диалогов: по ним тапать запрещено — это заголовки и
      * сообщения, а не кнопки. Tap-мост использует список как avoid-набор.
@@ -823,6 +839,8 @@ object SemanticCatalog {
             defaultAppMarkers = parseListMap(o.optJSONObject("defaultAppMarkers")),
             decoyMarkers = parseListMap(o.optJSONObject("decoyMarkers")),
             decoyCloseIds = parseStringArray(o.optJSONArray("decoyCloseIds")),
+            uncheckIds = parseListMap(o.optJSONObject("uncheckIds")),
+            uncheckTexts = parseListMap(o.optJSONObject("uncheckTexts")),
             appOwnedDecision = o.optString("appOwnedDecision", "accept")
         )
     }

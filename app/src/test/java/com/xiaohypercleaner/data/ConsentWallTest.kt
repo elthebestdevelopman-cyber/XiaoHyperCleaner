@@ -39,8 +39,18 @@ class ConsentWallTest {
 
     private val bridge = object : ConsentWallHandler.TapBridge {
         var tapResult = true
+
+        /** Порядок событий моста: `uncheck:<id>` должен идти до `tap:<подпись>`. */
+        val events = mutableListOf<String>()
+
+        override suspend fun uncheckCheckboxes(entries: List<Pair<String, String>>): List<String> {
+            entries.forEach { events.add("uncheck:" + it.first) }
+            return entries.map { it.second }
+        }
+
         override suspend fun tapByTexts(texts: List<String>): Boolean {
             if (!tapResult) return false
+            events.add("tap:" + (texts.firstOrNull() ?: ""))
             tappedTexts.addAll(texts)
             return true
         }
@@ -67,6 +77,7 @@ class ConsentWallTest {
         SemanticCatalog.ensureLoaded(RuntimeEnvironment.getApplication())
         tappedTexts.clear()
         tappedIds.clear()
+        bridge.events.clear()
         service = Mockito.mock(AccessibilityService::class.java)
     }
 
@@ -180,6 +191,36 @@ class ConsentWallTest {
             assertEquals("Согласен", action?.texts?.firstOrNull())
             assertFalse("пропуск не согласие", action!!.texts.contains("Пропуск"))
             assertFalse("пропуск не согласие", action.texts.contains("Пропустить"))
+        }
+    }
+
+    @Test
+    fun `personalization checkbox is unchecked before the wall is accepted`() = runTest {
+        // Стены Браузера и Тём: чекбокс персонализации отмечен по умолчанию — снимаем
+        // его ДО тапа согласия (иначе согласие включало бы сбор данных).
+        withLocale("ru") {
+            val node = wallScreen(
+                "Условия использования Добро пожаловать в Mi Браузер Персонализация услуг",
+                "Принять и продолжить"
+            )
+            Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
+
+            val outcome = ConsentWallHandler.handleOnce(
+                service,
+                bridge,
+                "browser_sys",
+                stepPackages = listOf("com.mi.globalbrowser")
+            )
+
+            assertTrue(outcome.handled)
+            assertEquals("welcome", outcome.kind)
+            assertEquals(listOf("uncheck:cb_service"), bridge.events.filter { it.startsWith("uncheck:") })
+            assertTrue(
+                "снятие отметки обязано идти до тапа согласия: ${bridge.events}",
+                bridge.events.indexOfFirst { it.startsWith("uncheck:") } <
+                    bridge.events.indexOfFirst { it.startsWith("tap:")
+                }
+            )
         }
     }
 

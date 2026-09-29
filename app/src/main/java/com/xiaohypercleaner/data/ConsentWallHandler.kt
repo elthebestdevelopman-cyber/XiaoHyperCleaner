@@ -158,6 +158,13 @@ object ConsentWallHandler {
          * По умолчанию — «не найдено» (обратная совместимость тестовых мостов).
          */
         suspend fun tapByIds(ids: List<String>): Boolean = false
+
+        /**
+         * Снимает отметку с чекбоксов персонализации ДО тапа согласия (стены
+         * Браузера `cb_service` и Тём `cb_personal`). Возвращает подписи снятых
+         * чекбоксов — для лога `decision=checkbox_unchecked`.
+         */
+        suspend fun uncheckCheckboxes(entries: List<Pair<String, String>>): List<String> = emptyList()
     }
 
     /** Разобранный диалог: что это и каким действием он закрывается. */
@@ -240,6 +247,17 @@ object ConsentWallHandler {
         recycle(root)
 
         if (action.kind == "welcome") {
+            // Чекбоксы персонализации снимаем ДО тапа согласия: на стенах Mi Браузера
+            // и Тём они отмечены по умолчанию, и согласие «как есть» включало бы сбор.
+            val uncheckEntries = SemanticCatalog.uncheckIds(stepId).mapIndexed { index, id ->
+                id to SemanticCatalog.uncheckTexts(stepId).getOrElse(index) { id }
+            }
+            for (label in bridge.uncheckCheckboxes(uncheckEntries)) {
+                AppLog.i(
+                    TAG,
+                    "consent: kind=welcome decision=checkbox_unchecked step=$stepId text='$label'"
+                )
+            }
             // Стена с чекбоксами: сначала отмечаем «Выбрать все»/обязательные
             // пункты, затем жмём кнопку (до отметки она неактивна).
             val checkboxTexts = SemanticCatalog.checkboxTexts()

@@ -225,6 +225,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Ускорение прогона (владелец: «быстрее открывать экраны, быстрее листать»):
         // паузы после навигации сокращены, ожидания остались опросными и растут сами.
         private const val UI_SETTLE_DELAY_MS = 450L
+        /** Пауза после снятия отметки с чекбокса персонализации (до проверки факта). */
+        private const val UNCHECK_SETTLE_DELAY_MS = 250L
         private const val APP_LAUNCH_DELAY_MS = 1200L
         private const val CONTENT_WAIT_MS = 1600L
 
@@ -3259,6 +3261,38 @@ class SimpleRunner(private val service: AdbEnablerService) {
         ): Boolean = tapSystemDialogButton(texts, requireEnabled = true, avoidTexts = avoidTexts)
 
         override suspend fun tapByIds(ids: List<String>): Boolean = tapSystemNodeByIds(ids)
+
+        /**
+         * Снятие отметки с чекбоксов персонализации до согласия. Отметку проверяем
+         * после тапа по тому же узлу: MIUI-чекбокс может не отреагировать на
+         * ACTION_CLICK, и тогда согласие не должно считаться «чистым».
+         */
+        override suspend fun uncheckCheckboxes(entries: List<Pair<String, String>>): List<String> {
+            if (entries.isEmpty()) return emptyList()
+            val root = service.rootInActiveWindow ?: return emptyList()
+            val unchecked = ArrayList<String>(entries.size)
+            for ((id, label) in entries) {
+                val node = NodeTree.findAllInTree(root, predicate = { n ->
+                    val rid = n.viewIdResourceName ?: ""
+                    rid.isNotEmpty() && rid.endsWith(id, ignoreCase = true)
+                }).firstOrNull { it.isCheckable }
+                if (node == null) {
+                    AppLog.i(TAG, "consent: uncheck id not found id=$id")
+                    continue
+                }
+                if (!node.isChecked) {
+                    recycleNode(node)
+                    continue
+                }
+                val clicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                delay(UNCHECK_SETTLE_DELAY_MS)
+                if (clicked && !node.isChecked) unchecked.add(label)
+                recycleNode(node)
+            }
+            recycleNode(root)
+            AppLog.i(TAG, "consent: uncheck ids=${entries.map { it.first }} unchecked=$unchecked")
+            return unchecked
+        }
     }
 
     /**
