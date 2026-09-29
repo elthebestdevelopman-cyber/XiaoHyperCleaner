@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 32 suites, 255 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 32 suites, 267 tests (full table below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 17 tests
 │   ├── OptimizationEngineTest.kt # 15 tests
@@ -304,7 +304,7 @@ app/src/test/java/com/xiaohypercleaner/          # 32 suites, 255 tests (full ta
 │   ├── RomProfileTest.kt         # 5 tests
 │   └── SimpleStepsTest.kt        # 7 tests
 ├── service/
-│   ├── SimpleRunnerDrillTest.kt  # 9 tests (drill level verification)
+│   ├── SimpleRunnerDrillTest.kt  # 11 tests (drill level verification)
 │   ├── SimpleRunnerApplicabilityTest.kt # 6 tests (not applicable steps, notif_* entry)
 │   ├── SimpleRunnerAppEntryTest.kt # 4 tests (app screen readiness)
 │   └── SimpleRunnerClearDataTest.kt # 2 tests
@@ -382,14 +382,14 @@ app/src/test/java/com/xiaohypercleaner/          # 32 suites, 255 tests (full ta
 | `RestoreSnapshotTest`         | 5     | Rollback snapshot of original values               |
 | `AdbPortResolverTest`         | 5     | mDNS discovery, mergePorts                         |
 | `AdaptiveCatalogTest`         | 17    | Variant catalog, text merging                      |
-| `SemanticCatalogTest`         | 16    | Step semantics, packages, dialog policy            |
+| `SemanticCatalogTest`         | 21    | Step semantics, packages, dialog policy            |
 | `SemanticVariantTest`         | 9     | OS variant selection (MIUI 13 / HyperOS 2)         |
 | `SemanticGateTest`            | 6     | Confidence gate                                    |
 | `PlanBuilderTest`             | 7     | Plan pre-filter + red list                         |
 | `DirectIntentNavigatorTest`   | 8     | Step entry point: launcher, direct settings screens |
 | `ManualStepsTest`             | 4     | Manual checklist: 7-locale parity                  |
 | `SwitchFinderTest`            | 15    | Toggles, checked_before, foreign row rejection     |
-| `ConsentWallTest`             | 24    | Dialogs: force-stop, default app, consent, decoys  |
+| `ConsentWallTest`             | 29    | Dialogs: force-stop, default app, consent, decoys  |
 | `ConsentPermissionTest`       | 4     | Permission request: deny by default, allow for target |
 | `SimpleRunnerMsaResumeTest`   | 5     | Drill resume + msa revoke confirmation             |
 | `SimpleRunnerMsaRevokeTest`   | 3     | msa revoke: dialog button, countdown, confirmation |
@@ -398,7 +398,7 @@ app/src/test/java/com/xiaohypercleaner/          # 32 suites, 255 tests (full ta
 | `SimpleRunnerFolderTest`      | 16    | Home folder search (structural markers)            |
 | `SimpleRunnerInstallerTest`   | 3     | Installer settings route, no APK install           |
 | `SimpleRunnerScrollTest`      | 4     | Scroll container lookup, row below the fold        |
-| `SimpleRunnerDrillTest`       | 9     | Drill level verification (route, header menu, alternative nodes) |
+| `SimpleRunnerDrillTest`       | 11    | Drill level verification (route, header menu, alternative nodes) |
 | `SimpleRunnerApplicabilityTest` | 6   | Not applicable steps, notif_* entry                |
 | `SimpleRunnerAppEntryTest`    | 4     | App screen readiness before drilling              |
 | `ScanOrchestratorTest`        | 4     | Navigation planning, cache                         |

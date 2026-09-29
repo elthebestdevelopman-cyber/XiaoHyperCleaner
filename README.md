@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 32 сьюта, 255 тестов (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 32 сьюта, 267 тестов (полная таблица ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 17 тестов
 │   ├── OptimizationEngineTest.kt # 15 тестов
@@ -322,7 +322,7 @@ app/src/test/java/com/xiaohypercleaner/          # 32 сьюта, 255 тесто
 │   ├── RomProfileTest.kt         # 5 тестов
 │   └── SimpleStepsTest.kt        # 7 тестов
 ├── service/
-│   ├── SimpleRunnerDrillTest.kt  # 9 тестов (проверка уровней бурения)
+│   ├── SimpleRunnerDrillTest.kt  # 11 тестов (проверка уровней бурения)
 │   ├── SimpleRunnerApplicabilityTest.kt # 6 тестов (неприменимые шаги, вход notif_*)
 │   ├── SimpleRunnerAppEntryTest.kt # 4 теста (готовность экрана приложения)
 │   └── SimpleRunnerClearDataTest.kt # 2 теста
@@ -400,14 +400,14 @@ app/src/test/java/com/xiaohypercleaner/          # 32 сьюта, 255 тесто
 | `RestoreSnapshotTest`         | 5      | Снапшот оригиналов для отката                      |
 | `AdbPortResolverTest`         | 5      | mDNS discovery, mergePorts                         |
 | `AdaptiveCatalogTest`         | 17     | Вариантный каталог, мердж текстов                  |
-| `SemanticCatalogTest`         | 16     | Семантика шагов, пакеты-цели, политика диалогов    |
+| `SemanticCatalogTest`         | 21     | Семантика шагов, пакеты-цели, политика диалогов    |
 | `SemanticVariantTest`         | 9      | Выбор вариантов по версии ОС (MIUI 13 / HyperOS 2) |
 | `SemanticGateTest`            | 6      | Гейт уверенности                                   |
 | `PlanBuilderTest`             | 7      | Префильтр плана + красный список                   |
 | `DirectIntentNavigatorTest`   | 8      | Точка входа шага: launcher, прямые экраны настроек   |
 | `ManualStepsTest`             | 4      | Ручная памятка: паритет 7 локалей                  |
 | `SwitchFinderTest`            | 15     | Тумблеры, checked_before, запрет чужой строки      |
-| `ConsentWallTest`             | 24     | Диалоги: force-stop, «по умолчанию», consent, обманки |
+| `ConsentWallTest`             | 29     | Диалоги: force-stop, «по умолчанию», consent, обманки |
 | `ConsentPermissionTest`       | 4      | Permission-запрос: deny по умолчанию, allow для цели |
 | `SimpleRunnerMsaResumeTest`   | 5      | Resume бурения + подтверждение отзыва msa          |
 | `SimpleRunnerMsaRevokeTest`   | 3      | Отзыв msa: кнопка диалога, отсчёт, подтверждение   |
@@ -416,7 +416,7 @@ app/src/test/java/com/xiaohypercleaner/          # 32 сьюта, 255 тесто
 | `SimpleRunnerFolderTest`      | 16     | Поиск папок рабочего стола (структурный признак)   |
 | `SimpleRunnerInstallerTest`   | 3      | Настройки установщика, запрет установки APK        |
 | `SimpleRunnerScrollTest`      | 4      | Поиск контейнера прокрутки, строка ниже сгиба      |
-| `SimpleRunnerDrillTest`       | 9      | Проверка уровней бурения (маршрут, меню шапки, альтернативные узлы) |
+| `SimpleRunnerDrillTest`       | 11     | Проверка уровней бурения (маршрут, меню шапки, альтернативные узлы) |
 | `SimpleRunnerApplicabilityTest` | 6    | Неприменимые шаги, вход notif_*                    |
 | `SimpleRunnerAppEntryTest`    | 4      | Готовность экрана приложения перед бурением        |
 | `ScanOrchestratorTest`        | 4      | Планирование навигации, кэш                        |
