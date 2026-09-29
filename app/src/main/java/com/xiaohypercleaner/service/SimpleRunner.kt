@@ -279,12 +279,39 @@ class SimpleRunner(private val service: AdbEnablerService) {
         internal const val FOLDER_SWITCH_ABSENT = "folder_switch_absent"
 
         /**
+         * Тумблер выключен самой прошивкой (`enabled=false` у строки и её
+         * кликабельного предка): настройки на устройстве нет — ведро «нет на
+         * устройстве», а не промах (Ленты виджетов «Показывать уведомления»,
+         * дамп `appvault_notif_disabled`).
+         */
+        internal const val SWITCH_DISABLED_BY_ROM = "switch_disabled"
+
+        /** У установщика нет экспортированных активностей настроек на этой прошивке. */
+        internal const val INSTALLER_SETTINGS_ABSENT = "installer_settings_not_found"
+
+        /** Все кандидаты настроек установщика отказали в старте (Permission Denial). */
+        internal const val INSTALLER_SETTINGS_DENIED = "installer_settings_denied"
+
+        /**
          * Ведро причины пропуска шага. Статический помощник: его зовёт AdbEnablerService
          * при выборе текста отчёта, экземпляр раннера для этого не нужен.
+         *
+         * Маппинг reason → ведро (прогон rmumuqr53: навигационные провалы уезжали в
+         * «нет на устройстве», и отчёт обвинял устройство вместо автоматизации):
+         * - [SkipKind.LAUNCHER_ABSENT] — `launcher_setting_absent`: настройки рабочего
+         *   стола, которой на прошивке нет (home_suggestions и подобные шаги лаунчера);
+         * - [SkipKind.NOT_ON_DEVICE] — ТОЛЬКО признаки отсутствия функции на устройстве:
+         *   `app_not_installed`, `folder_switch_absent`, `switch_disabled`,
+         *   `installer_settings_not_found`, `installer_settings_denied`;
+         * - [SkipKind.UNRESOLVED] — всё остальное: навигационные провалы
+         *   (`not_applicable`, `drill_failed`, `screen_markers_absent`,
+         *   `foreign_screen`, провалившийся route), `low_confidence`,
+         *   `switch_not_found`, `verify_failed`, неизвестная причина и null.
          */
         internal fun classifySkip(reason: String?): SkipKind = when (reason) {
             LAUNCHER_ABSENT -> SkipKind.LAUNCHER_ABSENT
-            "app_not_installed", NOT_APPLICABLE -> SkipKind.NOT_ON_DEVICE
+            "app_not_installed", FOLDER_SWITCH_ABSENT, SWITCH_DISABLED_BY_ROM,
+            INSTALLER_SETTINGS_ABSENT, INSTALLER_SETTINGS_DENIED -> SkipKind.NOT_ON_DEVICE
             else -> SkipKind.UNRESOLVED
         }
 
@@ -2022,10 +2049,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val toggleEnabled = targetSwitch.isEnabled || tapRow.isEnabled
         if (tapRow !== targetSwitch) recycleNode(tapRow)
         if (!toggleEnabled) {
-            AppLog.w(TAG, "switch disabled by rom for ${step.id} — not_applicable")
+            AppLog.w(TAG, "switch disabled by rom for ${step.id} — switch_disabled")
             StepDiagnostics.note(step.id, "APPLICABILITY", "switch_disabled")
             recycleNode(targetSwitch); recycleNode(currentRoot)
-            return Result(false, NOT_APPLICABLE)
+            return Result(false, SWITCH_DISABLED_BY_ROM)
         }
         recordCheckedBefore(step.id, isChecked)
 
@@ -2662,7 +2689,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             StepDiagnostics.note(
                 step.id, "APPLICABILITY", "folder_switch_absent folders=" + foldersChecked
             )
-            return Result(false, NOT_APPLICABLE)
+            return Result(false, FOLDER_SWITCH_ABSENT)
         }
         // Папки есть, но ни одну не довели до секции: честный промах автоматизации
         // (ведро «не нашёл» в отчёте), а не «нет на устройстве».
@@ -3125,8 +3152,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
             // неприменимость на прошивке, а не провал автоматизации (ручная памятка
             // package_installer остаётся в отчёте).
             StepDiagnostics.note(step.id, "APPLICABILITY", "installer_settings_not_found")
-            AppLog.i(TAG, "installer: no settings activities — not_applicable")
-            return Result(false, NOT_APPLICABLE)
+            AppLog.i(TAG, "installer: no settings activities — installer_settings_not_found")
+            return Result(false, INSTALLER_SETTINGS_ABSENT)
         }
 
         var tried = 0
@@ -3159,8 +3186,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
             // S15: все кандидаты отказали в старте (Permission Denial / SecurityException) —
             // честная неприменимость вместо switch_not_found.
             StepDiagnostics.note(step.id, "APPLICABILITY", "installer_settings_denied tried=$tried")
-            AppLog.i(TAG, "installer: all candidates denied launch — not_applicable")
-            return Result(false, NOT_APPLICABLE)
+            AppLog.i(TAG, "installer: all candidates denied launch — installer_settings_denied")
+            return Result(false, INSTALLER_SETTINGS_DENIED)
         }
         return Result(false, "switch_not_found")
     }

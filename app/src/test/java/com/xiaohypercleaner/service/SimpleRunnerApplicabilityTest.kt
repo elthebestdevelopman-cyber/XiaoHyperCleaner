@@ -193,8 +193,10 @@ class SimpleRunnerApplicabilityTest {
             SimpleRunner.SkipKind.NOT_ON_DEVICE,
             SimpleRunner.classifySkip("app_not_installed")
         )
+        // Навигационный провал («не нашёл уровень/экран») — ведро UNRESOLVED: раньше
+        // not_applicable уезжал в «нет на устройстве» и отчёт обвинял устройство.
         assertEquals(
-            SimpleRunner.SkipKind.NOT_ON_DEVICE,
+            SimpleRunner.SkipKind.UNRESOLVED,
             SimpleRunner.classifySkip(SimpleRunner.NOT_APPLICABLE)
         )
         assertEquals(
@@ -206,8 +208,28 @@ class SimpleRunnerApplicabilityTest {
             SimpleRunner.classifySkip("low_confidence")
         )
         assertEquals(
-            SimpleRunner.SkipKind.UNRESOLVED,
+            SimpleRunner.SkipKind.NOT_ON_DEVICE,
             SimpleRunner.classifySkip("folder_switch_absent")
+        )
+        assertEquals(
+            SimpleRunner.SkipKind.NOT_ON_DEVICE,
+            SimpleRunner.classifySkip("switch_disabled")
+        )
+        assertEquals(
+            SimpleRunner.SkipKind.NOT_ON_DEVICE,
+            SimpleRunner.classifySkip("installer_settings_not_found")
+        )
+        assertEquals(
+            SimpleRunner.SkipKind.NOT_ON_DEVICE,
+            SimpleRunner.classifySkip("installer_settings_denied")
+        )
+        assertEquals(
+            SimpleRunner.SkipKind.UNRESOLVED,
+            SimpleRunner.classifySkip("drill_failed")
+        )
+        assertEquals(
+            SimpleRunner.SkipKind.UNRESOLVED,
+            SimpleRunner.classifySkip("screen_markers_absent")
         )
         assertEquals(SimpleRunner.SkipKind.UNRESOLVED, SimpleRunner.classifySkip(null))
         // Промах на папках рабочего стола — «не нашёл», а не «нет на устройстве».
