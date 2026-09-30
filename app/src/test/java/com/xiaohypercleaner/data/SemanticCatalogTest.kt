@@ -137,49 +137,71 @@ class SemanticCatalogTest {
 
         assertTrue("до главного тумблера — все зависимые строки", variant.extraTargets.all { it.beforeMain })
         val targets = variant.extraTargets.filter { it.beforeMain }
-        assertEquals("четыре цели (шесть тумблеров вместе с главным)", 4, targets.size)
+        assertEquals("две цели: свайп и мобильные данные", 2, targets.size)
         assertEquals(
-            "порядок: подменю приватности -> подстроки «Дополнительных настроек» -> мобильные данные -> свайп",
+            "порядок: свайп (с подтверждением) -> мобильные данные",
             listOf(
-                "Реклама на Экране блокировки",
-                "Только рекомендации",
-                "Использовать мобильные данные для обновления контента",
-                "Проведите вправо по Экрану блокировки"
+                "Проведите вправо по Экрану блокировки",
+                "Обновлять через мобильный Интернет"
             ),
             targets.map { it.itemTexts["ru"].orEmpty().first() }
         )
-        assertTrue(
-            "подменю приватности необязательно: на MIUI 13 его заменяют подстроки (разведка _carousel_nodes.txt)",
-            targets.first().optional
-        )
         assertEquals(
-            "в подменю приватности гасятся обе строки",
-            listOf("Реклама на Экране блокировки", "Включить персонализированные услуги"),
-            targets.first().itemTexts["ru"].orEmpty()
-        )
-        assertEquals(
-            listOf(listOf("Политика конфиденциальности", "Privacy policy")),
-            targets.first().drillPath
-        )
-        assertEquals(
+            "у свайпа диалог подтверждается («Подтвердить»), у мобильных данных диалога нет",
             listOf("Подтвердить"),
-            targets.last().confirmTexts["ru"].orEmpty()
+            targets.first().confirmTexts["ru"].orEmpty()
         )
         assertTrue("все цели выключаются", targets.all { !it.targetChecked })
     }
 
     @Test
-    fun `carousel on hyperos keeps the personal wallpapers mode`() {
-        // HyperOS-ветка на устройстве не проверялась: поведение оставлено прежним
-        // (карусель со своими обоями), менять его без дампа нельзя.
+    fun `carousel on hyperos disables the carousel itself`() {
+        // Решение владельца (01.10): режим «Пользовательские обои» больше не цель —
+        // карусель отключается целиком на всех прошивках. HyperOS-ветка на устройстве
+        // не проверялась, поэтому её зависимые строки помечены beforeMain/optional.
         val variant = SemanticCatalog.step("carousel")?.variants
             .orEmpty()
             .first { it.id == "hyperos1_3" }
 
         assertTrue(
-            "hyperos1_3: тумблер режима",
-            variant.itemTexts["ru"].orEmpty().any { it.contains("Пользовательские обои") }
+            "hyperos1_3: главный тумблер — сама карусель: ${variant.itemTexts["ru"]}",
+            variant.itemTexts["ru"].orEmpty().any { it.contains("Карусель") }
         )
+        assertFalse(
+            "режим «Пользовательские обои» целью больше не является",
+            variant.itemTexts["ru"].orEmpty().any { it.equals("Пользовательские обои", ignoreCase = true) }
+        )
+        assertTrue(
+            "зависимые строки гасятся до главного тумблера",
+            variant.extraTargets.all { it.beforeMain }
+        )
+        assertTrue("ни одна цель не включается", variant.extraTargets.none { it.targetChecked })
+    }
+
+    @Test
+    fun `variant level confirm texts are read for the step`() {
+        // Прогон rmuoh815k: confirmTexts, объявленные в `variants[]`, молча
+        // игнорировались (confirmTexts(id) читал только уровень шага) — диалог
+        // «…Отключить службы?» гасил хендлер стен, тумблер оставался включён.
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale("ru"))
+            SemanticCatalog.selectVariant(
+                RomProfile(
+                    region = RomRegion.GLOBAL,
+                    miuiVersion = "V13.0.5.0",
+                    hyperOsHint = false,
+                    isTablet = false
+                )
+            )
+            assertEquals(
+                "кнопка подтверждения варианта видна шагу",
+                listOf("Отключить"),
+                SemanticCatalog.confirmTexts("appvault_about")
+            )
+        } finally {
+            Locale.setDefault(original)
+        }
     }
 
     @Test
@@ -422,38 +444,23 @@ class SemanticCatalogTest {
                 SemanticCatalog.extraTargetsAfterMain("carousel").isEmpty()
             )
             val targets = SemanticCatalog.extraTargetsBeforeMain("carousel")
-            assertEquals("четыре цели до главного тумблера", 4, targets.size)
+            assertEquals("две цели до главного тумблера", 2, targets.size)
             assertEquals(
-                "порядок: подменю приватности -> подстроки «Дополнительных настроек» -> мобильные данные -> свайп",
+                "порядок: свайп (с подтверждением) -> мобильные данные",
                 listOf(
-                    "Реклама на Экране блокировки",
-                    "Только рекомендации",
-                    "Использовать мобильные данные для обновления контента",
-                    "Проведите вправо по Экрану блокировки"
+                    "Проведите вправо по Экрану блокировки",
+                    "Обновлять через мобильный Интернет"
                 ),
                 targets.map { it.itemTexts.first() }
-            )
-            assertTrue(
-                "подменю приватности необязательно: на MIUI 13 его заменяют подстроки",
-                targets.first().optional
-            )
-            assertEquals(
-                "в подменю приватности гасятся ОБЕ строки",
-                listOf("Реклама на Экране блокировки", "Включить персонализированные услуги"),
-                targets.first().itemTexts
-            )
-            assertEquals(
-                listOf(listOf("Политика конфиденциальности", "Privacy policy")),
-                targets.first().drillPath
             )
             assertEquals(
                 "у «Проведите вправо…» диалог подтверждается, а не отменяется",
                 listOf("Подтвердить"),
-                targets.last().confirmTexts
+                targets.first().confirmTexts
             )
             assertTrue(
-                "у остальных целей подтверждения нет (иначе «Отмена» отменит саму цель)",
-                targets.dropLast(1).all { it.confirmTexts.isEmpty() }
+                "у мобильных данных диалога подтверждения нет",
+                targets.last().confirmTexts.isEmpty()
             )
             assertEquals(
                 "главный тумблер закрывается отказом «Отмена»",

@@ -1005,33 +1005,18 @@
           "extraTargets": [
             {
               "beforeMain": true,
-              "back": 1,
-              "drillPath": [["Политика конфиденциальности", "Privacy policy"]],
-              "itemTexts": { "ru": ["Реклама на Экране блокировки", "Включить персонализированные услуги"], "en": ["Ads on the Lock screen", "Enable personalized services"] },
-              "control": "toggle",
-              "optional": true
-            },
-            {
-              "beforeMain": true,
-              "back": 0,
-              "drillPath": [],
-              "itemTexts": { "ru": ["Только рекомендации", "Пользовательские обои"], "en": ["Recommendations only", "Personal wallpapers"], "es": ["Solo recomendaciones", "Fondos personalizados"], "zh": ["只显示推荐", "自定义壁纸"], "hi": ["केवल सुझाव", "व्यक्तिगत वॉलपेपर"], "pt": ["Apenas recomendações", "Papéis de parede personalizados"], "id": ["Hanya rekomendasi", "Wallpaper pribadi"] },
-              "control": "toggle"
-            },
-            {
-              "beforeMain": true,
-              "back": 0,
-              "drillPath": [],
-              "itemTexts": { "ru": ["Использовать мобильные данные для обновления контента", "Обновлять через мобильный Интернет"], "en": ["Use mobile data to update content", "Update via mobile network"] },
-              "control": "toggle"
-            },
-            {
-              "beforeMain": true,
               "back": 0,
               "drillPath": [],
               "itemTexts": { "ru": ["Проведите вправо по Экрану блокировки"], "en": ["Swipe right on the Lock screen"] },
               "control": "toggle",
               "confirmTexts": { "ru": ["Подтвердить"], "en": ["Confirm"] }
+            },
+            {
+              "beforeMain": true,
+              "back": 0,
+              "drillPath": [],
+              "itemTexts": { "ru": ["Обновлять через мобильный Интернет"], "en": ["Update via mobile network"] },
+              "control": "toggle"
             }
           ]
         },
@@ -1044,28 +1029,32 @@
           ],
           "screenMarkers": { "ru": ["Текущий режим", "Пользовательские обои", "Карусель обоев"], "en": ["Current mode", "Personal wallpapers", "Wallpaper Carousel"] },
           "itemTexts": {
-            "ru": ["Пользовательские обои"],
-            "en": ["Personal wallpapers"],
-            "es": ["Fondos personalizados"],
-            "zh": ["自定义壁纸"],
-            "hi": ["व्यक्तिगत वॉलपेपर"],
-            "pt": ["Papéis de parede personalizados"],
-            "id": ["Wallpaper pribadi"]
+            "ru": ["Карусель обоев", "Карусель экрана блокировки"],
+            "en": ["Wallpaper Carousel", "Lock screen carousel"],
+            "es": ["Carrusel de fondos"],
+            "zh": ["壁纸轮播"],
+            "hi": ["वॉलपेपर कैरोसेल"],
+            "pt": ["Carrossel de papéis de parede"],
+            "id": ["Karosel wallpaper"]
           },
           "extraTargets": [
             {
+              "beforeMain": true,
               "back": 0,
               "drillPath": [],
               "itemTexts": { "ru": ["Только рекомендации"], "en": ["Recommendations only"] },
               "control": "toggle"
             },
             {
+              "beforeMain": true,
               "back": 1,
               "drillPath": [],
               "itemTexts": { "ru": ["Проведите вправо по Экрану блокировки"], "en": ["Swipe right on the Lock screen"] },
-              "control": "toggle"
+              "control": "toggle",
+              "optional": true
             },
             {
+              "beforeMain": true,
               "back": 0,
               "drillPath": [],
               "itemTexts": { "ru": ["Обновлять через мобильный Интернет"], "en": ["Update via mobile network"] },

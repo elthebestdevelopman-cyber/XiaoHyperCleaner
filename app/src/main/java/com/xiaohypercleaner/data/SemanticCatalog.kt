@@ -124,6 +124,12 @@ object SemanticCatalog {
         val screenMarkers: Map<String, List<String>>,
         val itemTexts: Map<String, List<String>>,
         val tapFallbackTexts: Map<String, List<String>>,
+        /**
+         * Кнопки подтверждения диалога, специфичные для варианта (App Vault MIUI 13:
+         * после тапа «Персонализированные услуги» диалог «…Отключить службы?» с кнопкой
+         * «Отключить»). Читается [confirmTexts] ВМЕСТЕ с текстами уровня шага.
+         */
+        val confirmTexts: Map<String, List<String>>,
         val consentTexts: Map<String, List<String>>,
         val control: ActionType?,
         val extraTargets: List<VariantExtraTarget>,
@@ -538,8 +544,14 @@ object SemanticCatalog {
         return localizedTexts(step(id)?.screenMarkers)
     }
 
-    fun confirmTexts(id: String, fallback: List<String> = emptyList()): List<String> =
-        merge(localizedTexts(step(id)?.confirmTexts), fallback)
+    fun confirmTexts(id: String, fallback: List<String> = emptyList()): List<String> {
+        // Вариант приоритетнее: его диалог проверен дампом именно этой прошивки
+        // (App Vault: «Отключить»), тексты уровня шага остаются фолбэком. Раньше
+        // вариантная карта не читалась вовсе — confirmTexts из `variants[]` молча
+        // игнорировались, и диалог гасил хендлер стен (прогон rmuoh815k).
+        val fromVariant = localizedTexts(selection(id)?.variant?.confirmTexts)
+        return merge(merge(fromVariant, localizedTexts(step(id)?.confirmTexts)), fallback)
+    }
 
     fun tapFallbackTexts(id: String, fallback: List<String> = emptyList()): List<String> {
         val fromVariant = localizedTexts(selection(id)?.variant?.tapFallbackTexts)
@@ -769,6 +781,7 @@ object SemanticCatalog {
                     screenMarkers = parseListMap(o.optJSONObject("screenMarkers")),
                     itemTexts = parseListMap(o.optJSONObject("itemTexts")),
                     tapFallbackTexts = parseListMap(o.optJSONObject("tapFallbackTexts")),
+                    confirmTexts = parseListMap(o.optJSONObject("confirmTexts")),
                     consentTexts = parseListMap(o.optJSONObject("consentTexts")),
                     control = o.optString("control").takeIf { it.isNotEmpty() }?.let { ActionType.from(it) },
                     extraTargets = parseExtraTargets(o.optJSONArray("extraTargets")),
