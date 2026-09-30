@@ -76,7 +76,12 @@ class SimpleModeController(
         /** Шаги, которых нет в лаунчере: «настройка отсутствует в лаунчере» (POCO). */
         val launcherSkippedStepIds: List<String> = emptyList(),
         /** Шаги, которые робот не нашёл сам: не провал и не «нет на устройстве». */
-        val unresolvedStepIds: List<String> = emptyList()
+        val unresolvedStepIds: List<String> = emptyList(),
+        /**
+         * Прогон прерван пользователем ПОСЛЕ подтверждения отмены (S4): результат
+         * частичный — `partial=true` в логах и состоянии.
+         */
+        val partialRun: Boolean = false
     )
 
     val isActive: Boolean get() = state.active
@@ -136,6 +141,17 @@ class SimpleModeController(
     fun setState(update: SimpleModeState.() -> SimpleModeState) {
         state = state.update()
         onStateChanged(state)
+    }
+
+    /**
+     * Пользователь подтвердил отмену прогона в оверлее (S4): состояние помечается
+     * частичным — «выполнено частично», а не «прервано без следа». Раньше нажатие
+     * единственной кнопки отмены останавливало прогон мгновенно и случайно
+     * (прогон rmuh2vb1r, шаг 27/28).
+     */
+    fun markPartialRun() {
+        AppLog.i(TAG, "run: partial=true (отмена подтверждена пользователем)")
+        setState { copy(partialRun = true) }
     }
 
     fun destroy() {

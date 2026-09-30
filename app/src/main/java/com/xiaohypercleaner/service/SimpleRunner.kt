@@ -83,6 +83,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
             "msa" to MSA_TIMEOUT_MS,
             "security_sys" to SECURITY_CLEANER_TIMEOUT_MS,
             "cleaner" to SECURITY_CLEANER_TIMEOUT_MS,
+            // Карусель: пять тумблеров (главный + две строки подменю «Политика
+            // конфиденциальности» + свайп + мобильные данные) и три перехода между
+            // экранами — базового бюджета не хватало (прогон rmuoh815k).
+            "carousel" to 30_000L,
             // Перебор кандидатов-папок и активностей установщика: шаги дольше базовых.
             "folder_recommendations" to 34_000L,
             "installer_recommendations" to 26_000L,
@@ -1786,6 +1790,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 AppLog.w(TAG, "extra target confirm failed step=${step.id} text='$text'")
                 return false
             }
+        } else if (target.drillPath.isNotEmpty()) {
+            // Вложенный экран (подменю «Политика конфиденциальности»): диалог-заглушка
+            // («Добавить в выбранные фото?») принадлежит строкам КОРНЕВОГО экрана, а
+            // ожидание по 2.5 с на строку съедало бюджет шага карусели с пятью
+            // тумблерами (прогон rmuoh815k: 20 с не хватало).
+            AppLog.i(TAG, "extra target nested: decline wait skipped step=${step.id} text='$text'")
         } else {
             // Диалог-заглушка после тапа цели (Карусель обоев: «Отмена»).
             tapToggleDeclineIfNeeded(step)
@@ -2625,7 +2635,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * На время жеста окно делаем не-перехватывающим (FLAG_NOT_TOUCHABLE) и сразу
      * возвращаем поглощение: вне моментов инъекции окно блокирует пользователя.
      */
-    private suspend fun withOverlayPassthrough(block: suspend () -> Boolean): Boolean {
+    internal suspend fun withOverlayPassthrough(
+        gestureMs: Long = OVERLAY_PASSTHROUGH_WINDOW_MS,
+        block: suspend () -> Boolean
+    ): Boolean {
+        // Сторож ±500 мс вокруг инъекции (S4): пока жест идёт, оверлей игнорирует
+        // нажатия своих кнопок — случайный тап по «Отменить оптимизацию» отменял прогон
+        // целиком (прогон rmuh2vb1r, шаг 27/28). Сама отмена теперь ещё и подтверждается.
+        OverlayController.armGestureGuard(gestureMs)
         // Пропуск касаний включается НЕ сменой флага окна, а временным окном в
         // touch-listener'е: на MIUI 13 смена FLAG_NOT_TOUCHABLE схлопывает
         // ACCESSIBILITY_OVERLAY в 0x0 и больше его не восстановить (прогон rmuih76mh).
@@ -4257,7 +4274,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         endX: Float,
         endY: Float,
         durationMs: Long
-    ): Boolean = withOverlayPassthrough { performGestureRaw(startX, startY, endX, endY, durationMs) }
+    ): Boolean = withOverlayPassthrough(durationMs) {
+        performGestureRaw(startX, startY, endX, endY, durationMs)
+    }
 
     private suspend fun performGestureRaw(
         startX: Float,

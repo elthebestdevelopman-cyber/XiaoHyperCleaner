@@ -151,17 +151,23 @@ class SemanticVariantTest {
         assertTrue(SemanticCatalog.toggleDeclineTexts("carousel").contains("Отмена"))
 
         val preTargets = SemanticCatalog.extraTargetsBeforeMain("carousel")
-        assertEquals("все зависимые строки — до главного тумблера", 2, preTargets.size)
-        assertEquals("Проведите вправо по Экрану блокировки", preTargets.first().itemTexts.first())
+        assertEquals("все зависимые строки — до главного тумблера", 3, preTargets.size)
+        assertEquals("Реклама на Экране блокировки", preTargets.first().itemTexts.first())
+        assertEquals(
+            "в подменю приватности гасятся обе строки",
+            listOf("Реклама на Экране блокировки", "Включить персонализированные услуги"),
+            preTargets.first().itemTexts
+        )
+        assertEquals("навигация 0/1/0 BACK вокруг цели", listOf(0, 1, 0), preTargets.map { it.back })
+        assertEquals(
+            "мобильные данные гасятся до свайпа",
+            listOf("Обновлять через мобильный Интернет"),
+            preTargets[1].itemTexts
+        )
         assertEquals(
             "у свайпа диалог подтверждается",
             listOf("Подтвердить"),
-            preTargets.first().confirmTexts
-        )
-        assertEquals(
-            "мобильные данные гасятся до главного тумблера",
-            listOf("Обновлять через мобильный Интернет"),
-            preTargets[1].itemTexts
+            preTargets[2].confirmTexts
         )
         assertTrue(
             "после главного тумблера целей нет: активность может закрыться",

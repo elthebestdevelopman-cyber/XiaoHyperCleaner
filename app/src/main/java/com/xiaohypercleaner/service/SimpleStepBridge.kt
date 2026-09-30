@@ -14,4 +14,10 @@ object SimpleStepBridge {
      * разные вещи, один текст на все три врал бы.
      */
     var onSkipped: ((stepId: String, kind: String) -> Unit)? = null
+
+    /**
+     * Отмена прогона ПОДТВЕРЖДЕНА пользователем в оверлее (S4): прогон прерван
+     * осознанно, состояние помечается частичным (`partial=true`).
+     */
+    var onPartialCancel: (() -> Unit)? = null
 }

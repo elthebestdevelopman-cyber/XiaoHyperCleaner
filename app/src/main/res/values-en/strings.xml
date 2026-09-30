@@ -247,6 +247,10 @@
     <string name="automation_title">Robo-cat is cleaning up…</string>
     <string name="automation_step">Step %1$d of %2$d</string>
     <string name="automation_cancel">Cancel optimization</string>
+    <string name="automation_cancel_confirm_title">Stop the optimization?</string>
+    <string name="automation_cancel_confirm_body">The run will stop at the current step: some settings will stay as they are. You can return at any time.</string>
+    <string name="automation_cancel_confirm_yes">Stop</string>
+    <string name="automation_cancel_confirm_no">Continue</string>
     <string name="automation_status_search">Looking for: %s…</string>
     <string name="automation_status_done">Done, verifying…</string>
     <string name="automation_status_fail">Couldn\'t do it, moving on…</string>

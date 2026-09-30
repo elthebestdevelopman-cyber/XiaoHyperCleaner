@@ -256,6 +256,10 @@
     <string name="automation_title">El robot-gato está limpiando…</string>
     <string name="automation_step">Paso %1$d de %2$d</string>
     <string name="automation_cancel">Cancelar optimización</string>
+    <string name="automation_cancel_confirm_title">¿Detener la optimización?</string>
+    <string name="automation_cancel_confirm_body">La ejecución se detendrá en el paso actual: algunos ajustes quedarán como están. Puedes volver en cualquier momento.</string>
+    <string name="automation_cancel_confirm_yes">Detener</string>
+    <string name="automation_cancel_confirm_no">Continuar</string>
     <string name="automation_status_search">Buscando: %s…</string>
     <string name="automation_status_done">Listo, verificando…</string>
     <string name="automation_status_fail">No se pudo, continuando…</string>

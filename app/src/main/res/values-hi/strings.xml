@@ -227,6 +227,10 @@
     <string name="automation_title">रोबो-कैट सिस्टम व्यवस्थित कर रहा है…</string>
     <string name="automation_step">कदम %1$d / %2$d</string>
     <string name="automation_cancel">रद्द करें</string>
+    <string name="automation_cancel_confirm_title">अनुकूलन रोकें?</string>
+    <string name="automation_cancel_confirm_body">प्रक्रिया वर्तमान चरण पर रुक जाएगी: कुछ सेटिंग्स वैसी ही रहेंगी। आप कभी भी लौट सकते हैं।</string>
+    <string name="automation_cancel_confirm_yes">रोकें</string>
+    <string name="automation_cancel_confirm_no">जारी रखें</string>
     <string name="automation_status_search">ढूंढ रहे हैं: %s…</string>
     <string name="automation_status_done">हो गया, पुष्टि कर रहे हैं…</string>
     <string name="automation_status_fail">आगे बढ़ रहे हैं…</string>

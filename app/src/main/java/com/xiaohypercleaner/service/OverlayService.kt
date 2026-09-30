@@ -169,6 +169,12 @@ class OverlayService : Service() {
     private var tvStatus: TextView? = null
     private var progressBar: ProgressBar? = null
 
+    /** Панель автоматизации: притухает под диалогом подтверждения отмены (S4). */
+    private var automationPanel: View? = null
+
+    /** Диалог подтверждения отмены внутри того же окна оверлея (S4). */
+    private var cancelConfirmPanel: View? = null
+
     override fun onCreate() {
         super.onCreate()
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
@@ -299,19 +305,91 @@ class OverlayService : Service() {
             LinearLayout.LayoutParams.MATCH_PARENT, dp(44)
         ).apply { topMargin = dp(12) })
         cancel.setOnClickListener {
-            AppLog.i(TAG, "automation cancelled by user")
-            OverlayController.endPhase()
-            hide()
-            AdbEnablerService.instance?.cancelRunner()
-            OverlayController.triggerCancel()
+            // Сторож ±500 мс вокруг наших жестов (S4): жест мог ещё не дойти до
+            // приложения, и тап по кнопке отменял прогон случайно (прогон rmuh2vb1r:
+            // `automation cancelled by user` на шаге 27/28 без действий владельца).
+            if (OverlayController.isGestureGuardActive()) {
+                AppLog.w(TAG, "automation cancel ignored: gesture guard active")
+                return@setOnClickListener
+            }
+            showCancelConfirm()
         }
 
+        automationPanel = layout
         addRoot(touchable = true, fullScreen = true).apply {
             addView(layout, flParams(Gravity.CENTER))
         }
         updateAutomation(0, total, "")
         startHeartbeat()
         AppLog.i(TAG, "automation overlay shown (blocking), total=$total")
+    }
+
+    /**
+     * Подтверждение отмены ПОВЕРХ панели автоматизации: тот же корень оверлея, те же
+     * флаги окна (никаких новых окон и смены флагов), панель лишь притушена. Отмена
+     * выполняется только после явного подтверждения — случайное касание больше не
+     * останавливает прогон (S4).
+     */
+    private fun showCancelConfirm() {
+        val parent = root as? FrameLayout ?: return
+        if (cancelConfirmPanel != null) return
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(24), dp(20), dp(24), dp(16))
+            background = roundBg(0xF01B1B1B.toInt(), radiusDp = 20)
+        }
+        panel.addView(
+            titleText(getString(R.string.automation_cancel_confirm_title), 16f, bold = true),
+            llWrap()
+        )
+        panel.addView(
+            bodyText(getString(R.string.automation_cancel_confirm_body), small = true),
+            llWrap().apply { topMargin = dp(6) }
+        )
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        val btnParams = {
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        row.addView(
+            textBtn(getString(R.string.automation_cancel_confirm_yes)) { confirmCancel() },
+            btnParams()
+        )
+        row.addView(
+            textBtn(getString(R.string.automation_cancel_confirm_no)) { dismissCancelConfirm() },
+            btnParams()
+        )
+        panel.addView(row, llWrap().apply { topMargin = dp(10) })
+        cancelConfirmPanel = panel
+        automationPanel?.alpha = 0.35f
+        parent.addView(panel, flParams(Gravity.CENTER))
+        AppLog.i(TAG, "automation cancel confirmation shown (same window, flags unchanged)")
+    }
+
+    /** «Продолжить»: диалог снимается, панель возвращается к обычному виду, прогон идёт. */
+    private fun dismissCancelConfirm() {
+        val panel = cancelConfirmPanel
+        cancelConfirmPanel = null
+        if (panel != null) (root as? FrameLayout)?.removeView(panel)
+        automationPanel?.alpha = 1f
+        AppLog.i(TAG, "automation cancel confirmation dismissed — run continues")
+    }
+
+    /** «Отменить оптимизацию»: прогон прерывается осознанно — результат частичный. */
+    private fun confirmCancel() {
+        if (OverlayController.isGestureGuardActive()) {
+            AppLog.w(TAG, "automation cancel confirm ignored: gesture guard active")
+            return
+        }
+        AppLog.i(TAG, "automation cancelled by user (confirmed, partial=true)")
+        SimpleStepBridge.onPartialCancel?.invoke()
+        OverlayController.endPhase()
+        hide()
+        AdbEnablerService.instance?.cancelRunner()
+        OverlayController.triggerCancel()
     }
 
     private fun updateAutomation(step: Int, total: Int, title: String) {
@@ -769,6 +847,8 @@ class OverlayService : Service() {
         layoutParams = null
         isBlocking = true
         tvStep = null; tvTitle = null; tvStatus = null; progressBar = null
+        automationPanel = null
+        cancelConfirmPanel = null
         OverlayController.markDetached()
         AppLog.i(TAG, "overlay hidden")
     }

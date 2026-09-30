@@ -227,6 +227,10 @@
     <string name="automation_title">Robo-cat sedang merapikan sistem…</string>
     <string name="automation_step">Langkah %1$d dari %2$d</string>
     <string name="automation_cancel">Batal</string>
+    <string name="automation_cancel_confirm_title">Hentikan optimasi?</string>
+    <string name="automation_cancel_confirm_body">Proses akan berhenti di langkah saat ini: sebagian pengaturan tetap seperti semula. Anda bisa kembali kapan saja.</string>
+    <string name="automation_cancel_confirm_yes">Hentikan</string>
+    <string name="automation_cancel_confirm_no">Lanjutkan</string>
     <string name="automation_status_search">Mencari: %s…</string>
     <string name="automation_status_done">Selesai, memverifikasi…</string>
     <string name="automation_status_fail">Melanjutkan…</string>

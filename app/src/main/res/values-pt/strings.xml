@@ -227,6 +227,10 @@
     <string name="automation_title">O Robô-Gato está organizando o sistema…</string>
     <string name="automation_step">Passo %1$d de %2$d</string>
     <string name="automation_cancel">Cancelar</string>
+    <string name="automation_cancel_confirm_title">Interromper a otimização?</string>
+    <string name="automation_cancel_confirm_body">A execução vai parar na etapa atual: alguns ajustes ficarão como estão. Você pode voltar a qualquer momento.</string>
+    <string name="automation_cancel_confirm_yes">Interromper</string>
+    <string name="automation_cancel_confirm_no">Continuar</string>
     <string name="automation_status_search">Procurando: %s…</string>
     <string name="automation_status_done">Concluído, verificando…</string>
     <string name="automation_status_fail">Avançando…</string>

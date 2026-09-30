@@ -91,6 +91,42 @@ object OverlayController {
         onCancel = listener
     }
 
+    /** Запас сторожевого окна вокруг инъекции жеста: ±500 мс (S4). */
+    private const val GESTURE_GUARD_MARGIN_MS = 500L
+
+    @Volatile
+    private var gestureGuardFromMs = 0L
+
+    @Volatile
+    private var gestureGuardUntilMs = 0L
+
+    /**
+     * Сторожевой замок вокруг [android.accessibilityservice.AccessibilityService.dispatchGesture]:
+     * ±[GESTURE_GUARD_MARGIN_MS] мс. Пока замок активен, оверлей НЕ принимает нажатия
+     * своих кнопок — жест мог ещё не дойти до приложения, и случайный тап по «Отменить
+     * оптимизацию» останавливал прогон целиком (прогон rmuh2vb1r: `automation cancelled
+     * by user` на шаге 27/28 без действий владельца).
+     */
+    fun armGestureGuard(gestureMs: Long) {
+        val now = System.currentTimeMillis()
+        gestureGuardFromMs = now - GESTURE_GUARD_MARGIN_MS
+        gestureGuardUntilMs = now + gestureMs.coerceAtLeast(50L) + GESTURE_GUARD_MARGIN_MS
+        AppLog.i(
+            TAG,
+            "gesture guard armed: ${gestureGuardFromMs}..${gestureGuardUntilMs} " +
+                "(gesture=${gestureMs}ms, margin=${GESTURE_GUARD_MARGIN_MS}ms)"
+        )
+    }
+
+    /** Замок активен: нажатия кнопок оверлея игнорируются. */
+    fun isGestureGuardActive(): Boolean = System.currentTimeMillis() <= gestureGuardUntilMs
+
+    /** Только для тестов: сброс замка. */
+    internal fun resetGestureGuardForTest() {
+        gestureGuardFromMs = 0L
+        gestureGuardUntilMs = 0L
+    }
+
     fun triggerCancel() {
         val listener = onCancel
         if (listener == null) {

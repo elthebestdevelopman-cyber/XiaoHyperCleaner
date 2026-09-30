@@ -257,6 +257,10 @@
     <string name="automation_title">机器猫正在清理…</string>
     <string name="automation_step">第 %1$d 步，共 %2$d 步</string>
     <string name="automation_cancel">取消优化</string>
+    <string name="automation_cancel_confirm_title">停止优化？</string>
+    <string name="automation_cancel_confirm_body">运行将在当前步骤停止：部分设置会保持原样。您可以随时返回。</string>
+    <string name="automation_cancel_confirm_yes">停止</string>
+    <string name="automation_cancel_confirm_no">继续</string>
     <string name="automation_status_search">正在查找：%s…</string>
     <string name="automation_status_done">完成，正在验证…</string>
     <string name="automation_status_fail">无法完成，继续下一步…</string>

@@ -137,19 +137,36 @@ class SemanticCatalogTest {
 
         assertTrue("до главного тумблера — все зависимые строки", variant.extraTargets.all { it.beforeMain })
         val targets = variant.extraTargets.filter { it.beforeMain }
-        assertEquals("две цели: свайп и мобильные данные", 2, targets.size)
+        assertEquals("три цели (пять тумблеров вместе с главным)", 3, targets.size)
         assertEquals(
-            "порядок: свайп (с подтверждением) -> мобильные данные",
+            "порядок: подменю приватности -> мобильные данные -> свайп (последним: его выключение убирает строку мобильных данных)",
             listOf(
-                "Проведите вправо по Экрану блокировки",
-                "Обновлять через мобильный Интернет"
+                "Реклама на Экране блокировки",
+                "Обновлять через мобильный Интернет",
+                "Проведите вправо по Экрану блокировки"
             ),
             targets.map { it.itemTexts["ru"].orEmpty().first() }
         )
         assertEquals(
-            "у свайпа диалог подтверждается («Подтвердить»), у мобильных данных диалога нет",
+            "в подменю приватности гасятся ОБЕ строки",
+            listOf("Реклама на Экране блокировки", "Включить персонализированные услуги"),
+            targets.first().itemTexts["ru"].orEmpty()
+        )
+        // `back` — это число BACK ДО цели: сначала drill в подменю (0), затем возврат
+        // на экран карусели (1) для свайпа, затем мобильные данные там же (0).
+        assertEquals(
+            "навигация: подменю без BACK, свайп с возвратом, мобильные данные на месте",
+            listOf(0, 1, 0),
+            targets.map { it.back }
+        )
+        assertEquals(
+            listOf(listOf("Политика конфиденциальности", "Privacy policy")),
+            targets.first().drillPath
+        )
+        assertEquals(
+            "у свайпа диалог подтверждается («Подтвердить»), у остальных диалога нет",
             listOf("Подтвердить"),
-            targets.first().confirmTexts["ru"].orEmpty()
+            targets[2].confirmTexts["ru"].orEmpty()
         )
         assertTrue("все цели выключаются", targets.all { !it.targetChecked })
     }
@@ -444,23 +461,34 @@ class SemanticCatalogTest {
                 SemanticCatalog.extraTargetsAfterMain("carousel").isEmpty()
             )
             val targets = SemanticCatalog.extraTargetsBeforeMain("carousel")
-            assertEquals("две цели до главного тумблера", 2, targets.size)
+            assertEquals("три цели (пять тумблеров вместе с главным)", 3, targets.size)
             assertEquals(
-                "порядок: свайп (с подтверждением) -> мобильные данные",
+                "порядок: подменю приватности -> мобильные данные -> свайп (последним: его выключение убирает строку мобильных данных)",
                 listOf(
-                    "Проведите вправо по Экрану блокировки",
-                    "Обновлять через мобильный Интернет"
+                    "Реклама на Экране блокировки",
+                    "Обновлять через мобильный Интернет",
+                    "Проведите вправо по Экрану блокировки"
                 ),
                 targets.map { it.itemTexts.first() }
             )
             assertEquals(
+                "в подменю приватности гасятся обе строки",
+                listOf("Реклама на Экране блокировки", "Включить персонализированные услуги"),
+                targets.first().itemTexts
+            )
+            assertEquals("навигация 0/1/0 BACK вокруг цели", listOf(0, 1, 0), targets.map { it.back })
+            assertEquals(
                 "у «Проведите вправо…» диалог подтверждается, а не отменяется",
                 listOf("Подтвердить"),
-                targets.first().confirmTexts
+                targets[2].confirmTexts
+            )
+            assertTrue(
+                "у остальных целей подтверждения нет (иначе «Отмена» отменит саму цель)",
+                listOf(0, 1).all { targets[it].confirmTexts.isEmpty() }
             )
             assertTrue(
                 "у мобильных данных диалога подтверждения нет",
-                targets.last().confirmTexts.isEmpty()
+                targets[1].confirmTexts.isEmpty()
             )
             assertEquals(
                 "главный тумблер закрывается отказом «Отмена»",

@@ -129,6 +129,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             simpleController.onStepSkipped(stepId, kind)
         }
 
+        SimpleStepBridge.onPartialCancel = {
+            // S4: отмена подтверждена в диалоге оверлея — прогон частичный.
+            AppLog.i(TAG, "automation cancel confirmed by user (partial=true)")
+            simpleController.markPartialRun()
+        }
+
         OverlayController.setOnCancel {
             AppLog.i(TAG, "automation cancelled by user via overlay")
             AdbEnablerService.instance?.cancelRunner()

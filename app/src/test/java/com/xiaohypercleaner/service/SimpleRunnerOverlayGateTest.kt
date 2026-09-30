@@ -84,4 +84,45 @@ class SimpleRunnerOverlayGateTest {
             runner.needsHomeBeforeAppLaunch()
         )
     }
+/**
+     * S4: сторож ±500 мс вокруг `dispatchGesture`. Пока жест идёт (или только что
+     * прошёл), оверлей игнорирует нажатия своих кнопок — случайный тап в зоне кнопки
+     * «Отменить оптимизацию» останавливал прогон целиком (прогон rmuh2vb1r, шаг 27/28
+     * без действий владельца: `OverlaySvc: automation cancelled by user`).
+     */
+    @Test
+    fun `gesture guard blocks overlay buttons around the injection`() {
+        OverlayController.resetGestureGuardForTest()
+        assertFalse("до инъекции замок снят", OverlayController.isGestureGuardActive())
+
+        OverlayController.armGestureGuard(400)
+        assertTrue("сразу после взвода замок активен", OverlayController.isGestureGuardActive())
+
+        OverlayController.resetGestureGuardForTest()
+        assertFalse("по истечении окна замок снят", OverlayController.isGestureGuardActive())
+    }
+
+    @Test
+    fun `gesture guard keeps the margin for a minimal gesture`() {
+        // Мгновенный тап (0 мс) держит замок не меньше запаса: 50 мс жеста + 500 мс.
+        OverlayController.resetGestureGuardForTest()
+        OverlayController.armGestureGuard(0)
+        assertTrue("запас применяется и к мгновенному жесту", OverlayController.isGestureGuardActive())
+        OverlayController.resetGestureGuardForTest()
+    }
+
+    @Test
+    fun `runner arms the gesture guard for every injection`() = runTest {
+        OverlayController.resetGestureGuardForTest()
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(null)
+
+        val passed = runner.withOverlayPassthrough(120) { true }
+
+        assertTrue("блок выполняется", passed)
+        assertTrue(
+            "инъекция обязана взводить сторож (иначе кнопки оверлея живут во время жеста)",
+            OverlayController.isGestureGuardActive()
+        )
+        OverlayController.resetGestureGuardForTest()
+    }
 }

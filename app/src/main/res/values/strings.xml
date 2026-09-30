@@ -234,6 +234,10 @@
     <string name="automation_title">Робокот наводит чистоту…</string>
     <string name="automation_step">Шаг %1$d из %2$d</string>
     <string name="automation_cancel">Отменить оптимизацию</string>
+    <string name="automation_cancel_confirm_title">Прекратить оптимизацию?</string>
+    <string name="automation_cancel_confirm_body">Прогон остановится на текущем шаге: часть настроек останется как есть. Вернуться можно в любой момент.</string>
+    <string name="automation_cancel_confirm_yes">Прекратить</string>
+    <string name="automation_cancel_confirm_no">Продолжить</string>
     <string name="automation_status_search">Ищу пункт: %s…</string>
     <string name="automation_status_done">Готово, проверяю…</string>
     <string name="automation_status_fail">Не получилось, пробую дальше…</string>
