@@ -137,14 +137,20 @@ class SemanticCatalogTest {
 
         assertTrue("до главного тумблера — все зависимые строки", variant.extraTargets.all { it.beforeMain })
         val targets = variant.extraTargets.filter { it.beforeMain }
-        assertEquals("три цели (пять тумблеров вместе с главным)", 3, targets.size)
+        assertEquals("четыре цели (шесть тумблеров вместе с главным)", 4, targets.size)
         assertEquals(
+            "порядок: подменю приватности -> подстроки «Дополнительных настроек» -> мобильные данные -> свайп",
             listOf(
                 "Реклама на Экране блокировки",
-                "Обновлять через мобильный Интернет",
+                "Только рекомендации",
+                "Использовать мобильные данные для обновления контента",
                 "Проведите вправо по Экрану блокировки"
             ),
             targets.map { it.itemTexts["ru"].orEmpty().first() }
+        )
+        assertTrue(
+            "подменю приватности необязательно: на MIUI 13 его заменяют подстроки (разведка _carousel_nodes.txt)",
+            targets.first().optional
         )
         assertEquals(
             "в подменю приватности гасятся обе строки",
@@ -375,7 +381,13 @@ class SemanticCatalogTest {
                 extra.drillPath
             )
             assertEquals(1, extra.back)
-            assertEquals(listOf("Персонализация услуг"), extra.itemTexts)
+            // Прогон rmuod5cmm: строка «Персонализация услуг» на экране «Безопасность» —
+            // это Switch с ПУСТЫМ text и content-desc «Персонализация услуг Персонализация
+            // контент-услуг», поэтому вторая подпись нужна как альтернатива.
+            assertEquals(
+                listOf("Персонализация услуг", "Персонализация контент-услуг"),
+                extra.itemTexts
+            )
         } finally {
             Locale.setDefault(original)
         }
@@ -410,15 +422,20 @@ class SemanticCatalogTest {
                 SemanticCatalog.extraTargetsAfterMain("carousel").isEmpty()
             )
             val targets = SemanticCatalog.extraTargetsBeforeMain("carousel")
-            assertEquals("три цели до главного тумблера", 3, targets.size)
+            assertEquals("четыре цели до главного тумблера", 4, targets.size)
             assertEquals(
-                "порядок: подменю приватности -> мобильные данные -> свайп",
+                "порядок: подменю приватности -> подстроки «Дополнительных настроек» -> мобильные данные -> свайп",
                 listOf(
                     "Реклама на Экране блокировки",
-                    "Обновлять через мобильный Интернет",
+                    "Только рекомендации",
+                    "Использовать мобильные данные для обновления контента",
                     "Проведите вправо по Экрану блокировки"
                 ),
                 targets.map { it.itemTexts.first() }
+            )
+            assertTrue(
+                "подменю приватности необязательно: на MIUI 13 его заменяют подстроки",
+                targets.first().optional
             )
             assertEquals(
                 "в подменю приватности гасятся ОБЕ строки",

@@ -160,6 +160,12 @@ object SemanticCatalog {
         val tapDesc: String? = null,
         /** Суффикс resource-id узла (`more`, `button1`). */
         val tapId: String? = null,
+        /**
+         * Запасной поиск по content-description, если узел по id/тексту не найден
+         * (Проводник: `more_action_btn` перекрыт всплывшим промо-диалогом либо на
+         * другой сборке иконка ☰ отдаётся без id — прогон rmuod5cmm).
+         */
+        val fallbackDesc: String? = null,
         /** Одна прокрутка вниз перед следующим шагом. */
         val scroll: Boolean = false,
         /** Пауза после действия. */
@@ -189,7 +195,9 @@ object SemanticCatalog {
          * после его выключения (Карусель: «Обновлять через мобильный интернет»
          * пропадает, как только карусель выключена — дамп carousel_optout_wait).
          */
-        val beforeMain: Boolean = false
+        val beforeMain: Boolean = false,
+        /** Цель не обязательна: отсутствие строки/непроходимый drill не валит шаг. */
+        val optional: Boolean = false
     )
 
     /** Выбранный вариант шага + признак применения фолбэка (для лога `rom: variant=`). */
@@ -382,7 +390,14 @@ object SemanticCatalog {
         /** Целевое состояние тумблера цели (включается, если true). */
         val targetChecked: Boolean = false,
         /** Цель-«до главного тумблера»: её строка исчезает после выключения главной. */
-        val beforeMain: Boolean = false
+        val beforeMain: Boolean = false,
+        /**
+         * Цель не обязательна: её отсутствие или непроходимый drill не валит шаг
+         * (подменю «Политика конфиденциальности» есть не на всех сборках MIUI, а на
+         * экране карусели MIUI 13 его заменяют четыре подстроки «Дополнительных
+         * настроек» — разведка _carousel_nodes.txt).
+         */
+        val optional: Boolean = false
     )
 
     /** Авторитетный drillPath варианта: заменяет legacy-путь при явном совпадении ОС. */
@@ -402,7 +417,8 @@ object SemanticCatalog {
                 control = target.control ?: ActionType.TOGGLE,
                 confirmTexts = localizedTexts(target.confirmTexts),
                 targetChecked = target.targetChecked,
-                beforeMain = target.beforeMain
+                beforeMain = target.beforeMain,
+                optional = target.optional
             )
         }
 
@@ -789,6 +805,7 @@ object SemanticCatalog {
                     tapText = o.optString("tapText").takeIf { it.isNotEmpty() },
                     tapDesc = o.optString("tapDesc").takeIf { it.isNotEmpty() },
                     tapId = o.optString("tapId").takeIf { it.isNotEmpty() },
+            fallbackDesc = o.optString("fallbackDesc").takeIf { it.isNotEmpty() },
                     scroll = o.optBoolean("scroll", false),
                     waitMs = o.optLong("waitMs", 700L).coerceIn(0L, 5_000L)
                 )
@@ -810,7 +827,8 @@ object SemanticCatalog {
                     control = o.optString("control").takeIf { it.isNotEmpty() }?.let { ActionType.from(it) },
                     confirmTexts = parseListMap(o.optJSONObject("confirmTexts")),
                     targetChecked = o.optBoolean("target", false),
-                    beforeMain = o.optBoolean("beforeMain", false)
+                    beforeMain = o.optBoolean("beforeMain", false),
+                    optional = o.optBoolean("optional", false)
                 )
             )
         }

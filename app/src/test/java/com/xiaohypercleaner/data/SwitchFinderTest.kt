@@ -51,6 +51,24 @@ class SwitchFinderTest {
     }
 
     @Test
+    fun `title homonym without a switch in the row is not a switch`() {
+        // Проводник «Безопасность» (прогон rmuod5cmm): строка «Персонализация услуг»
+        // содержит некликабельный TextView `android:id/title` с тем же текстом и Switch
+        // с ПУСТЫМ текстом и content-desc. Если тумблера в строке нет — цель не найдена,
+        // а не «состояние false» (иначе шаг отчитывался успехом при включённом тумблере).
+        val row = node("android.widget.LinearLayout", children = arrayOf())
+        val title = node("android.widget.TextView", text = "Персонализация услуг")
+        link(row, title)
+        val screen = node("android.widget.FrameLayout", children = arrayOf(row, title))
+        link(screen, title)
+
+        assertNull(
+            "подпись без тумблера не переключатель",
+            SwitchFinder.findSwitch(screen, listOf("Персонализация услуг"))
+        )
+    }
+
+    @Test
     fun `switch types are detected including radio and checkable views`() {
         assertTrue(SwitchFinder.isSwitchLike(node("android.widget.Switch", checkable = true)))
         assertTrue(SwitchFinder.isSwitchLike(node("android.widget.CheckBox", checkable = true)))

@@ -116,6 +116,44 @@ class SimpleRunnerScrollTest {
     }
 
     @Test
+    fun `switch below the fold is reached by scrolling until it appears`() = runTest {
+        // Проводник «Безопасность» → «Персонализация услуг» (прогон rmuod5cmm):
+        // Switch стоял на кромке [0,1995][1080,2179] при экране 2179, подпись в дерево
+        // не попадала — прежний код объявлял цель выполненной без тапа. Тумблер
+        // находится прокруткой.
+        val scrolls = intArrayOf(0)
+        val list = node("androidx.recyclerview.widget.RecyclerView", scrollable = true)
+        Mockito.`when`(list.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD))
+            .thenAnswer {
+                scrolls[0]++
+                true
+            }
+        val switchNode = Mockito.mock(AccessibilityNodeInfo::class.java)
+        Mockito.`when`(switchNode.className).thenReturn("android.widget.Switch")
+        Mockito.`when`(switchNode.isCheckable).thenReturn(true)
+        Mockito.`when`(switchNode.isChecked).thenReturn(true)
+        Mockito.`when`(switchNode.contentDescription)
+            .thenReturn("Персонализация услуг Персонализация контент-услуг")
+        Mockito.`when`(switchNode.childCount).thenReturn(0)
+        val screen0 = node("android.widget.FrameLayout", children = arrayOf(list, textNode("Файлы cookie")))
+        val screen1 = node("android.widget.FrameLayout", children = arrayOf(list, textNode("Отзыв согласия")))
+        val screen2 = node("android.widget.FrameLayout", children = arrayOf(list, switchNode))
+        val screens = arrayOf(screen0, screen1, screen2)
+        Mockito.`when`(service.rootInActiveWindow)
+            .thenAnswer { screens[minOf(scrolls[0], screens.size - 1)] }
+        Mockito.`when`(service.resources).thenReturn(RuntimeEnvironment.getApplication().resources)
+
+        val found = runner.findSwitchByTextWithScroll(
+            texts = listOf("Персонализация услуг"),
+            logLabel = "browser_sys:Персонализация услуг"
+        )
+
+        assertNotNull("тумблер на кромке экрана должен находиться прокруткой", found)
+        assertEquals("android.widget.Switch", found?.className?.toString())
+        assertTrue("прокруток должно быть больше одной: ${scrolls[0]}", scrolls[0] >= 2)
+    }
+
+    @Test
     fun `scrolling stops when the screen does not move`() = runTest {
         // Инъекция может не дойти до приложения: если экран не сдвинулся, дальнейшие
         // прокрутки бесполезны — цикл обязан выйти, а не жечь бюджет шага.

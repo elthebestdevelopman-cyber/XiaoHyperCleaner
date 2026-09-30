@@ -992,11 +992,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             // Цели варианта, обязанные отработать ДО главного тумблера: на MIUI 13 строка
             // «Обновлять через мобильный интернет» исчезает, как только карусель выключена
             // (дамп carousel_optout_wait), и после главного тумблера её уже нет.
-            val preTargets = SemanticCatalog.extraTargetsBeforeMain(step.id)
-            val preMarkers = SemanticCatalog.screenMarkers(step.id)
-            if (preTargets.isNotEmpty() && (preMarkers.isEmpty() || screenHasAny(preMarkers))) {
-                runExtraTargets(step, preTargets)
-            }
+            runPreMainExtras(step)
             findAndToggleSwitch(step)
         }
         // Фолбэк варианта (Проводник: основной путь через меню не найден → CLEAR_DATA_DECLINE).
@@ -1633,11 +1629,25 @@ class SimpleRunner(private val service: AdbEnablerService) {
         for ((levelIndex, levelTexts) in target.drillPath.withIndex()) {
             if (cancelled) return false
             if (!awaitOverlayReadyOrPause()) return false
-            if (!drillIntoLevel(step, levelIndex, levelTexts, target.drillPath)) return false
+            if (!drillIntoLevel(step, levelIndex, levelTexts, target.drillPath)) {
+                // Необязательная цель (подменю есть не на всех сборках): её
+                // непроходимый уровень не валит шаг.
+                if (target.optional) {
+                    AppLog.i(
+                        TAG,
+                        "optional target drill skipped step=${step.id} level=${levelIndex + 1}"
+                    )
+                    StepDiagnostics.note(
+                        step.id, "EXTRA", "optional_drill_skipped level=${levelIndex + 1}"
+                    )
+                    return true
+                }
+                return false
+            }
             delay(UI_SETTLE_DELAY_MS)
             handleConsentWalls(step)
         }
-        if (target.itemTexts.isEmpty()) return false
+        if (target.itemTexts.isEmpty()) return target.optional
         // Строк-целей в одной цели может быть несколько (Карусель: «Реклама на Экране
         // блокировки» + «Включить персонализированные услуги» в том же подменю) —
         // каждая проверяется и гасится отдельно, со своим логом результата.
@@ -1666,12 +1676,28 @@ class SimpleRunner(private val service: AdbEnablerService) {
     ): Boolean {
         handleConsentWalls(step)
         val root = service.rootInActiveWindow ?: return false
-        val switch = findSwitchByText(root, listOf(text))
+        recycleNode(root)
+        // Строку ищем прокруткой: она может стоять на кромке экрана (см. KDoc
+        // [findSwitchByTextWithScroll]).
+        val switch = findSwitchByTextWithScroll(listOf(text), logLabel = "${step.id}:$text")
         if (switch == null) {
-            recycleNode(root)
-            AppLog.i(TAG, "extra target absent step=${step.id} text='$text'")
-            StepDiagnostics.note(step.id, "EXTRA", "absent text=$text")
-            return true
+            // «Строки нет» ≠ «цель выполнена»: браузерный шаг отчитывался `toggled`,
+            // когда прокрутка не нашла тумблер, а он остался включённым (прогон
+            // rmuod5cmm). Законное исчезновение — только при уже выключенном главном
+            // тумблере: тогда зависимая строка пропадает вместе с функцией.
+            if (mainSwitchIsOff(step)) {
+                AppLog.i(TAG, "extra target absent_main_off step=${step.id} text='$text'")
+                StepDiagnostics.note(step.id, "EXTRA", "absent text=$text main_off=true")
+                return true
+            }
+            if (target.optional) {
+                AppLog.i(TAG, "extra target optional_absent step=${step.id} text='$text'")
+                StepDiagnostics.note(step.id, "EXTRA", "absent_optional text=$text")
+                return true
+            }
+            AppLog.w(TAG, "extra target absent step=${step.id} text='$text' main_off=false")
+            StepDiagnostics.note(step.id, "EXTRA", "absent text=$text main_off=false")
+            return false
         }
         val checked = SwitchFinder.isChecked(switch)
         // Цель может требовать включения, поэтому целевое состояние берём у цели,
@@ -2199,15 +2225,22 @@ class SimpleRunner(private val service: AdbEnablerService) {
      */
     private suspend fun verifyExtraTargetState(
         target: SemanticCatalog.ExtraTarget,
-        texts: List<String> = target.itemTexts
+        texts: List<String> = target.itemTexts,
+        /** Строка была найдена до тапа: её исчезновение после тапа = цель достигнута. */
+        foundBeforeTap: Boolean = true
     ): Boolean {
         repeat(SWITCH_VERIFY_ATTEMPTS) { attempt ->
             if (attempt > 0) delay(SWITCH_VERIFY_RETRY_DELAY_MS)
             val root = service.rootInActiveWindow ?: return false
-            val node = findSwitchByText(root, texts)
+            // Только настоящий переключатель: узел-омоним `android:id/title`
+            // (браузер «Безопасность») не тумблер, и его состояние не считается.
+            val node = findSwitchByText(root, texts)?.takeIf { isSwitchLike(it) }
             val state = node?.let { SwitchFinder.isChecked(it) }
             recycleNode(node); recycleNode(root)
-            if (state == null || state == target.targetChecked) return true
+            if (state == target.targetChecked) return true
+            // Пропавшая строка = цель достигнута ТОЛЬКО если она была до тапа; иначе
+            // это снова «не нашли, а отчитались успехом» (прогон rmuod5cmm).
+            if (state == null && foundBeforeTap) return true
         }
         return false
     }
@@ -3621,6 +3654,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
         for ((index, item) in route.withIndex()) {
             if (cancelled) return Result(false, "cancelled")
             if (!awaitOverlayReadyOrPause()) return Result(false, "overlay_lost")
+            // Промо-диалог может всплыть ПОСРЕДИ маршрута (Проводник: «Новая функция
+            // Доступна темная тема!» встала между 1/4 и 2/4 и перекрыла дерево —
+            // прогон rmuod5cmm: route 2/4 more_action_btn ok=false без тапа).
+            handleConsentWalls(step)
             val ok = when {
                 item.intent != null -> startRouteIntent(item.intent)
                 item.scroll -> {
@@ -3644,16 +3681,32 @@ class SimpleRunner(private val service: AdbEnablerService) {
             } else {
                 ok
             }
+            // Узел по id/тексту не найден (перекрыт диалогом или на другой сборке отдан
+            // без id): пробуем запасной поиск по content-description.
+            val fallbackOk = if (!finalOk && item.fallbackDesc != null) {
+                AppLog.w(
+                    TAG,
+                    "route ${step.id}: ${index + 1}/${route.size} node_not_found " +
+                        "id='${item.tapId.orEmpty()}' — retry desc='${item.fallbackDesc}'"
+                )
+                tapRouteNode(step, desc = item.fallbackDesc)
+            } else {
+                false
+            }
+            val resolvedOk = finalOk || fallbackOk
             val what = item.intent ?: item.tapText ?: item.tapDesc ?: item.tapId ?: "scroll"
             AppLog.i(
                 TAG,
-                "route ${step.id}: ${index + 1}/${route.size} '$what' ok=$finalOk" +
-                    if (retried) " retry=true" else ""
+                "route ${step.id}: ${index + 1}/${route.size} '$what' ok=$resolvedOk" +
+                    if (retried) " retry=true" else "" +
+                        if (fallbackOk) " fallback=desc" else ""
             )
             StepDiagnostics.note(
                 step.id,
                 "ROUTE",
-                "step=${index + 1} what='$what' ok=$finalOk" + if (retried) " retry=true" else ""
+                "step=${index + 1} what='$what' ok=$resolvedOk" +
+                    if (retried) " retry=true" else "" +
+                        if (fallbackOk) " fallback=desc" else ""
             )
             delay(item.waitMs)
             // Поверх маршрута встаёт стена первого запуска (Проводник: «Добро пожаловать
@@ -3668,7 +3721,35 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 delay(UI_SETTLE_DELAY_MS)
             }
         }
+        runPreMainExtras(step)
         return findAndToggleSwitch(step)
+    }
+
+    /**
+     * Доп. цели варианта, обязанные отработать ДО главного тумблера (карусель: строки
+     * подменю пропадают вместе с главным тумблером). Раньше блок жил только в
+     * drill-ветке, а шаги с RouteScript уходили в [executeRouteScript] и возвращались
+     * сразу в [findAndToggleSwitch] — доп. цели не выполнялись вовсе (прогон rmuod5cmm:
+     * карусель выключила 1 тумблер из 5 и отчиталась OK).
+     */
+    private suspend fun runPreMainExtras(step: SimpleSteps.Step) {
+        val preTargets = SemanticCatalog.extraTargetsBeforeMain(step.id)
+        if (preTargets.isEmpty()) return
+        val markers = SemanticCatalog.screenMarkers(step.id)
+        // Экран читаем ЗДЕСЬ (живой), а не из снимка до route: на входе в шаг активным
+        // было окно прошлого шага (прогон rmuod5cmm: PERCEPTION pkg=com.google.android.gms).
+        val liveScreen = currentScreenText()
+        val markersOk = markers.isEmpty() ||
+            markers.any { TextMatcher.normalizedContains(liveScreen, it) }
+        StepDiagnostics.note(
+            step.id, "EXTRA",
+            "pre_targets=${preTargets.size} markers_ok=$markersOk"
+        )
+        if (!markersOk) {
+            AppLog.w(TAG, "extra targets skipped: markers not matched step=${step.id}")
+            return
+        }
+        runExtraTargets(step, preTargets)
     }
 
     /** Интент сценария: `pkg/Class` (явная компонента) либо action. */
@@ -3771,6 +3852,46 @@ class SimpleRunner(private val service: AdbEnablerService) {
         root: AccessibilityNodeInfo?,
         texts: List<String>
     ): AccessibilityNodeInfo? = SwitchFinder.findSwitch(root, texts)
+
+    /**
+     * Поиск тумблера строки с прокруткой: строка может стоять на самой кромке экрана
+     * (Проводник «Безопасность» → «Персонализация услуг»: Switch `[0,1995][1080,2179]`
+     * при экране 2179 — подпись вообще не попадала в дерево, и цель объявлялась
+     * выполненной, хотя тумблер остался включённым; прогон rmuod5cmm).
+     */
+    internal suspend fun findSwitchByTextWithScroll(
+        texts: List<String>,
+        attempts: Int = SWITCH_FALLBACK_SCROLLS,
+        logLabel: String? = null
+    ): AccessibilityNodeInfo? {
+        var stalled = 0
+        for (attempt in 0 until attempts) {
+            val root = service.rootInActiveWindow ?: return null
+            val found = findSwitchByText(root, texts)
+            recycleNode(root)
+            if (found != null) return found
+            if (logLabel != null) {
+                AppLog.i(TAG, "switch: scroll attempt ${attempt + 1}/$attempts for '$logLabel'")
+            }
+            val changed = scrollDownVerified()
+            stalled = if (changed) 0 else stalled + 1
+            if (stalled >= ROW_SCROLL_STALL_LIMIT) return null
+        }
+        return null
+    }
+
+    /**
+     * Главный тумблер шага уже выключен. Нужен, чтобы отличить законное исчезновение
+     * зависимой строки (карусель: строки подменю пропадают вместе с главным тумблером)
+     * от промаха автоматизации, когда строка на устройстве есть, но не найдена.
+     */
+    private fun mainSwitchIsOff(step: SimpleSteps.Step): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val node = findSwitchByText(root, searchTextsFor(step))
+        val state = node?.let { SwitchFinder.isChecked(it) }
+        recycleNode(node); recycleNode(root)
+        return state == false
+    }
 
     private fun isSwitchLike(node: AccessibilityNodeInfo): Boolean =
         SwitchFinder.isSwitchLike(node)

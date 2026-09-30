@@ -1008,13 +1008,21 @@
               "back": 1,
               "drillPath": [["Политика конфиденциальности", "Privacy policy"]],
               "itemTexts": { "ru": ["Реклама на Экране блокировки", "Включить персонализированные услуги"], "en": ["Ads on the Lock screen", "Enable personalized services"] },
+              "control": "toggle",
+              "optional": true
+            },
+            {
+              "beforeMain": true,
+              "back": 0,
+              "drillPath": [],
+              "itemTexts": { "ru": ["Только рекомендации", "Пользовательские обои"], "en": ["Recommendations only", "Personal wallpapers"], "es": ["Solo recomendaciones", "Fondos personalizados"], "zh": ["只显示推荐", "自定义壁纸"], "hi": ["केवल सुझाव", "व्यक्तिगत वॉलपेपर"], "pt": ["Apenas recomendações", "Papéis de parede personalizados"], "id": ["Hanya rekomendasi", "Wallpaper pribadi"] },
               "control": "toggle"
             },
             {
               "beforeMain": true,
               "back": 0,
               "drillPath": [],
-              "itemTexts": { "ru": ["Обновлять через мобильный Интернет"], "en": ["Update via mobile network"] },
+              "itemTexts": { "ru": ["Использовать мобильные данные для обновления контента", "Обновлять через мобильный Интернет"], "en": ["Use mobile data to update content", "Update via mobile network"] },
               "control": "toggle"
             },
             {
@@ -1412,8 +1420,8 @@
               "back": 1,
               "drillPath": [["Безопасность", "Security", "安全"]],
               "itemTexts": {
-                "ru": ["Персонализация услуг"],
-                "en": ["Personalized services"],
+                "ru": ["Персонализация услуг", "Персонализация контент-услуг"],
+                "en": ["Personalized services", "Content service personalization"],
                 "es": ["Personalización de servicios"],
                 "zh": ["个性化服务"],
                 "hi": ["व्यक्तिगत सेवाएं"],
@@ -2665,7 +2673,7 @@
           "fallback": true,
           "route": [
             { "intent": "com.mi.android.globalFileexplorer/com.android.fileexplorer.FileExplorerTabActivity", "waitMs": 3000 },
-            { "tapId": "more_action_btn", "waitMs": 600 },
+            { "tapId": "more_action_btn", "fallbackDesc": "Еще", "waitMs": 600 },
             { "tapText": "Настройки", "waitMs": 1000 },
             { "tapText": "Информация", "waitMs": 1000 }
           ],
