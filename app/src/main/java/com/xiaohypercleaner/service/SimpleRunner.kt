@@ -266,6 +266,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
          */
         internal const val NOT_APPLICABLE = "not_applicable"
 
+    /**
+     * Экран маршрута не подтвердился после intent-шага и одного relaunch (D1, браузер):
+     * честный skip в ведре UNRESOLVED — тумблер на чужом экране не ищем.
+     */
+    internal const val ROUTE_SCREEN_UNCONFIRMED = "route_screen_unconfirmed"
+
         /**
          * Настройка лаунчера, которой на прошивке нет вовсе (POCO: в настройках
          * рабочего стола нет ни «Показывать предложения», ни рекомендаций).
@@ -342,6 +348,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     /** Сколько совпавших узлов уровня пробуем, прежде чем признать уровень непройденным. */
     private const val DRILL_LEVEL_ATTEMPTS = 3
+
+    /** Ожидание маркеров экрана после intent-шага маршрута (D1: браузер). */
+    private const val ROUTE_SCREEN_WAIT_MS = 2_500L
+
+    /** Ожидание маркеров после единственного relaunch (компонента → запасное действие). */
+    private const val ROUTE_SCREEN_RETRY_WAIT_MS = 1_500L
+
+    /** Поллинг подтверждения экрана маршрута. */
+    private const val ROUTE_SCREEN_POLL_MS = 250L
 
     /** Повторы уровня drill после закрытия всплывшего диалога (permission целевого приложения). */
     private const val DRILL_CONSENT_RETRIES = 2
@@ -3856,9 +3871,82 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 AppLog.i(TAG, "route ${step.id}: consent walls handled=$walls before next action")
                 delay(UI_SETTLE_DELAY_MS)
             }
+            // D1: intent-шаг обязан ПОДТВЕРДИТЬ целевой экран маркерами (браузер открывал
+            // домашнюю ленту, scroll шёл по ленте, «Дополнительные настройки» не находились
+            // → low_confidence). Не подтвердилось — один relaunch (компонента, затем
+            // запасное действие из каталога), иначе честный skip: тумблер на чужом экране
+            // не ищем (прогон rmuojptft).
+            if (item.intent != null) {
+                if (awaitRouteScreen(step, item)) {
+                    AppLog.i(TAG, "route ${step.id}: ${index + 1}/${route.size} screen confirmed")
+                } else {
+                    AppLog.w(
+                        TAG,
+                        "route ${step.id}: ${index + 1}/${route.size} screen unconfirmed — relaunch"
+                    )
+                    StepDiagnostics.note(step.id, "ROUTE", "screen_unconfirmed what='$what'")
+                    relaunchRouteIntent(item)
+                    if (awaitRouteScreen(step, item, ROUTE_SCREEN_RETRY_WAIT_MS)) {
+                        AppLog.i(
+                            TAG,
+                            "route ${step.id}: ${index + 1}/${route.size} screen confirmed after relaunch"
+                        )
+                    } else {
+                        AppLog.w(
+                            TAG,
+                            "route ${step.id}: screen unconfirmed after relaunch — " +
+                                "skip step without touching a foreign screen"
+                        )
+                        StepDiagnostics.note(step.id, "ROUTE", "screen_unconfirmed after_relaunch")
+                        return Result(false, ROUTE_SCREEN_UNCONFIRMED)
+                    }
+                }
+            }
         }
         runPreMainExtras(step)
         return findAndToggleSwitch(step)
+    }
+
+    /**
+     * Подтверждение экрана после intent-шага маршрута (D1). Маркеры приходят из каталога
+     * (`confirmMarkers` — строки экрана, снятые с устройства), иначе берутся маркеры шага.
+     * Пустой набор маркеров подтверждения не требует.
+     */
+    internal suspend fun awaitRouteScreen(
+        step: SimpleSteps.Step,
+        item: SemanticCatalog.RouteItem,
+        timeoutMs: Long = ROUTE_SCREEN_WAIT_MS
+    ): Boolean {
+        val markers = item.confirmMarkers.ifEmpty { SemanticCatalog.screenMarkers(step.id) }
+        if (markers.isEmpty()) return true
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            val root = service.rootInActiveWindow
+            if (root != null) {
+                val text = collectAllText(root)
+                recycleNode(root)
+                if (markers.any { TextMatcher.normalizedContains(text, it) }) return true
+            }
+            if (cancelled) return false
+            delay(ROUTE_SCREEN_POLL_MS)
+        }
+        return false
+    }
+
+    /**
+     * Один relaunch intent-шага: сначала та же компонента, затем запасное действие
+     * (`RouteItem.fallbackIntent`, вердикт probe OK). Оба исхода логируются.
+     */
+    private fun relaunchRouteIntent(item: SemanticCatalog.RouteItem): Boolean {
+        val byComponent = item.intent?.let { startRouteIntent(it) } == true
+        val action = item.fallbackIntent
+        val byAction = action?.let { startRouteIntent(it) } == true
+        AppLog.i(
+            TAG,
+            "route relaunch: component='${item.intent}' ok=$byComponent " +
+                "action='$action' ok=$byAction"
+        )
+        return byComponent || byAction
     }
 
     /**

@@ -397,6 +397,20 @@ class SemanticCatalogTest {
                 "com.mi.globalbrowser/com.android.browser.BrowserSettingsActivity",
                 route.first().intent
             )
+            // D1 (прогон rmuojptft): компонента не подтверждала экран (открывалась домашняя
+            // лента), поэтому у intent-шага теперь есть запасное действие и маркеры
+            // подтверждения — строки сняты с устройства (owner_recon/browser_settings.xml),
+            // вердикт запасного действия — probe OK (adb-probe/_verdicts_index.txt).
+            assertEquals(
+                "запасное действие подтверждено probe OK",
+                "com.android.browser.OPEN_SETTINGS",
+                route.first().fallbackIntent
+            )
+            assertEquals(
+                "маркеры экрана настроек сняты с устройства",
+                listOf("Основные настройки", "Браузер по умолчанию"),
+                route.first().confirmMarkers
+            )
             val routeWhat = route.map { it.intent ?: it.tapText ?: it.tapDesc ?: it.tapId ?: "scroll" }
             val routeScroll = route.any { it.scroll }
             val routeTap = route.any { it.tapText == "Дополнительные настройки" }

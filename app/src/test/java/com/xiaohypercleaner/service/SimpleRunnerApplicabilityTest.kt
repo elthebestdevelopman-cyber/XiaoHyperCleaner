@@ -293,6 +293,42 @@ class SimpleRunnerApplicabilityTest {
         assertFalse("тумблер включён — провал остаётся", runner.lateVerify(step))
     }
 
+    @Test
+    fun `route screen is confirmed by catalog markers`() = runTest {
+        // D1 (прогон rmuojptft): браузер открывал домашнюю ленту вместо настроек, scroll шёл
+        // по ленте, «Дополнительные настройки» не находились → low_confidence. Подтверждение
+        // экрана идёт по маркерам, снятым с устройства (owner_recon/browser_settings.xml).
+        val step = SimpleSteps.ALL.first { it.id == "browser_sys" }
+        val item = SemanticCatalog.RouteItem(
+            intent = "com.mi.globalbrowser/com.android.browser.BrowserSettingsActivity",
+            confirmMarkers = listOf("Основные настройки", "Браузер по умолчанию")
+        )
+        val root = node(text = "Настройки Браузер по умолчанию Основные настройки")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        assertTrue("маркеры настроек найдены", runner.awaitRouteScreen(step, item, 400))
+    }
+
+    @Test
+    fun `route screen is not confirmed on a foreign screen`() = runTest {
+        val step = SimpleSteps.ALL.first { it.id == "browser_sys" }
+        val item = SemanticCatalog.RouteItem(
+            intent = "com.mi.globalbrowser/com.android.browser.BrowserSettingsActivity",
+            confirmMarkers = listOf("Основные настройки", "Браузер по умолчанию")
+        )
+        // Домашняя лента браузера: строк настроек нет — шаг обязан уйти в честный skip,
+        // а не искать тумблер на чужом экране.
+        val root = node(text = "Домой Файлы Поиск Игры Профиль Обновить Яндекс")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        assertFalse("на чужом экране подтверждения нет", runner.awaitRouteScreen(step, item, 400))
+        assertEquals(
+            "ведро причины — «робот не нашёл», а не «нет на устройстве»",
+            SimpleRunner.SkipKind.UNRESOLVED,
+            SimpleRunner.classifySkip(SimpleRunner.ROUTE_SCREEN_UNCONFIRMED)
+        )
+    }
+
     /** Тумблер карусели: подпись в content-desc, узел без текста (как на устройстве). */
     private fun carouselSwitch(checked: Boolean): AccessibilityNodeInfo {
         val n = Mockito.mock(AccessibilityNodeInfo::class.java)

@@ -172,6 +172,19 @@ object SemanticCatalog {
          * другой сборке иконка ☰ отдаётся без id — прогон rmuod5cmm).
          */
         val fallbackDesc: String? = null,
+        /**
+         * Запасное действие, если компонента не подтвердила экран (D1, прогон rmuojptft:
+         * браузер открывал домашнюю ленту вместо настроек). Запускается ОДИН раз.
+         * `com.android.browser.OPEN_SETTINGS` — вердикт probe OK
+         * (`diag-dumps/adb-probe/_verdicts_index.txt`).
+         */
+        val fallbackIntent: String? = null,
+        /**
+         * Маркеры экрана для подтверждения ПОСЛЕ intent-шага: строки экрана настроек,
+         * снятые с устройства (`diag-dumps/owner_recon/browser_settings.xml` —
+         * «Основные настройки», «Браузер по умолчанию»). Пусто — маркеры шага.
+         */
+        val confirmMarkers: List<String> = emptyList(),
         /** Одна прокрутка вниз перед следующим шагом. */
         val scroll: Boolean = false,
         /** Пауза после действия. */
@@ -819,6 +832,8 @@ object SemanticCatalog {
                     tapDesc = o.optString("tapDesc").takeIf { it.isNotEmpty() },
                     tapId = o.optString("tapId").takeIf { it.isNotEmpty() },
             fallbackDesc = o.optString("fallbackDesc").takeIf { it.isNotEmpty() },
+                    fallbackIntent = o.optString("fallbackIntent").takeIf { it.isNotEmpty() },
+                    confirmMarkers = parseStringArray(o.optJSONArray("confirmMarkers")),
                     scroll = o.optBoolean("scroll", false),
                     waitMs = o.optLong("waitMs", 700L).coerceIn(0L, 5_000L)
                 )

@@ -395,6 +395,7 @@ class AdbEnablerService : AccessibilityService() {
                         result.reason == "folder_switch_absent" ||
                         result.reason == SimpleRunner.FOLDER_EDITOR_NOT_OPENED ||
                         result.reason == SimpleRunner.LAUNCHER_ABSENT ||
+                        result.reason == SimpleRunner.ROUTE_SCREEN_UNCONFIRMED ||
                         result.reason == SimpleRunner.NOT_APPLICABLE
                     )
                 if (skippedResult) {

@@ -1390,7 +1390,7 @@
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
           "route": [
-            { "intent": "com.mi.globalbrowser/com.android.browser.BrowserSettingsActivity", "waitMs": 1500 },
+            { "intent": "com.mi.globalbrowser/com.android.browser.BrowserSettingsActivity", "fallbackIntent": "com.android.browser.OPEN_SETTINGS", "confirmMarkers": ["Основные настройки", "Браузер по умолчанию"], "waitMs": 1500 },
             { "scroll": true, "waitMs": 700 },
             { "tapText": "Дополнительные настройки", "waitMs": 1000 }
           ],
