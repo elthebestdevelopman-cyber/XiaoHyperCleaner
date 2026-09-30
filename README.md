@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 32 сьюта, 267 тестов (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 32 сьюта, 270 тестов (полная таблица ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 17 тестов
 │   ├── OptimizationEngineTest.kt # 15 тестов
@@ -407,7 +407,7 @@ app/src/test/java/com/xiaohypercleaner/          # 32 сьюта, 267 тесто
 | `DirectIntentNavigatorTest`   | 8      | Точка входа шага: launcher, прямые экраны настроек   |
 | `ManualStepsTest`             | 4      | Ручная памятка: паритет 7 локалей                  |
 | `SwitchFinderTest`            | 15     | Тумблеры, checked_before, запрет чужой строки      |
-| `ConsentWallTest`             | 29     | Диалоги: force-stop, «по умолчанию», consent, обманки |
+| `ConsentWallTest`             | 32     | Диалоги: force-stop, «по умолчанию», consent, обманки |
 | `ConsentPermissionTest`       | 4      | Permission-запрос: deny по умолчанию, allow для цели |
 | `SimpleRunnerMsaResumeTest`   | 5      | Resume бурения + подтверждение отзыва msa          |
 | `SimpleRunnerMsaRevokeTest`   | 3      | Отзыв msa: кнопка диалога, отсчёт, подтверждение   |

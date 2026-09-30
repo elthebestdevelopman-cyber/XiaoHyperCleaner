@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 32 suites, 267 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 32 suites, 270 tests (full table below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 17 tests
 │   ├── OptimizationEngineTest.kt # 15 tests
@@ -389,7 +389,7 @@ app/src/test/java/com/xiaohypercleaner/          # 32 suites, 267 tests (full ta
 | `DirectIntentNavigatorTest`   | 8     | Step entry point: launcher, direct settings screens |
 | `ManualStepsTest`             | 4     | Manual checklist: 7-locale parity                  |
 | `SwitchFinderTest`            | 15    | Toggles, checked_before, foreign row rejection     |
-| `ConsentWallTest`             | 29    | Dialogs: force-stop, default app, consent, decoys  |
+| `ConsentWallTest`             | 32    | Dialogs: force-stop, default app, consent, decoys  |
 | `ConsentPermissionTest`       | 4     | Permission request: deny by default, allow for target |
 | `SimpleRunnerMsaResumeTest`   | 5     | Drill resume + msa revoke confirmation             |
 | `SimpleRunnerMsaRevokeTest`   | 3     | msa revoke: dialog button, countdown, confirmation |
