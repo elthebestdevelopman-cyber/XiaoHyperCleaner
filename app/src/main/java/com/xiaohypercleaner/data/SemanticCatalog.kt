@@ -235,6 +235,15 @@ object SemanticCatalog {
         val decoyMarkers: Map<String, List<String>> = emptyMap(),
         /** Resource-id крестиков закрытия обманок (машинные, без локалей). */
         val decoyCloseIds: List<String> = emptyList(),
+        /**
+         * Resource-id кнопок закрытия диалогов-заглушек и промо (машинные, без
+         * локалей). Mi Music «Ярлыки функций доступны сейчас» показывает единственную
+         * кнопку `com.miui.player:id/tv_ok` с подписью «OK»; закрытие по id не зависит
+         * от локали и от того, попала ли подпись в `dismissTexts`
+         * (прогон `rmuoaz4jm`: диалог висел поверх настроек Музыки, шаг ушёл
+         * `not_applicable`; дамп `diag-dumps/stumble/music_shortcuts.xml`).
+         */
+        val dismissCloseIds: List<String> = emptyList(),
         /** Решение для диалога, которым владеет приложение шага (accept). */
         val appOwnedDecision: String = "accept",
         /**
@@ -624,6 +633,9 @@ object SemanticCatalog {
     /** Resource-id крестиков закрытия обманок (машинные, без локалей). */
     fun decoyCloseIds(): List<String> = consentPolicy?.decoyCloseIds.orEmpty()
 
+    /** Resource-id кнопок закрытия диалогов-заглушек и промо (Mi Music `tv_ok`). */
+    fun dismissCloseIds(): List<String> = consentPolicy?.dismissCloseIds.orEmpty()
+
     /** Решение для диалога, которым владеет приложение шага (accept). */
     fun appOwnedDecision(): String = consentPolicy?.appOwnedDecision ?: "accept"
 
@@ -839,6 +851,7 @@ object SemanticCatalog {
             defaultAppMarkers = parseListMap(o.optJSONObject("defaultAppMarkers")),
             decoyMarkers = parseListMap(o.optJSONObject("decoyMarkers")),
             decoyCloseIds = parseStringArray(o.optJSONArray("decoyCloseIds")),
+            dismissCloseIds = parseStringArray(o.optJSONArray("dismissCloseIds")),
             uncheckIds = parseListMap(o.optJSONObject("uncheckIds")),
             uncheckTexts = parseListMap(o.optJSONObject("uncheckTexts")),
             appOwnedDecision = o.optString("appOwnedDecision", "accept")

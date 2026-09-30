@@ -177,7 +177,12 @@ object ConsentWallHandler {
         /** Resource-id кнопок закрытия (крестик обманки-промпта: текста у него нет). */
         val ids: List<String> = emptyList(),
         /** Сработавший маркер — для лога welcome (`matched=<маркер>`). */
-        val marker: String = ""
+        val marker: String = "",
+        /**
+         * Кнопки стены — только из набора шага: живую кнопку ищем в них, а не в
+         * общем `welcomeActions` (иначе route-шаг «принимает» рабочую страницу).
+         */
+        val strictTexts: Boolean = false
     )
 
     /**
@@ -233,7 +238,13 @@ object ConsentWallHandler {
         if (action.kind == "welcome" &&
             !hasEnabledAction(
                 root,
-                (action.texts + SemanticCatalog.welcomeActionsAllLocales()).distinct()
+                // Узкая стена шага: живую кнопку ищем только в его наборе — иначе
+                // «Еще»/«Настройки» рабочего экрана проходили гейт (route-шаги).
+                if (action.strictTexts) {
+                    action.texts
+                } else {
+                    (action.texts + SemanticCatalog.welcomeActionsAllLocales()).distinct()
+                }
             )
         ) {
             recycle(root)
@@ -397,7 +408,16 @@ object ConsentWallHandler {
         if (!alertDialog && dismissTexts.isNotEmpty() && !foreignScreen &&
             dismissDialogVisible(screenText, dismissTexts, dismissMarkers)
         ) {
-            return DialogAction("dismiss", "closed", "network", dismissTexts, alertMarkers)
+            return DialogAction(
+                kind = "dismiss",
+                decision = "closed",
+                cause = "network",
+                texts = dismissTexts,
+                markers = alertMarkers,
+                // Кнопка диалога закрывается и по resource-id (`tv_ok` Mi Music):
+                // подпись «OK» может отсутствовать в локали/меняться, а id стабилен.
+                ids = SemanticCatalog.dismissCloseIds()
+            )
         }
 
         val welcomeHit = markerHit(screenText, welcomeMarkers)
@@ -407,13 +427,20 @@ object ConsentWallHandler {
         // Кнопки согласия: пер-шаговый набор стены идёт первым (стена «Загрузок»),
         // «пропуск» шага из набора исключён — пропуск согласием не является.
         val skipBlocked = SemanticCatalog.stepWelcomeSkipTexts(stepId)
-        val welcomeTexts = (stepConsentTexts + SemanticCatalog.stepWelcomeAcceptTexts(stepId) +
-            SemanticCatalog.welcomeActions())
-            .distinct()
-            .filterNot { candidate -> skipBlocked.any { it.equals(candidate, ignoreCase = true) } }
+        val stepAcceptTexts = SemanticCatalog.stepWelcomeAcceptTexts(stepId)
         // Шаг объявил стену обязательной к принятию: её текст может совпадать со
         // screenMarkers шага (PrivacyGrantDialog Загрузок упоминает «Загрузки»).
         val stepAcceptsWall = SemanticCatalog.stepWelcomeDecision(stepId) == "accept"
+        // Узкая стена шага: только его собственные кнопки. Нужна route-шагам
+        // (Проводник: `welcomeAllowed=false`), где общий набор `welcomeActions`
+        // ловил «Еще»/«Настройки» рабочих экранов, но настоящая first-run стена с
+        // `confirm_btn` «Принять и продолжить» должна приниматься (прогон rmuoaz4jm:
+        // route 2/4 упирался в стену, шаг уходил `not_applicable`).
+        val restrictedWall = stepAcceptsWall && stepAcceptTexts.isNotEmpty()
+        val welcomeTexts = (stepConsentTexts +
+            if (restrictedWall) stepAcceptTexts else stepAcceptTexts + SemanticCatalog.welcomeActions())
+            .distinct()
+            .filterNot { candidate -> skipBlocked.any { it.equals(candidate, ignoreCase = true) } }
 
         // 4. Диалог принадлежит приложению шага: «Отмена» на нём означает, что
         //    приложение не открылось, — соглашаемся (Проводник, Музыка, Браузер).
@@ -445,14 +472,15 @@ object ConsentWallHandler {
         // 5. Welcome-стена: тапаем согласие и продолжаем шаг. Стена шага, объявленного
         //    через welcomeDecision=accept, принимается и тогда, когда её текст совпал
         //    со screenMarkers шага (PrivacyGrantDialog Загрузок: «…приложению Загрузки…»).
-        if (allowWelcome && (stepAcceptsWall || !onTargetScreen) && welcomeHit) {
+        if ((allowWelcome || restrictedWall) && (stepAcceptsWall || !onTargetScreen) && welcomeHit) {
             return DialogAction(
                 kind = "welcome",
                 decision = "accepted",
                 cause = if (stepAcceptsWall && onTargetScreen) "wall_step" else "wall",
                 texts = welcomeTexts,
                 markers = welcomeMarkers,
-                marker = welcomeMarker
+                marker = welcomeMarker,
+                strictTexts = restrictedWall
             )
         }
 
@@ -484,7 +512,10 @@ object ConsentWallHandler {
                 decision = "dismissed",
                 cause = "alert",
                 texts = (ALERT_NEGATIVE_TEXTS + dismissTexts).distinct(),
-                markers = alertMarkers
+                markers = alertMarkers,
+                // Промо-диалоги MIUI (Mi Music «Ярлыки функций доступны сейчас») —
+                // это AlertDialog-подобные окна с единственной кнопкой по id.
+                ids = SemanticCatalog.dismissCloseIds()
             )
         }
 

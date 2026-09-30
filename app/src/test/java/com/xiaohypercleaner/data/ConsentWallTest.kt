@@ -37,6 +37,9 @@ class ConsentWallTest {
     /** Маркеры, переданные мосту как avoid-список (по ним тапать запрещено). */
     private var avoidTexts: List<String> = emptyList()
 
+    /** Resource-id, которые есть на «экране» теста: остальные боевой мост не найдёт. */
+    private val knownIds = mutableSetOf<String>()
+
     private val bridge = object : ConsentWallHandler.TapBridge {
         var tapResult = true
 
@@ -66,7 +69,11 @@ class ConsentWallTest {
         override suspend fun tapByIds(ids: List<String>): Boolean {
             // Пустой список id — «идти текстовым путём», как в боевом мосте.
             if (ids.isEmpty() || !tapResult) return false
-            tappedIds.addAll(ids)
+            // Боевой мост тапает только по узлу, который РЕАЛЬНО есть в дереве:
+            // неизвестный id возвращает false, и хендлер идёт текстовым путём.
+            val present = ids.filter { it in knownIds }
+            if (present.isEmpty()) return false
+            tappedIds.addAll(present)
             return true
         }
     }
@@ -77,6 +84,7 @@ class ConsentWallTest {
         SemanticCatalog.ensureLoaded(RuntimeEnvironment.getApplication())
         tappedTexts.clear()
         tappedIds.clear()
+        knownIds.clear()
         bridge.events.clear()
         service = Mockito.mock(AccessibilityService::class.java)
     }
@@ -221,6 +229,77 @@ class ConsentWallTest {
                     bridge.events.indexOfFirst { it.startsWith("tap:")
                 }
             )
+        }
+    }
+
+    @Test
+    fun `music shortcuts dialog is closed by its button id`() = runTest {
+        // Mi Music: «Ярлыки функций доступны сейчас» поверх настроек, единственная
+        // кнопка `tv_ok` (+OK). Крестика нет, подпись локализуется — закрываем по id
+        // (прогон rmuoaz4jm: диалог висел, шаг уходил not_applicable).
+        withLocale("ru") {
+            val node = wallScreen(
+                "Вернуться Аккаунт и настройки Показывать рекламу Отзыв согласия " +
+                    "Ярлыки функций доступны сейчас",
+                "OK"
+            )
+            Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
+            // Кнопка есть в дереве: боевой мост найдёт её по id.
+            knownIds.add("tv_ok")
+
+            val outcome = ConsentWallHandler.handleOnce(
+                service,
+                bridge,
+                "music_sys",
+                stepPackages = listOf("com.miui.player")
+            )
+
+            assertTrue(outcome.handled)
+            assertTrue(
+                "диалог закрывается по resource-id: ${tappedIds.joinToString()}",
+                tappedIds.contains("tv_ok")
+            )
+        }
+    }
+
+    @Test
+    fun `route step accepts its own first-run wall but not working screen words`() = runTest {
+        // Проводник: стена первого запуска (`confirm_btn` «Принять и продолжить»)
+        // должна приниматься, несмотря на `welcomeAllowed=false` — иначе route 2/4
+        // упирается в неё (прогон rmuoaz4jm). Рабочий экран с «Еще»/«Настройки»
+        // при этом стеной не считается: узкий набор шага их не содержит.
+        withLocale("ru") {
+            val wall = wallScreen(
+                "Добро пожаловать в Проводник! Помимо основных функций, это приложение " +
+                    "также предоставляет следующие службы: Категоризация недавно использованных объектов",
+                "Принять и продолжить"
+            )
+            Mockito.`when`(service.rootInActiveWindow).thenReturn(wall)
+            val outcome = ConsentWallHandler.handleOnce(
+                service, bridge, "filemanager",
+                stepPackages = listOf("com.mi.android.globalFileexplorer"),
+                allowWelcome = false
+            )
+            assertTrue("стена Проводника должна приниматься", outcome.handled)
+            assertEquals("welcome", outcome.kind)
+            assertEquals("Принять и продолжить", tappedTexts.firstOrNull())
+        }
+
+        tappedTexts.clear()
+        bridge.events.clear()
+
+        withLocale("ru") {
+            val listScreen = wallScreen(
+                "Недавние Память Документы Настройки Очистить",
+                "Еще"
+            )
+            Mockito.`when`(service.rootInActiveWindow).thenReturn(listScreen)
+            val outcome = ConsentWallHandler.handleOnce(
+                service, bridge, "filemanager",
+                stepPackages = listOf("com.mi.android.globalFileexplorer"),
+                allowWelcome = false
+            )
+            assertFalse("рабочий экран не стена", outcome.handled)
         }
     }
 
@@ -608,22 +687,25 @@ class ConsentWallTest {
     }
 
     @Test
-    fun `route step never accepts a welcome wall`() = runTest {
-        // У шагов с RouteScript (Проводник) welcome-политика выключена каталогом:
-        // принимается только dismiss/decoy/alert, иначе рабочий экран «принимается»
-        // и drawer схлопывается (route 3/4 и 4/4 = ok=false в прогоне rmumuqr53).
+    fun `route step accepts only its own wall button`() = runTest {
+        // У шагов с RouteScript (Проводник) общий набор welcomeActions выключен:
+        // рабочая страница со словами «Еще»/«Продолжить» стеной не становится
+        // (route 3/4 и 4/4 = ok=false в прогоне rmumuqr53). Принимается только
+        // собственная кнопка стены первого запуска («Принять и продолжить»,
+        // прогон rmuoaz4jm: без неё route 2/4 упирался в стену).
         withLocale("ru") {
-            val action = ConsentWallHandler.classify(
-                screenText = "Добро пожаловать в Проводник Принять и продолжить",
-                ownerPackage = "com.mi.android.globalFileexplorer",
+            val foreignWall = wallScreen("Добро пожаловать в Проводник", "Продолжить")
+            Mockito.`when`(service.rootInActiveWindow).thenReturn(foreignWall)
+
+            val outcome = ConsentWallHandler.handleOnce(
+                service,
+                bridge,
+                "filemanager",
                 stepPackages = listOf("com.mi.android.globalFileexplorer"),
-                stepId = "filemanager",
-                stepConfirmTexts = emptyList(),
-                stepConsentTexts = emptyList(),
-                alertDialog = false,
                 allowWelcome = false
             )
-            assertNull("welcome-стена не классифицируется у route-шага", action?.takeIf { it.kind == "welcome" })
+
+            assertFalse("чужая кнопка стену не принимает", outcome.handled)
         }
     }
 
@@ -662,6 +744,8 @@ class ConsentWallTest {
                     "производительность. Также были исправлены ошибки. Обновить"
             )
             Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
+            // Крестик есть в дереве: боевой мост найдёт его по id.
+            knownIds.add("upgrade_x_out")
 
             val outcome = ConsentWallHandler.handleOnce(service, bridge, "getapps")
 

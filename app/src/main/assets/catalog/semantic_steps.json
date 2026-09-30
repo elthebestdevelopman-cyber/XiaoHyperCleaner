@@ -108,6 +108,7 @@
       "id": ["Pembaruan tersedia", "Versi baru tersedia", "Nikmati layar kunci yang lebih baik"]
     },
     "decoyCloseIds": ["upgrade_x_out", "iv_close", "close_button", "btn_close"],
+    "dismissCloseIds": ["tv_ok"],
     "uncheckIds": {
       "browser_sys": ["cb_service"],
       "themes": ["cb_personal"]
@@ -2629,6 +2630,25 @@
     {
       "id": "filemanager",
       "welcomeAllowed": false,
+      "welcomeDecision": "accept",
+      "welcomeAcceptTexts": {
+        "ru": ["Принять и продолжить", "Согласиться"],
+        "en": ["Accept and continue", "Accept"],
+        "es": ["Aceptar y continuar", "Aceptar"],
+        "zh": ["同意并继续", "接受"],
+        "hi": ["स्वीकारें और जारी रखें", "स्वीकार करें"],
+        "pt": ["Aceitar e continuar", "Aceitar"],
+        "id": ["Terima dan lanjutkan", "Terima"]
+      },
+      "welcomeSkipTexts": {
+        "ru": ["Отклонить"],
+        "en": ["Decline"],
+        "es": ["Rechazar"],
+        "zh": ["拒绝"],
+        "hi": ["अस्वीकार करें"],
+        "pt": ["Recusar"],
+        "id": ["Tolak"]
+      },
       "variants": [
         {
           "id": "miui12_14",
