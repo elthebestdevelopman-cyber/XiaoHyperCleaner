@@ -2373,14 +2373,40 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // rmuh2vb1r): читаем состояние повторно, без дополнительных тапов.
         repeat(SWITCH_VERIFY_ATTEMPTS) { attempt ->
             if (attempt > 0) delay(SWITCH_VERIFY_RETRY_DELAY_MS)
-            val root = service.rootInActiveWindow ?: return true
+            val root = service.rootInActiveWindow
+            if (root == null) {
+                // Окно недоступно (переход активности): попытку повторяем, а не объявляем
+                // состояние совпавшим — «нет данных» это не «выключено».
+                AppLog.w(TAG, "verify: no active window attempt=${attempt + 1} step=${step.id}")
+                return@repeat
+            }
             val switchNode = findSwitchByText(root, texts)
             val actual = switchNode?.let { SwitchFinder.isChecked(it) }
-            val result = actual?.let { it == step.targetChecked } ?: true
+            // Тумблер исчезает из дерева, когда настройка применена: App Vault после
+            // подтверждения «Отключить» оставляет строку, а CheckBox убирает (дамп
+            // av_recheck.xml — в дереве ни CheckBox, ни Switch). Поэтому «узла нет» —
+            // успех ТОЛЬКО без диалога подтверждения шага на экране; иначе это
+            // перекрытый диалогом экран, и прежний `?: true` давал ложный toggled
+            // (прогон rmuod5cmm: диалог погасили отказом, тумблер остался включён).
+            val result = when {
+                actual != null -> actual == step.targetChecked
+                else -> {
+                    val confirmVisible = confirmTextsFor(step).any { text ->
+                        TextMatcher.normalizedContains(NodeTree.collectText(root), text)
+                    }
+                    val vanished = !confirmVisible
+                    AppLog.i(
+                        TAG,
+                        "verify: switch node gone row_vanished=$vanished step=${step.id}"
+                    )
+                    vanished
+                }
+            }
             AppLog.i(
                 TAG,
                 "verify: state ${if (attempt == 0) "before" else "after"} " +
-                    "attempt=${attempt + 1} actual=$actual target=${step.targetChecked} step=${step.id}"
+                    "attempt=${attempt + 1} actual=$actual target=${step.targetChecked} " +
+                    "found=${switchNode != null} step=${step.id}"
             )
             recycleNode(switchNode); recycleNode(root)
             if (result) return true

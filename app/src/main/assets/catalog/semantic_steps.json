@@ -2939,6 +2939,10 @@
           "itemTexts": {
             "ru": ["Персонализированные услуги"],
             "en": ["Personalized services"]
+          },
+          "confirmTexts": {
+            "ru": ["Отключить"],
+            "en": ["Turn off"]
           }
         },
         {

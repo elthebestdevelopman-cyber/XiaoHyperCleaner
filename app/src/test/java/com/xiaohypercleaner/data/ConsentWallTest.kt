@@ -174,6 +174,31 @@ class ConsentWallTest {
     }
 
     @Test
+    fun `appvault toggle dialog is owned by the step and not dismissed`() = runTest {
+        // Дамп av_toggle_dialog.xml (01.10, MIUI 13): после тапа по «Персонализированные
+        // услуги» встаёт диалог alertTitle «Персонализированные услуги», message
+        // «…Отключить службы?», button2 «Отключить» (положительная, слева) и button1
+        // «Нет, спасибо» (отказ). Шаг объявляет confirmTexts «Отключить», поэтому диалог
+        // принадлежит шагу — хендлер стен обязан отойти (ownsDialog), иначе он гасит
+        // диалог отказом и тумблер остаётся включённым (прогон rmuod5cmm:
+        // consent: kind=dialog decision=dismissed cause=alert step=appvault_about).
+        withLocale("ru") {
+            val action = ConsentWallHandler.classify(
+                screenText = "Персонализированные услуги Предлагаемые материалы могут быть " +
+                    "менее интересны вам, если вы отключите службы персонализации. " +
+                    "Отключить службы? Отключить Нет, спасибо",
+                ownerPackage = "com.mi.android.globalminusscreen",
+                stepPackages = listOf("com.mi.android.globalminusscreen"),
+                stepId = "appvault_about",
+                stepConfirmTexts = listOf("Отключить"),
+                stepConsentTexts = emptyList(),
+                alertDialog = true
+            )
+            assertNull("диалог шага не обрабатывает хендлер стен: kind=${action?.kind}", action)
+        }
+    }
+
+    @Test
     fun `welcome wall is accepted with policy action`() = runTest {
         val node = wallScreen("Welcome to Themes Terms of Service", "Принять")
         Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
