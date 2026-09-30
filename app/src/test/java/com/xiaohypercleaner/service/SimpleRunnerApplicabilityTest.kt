@@ -11,6 +11,7 @@ import com.xiaohypercleaner.data.RomProfile
 import com.xiaohypercleaner.data.RomRegion
 import com.xiaohypercleaner.data.SemanticCatalog
 import com.xiaohypercleaner.data.SimpleSteps
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -237,5 +238,70 @@ class SimpleRunnerApplicabilityTest {
             SimpleRunner.SkipKind.UNRESOLVED,
             SimpleRunner.classifySkip(SimpleRunner.FOLDER_EDITOR_NOT_OPENED)
         )
+    }
+/**
+     * P5: перед объявлением провала шаг проверяет состояние ещё раз. Прогоны
+     * rmuoaz4jm/rmuod5cmm: шаг падал `timeout`/`verify_failed`, хотя настройка на
+     * устройстве применилась — MIUI отрисовывает новое состояние с задержкой.
+     */
+    @Test
+    fun `late verify confirms applied state on the step screen`() = runTest {
+        val step = SimpleSteps.ALL.first { it.id == "carousel" }
+        val root = node(
+            text = "Карусель обоев",
+            children = arrayOf(carouselSwitch(checked = false))
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        assertTrue(
+            "состояние совпало с целевым — провал отменяется",
+            runner.lateVerify(step)
+        )
+    }
+
+    @Test
+    fun `late verify never confirms on a foreign screen`() = runTest {
+        // Поздняя проверка обязана подтверждать экран маркерами шага: иначе «состояние
+        // совпало» читается на чужом экране (прогон rmuod5cmm: PERCEPTION pkg=com.google.android.gms).
+        // Тумблер чужой строки специально без подписи карусели — маркеров на экране нет.
+        val step = SimpleSteps.ALL.first { it.id == "carousel" }
+        val foreignSwitch = Mockito.mock(AccessibilityNodeInfo::class.java)
+        Mockito.`when`(foreignSwitch.className).thenReturn("android.widget.Switch")
+        Mockito.`when`(foreignSwitch.isCheckable).thenReturn(true)
+        Mockito.`when`(foreignSwitch.isChecked).thenReturn(false)
+        Mockito.`when`(foreignSwitch.contentDescription)
+            .thenReturn("Показывать уведомления Разрешить метки уведомлений")
+        Mockito.`when`(foreignSwitch.childCount).thenReturn(0)
+        val root = node(
+            text = "Использование и диагностика",
+            children = arrayOf(foreignSwitch)
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        assertFalse("на чужом экране успех не подтверждается", runner.lateVerify(step))
+    }
+
+    @Test
+    fun `late verify keeps failure when the switch is still on`() = runTest {
+        val step = SimpleSteps.ALL.first { it.id == "carousel" }
+        val root = node(
+            text = "Карусель обоев",
+            children = arrayOf(carouselSwitch(checked = true))
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        assertFalse("тумблер включён — провал остаётся", runner.lateVerify(step))
+    }
+
+    /** Тумблер карусели: подпись в content-desc, узел без текста (как на устройстве). */
+    private fun carouselSwitch(checked: Boolean): AccessibilityNodeInfo {
+        val n = Mockito.mock(AccessibilityNodeInfo::class.java)
+        Mockito.`when`(n.className).thenReturn("android.widget.Switch")
+        Mockito.`when`(n.isCheckable).thenReturn(true)
+        Mockito.`when`(n.isChecked).thenReturn(checked)
+        Mockito.`when`(n.contentDescription)
+            .thenReturn("Карусель экрана блокировки Просмотр выбранных обоев, историй")
+        Mockito.`when`(n.childCount).thenReturn(0)
+        return n
     }
 }

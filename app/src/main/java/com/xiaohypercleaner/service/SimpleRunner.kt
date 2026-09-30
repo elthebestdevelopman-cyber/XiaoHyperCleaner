@@ -557,18 +557,27 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     "timeout"
                 )
 
+                // P5: перед провалом — повторная проверка состояния. Действие уже
+                // отправлено, а подтверждение могло не успеть (MIUI применяет настройку
+                // с задержкой, диалог закрывается позже): шаг отчитывался
+                // verify_failed/timeout, хотя на устройстве всё применилось.
+                val lateVerified = !r.success &&
+                    r.reason in LATE_VERIFY_REASONS &&
+                    lateVerify(step)
+                val effective = if (lateVerified) Result(true, "verified_late") else r
+
                 val root = service.rootInActiveWindow
                 StepDiagnostics.stepResult(
                     step.id,
-                    r.success,
-                    r.reason ?: if (r.success) "ok" else "unknown",
+                    effective.success,
+                    effective.reason ?: if (effective.success) "ok" else "unknown",
                     System.currentTimeMillis() - start,
                     root,
                     service
                 )
 
-                if (!r.success) {
-                    val failureReason = r.reason ?: "unknown"
+                if (!effective.success) {
+                    val failureReason = effective.reason ?: "unknown"
                     DiagnosticSnapshotManager.captureAndSaveSnapshot(
                         service,
                         step.id,
@@ -580,7 +589,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     DiagnosticSnapshotManager.captureScreenshot(service, step.id)
                 }
                 recycleNode(root)
-                r
+                effective
             } catch (e: Exception) {
                 AppLog.e(TAG, "Step ${step.id} failed: ${e.message}", e)
                 lastFailureReason = "error"
@@ -612,6 +621,59 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         val timeout = if (profile.hyperOsHint) (base * HYPEROS_MULTIPLIER).toLong() else base
         return timeout.coerceIn(12_000L, 45_000L)
+    }
+
+    /**
+     * Причины, при которых действие уже отправлено, а подтверждение не успело: перед
+     * провалом шаг проверяет состояние ещё раз и, если оно совпало, отчитывается
+     * `verified_late` (P5). Ошибки навигации, отсутствие узла и открытый диалог сюда не
+     * входят: там состояние читать нечем, и поздняя проверка дала бы ложный успех.
+     */
+    private val LATE_VERIFY_REASONS = setOf(
+        "timeout",
+        "verify_failed",
+        "tap_failed"
+    )
+
+    /** Фактическое состояние тумблера шага прямо сейчас (null — узла нет). */
+    private fun readSwitchState(step: SimpleSteps.Step): Boolean? {
+        val root = service.rootInActiveWindow ?: return null
+        val node = findSwitchByText(root, searchTextsFor(step))
+        val state = node?.let { SwitchFinder.isChecked(it) }
+        recycleNode(node); recycleNode(root)
+        return state
+    }
+
+    /**
+     * Поздняя проверка состояния перед объявлением провала: экран подтверждаем
+     * маркерами шага (иначе «состояние совпало» можно прочитать на чужом экране),
+     * состояние — фактическим чтением тумблера.
+     */
+    internal suspend fun lateVerify(step: SimpleSteps.Step): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val screenText = collectAllText(root)
+        val markers = SemanticCatalog.screenMarkers(step.id)
+        val markersOk = markers.isEmpty() ||
+            markers.any { TextMatcher.normalizedContains(screenText, it) }
+        if (!markersOk) {
+            recycleNode(root)
+            AppLog.i(TAG, "late verify: markers absent step=${step.id} — провал остаётся")
+            return false
+        }
+        val node = findSwitchByText(root, searchTextsFor(step))
+        val actual = node?.let { SwitchFinder.isChecked(it) }
+        recycleNode(node); recycleNode(root)
+        val ok = actual != null && actual == step.targetChecked
+        AppLog.i(
+            TAG,
+            "late verify: step=${step.id} checked_after=$actual target=${step.targetChecked} ok=$ok"
+        )
+        StepDiagnostics.note(
+            step.id,
+            "VERDICT",
+            "verified_late=$ok checked_after=$actual target=${step.targetChecked} markers=ok"
+        )
+        return ok
     }
 
     fun cancel() {
@@ -2166,6 +2228,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Диалоги-заглушки после тумблера (Карусель: «Нет, спасибо»).
         handleConsentWalls(step)
 
+        // Вердикт с обоими состояниями: checked_before взят в момент тумблера (он же уходит
+        // в снапшот отката), checked_after — фактическое чтение после тапа (null = строка
+        // исчезла вместе с функцией, что для этих экранов норма).
+        val afterState = readSwitchState(step)
+        StepDiagnostics.note(
+            step.id,
+            "VERDICT",
+            "toggled checked_before=$isChecked checked_after=$afterState" +
+                " label='$text' bounds=[${bounds.left},${bounds.top},${bounds.right},${bounds.bottom}]" +
+                " markers=ok"
+        )
         AppLog.i(
             TAG,
             "toggled: text='$text' desc='$desc' bounds=[${bounds.left},${bounds.top},${bounds.right},${bounds.bottom}] step=${step.id}"
