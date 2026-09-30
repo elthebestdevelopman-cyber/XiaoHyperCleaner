@@ -244,6 +244,13 @@ object SemanticCatalog {
          * `not_applicable`; дамп `diag-dumps/stumble/music_shortcuts.xml`).
          */
         val dismissCloseIds: List<String> = emptyList(),
+        /**
+         * Маркеры полноэкранных гайдов-жестов: у них нет кнопки, закрываются СВАЙПОМ
+         * вверх (Mi Video: «Проведите вверх для просмотра других видео»; экран
+         * `com.miui.videoplayer:id/anim_small_video_guide` перекрывает вкладки, и
+         * drill уровня «Профиль» упирался в ENTRY timeout — прогон `rmuoaz4jm`).
+         */
+        val guideMarkers: Map<String, List<String>> = emptyMap(),
         /** Решение для диалога, которым владеет приложение шага (accept). */
         val appOwnedDecision: String = "accept",
         /**
@@ -636,6 +643,9 @@ object SemanticCatalog {
     /** Resource-id кнопок закрытия диалогов-заглушек и промо (Mi Music `tv_ok`). */
     fun dismissCloseIds(): List<String> = consentPolicy?.dismissCloseIds.orEmpty()
 
+    /** Маркеры полноэкранных гайдов-жестов (закрываются свайпом вверх). */
+    fun guideMarkers(): List<String> = localizedTexts(consentPolicy?.guideMarkers)
+
     /** Решение для диалога, которым владеет приложение шага (accept). */
     fun appOwnedDecision(): String = consentPolicy?.appOwnedDecision ?: "accept"
 
@@ -852,6 +862,7 @@ object SemanticCatalog {
             decoyMarkers = parseListMap(o.optJSONObject("decoyMarkers")),
             decoyCloseIds = parseStringArray(o.optJSONArray("decoyCloseIds")),
             dismissCloseIds = parseStringArray(o.optJSONArray("dismissCloseIds")),
+            guideMarkers = parseListMap(o.optJSONObject("guideMarkers")),
             uncheckIds = parseListMap(o.optJSONObject("uncheckIds")),
             uncheckTexts = parseListMap(o.optJSONObject("uncheckTexts")),
             appOwnedDecision = o.optString("appOwnedDecision", "accept")

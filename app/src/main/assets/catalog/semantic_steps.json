@@ -109,6 +109,15 @@
     },
     "decoyCloseIds": ["upgrade_x_out", "iv_close", "close_button", "btn_close"],
     "dismissCloseIds": ["tv_ok"],
+    "guideMarkers": {
+      "ru": ["Проведите вверх для просмотра других видео"],
+      "en": ["Swipe up to view more videos"],
+      "es": ["Desliza hacia arriba para ver más videos"],
+      "zh": ["向上滑动以查看更多视频"],
+      "hi": ["और वीडियो देखने के लिए ऊपर स्वाइप करें"],
+      "pt": ["Deslize para cima para ver mais vídeos"],
+      "id": ["Geser ke atas untuk melihat video lainnya"]
+    },
     "uncheckIds": {
       "browser_sys": ["cb_service"],
       "themes": ["cb_personal"]

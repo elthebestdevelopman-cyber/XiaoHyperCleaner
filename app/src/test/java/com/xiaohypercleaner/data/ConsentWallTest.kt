@@ -51,6 +51,15 @@ class ConsentWallTest {
             return entries.map { it.second }
         }
 
+        /** Сколько раз мост сделал свайп вверх (закрытие гайда-жеста). */
+        var swipes = 0
+
+        override suspend fun swipeUp(): Boolean {
+            swipes++
+            events.add("swipe:up")
+            return true
+        }
+
         override suspend fun tapByTexts(texts: List<String>): Boolean {
             if (!tapResult) return false
             events.add("tap:" + (texts.firstOrNull() ?: ""))
@@ -85,6 +94,7 @@ class ConsentWallTest {
         tappedTexts.clear()
         tappedIds.clear()
         knownIds.clear()
+        bridge.swipes = 0
         bridge.events.clear()
         service = Mockito.mock(AccessibilityService::class.java)
     }
@@ -300,6 +310,28 @@ class ConsentWallTest {
                 allowWelcome = false
             )
             assertFalse("рабочий экран не стена", outcome.handled)
+        }
+    }
+
+    @Test
+    fun `swipe guide is dismissed by swipe up`() = runTest {
+        // Mi Video: «Проведите вверх для просмотра других видео» перекрывает вкладки,
+        // кнопки у гайда нет — закрываем свайпом (прогон rmuoaz4jm, дамп
+        // diag-dumps/stumble/vid_feed.xml).
+        withLocale("ru") {
+            val node = screen("Проведите вверх для просмотра других видео")
+            Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
+
+            val outcome = ConsentWallHandler.handleOnce(
+                service,
+                bridge,
+                "mivideo",
+                stepPackages = listOf("com.miui.videoplayer")
+            )
+
+            assertTrue(outcome.handled)
+            assertEquals("guide", outcome.kind)
+            assertEquals("свайп вверх должен быть сделан", 1, bridge.swipes)
         }
     }
 

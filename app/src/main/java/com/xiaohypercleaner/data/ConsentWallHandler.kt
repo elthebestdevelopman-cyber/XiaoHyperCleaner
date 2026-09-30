@@ -165,6 +165,13 @@ object ConsentWallHandler {
          * чекбоксов — для лога `decision=checkbox_unchecked`.
          */
         suspend fun uncheckCheckboxes(entries: List<Pair<String, String>>): List<String> = emptyList()
+
+        /**
+         * Свайп вверх: закрытие полноэкранного гайда-жеста (Mi Video «Проведите
+         * вверх для просмотра других видео»). По умолчанию — «не умею»: тестовые
+         * мосты свайпов не делают.
+         */
+        suspend fun swipeUp(): Boolean = false
     }
 
     /** Разобранный диалог: что это и каким действием он закрывается. */
@@ -309,6 +316,9 @@ object ConsentWallHandler {
     private suspend fun dispatch(bridge: TapBridge, action: DialogAction): Boolean =
         if (action.kind == "welcome") {
             bridge.tapEnabledDialogButtonByTexts(action.texts, action.markers)
+        } else if (action.kind == "guide") {
+            // Гайд-жест: тапать нечего, экран закрывается свайпом вверх.
+            bridge.swipeUp()
         } else {
             // Обманка закрывается крестиком по id; если крестика в дереве нет —
             // отрицательная кнопка/текст, как у обычного диалога.
@@ -374,6 +384,22 @@ object ConsentWallHandler {
                 },
                 texts = (ALERT_NEGATIVE_TEXTS + dismissTexts).distinct(),
                 markers = alertMarkers
+            )
+        }
+
+        // 1b. Полноэкранный гайд-жест (Mi Video «Проведите вверх для просмотра других
+        //     видео»): кнопки у него нет, вкладки он перекрывает — закрываем свайпом
+        //     вверх, иначе drill уровня «Профиль» упирается в ENTRY timeout и шаг
+        //     уходит not_applicable (прогон rmuoaz4jm, дамп
+        //     diag-dumps/stumble/vid_feed.xml).
+        val guideMarkers = SemanticCatalog.guideMarkers()
+        if (markerHit(screenText, guideMarkers)) {
+            return DialogAction(
+                kind = "guide",
+                decision = "swiped",
+                cause = "swipe_guide",
+                texts = emptyList(),
+                markers = guideMarkers
             )
         }
 

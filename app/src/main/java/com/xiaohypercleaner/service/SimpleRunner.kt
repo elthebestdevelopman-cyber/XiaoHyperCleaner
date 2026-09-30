@@ -3289,6 +3289,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         override suspend fun tapByIds(ids: List<String>): Boolean = tapSystemNodeByIds(ids)
 
+        /** Свайп вверх по центру экрана: закрытие полноэкранного гайда-жеста. */
+        override suspend fun swipeUp(): Boolean {
+            val dm = service.resources.displayMetrics
+            val cx = dm.widthPixels / 2f
+            return performGesture(cx, dm.heightPixels * 0.72f, cx, dm.heightPixels * 0.28f, 320)
+        }
+
         /**
          * Снятие отметки с чекбоксов персонализации до согласия. Отметку проверяем
          * после тапа по тому же узлу: MIUI-чекбокс может не отреагировать на
