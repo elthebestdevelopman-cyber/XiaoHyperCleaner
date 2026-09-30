@@ -437,21 +437,28 @@ class SimpleRunner(private val service: AdbEnablerService) {
     private fun muteMediaVolume(): Int {
         val audio = service.getSystemService(AudioManager::class.java) ?: return -1
         val prev = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+        // Лог всегда, включая «глушить нечего»: без него отсутствие строки `was=N`
+        // неотличимо от «шаг вообще не глушил» — ровно так выглядел прогон rmuojptft
+        // (`media volume restored to 0` без строки mute).
         if (prev > 0) {
             audio.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
-            AppLog.i(TAG, "media muted (was=$prev)")
+            AppLog.i(TAG, "media muted (was=$prev, ringer=${audio.ringerMode})")
+        } else {
+            AppLog.i(TAG, "media mute skipped (already silent, ringer=${audio.ringerMode})")
         }
         return prev
     }
 
+    /** Возврат громкости с фактическим подтверждением: лог пишет, что вышло на деле. */
     private fun restoreMediaVolume(prev: Int) {
         if (prev < 0) return
-        service.getSystemService(AudioManager::class.java)
-            ?.setStreamVolume(AudioManager.STREAM_MUSIC, prev, 0)
-        AppLog.i(TAG, "media volume restored to $prev")
+        val audio = service.getSystemService(AudioManager::class.java) ?: return
+        audio.setStreamVolume(AudioManager.STREAM_MUSIC, prev, 0)
+        val now = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+        AppLog.i(TAG, "media volume restored to $prev (actual=$now)")
     }
 
-    private fun markFreshDevice() {
+    internal fun markFreshDevice() {
         if (freshDeviceActive) return
         freshDeviceActive = true
         freshDeviceDismisses = 0
@@ -459,33 +466,46 @@ class SimpleRunner(private val service: AdbEnablerService) {
         mutedForFreshDevice = originalVolume > 0
     }
 
-    private fun cleanupFreshDevice() {
+    /**
+     * Выход шага (в том числе cancel/timeout/исключение — вызывается из finally прогона).
+     *
+     * Порядок восстановления важен: сначала ШАГОВАЯ громкость, затем снапшот свежего
+     * устройства. Раньше [restoreStepMute] обнулял `originalVolume`, и ветка возврата
+     * fresh-device становилась мёртвой: громкость, поднятая владельцем до прогона,
+     * оставалась заглушённой (прогон rmuojptft: `media volume restored to 0`).
+     */
+    internal fun cleanupFreshDevice() {
         restoreStepMute()
         if (!freshDeviceActive) return
         if (mutedForFreshDevice) restoreMediaVolume(originalVolume)
         freshDeviceActive = false
         mutedForFreshDevice = false
+        originalVolume = -1
     }
 
     /**
      * Шаги с `muteMediaOnLaunch` (Mi Video) открываются с автопроигрыванием промо-ролика:
      * медиа-звук глушится на время шага и возвращается в [restoreStepMute].
      */
-    private fun muteForStepIfNeeded(step: SimpleSteps.Step) {
+    internal fun muteForStepIfNeeded(step: SimpleSteps.Step) {
         restoreStepMute()
         if (step.launchPackage == null || !SemanticCatalog.muteMediaOnLaunch(step.id)) return
         val prev = muteMediaVolume()
         if (prev < 0) return
         mutedForStep = prev
-        AppLog.i(TAG, "media muted for step ${step.id} (muteMediaOnLaunch)")
+        AppLog.i(TAG, "media muted for step ${step.id} (muteMediaOnLaunch, was=$prev)")
     }
 
-    private fun restoreStepMute() {
+    /**
+     * Возврат шаговой громкости. Состояние свежего устройства здесь НЕ трогаем:
+     * `freshDeviceDismisses`/`originalVolume` принадлежат [cleanupFreshDevice], и их
+     * сброс отсюда делал возврат громкости мёртвой веткой (прогон rmuojptft).
+     */
+    internal fun restoreStepMute() {
         if (mutedForStep < 0) return
-        restoreMediaVolume(mutedForStep)
+        val was = mutedForStep
         mutedForStep = -1
-        freshDeviceDismisses = 0
-        originalVolume = -1
+        restoreMediaVolume(was)
     }
 
     private fun freshDeviceDismiss(text: String): Boolean {
