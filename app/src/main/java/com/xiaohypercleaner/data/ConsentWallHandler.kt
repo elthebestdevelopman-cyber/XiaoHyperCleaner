@@ -354,6 +354,16 @@ object ConsentWallHandler {
     ): DialogAction? {
         if (ownsDialog(screenText, stepConfirmTexts)) return null
 
+        // Диалог, чей текст совпадает с confirm-маркерами ДРУГОГО шага (msa «Отзыв
+        // разрешения», appvault_about «Отключить службы?»), — не наш: dismiss/alert-политика
+        // текущего шага его не трогает, иначе отменяет чужой отзыв (прогон rmupuud3s:
+        // sys_recommendations погасил диалог отзыва msa).
+        val foreignOwner = foreignConfirmOwner(screenText, stepId)
+        if (foreignOwner != null) {
+            AppLog.i(TAG, "consent: skip foreign confirm dialog step=$stepId owner=$foreignOwner")
+            return null
+        }
+
         val welcomeMarkers = SemanticCatalog.welcomeMarkers()
         val permissionMarkers = SemanticCatalog.permissionMarkers()
         val dismissMarkers = SemanticCatalog.dismissMarkers()
@@ -623,6 +633,18 @@ object ConsentWallHandler {
             normalized.isNotEmpty() &&
                 normalized !in GENERIC_CONFIRM_TEXTS &&
                 TextMatcher.normalizedContains(screenText, text)
+        }
+
+    /**
+     * Владелец чужого confirm-диалога: шаг (не текущий), чьи confirm-тексты видны на
+     * экране. Такой диалог ведёт сам шаг-владелец — хендлер стен обязан отойти.
+     */
+    private fun foreignConfirmOwner(screenText: String, currentStepId: String): String? =
+        SemanticCatalog.all().firstNotNullOfOrNull { other ->
+            other.id.takeIf {
+                it != currentStepId &&
+                    ownsDialog(screenText, SemanticCatalog.confirmTexts(it))
+            }
         }
 
     /**

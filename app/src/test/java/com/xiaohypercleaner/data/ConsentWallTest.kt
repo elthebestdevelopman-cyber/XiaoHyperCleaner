@@ -199,6 +199,49 @@ class ConsentWallTest {
     }
 
     @Test
+    fun `msa revoke dialog is not dismissed by a foreign step handler`() = runTest {
+        // Прогон rmupuud3s: на шаге sys_recommendations висел диалог отзыва msa
+        // («Отзыв разрешения … Отозвать (5 с)»), и alert-политика чужого шага погасила
+        // его отказом — отзыв msa отменился. Диалог принадлежит msa (его confirmTexts
+        // «Отозвать»), поэтому хендлер обязан отойти и не трогать его.
+        withLocale("ru") {
+            val action = ConsentWallHandler.classify(
+                screenText = "Отзыв разрешения После отзыва разрешения приложение прекратит " +
+                    "сбор данных и удалит все свои данные с серверов. Это может сделать " +
+                    "приложение практически непригодным для использования. Отозвать " +
+                    "разрешение? Отмена Отозвать (5 с)",
+                ownerPackage = "com.android.settings",
+                stepPackages = listOf("com.miui.securitycenter"),
+                stepId = "sys_recommendations",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = emptyList(),
+                alertDialog = true
+            )
+            assertNull("чужой confirm-диалог не гасится: kind=${action?.kind}", action)
+        }
+    }
+
+    @Test
+    fun `foreign confirm dialog is never closed by another step`() = runTest {
+        // Диалог «Отключить службы?» принадлежит appvault_about; на чужом шаге он тоже
+        // не должен закрываться отказом — иначе служба остаётся включённой.
+        withLocale("ru") {
+            val action = ConsentWallHandler.classify(
+                screenText = "Персонализированные услуги Предлагаемые материалы могут быть " +
+                    "менее интересны вам, если вы отключите службы персонализации. " +
+                    "Отключить службы? Отключить Нет, спасибо",
+                ownerPackage = "com.mi.android.globalminusscreen",
+                stepPackages = listOf("com.android.settings"),
+                stepId = "sys_recommendations",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = emptyList(),
+                alertDialog = true
+            )
+            assertNull("чужой диалог не закрывается", action)
+        }
+    }
+
+    @Test
     fun `welcome wall is accepted with policy action`() = runTest {
         val node = wallScreen("Welcome to Themes Terms of Service", "Принять")
         Mockito.`when`(service.rootInActiveWindow).thenReturn(node)

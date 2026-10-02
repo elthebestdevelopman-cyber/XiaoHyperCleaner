@@ -3,7 +3,9 @@ package com.xiaohypercleaner.service
 import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.data.AdaptiveCatalog
 import com.xiaohypercleaner.data.SemanticCatalog
+import com.xiaohypercleaner.data.SimpleSteps
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -116,5 +118,75 @@ class SimpleRunnerMsaRevokeTest {
         val root = node(className = "android.widget.FrameLayout", children = arrayOf(message))
 
         assertNull(runner.findDialogConfirmButton(root, listOf("Отозвать")))
+    }
+
+    private fun msaStep() = SimpleSteps.Step(
+        id = "msa",
+        titleRu = "MSA",
+        titleEn = "MSA",
+        descRu = "Отзыв доступа msa.",
+        descEn = "Revoke msa access.",
+        intents = emptyList(),
+        searchTexts = listOf("msa"),
+        manualHintRu = "Настройки → Доступ к личным данным → msa.",
+        manualHintEn = "Settings → Access to personal data → msa.",
+        confirmTexts = listOf("Отозвать", "ОК"),
+        confirmWaitMs = 10_000L
+    )
+
+    @Test
+    fun `delayed confirm step asks for revoke before verifying`() = runTest {
+        // Регрессия rmupuud3s: диалог отсчёта msa перекрывает экран, тумблер исчез из
+        // дерева; правило честности verify («узла нет» при видимом confirm-тексте =
+        // провал) роняло шаг `verify_failed` ДО попытки отозвать. Порядок обязан быть
+        // «сначала подтверждение отзыва», а провал — `revoke_not_confirmed`.
+        val message = node(
+            text = "После отзыва разрешения приложение прекратит сбор данных. Отозвать разрешение?",
+            id = "android:id/message",
+            className = "android.widget.TextView"
+        )
+        val countdown = node(
+            text = "Отозвать (5 с)",
+            id = "android:id/button1",
+            className = "android.widget.TextView"
+        )
+        val root = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(message, countdown)
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        val result = runner.postToggleConfirm(msaStep(), listOf("msa"))
+
+        assertEquals(
+            "msa обязан провалиться как revoke_not_confirmed, а не verify_failed",
+            "revoke_not_confirmed",
+            result?.reason
+        )
+    }
+
+    @Test
+    fun `plain toggle step is not routed into the delayed revoke path`() = runTest {
+        // Не-DELAYED шаг не должен попадать в revoke-путь msa: его пост-тап путь
+        // остаётся прежним (подтверждение → verify) и завершается успешно.
+        val root = node(className = "android.widget.FrameLayout")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+        val plain = SimpleSteps.Step(
+            id = "__plain_probe__",
+            titleRu = "plain",
+            titleEn = "plain",
+            descRu = "plain",
+            descEn = "plain",
+            intents = emptyList(),
+            searchTexts = listOf("plain"),
+            manualHintRu = "",
+            manualHintEn = "",
+            confirmTexts = emptyList(),
+            confirmWaitMs = 0L
+        )
+
+        val result = runner.postToggleConfirm(plain, listOf("plain"))
+
+        assertNull("не-DELAYED шаг не уходит в revoke_not_confirmed", result)
     }
 }

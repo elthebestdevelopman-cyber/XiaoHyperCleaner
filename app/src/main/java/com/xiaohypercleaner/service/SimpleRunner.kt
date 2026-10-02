@@ -2213,39 +2213,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Диалог-заглушка MIUI сразу после тапа (Карусель обоев: «Нет, спасибо» / «Хорошо»):
         // отказ — часть шага, иначе тумблер остаётся включённым и шаг падает verify_failed.
         tapToggleDeclineIfNeeded(step)
-        // Диалог подтверждения появляется сразу после тапа («Отключение Ленты виджетов:
-        // Вы не сможете использовать Ленту виджетов… Отключить её?» — дамп owner_06).
-        // Подтверждаем ДО проверки состояния, иначе verify не видит переключения и шаг
-        // уходит в retry → verify_failed.
-        if (tapConfirmIfNeeded(step) == ConfirmOutcome.FAILED) {
-            return Result(false, "confirm_not_closed")
-        }
-        if (!verifySwitchState(step, mergedSearchTexts)) {
-            val retryRoot = service.rootInActiveWindow ?: return Result(false, "no_root_window")
-            val retryNode = findSwitchByText(retryRoot, mergedSearchTexts)
-            if (retryNode != null) tapNode(retryNode)
-            recycleNode(retryNode); recycleNode(retryRoot)
-            delay(600)
-            tapToggleDeclineIfNeeded(step)
-            if (tapConfirmIfNeeded(step) == ConfirmOutcome.FAILED) {
-                return Result(false, "confirm_not_closed")
-            }
-            if (!verifySwitchState(step, mergedSearchTexts)) return Result(false, "verify_failed")
-        }
-
-        // П.3: Подтверждение. Для DELAYED_CONFIRM (msa) кнопка включается только после
-        // отсчёта: ждём её, тапаем и подтверждаем фактический отзыв.
-        if (SemanticCatalog.sequenceKind(step.id) == SemanticCatalog.SequenceKind.DELAYED_CONFIRM) {
-            if (!confirmDelayedRevoke(step, confirmTextsFor(step), mergedSearchTexts)) {
-                return Result(false, "revoke_not_confirmed")
-            }
-        } else {
-            // Незакрытый после тапа диалог — провал шага, а не «почти получилось»:
-            // открытый диалог уносит следующий шаг в чужой экран.
-            if (tapConfirmIfNeeded(step) == ConfirmOutcome.FAILED) {
-                return Result(false, "confirm_not_closed")
-            }
-        }
+        postToggleConfirm(step, mergedSearchTexts)?.let { return it }
 
         // П.3: Дополнительные переключатели. В списке лежат переводы одной и той же строки
         // на все локали: поиск тумблера по отсутствующей на экране подписи — это полный
@@ -2290,6 +2258,54 @@ class SimpleRunner(private val service: AdbEnablerService) {
         )
         
         return Result(true, "toggled")
+    }
+
+    /**
+     * Пост-тап подтверждение переключения. Для DELAYED_CONFIRM (msa) диалог отсчёта
+     * перекрывает экран, тумблер исчезает из дерева, а правило честности verify
+     * («узла нет» при видимом confirm-тексте = провал) роняло шаг `verify_failed`
+     * ещё ДО попытки отозвать. Поэтому для msa сначала подтверждаем отзыв, и только
+     * его провал — `revoke_not_confirmed` (прогон rmupuud3s). Для остальных шагов
+     * порядок прежний: подтверждение → verify (+один retry) → финальное подтверждение.
+     * Возвращает null, если шаг можно продолжать (extra targets).
+     */
+    internal suspend fun postToggleConfirm(
+        step: SimpleSteps.Step,
+        texts: List<String>
+    ): Result? {
+        if (SemanticCatalog.sequenceKind(step.id) == SemanticCatalog.SequenceKind.DELAYED_CONFIRM) {
+            // msa: кнопка отзыва активна только после отсчёта; verify внутри самого
+            // подтверждения (по состоянию тумблера ИЛИ по закрытию диалога).
+            if (!confirmDelayedRevoke(step, confirmTextsFor(step), texts)) {
+                return Result(false, "revoke_not_confirmed")
+            }
+            return null
+        }
+        // Диалог подтверждения появляется сразу после тапа («Отключение Ленты виджетов:
+        // Вы не сможете использовать Ленту виджетов… Отключить её?» — дамп owner_06).
+        // Подтверждаем ДО проверки состояния, иначе verify не видит переключения и шаг
+        // уходит в retry → verify_failed.
+        if (tapConfirmIfNeeded(step) == ConfirmOutcome.FAILED) {
+            return Result(false, "confirm_not_closed")
+        }
+        if (!verifySwitchState(step, texts)) {
+            val retryRoot = service.rootInActiveWindow ?: return Result(false, "no_root_window")
+            val retryNode = findSwitchByText(retryRoot, texts)
+            if (retryNode != null) tapNode(retryNode)
+            recycleNode(retryNode); recycleNode(retryRoot)
+            delay(600)
+            tapToggleDeclineIfNeeded(step)
+            if (tapConfirmIfNeeded(step) == ConfirmOutcome.FAILED) {
+                return Result(false, "confirm_not_closed")
+            }
+            if (!verifySwitchState(step, texts)) return Result(false, "verify_failed")
+        }
+        // Незакрытый после тапа диалог — провал шага, а не «почти получилось»:
+        // открытый диалог уносит следующий шаг в чужой экран.
+        if (tapConfirmIfNeeded(step) == ConfirmOutcome.FAILED) {
+            return Result(false, "confirm_not_closed")
+        }
+        return null
     }
 
     /**
