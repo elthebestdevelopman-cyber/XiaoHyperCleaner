@@ -162,4 +162,25 @@ class PlanBuilderTest {
             )
         )
     }
+
+    @Test
+    fun `carousel is excluded when fashiongallery is absent`() {
+        // R2-3: карусель обоев живёт в com.miui.android.fashiongallery. Без пакета
+        // экрана на устройстве нет: шаг не должен попадать в план (прогон rmupuzwh1 —
+        // маршрут падал ActivityNotFound и «подтверждался» на чужом экране Настроек).
+        val plan = PlanBuilder.build(context, profile).map { it.id }
+
+        assertFalse("без fashiongallery карусели на устройстве нет", plan.contains("carousel"))
+    }
+
+    @Test
+    fun `carousel stays in plan when fashiongallery is installed`() {
+        // Обратная сторона гейта: имя пакета в каталоге обязано совпадать с реальным,
+        // иначе шаг молча выпадет из плана на живом устройстве.
+        install("com.miui.android.fashiongallery")
+
+        val plan = PlanBuilder.build(context, profile).map { it.id }
+
+        assertTrue("с установленным fashiongallery шаг остаётся в плане", plan.contains("carousel"))
+    }
 }

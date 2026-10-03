@@ -185,6 +185,12 @@ object SemanticCatalog {
          * «Основные настройки», «Браузер по умолчанию»). Пусто — маркеры шага.
          */
         val confirmMarkers: List<String> = emptyList(),
+        /**
+         * Пакеты-владельцы экрана после intent-шага: окно обязано быть в одном из них
+         * (R2-2: главный экран Безопасности содержит те же слова, что Очистка, и
+         * «подтверждал» чужой экран). Пусто — пакет не проверяется.
+         */
+        val confirmPackage: List<String> = emptyList(),
         /** Одна прокрутка вниз перед следующим шагом. */
         val scroll: Boolean = false,
         /** Пауза после действия. */
@@ -834,6 +840,7 @@ object SemanticCatalog {
             fallbackDesc = o.optString("fallbackDesc").takeIf { it.isNotEmpty() },
                     fallbackIntent = o.optString("fallbackIntent").takeIf { it.isNotEmpty() },
                     confirmMarkers = parseStringArray(o.optJSONArray("confirmMarkers")),
+                    confirmPackage = parseStringArray(o.optJSONArray("confirmPackage")),
                     scroll = o.optBoolean("scroll", false),
                     waitMs = o.optLong("waitMs", 700L).coerceIn(0L, 5_000L)
                 )

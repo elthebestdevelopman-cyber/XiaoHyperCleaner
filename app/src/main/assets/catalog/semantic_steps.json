@@ -461,7 +461,7 @@
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
           "route": [
-            { "intent": "com.miui.securitycenter/com.miui.appmanager.AppManagerMainActivity", "waitMs": 2500 },
+            { "intent": "com.miui.securitycenter/com.miui.appmanager.AppManagerMainActivity", "waitMs": 2500, "confirmPackage": ["com.miui.securitycenter"], "confirmMarkers": ["Сортировка по имени приложения"] },
             { "tapDesc": "Еще", "waitMs": 1000 },
             { "tapText": "Настройки", "waitMs": 1000 }
           ],
@@ -987,7 +987,7 @@
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
           "route": [
-            { "intent": "com.miui.android.fashiongallery/com.miui.cw.feature.ui.setting.SettingActivity", "waitMs": 3000 }
+            { "intent": "com.miui.android.fashiongallery/com.miui.cw.feature.ui.setting.SettingActivity", "waitMs": 3000, "confirmPackage": ["com.miui.android.fashiongallery"], "confirmMarkers": ["Карусель обоев", "Настройки экрана блокировки"] }
           ],
           "drillPath": [
             ["Блокировка экрана", "Lock screen"],
@@ -1142,12 +1142,15 @@
         "hi",
         "pt",
         "id"
+      ],
+      "requiredPackages": [
+        "com.miui.android.fashiongallery"
       ]
     },
     {
       "id": "google_diagnostics",
       "route": [
-        { "intent": "android.settings.PRIVACY_SETTINGS", "waitMs": 2500 },
+        { "intent": "android.settings.PRIVACY_SETTINGS", "waitMs": 2500, "confirmPackage": ["com.android.settings"], "confirmMarkers": ["Панель управления доступом"] },
         { "tapText": "Использование и диагностика", "waitMs": 1500 }
       ],
       "title": {
@@ -1887,11 +1890,14 @@
           "id": "miui12_14",
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
+          "route": [
+            { "intent": "com.miui.cleaner/com.miui.optimizecenter.settings.SettingsActivity", "waitMs": 2500, "confirmPackage": ["com.miui.cleaner"], "confirmMarkers": ["Настройки очистки", "РЕКОМЕНДАЦИИ"] }
+          ],
           "drillPath": [
             ["Очистка", "Cleaner", "清理", "Cleanup"],
             ["⚙", "⚙️", "Настройки", "Settings", "设置"]
           ],
-          "screenMarkers": { "ru": ["Очистка", "Настройки", "НАПОМИНАНИЯ ОБ ОЧИСТКЕ", "Расписание проверки", "РЕКОМЕНДАЦИИ", "Загружать только по Wi-Fi"], "en": ["Cleaner", "Settings", "RECOMMENDATIONS", "Download only over Wi-Fi"], "zh": ["清理"] },
+          "screenMarkers": { "ru": ["Настройки очистки", "НАПОМИНАНИЯ ОБ ОЧИСТКЕ", "Расписание проверки", "РЕКОМЕНДАЦИИ"], "en": ["Cleaner", "Settings", "RECOMMENDATIONS", "Download only over Wi-Fi"], "zh": ["清理"] },
           "itemTexts": {
             "ru": ["Получать рекомендации"],
             "en": ["Receive recommendations"],
@@ -2668,7 +2674,7 @@
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
           "route": [
-            { "intent": "com.mi.android.globalFileexplorer/com.android.fileexplorer.FileExplorerTabActivity", "waitMs": 3000 },
+            { "intent": "com.mi.android.globalFileexplorer/com.android.fileexplorer.FileExplorerTabActivity", "waitMs": 3000, "confirmPackage": ["com.mi.android.globalFileexplorer"], "confirmMarkers": ["Недавние", "Память", "Поиск"] },
             { "tapId": "more_action_btn", "fallbackDesc": "Еще", "waitMs": 600 },
             { "tapText": "Настройки", "waitMs": 1000 },
             { "tapText": "Информация", "waitMs": 1000 }

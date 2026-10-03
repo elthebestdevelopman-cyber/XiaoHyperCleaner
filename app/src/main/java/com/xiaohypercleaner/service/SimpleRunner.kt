@@ -742,15 +742,21 @@ class SimpleRunner(private val service: AdbEnablerService) {
             return toggleInstallerRecommendations(step)
         }
 
-        // RouteScript: явный сценарий маршрута, проверенный руками на этой прошивке,
-        // ПОЛНОСТЬЮ заменяет авто-навигацию (intents + drill + merge + guard'ы) —
-        // именно те механизмы, которые уводили шаг «не туда». Тумблер после сценария
-        // ищется обычным механизмом (гейт уверенности + checked_before + verify).
+        // RouteScript: явный сценарий маршрута, проверенный руками на этой прошивке, —
+        // БЫСТРАЯ ПОДСКАЗКА (3–5 с), а не замена навигации. Дошёл до целевого экрана —
+        // тумблер ищет общий хвост шага (гейт уверенности + checked_before + verify);
+        // не дошёл — шаг продолжает авто-навигацией (intents → drill → сканер):
+        // вариантные пути обязаны оставаться подсказками-фолбэками (master-task v2).
         val routeScript = SemanticCatalog.route(step.id)
         if (routeScript.isNotEmpty()) {
-            AppLog.i(TAG, "route script for ${step.id}: ${routeScript.size} шаг(ов) — авто-навигация отключена")
+            AppLog.i(TAG, "route script for ${step.id}: ${routeScript.size} шаг(ов) — подсказка, не замена навигации")
             StepDiagnostics.note(step.id, "ROUTE", "script=${routeScript.size}")
-            return executeRouteScript(step, routeScript)
+            if (executeRouteScript(step, routeScript)) {
+                runPreMainExtras(step)
+                return findAndToggleSwitch(step)
+            }
+            AppLog.w(TAG, "route ${step.id} failed — fallback to auto-nav")
+            StepDiagnostics.note(step.id, "ROUTE", "fallback_to_auto_nav")
         }
 
         // Резолвинг пакета: вариантный каталог + семантическая таблица (visibility-aware).
@@ -3811,16 +3817,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     /**
      * Исполняет явный сценарий маршрута шага: интенты и тапы ровно в заданном порядке
-     * (без merge-логики и без guard'ов «корень Настроек»/«чужой экран»), затем обычный
-     * поиск тумблера. Что проверено руками на прошивке — то робот и делает.
+     * (без merge-логики и без guard'ов «корень Настроек»/«чужой экран»). Возвращает
+     * true, если маршрут дошёл до целевого экрана — тумблер ищет общий хвост шага;
+     * false — вызывающий продолжает авто-навигацией (маршрут = подсказка).
      */
-    private suspend fun executeRouteScript(
+    internal suspend fun executeRouteScript(
         step: SimpleSteps.Step,
         route: List<SemanticCatalog.RouteItem>
-    ): Result {
+    ): Boolean {
         for ((index, item) in route.withIndex()) {
-            if (cancelled) return Result(false, "cancelled")
-            if (!awaitOverlayReadyOrPause()) return Result(false, "overlay_lost")
+            if (cancelled) return false
+            if (!awaitOverlayReadyOrPause()) return false
             // Промо-диалог может всплыть ПОСРЕДИ маршрута (Проводник: «Новая функция
             // Доступна темная тема!» встала между 1/4 и 2/4 и перекрыла дерево —
             // прогон rmuod5cmm: route 2/4 more_action_btn ok=false без тапа).
@@ -3875,6 +3882,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     if (retried) " retry=true" else "" +
                         if (fallbackOk) " fallback=desc" else ""
             )
+            // R2-2: intent-шаг обязан открыться. Не открылся (ActivityNotFound на чужой
+            // сборке: карусель без fashiongallery) — на чужом экране тумблер не ищем:
+            // маршрут честно отдаёт false, вызывающий уходит в авто-навигацию.
+            if (item.intent != null && !resolvedOk) {
+                AppLog.w(
+                    TAG,
+                    "route ${step.id}: ${index + 1}/${route.size} intent failed '$what' — fallback to auto-nav"
+                )
+                StepDiagnostics.note(step.id, "ROUTE", "intent_failed what='$what'")
+                return false
+            }
             delay(item.waitMs)
             // Поверх маршрута встаёт стена первого запуска (Проводник: «Добро пожаловать
             // в Проводник» перекрывает «Еще» → «Настройки» → «Информация»; Mi Браузер:
@@ -3887,46 +3905,21 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 AppLog.i(TAG, "route ${step.id}: consent walls handled=$walls before next action")
                 delay(UI_SETTLE_DELAY_MS)
             }
-            // D1: intent-шаг обязан ПОДТВЕРДИТЬ целевой экран маркерами (браузер открывал
-            // домашнюю ленту, scroll шёл по ленте, «Дополнительные настройки» не находились
-            // → low_confidence). Не подтвердилось — один relaunch (компонента, затем
-            // запасное действие из каталога), иначе честный skip: тумблер на чужом экране
-            // не ищем (прогон rmuojptft).
-            if (item.intent != null) {
-                if (awaitRouteScreen(step, item)) {
-                    AppLog.i(TAG, "route ${step.id}: ${index + 1}/${route.size} screen confirmed")
-                } else {
-                    AppLog.w(
-                        TAG,
-                        "route ${step.id}: ${index + 1}/${route.size} screen unconfirmed — relaunch"
-                    )
-                    StepDiagnostics.note(step.id, "ROUTE", "screen_unconfirmed what='$what'")
-                    relaunchRouteIntent(item)
-                    if (awaitRouteScreen(step, item, ROUTE_SCREEN_RETRY_WAIT_MS)) {
-                        AppLog.i(
-                            TAG,
-                            "route ${step.id}: ${index + 1}/${route.size} screen confirmed after relaunch"
-                        )
-                    } else {
-                        AppLog.w(
-                            TAG,
-                            "route ${step.id}: screen unconfirmed after relaunch — " +
-                                "skip step without touching a foreign screen"
-                        )
-                        StepDiagnostics.note(step.id, "ROUTE", "screen_unconfirmed after_relaunch")
-                        return Result(false, ROUTE_SCREEN_UNCONFIRMED)
-                    }
-                }
-            }
+            // D1/R2-2: intent-шаг обязан ПОДТВЕРДИТЬ целевой экран пакетом-владельцем и
+            // маркерами (браузер открывал домашнюю ленту; карусель «подтверждалась» на
+            // чужом экране Настроек). Не подтвердилось после одного relaunch — маршрут
+            // отдаёт false: тумблер на чужом экране не ищем, шаг идёт авто-навигацией.
+            if (item.intent != null && !confirmRouteIntentScreen(step, item)) return false
         }
-        runPreMainExtras(step)
-        return findAndToggleSwitch(step)
+        return true
     }
 
     /**
-     * Подтверждение экрана после intent-шага маршрута (D1). Маркеры приходят из каталога
-     * (`confirmMarkers` — строки экрана, снятые с устройства), иначе берутся маркеры шага.
-     * Пустой набор маркеров подтверждения не требует.
+     * Подтверждение экрана после intent-шага маршрута (D1/R2-2): маркеры из каталога
+     * (`confirmMarkers`, иначе маркеры шага) И, если задан, `confirmPackage` — пакет
+     * окна. Пакет проверяется ВМЕСТЕ с маркерами в одном поллинге: после интента окно
+     * меняется не мгновенно, разовая проверка давала ложный провал на живом устройстве.
+     * Пустые наборы подтверждения не требуют.
      */
     internal suspend fun awaitRouteScreen(
         step: SimpleSteps.Step,
@@ -3934,18 +3927,57 @@ class SimpleRunner(private val service: AdbEnablerService) {
         timeoutMs: Long = ROUTE_SCREEN_WAIT_MS
     ): Boolean {
         val markers = item.confirmMarkers.ifEmpty { SemanticCatalog.screenMarkers(step.id) }
-        if (markers.isEmpty()) return true
+        val packages = item.confirmPackage
+        if (markers.isEmpty() && packages.isEmpty()) return true
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
-            val root = service.rootInActiveWindow
-            if (root != null) {
-                val text = collectAllText(root)
-                recycleNode(root)
-                if (markers.any { TextMatcher.normalizedContains(text, it) }) return true
-            }
+            if (routeScreenMatches(markers, packages)) return true
             if (cancelled) return false
             delay(ROUTE_SCREEN_POLL_MS)
         }
+        return false
+    }
+
+    /**
+     * Экран маршрута опознан: пакет окна ∈ `confirmPackage` (если задан) И маркеры
+     * (если заданы). Отдельный от [awaitRouteScreen] шаг нужен, чтобы оба условия
+     * читались из ОДНОГО снимка окна.
+     */
+    private fun routeScreenMatches(markers: List<String>, packages: List<String>): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val text = collectAllText(root)
+        val fg = root.packageName?.toString()
+        recycleNode(root)
+        val packageOk = packages.isEmpty() ||
+            packages.any { it.equals(fg, ignoreCase = true) }
+        val markersOk = markers.isEmpty() ||
+            markers.any { TextMatcher.normalizedContains(text, it) }
+        return packageOk && markersOk
+    }
+
+    /**
+     * Подтверждение экрана intent-шага маршрута с одной повторной попыткой (D1, R2-2):
+     * не подтвердилось — relaunch (компонента, затем запасное действие из каталога),
+     * иначе false: тумблер на чужом экране не ищем (прогон rmuojptft).
+     */
+    internal suspend fun confirmRouteIntentScreen(
+        step: SimpleSteps.Step,
+        item: SemanticCatalog.RouteItem
+    ): Boolean {
+        if (awaitRouteScreen(step, item)) return true
+        AppLog.w(TAG, "route ${step.id}: screen unconfirmed — relaunch")
+        StepDiagnostics.note(step.id, "ROUTE", "screen_unconfirmed")
+        relaunchRouteIntent(item)
+        if (awaitRouteScreen(step, item, ROUTE_SCREEN_RETRY_WAIT_MS)) {
+            AppLog.i(TAG, "route ${step.id}: screen confirmed after relaunch")
+            return true
+        }
+        AppLog.w(
+            TAG,
+            "route ${step.id}: screen unconfirmed after relaunch — fallback to auto-nav " +
+                "without touching a foreign screen"
+        )
+        StepDiagnostics.note(step.id, "ROUTE", "screen_unconfirmed after_relaunch")
         return false
     }
 

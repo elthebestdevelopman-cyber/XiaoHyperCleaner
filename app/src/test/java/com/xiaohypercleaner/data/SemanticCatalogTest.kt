@@ -561,4 +561,47 @@ class SemanticCatalogTest {
             Locale.setDefault(original)
         }
     }
+
+    @Test
+    fun `route item parses confirmPackage list`() {
+        // R2-2: пакет-владелец экрана после intent-шага маршрута (Google: экран
+        // «Конфиденциальность» — это Настройки, а не приложение шага).
+        val first = SemanticCatalog.route("google_diagnostics").first()
+
+        assertEquals(listOf("com.android.settings"), first.confirmPackage)
+    }
+
+    @Test
+    fun `route item confirmPackage absent defaults to empty`() {
+        // Тап-шаг маршрута подтверждается маркерами следующего экрана, а не пакетом.
+        val tap = SemanticCatalog.route("google_diagnostics")[1]
+
+        assertTrue("у тап-шага подтверждения пакетом нет", tap.confirmPackage.isEmpty())
+    }
+
+    @Test
+    fun `cleaner route targets its own package screen`() {
+        // R2-4: экран настроек Очистки живёт в СВОЁМ пакете (probe p_cleaner_comp,
+        // verdict OK). Заход через Безопасность читал чужой тумблер security_sys
+        // на главном экране Security (прогон rmupuzwh1).
+        SemanticCatalog.selectVariant(
+            RomProfile(
+                region = RomRegion.GLOBAL,
+                miuiVersion = "V130",
+                hyperOsHint = false,
+                isTablet = false,
+                family = RomFamily.MIUI,
+                uiVersion = "13"
+            )
+        )
+
+        val first = SemanticCatalog.route("cleaner").firstOrNull()
+
+        assertNotNull("у варианта miui12_14 маршрут Очистки объявлен", first)
+        assertEquals(
+            "com.miui.cleaner/com.miui.optimizecenter.settings.SettingsActivity",
+            first?.intent
+        )
+        assertEquals(listOf("com.miui.cleaner"), first?.confirmPackage)
+    }
 }
