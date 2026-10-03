@@ -1,7 +1,7 @@
 [versions]
 agp = "9.4.1"
 kotlin = "2.4.20"
-coreKtx = "1.19.0"
+coreKtx = "1.19.1"
 coreSplashscreen = "1.2.0"
 activityCompose = "1.13.0"
 composeBom = "2026.09.00"
@@ -13,7 +13,7 @@ shizuku = "13.1.5"
 junit = "4.13.2"
 robolectric = "4.17"
 androidxTestCore = "1.7.0"
-mockito = "5.23.0"
+mockito = "5.24.0"
 
 [libraries]
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
