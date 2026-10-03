@@ -3736,7 +3736,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
     ): AccessibilityNodeInfo? {
         root ?: return null
         val exact = NodeTree.findAllInTree(root, predicate = { node ->
-            node.isEnabled && isCountdownConfirmLabel(buttonLabel(node), texts)
+            // Только КНОПКА, не заголовок/сообщение диалога. MIUI-подпись
+            // «Отзыв разрешения» есть и в confirmTexts, и на заголовке диалога:
+            // прежний отбор брал заголовок, `clickableAncestorOrSelf` возвращал
+            // контейнер диалога (parentPanel) — тап уходил по пустому месту, отзыв
+            // не подтверждался (прогон rmusp726z: шаг msa → revoke_not_confirmed).
+            node.isEnabled &&
+                !isDialogMarkerNode(node, emptyList()) &&
+                (node.isClickable || isDialogButtonNode(node)) &&
+                isCountdownConfirmLabel(buttonLabel(node), texts)
         }).firstOrNull()
         if (exact != null) return clickableAncestorOrSelf(exact) ?: exact
         val byRole = NodeTree.findAllInTree(root, predicate = { node ->
@@ -3936,7 +3944,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
             // прогон rmuod5cmm: route 2/4 more_action_btn ok=false без тапа).
             handleConsentWalls(step)
             val ok = when {
-                item.intent != null -> startRouteIntent(item.intent)
+                item.intent != null -> startRouteIntent(
+                    item.intent,
+                    clearTop = isTargetAppForeground(item.intent)
+                )
                 item.scroll -> {
                     scrollDownOnce()
                     true
@@ -4127,8 +4138,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
         runExtraTargets(step, preTargets)
     }
 
-    /** Интент сценария: `pkg/Class` (явная компонента) либо action. */
-    private fun startRouteIntent(spec: String): Boolean = try {
+    /**
+     * Интент сценария: `pkg/Class` (явная компонента) либо action.
+     *
+     * [clearTop] добавляет `FLAG_ACTIVITY_CLEAR_TOP` — нужно, когда приложение шага
+     * уже открыто на вложенном экране: запуск корневой `TabSettingActivity` с
+     * `NEW_TASK` лишь выводит задачу поверх, и наверху остаётся прежний экран
+     * (`CardSettingsActivity`) — подтверждение маркеров не проходит, `appvault_about`
+     * уходил `not_applicable` (прогон rmusp726z). CLEAR_TOP закрывает экраны над целью.
+     */
+    private fun startRouteIntent(spec: String, clearTop: Boolean = false): Boolean = try {
         val intent = if (spec.contains('/')) {
             val pkg = spec.substringBefore('/')
             val cls = spec.substringAfter('/').let { if (it.startsWith(".")) pkg + it else it }
@@ -4137,11 +4156,26 @@ class SimpleRunner(private val service: AdbEnablerService) {
             Intent(spec)
         }
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (clearTop) intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         service.startActivity(intent)
         true
     } catch (e: Exception) {
         AppLog.w(TAG, "route intent failed: '$spec' — ${e.message}")
         false
+    }
+
+    /**
+     * Целевой пакет route-интента уже на переднем плане: запуск с `NEW_TASK`
+     * только выведет его задачу поверх, нужная activity не поднимется — поэтому
+     * для такого случая маршрут запускается с `CLEAR_TOP`.
+     */
+    private fun isTargetAppForeground(spec: String): Boolean {
+        if (!spec.contains('/')) return false
+        val pkg = spec.substringBefore('/')
+        val root = service.rootInActiveWindow ?: return false
+        val fg = root.packageName?.toString()
+        recycleNode(root)
+        return pkg == fg
     }
 
     /**

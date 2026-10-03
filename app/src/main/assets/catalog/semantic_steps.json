@@ -462,7 +462,7 @@
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
           "route": [
-            { "intent": "com.miui.securitycenter/com.miui.appmanager.AppManagerMainActivity", "waitMs": 2500, "confirmPackage": ["com.miui.securitycenter"], "confirmMarkers": ["Сортировка по имени приложения"] },
+            { "intent": "com.miui.securitycenter/com.miui.appmanager.AppManagerMainActivity", "waitMs": 2500, "confirmPackage": ["com.miui.securitycenter"], "confirmMarkers": ["Управление приложениями", "Сортировка по имени приложения", "По имени приложения"] },
             { "tapDesc": "Еще", "waitMs": 1000 },
             { "tapText": "Настройки", "waitMs": 1000 }
           ],

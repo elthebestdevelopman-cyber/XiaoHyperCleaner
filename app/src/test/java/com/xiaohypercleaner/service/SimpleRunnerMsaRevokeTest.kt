@@ -189,4 +189,40 @@ class SimpleRunnerMsaRevokeTest {
 
         assertNull("не-DELAYED шаг не уходит в revoke_not_confirmed", result)
     }
+
+    @Test
+    fun `dialog title matching a confirm text is not chosen instead of the button`() {
+        // Прогон rmusp726z: в confirmTexts msa есть ЗАГОЛОВОК «Отзыв разрешения»,
+        // и прежний отбор брал именно его; кликабельный предок заголовка — контейнер
+        // диалога (parentPanel), тап уходил по пустому месту и отзыв не подтверждался.
+        val title = node(
+            text = "Отзыв разрешения",
+            id = "android:id/alertTitle",
+            className = "android.widget.TextView"
+        )
+        val message = node(
+            text = "После отзыва разрешения приложение прекратит сбор данных. Отозвать разрешение?",
+            id = "android:id/message",
+            className = "android.widget.TextView"
+        )
+        val revoke = node(
+            text = "Отозвать",
+            id = "android:id/button1",
+            className = "android.widget.Button",
+            clickable = true
+        )
+        val root = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(title, message, revoke)
+        )
+
+        val found = runner.findDialogConfirmButton(
+            root, listOf("Отозвать", "ОК", "Отзыв разрешения")
+        )
+
+        assertTrue(
+            "должна выбираться кнопка «Отозвать», а не заголовок диалога",
+            found === revoke
+        )
+    }
 }
