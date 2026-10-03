@@ -142,13 +142,13 @@
         "id": "Pemindaian saat memasang"
       },
       "body": {
-        "ru": "При установке из стора откройте окно проверки → шестерёнка справа вверху → отключите «Получать рекомендации» (HyperOS 2/3 — раздел «Расширенные настройки»).",
-        "en": "When installing from a store open the scan window → gear at the top right → turn off \"Receive recommendations\" (HyperOS 2/3: \"Advanced settings\").",
-        "es": "Al instalar desde una tienda abra la ventana de análisis → engranaje arriba a la derecha → desactive \"Recibir recomendaciones\".",
-        "zh": "从应用商店安装时打开扫描窗口 → 右上角齿轮 → 关闭“接收推荐”。",
-        "hi": "स्टोर से इंस्टॉल करते समय स्कैन विंडो खोलें → ऊपर दाएँ गियर → “सिफ़ारिशें प्राप्त करें” बंद करें।",
-        "pt": "Ao instalar de uma loja abra a janela de verificação → engrenagem no topo à direita → desative \"Receber recomendações\".",
-        "id": "Saat memasang dari toko buka jendela pemindaian → ikon roda di kanan atas → matikan \"Terima rekomendasi\"."
+        "ru": "При установке приложения (из стора или по APK-файлу) откройте окно проверки → шестерёнка справа вверху → раздел «Расширенные настройки» → отключите «Получать рекомендации» (включено по умолчанию; окно есть только во время установки).",
+        "en": "When installing an app (from a store or an APK file) open the scan window → gear at the top right → \"Advanced settings\" section → turn off \"Receive recommendations\" (on by default; the window exists only during an install).",
+        "es": "Al instalar una app (desde una tienda o un archivo APK) abra la ventana de análisis → engranaje arriba a la derecha → sección \"Configuración avanzada\" → desactive \"Recibir recomendaciones\" (activado por defecto; la ventana solo existe durante la instalación).",
+        "zh": "安装应用时（从应用商店或 APK 文件）打开扫描窗口 → 右上角齿轮 → “高级设置” → 关闭“接收推荐”（默认开启；该窗口仅在安装过程中出现）。",
+        "hi": "ऐप इंस्टॉल करते समय (स्टोर से या APK फ़ाइल से) स्कैन विंडो खोलें → ऊपर दाएँ गियर → “उन्नत सेटिंग्स” → “सिफ़ारिशें प्राप्त करें” बंद करें (डिफ़ॉल्ट रूप से चालू; यह विंडो केवल इंस्टॉल के दौरान ही मिलती है)।",
+        "pt": "Ao instalar um app (de uma loja ou de um arquivo APK) abra a janela de verificação → engrenagem no topo à direita → seção \"Configurações avançadas\" → desative \"Receber recomendações\" (ativado por padrão; a janela só existe durante a instalação).",
+        "id": "Saat memasang aplikasi (dari toko atau berkas APK) buka jendela pemindaian → ikon roda di kanan atas → “Pengaturan lanjutan” → matikan “Terima rekomendasi” (aktif secara bawaan; jendela ini hanya ada saat pemasangan)."
       }
     },
     {

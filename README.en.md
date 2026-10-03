@@ -177,7 +177,7 @@ opens on the result screen by tapping "For the best result, do manually":
 
 | Item | What to do |
 |---|---|
-| App scan on install | When installing from a store open the scan window → gear at the top right → turn off "Receive recommendations" (HyperOS 2/3: "Advanced settings"). |
+| App scan on install | When installing an app (from a store or an APK file) open the scan window → gear at the top right → "Advanced settings" section → turn off "Receive recommendations" (on by default; the window exists only during an install). |
 | Search in HyperOS 3 | Swipe up for search → three dots next to the search field → "Settings" → turn off "App recommendations". |
 | HyperOS 3: wallpaper carousel service ⚠ | If lock-screen captions remain: Settings → Apps → All apps → "Wallpaper Carousel" → "Disable". It is a system app — disable consciously. |
 | Changing device region ⚠ | Changing the region erases some data and changes the set of system apps. We never do this automatically — only manually, consciously. |

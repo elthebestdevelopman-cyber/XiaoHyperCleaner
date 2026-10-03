@@ -982,10 +982,12 @@ object SimpleSteps {
                 "Получать рекомендации", "Receive recommendations",
                 "Расширенные настройки", "Advanced settings"
             ),
-            manualHintRu = "При установке из стора откройте окно проверки → шестерёнка справа вверху → " +
-                "отключите «Получать рекомендации» (HyperOS 2/3 — раздел «Расширенные настройки»).",
-            manualHintEn = "When installing from a store open the scan window → gear at the top right → " +
-                "turn off \"Receive recommendations\" (HyperOS 2/3: \"Advanced settings\").",
+            manualHintRu = "При установке приложения (из стора или по APK-файлу) откройте окно проверки → " +
+                "шестерёнка справа вверху → раздел «Расширенные настройки» → отключите «Получать рекомендации» " +
+                "(включено по умолчанию; окно есть только во время установки).",
+            manualHintEn = "When installing an app (from a store or an APK file) open the scan window → gear at " +
+                "the top right → \"Advanced settings\" section → turn off \"Receive recommendations\" " +
+                "(on by default; the window exists only during an install).",
             requiredPackages = listOf(
                 "com.miui.packageinstaller",
                 "com.google.android.packageinstaller",
