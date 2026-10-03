@@ -148,6 +148,35 @@ class SimpleRunnerMsaResumeTest {
     }
 
     @Test
+    fun `revoke is not confirmed while the progress dialog is still on screen`() = runTest {
+        // rmuslthv7: после тапа «Отозвать» MIUI показывает прогресс «Отзыв разрешения…»;
+        // строка msa исчезла из дерева, и шаг объявлял успех через 480 мс, оставив
+        // прогресс открытым — следующий шаг (sys_recommendations) ушёл в timeout.
+        val revoke = node(
+            text = "Отозвать",
+            className = "android.widget.Button",
+            clickable = true,
+            enabled = true
+        )
+        Mockito.`when`(revoke.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true)
+        val dialogRoot = node(className = "android.widget.FrameLayout", children = arrayOf(revoke))
+        val progressRoot = node(text = "Отзыв разрешения…")
+        Mockito.`when`(service.rootInActiveWindow)
+            .thenReturn(dialogRoot, progressRoot, progressRoot, progressRoot, progressRoot)
+
+        val confirmed = runner.confirmDelayedRevoke(
+            msaStep(),
+            listOf("Отозвать", "ОК", "Отзыв разрешения"),
+            listOf("msa")
+        )
+
+        assertFalse(
+            "прогресс на экране — отзыв не подтверждён, шаг обязан отдать fail",
+            confirmed
+        )
+    }
+
+    @Test
     fun `msa revoke is confirmed after countdown button and settle pause`() = runTest {
         val revoke = node(text = "Отозвать", clickable = true, enabled = true)
         Mockito.`when`(revoke.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true)

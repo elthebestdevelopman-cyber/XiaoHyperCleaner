@@ -157,6 +157,21 @@ class SimpleRunner(private val service: AdbEnablerService) {
         /** Долгий тап: контекстное меню папки (HyperOS 2/3 → «Изменить папку»). */
         private const val LONG_PRESS_MS = 800L
 
+        /**
+         * Кнопки, которых НЕ должно быть на экране, когда «тумблер исчез из дерева»
+         * объявляется успехом: диалог перекрывает экран, и исчезновение узла — это
+         * перекрытие, а не применённая настройка (прогон rmuslthv7: msa подтверждался
+         * через 480 мс с открытым прогрессом, carousel — с открытым диалогом).
+         * Список намеренно узкий: только однозначные негативные кнопки, без «ОК»/«Отключить»,
+         * которые бывают и обычными строками настроек.
+         */
+        private val DIALOG_ACTION_TEXTS =
+            listOf("Нет, спасибо", "Отмена", "Cancel", "Отклонить")
+
+        /** Негативные кнопки для закрытия оставшегося диалога шага (при провале). */
+        private val DIALOG_NEGATIVE_TEXTS =
+            listOf("Отмена", "Cancel", "Нет, спасибо", "No", "Отклонить", "Закрыть", "Close")
+
         /** Пауза после открытия папки: поповер анимируется. */
         private const val FOLDER_OPEN_DELAY_MS = 500L
 
@@ -210,8 +225,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         /** Отсчётный хвост кнопки MIUI: «(9 с)», «(9s)», «(9)» — кнопка ещё неактивна. */
         private val COUNTDOWN_LABEL_REGEX = Regex("\\(\\s*\\d+\\s*(с|s)?\\s*\\)")
-        /** Потолок ожидания фактического отзыва после тапа подтверждения. */
-        private const val MSA_REVOKE_SETTLE_MAX_MS = 8_000L
+        /** Потолок ожидания фактического отзыва после тапа подтверждения: MIUI держит
+         *  прогресс «Отзыв разрешения…» дольше короткой паузы, а завершать шаг с открытым
+         *  диалогом нельзя — он уносит следующий шаг (прогон rmuslthv7). */
+        private const val MSA_REVOKE_SETTLE_MAX_MS = 12_000L
 
         /** Фолбэк-действие варианта: очистка данных + отклонение приветствия. */
         private const val FALLBACK_ACTION_CLEAR_DATA = "clear_data_decline"
@@ -1715,8 +1732,34 @@ class SimpleRunner(private val service: AdbEnablerService) {
             AppLog.i(TAG, "msa: revoke confirmed step=${step.id}")
         } else {
             AppLog.w(TAG, "msa: revoke NOT confirmed step=${step.id} dialogGone=$dialogGone")
+            // Незавершённое действие не должно утекать в следующий шаг: прогресс
+            // «Отзыв разрешения…» перекрывал старт sys_recommendations и шаг уходил
+            // в timeout (прогон rmuslthv7).
+            closeLeftoverDialog(step)
         }
         return confirmed
+    }
+
+    /**
+     * Закрывает оставшийся диалог шага: негативная кнопка, иначе системный BACK.
+     * Открытый диалог уносит следующий шаг в чужой экран — гасим его сами.
+     */
+    private suspend fun closeLeftoverDialog(step: SimpleSteps.Step) {
+        val root = service.rootInActiveWindow
+        val node = root?.let { findClickableByText(it, DIALOG_NEGATIVE_TEXTS) }
+        if (root != null) recycleNode(root)
+        if (node != null) {
+            val label = buttonLabel(node)
+            val tapped = tapNode(node)
+            recycleNode(node)
+            AppLog.i(TAG, "leftover dialog: tapped '$label' ok=$tapped step=${step.id}")
+            if (tapped) {
+                delay(CONFIRM_SETTLE_MS)
+                return
+            }
+        }
+        AppLog.w(TAG, "leftover dialog: negative button not found — BACK step=${step.id}")
+        pressBack()
     }
 
     /**
@@ -2507,7 +2550,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return ConfirmOutcome.FAILED
     }
 
-    private suspend fun verifySwitchState(step: SimpleSteps.Step, texts: List<String>): Boolean {
+    // internal — для тестируемости (SimpleRunnerVerifyTest).
+    internal suspend fun verifySwitchState(step: SimpleSteps.Step, texts: List<String>): Boolean {
         // MIUI применяет состояние не мгновенно (App Vault: тумблер отрисовался
         // включённым ещё мгновение после тапа — шаг рапортовал verify_failed, прогон
         // rmuh2vb1r): читаем состояние повторно, без дополнительных тапов.
@@ -2531,13 +2575,27 @@ class SimpleRunner(private val service: AdbEnablerService) {
             val result = when {
                 actual != null -> actual == step.targetChecked
                 else -> {
-                    val confirmVisible = confirmTextsFor(step).any { text ->
-                        TextMatcher.normalizedContains(NodeTree.collectText(root), text)
-                    }
-                    val vanished = !confirmVisible
+                    val screenText = NodeTree.collectText(root)
+                    // Признаки ОТКРЫТОГО диалога: свой confirm шага, его кнопка-отказ и
+                    // стандартные негативные кнопки. Диалог перекрывает экран — значит
+                    // исчезновение узла это перекрытие, а не применённая настройка
+                    // (прогон rmuslthv7: msa «подтверждался» через 480 мс с открытым
+                    // прогрессом, carousel — с диалогом «Выключить карусель…?»).
+                    val dialogTexts =
+                        confirmTextsFor(step) + SemanticCatalog.toggleDeclineTexts(step.id)
+                    val dialogVisible = dialogTexts.any {
+                        TextMatcher.normalizedContains(screenText, it)
+                    } || DIALOG_ACTION_TEXTS.any { TextMatcher.normalizedContains(screenText, it) }
+                    // Экран подтверждаем маркерами шага: без них «узел исчез» читается
+                    // на чужом экране (та же логика, что в lateVerify).
+                    val markers = SemanticCatalog.screenMarkers(step.id)
+                    val markersOk = markers.isEmpty() ||
+                        markers.any { TextMatcher.normalizedContains(screenText, it) }
+                    val vanished = !dialogVisible && markersOk
                     AppLog.i(
                         TAG,
-                        "verify: switch node gone row_vanished=$vanished step=${step.id}"
+                        "verify: switch node gone row_vanished=$vanished dialog=$dialogVisible " +
+                            "markers=$markersOk step=${step.id}"
                     )
                     vanished
                 }

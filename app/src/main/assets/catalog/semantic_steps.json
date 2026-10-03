@@ -403,7 +403,8 @@
       "confirmTexts": {
         "ru": [
           "Отозвать",
-          "ОК"
+          "ОК",
+          "Отзыв разрешения"
         ],
         "en": [
           "Revoke",
@@ -1001,6 +1002,9 @@
           "toggleDeclineTexts": {
             "ru": ["Отмена"],
             "en": ["Cancel"]
+          },
+          "confirmTexts": {
+            "ru": ["Выключить"]
           },
           "extraTargets": [
             {
