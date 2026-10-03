@@ -2062,7 +2062,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
         step.id == "home_suggestions"
 
     // ─── Switch finding and toggling ──────────────────────────────────────
-    private suspend fun findAndToggleSwitch(step: SimpleSteps.Step): Result {
+    // internal — для тестируемости (SimpleRunnerDialogActionTest).
+    internal suspend fun findAndToggleSwitch(step: SimpleSteps.Step): Result {
         val mergedSearchTexts = searchTextsFor(step)
         if (mergedSearchTexts.isEmpty()) return Result(false, "no_switch")
 
@@ -2131,6 +2132,19 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     )
                     break
                 }
+            }
+        }
+
+        // Свой диалог подтверждения ВМЕСТО тумблера — действие шага (appvault_about:
+        // строка «О ленте виджетов» открывает «Отключить службы?» → «Отключить»;
+        // приёмочный прогон rmuojptft). Проверяем ДО гейта: тумблера на экране нет
+        // вовсе, и гейт без действия шага честно отдал бы `low_confidence`
+        // (прогон rmuslthv7: appvault_about → not_applicable).
+        if (switchNode == null) {
+            val ownDialog = ownDialogAction(step)
+            if (ownDialog != null) {
+                recycleNode(currentRoot)
+                return ownDialog
             }
         }
 
@@ -2363,6 +2377,37 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * и обрабатывает подтверждение. Вызывается только когда тумблер не найден
      * и настроены tapFallbackTexts.
      */
+    /**
+     * Свой диалог подтверждения вместо тумблера — действие шага (appvault_about:
+     * «О ленте виджетов» → «Отключить службы?» → «Отключить»). Возвращает результат,
+     * если диалог найден на СВОЁМ экране (маркеры шага) и обработан; иначе null —
+     * вызывающий идёт обычным путём. Чужой диалог с теми же словами не трогаем.
+     */
+    private suspend fun ownDialogAction(step: SimpleSteps.Step): Result? {
+        val confirmTexts = confirmTextsFor(step)
+        if (confirmTexts.isEmpty()) return null
+        val root = service.rootInActiveWindow ?: return null
+        val screenText = ComponentVerifier.screenText(root)
+        val dialogButton = findDialogConfirmButton(root, confirmTexts)
+        recycleNode(dialogButton); recycleNode(root)
+        if (dialogButton == null) return null
+        val markers = SemanticCatalog.screenMarkers(step.id)
+        if (markers.isNotEmpty() &&
+            markers.none { TextMatcher.normalizedContains(screenText, it) }
+        ) {
+            AppLog.w(TAG, "step ${step.id}: own confirm dialog on a foreign screen — not our action")
+            return null
+        }
+        when (tapConfirmIfNeeded(step, confirmTexts)) {
+            ConfirmOutcome.FAILED -> return Result(false, "confirm_not_closed")
+            ConfirmOutcome.ABSENT -> return null
+            ConfirmOutcome.CLOSED -> Unit
+        }
+        AppLog.i(TAG, "step ${step.id}: own confirm dialog confirmed — step action done")
+        StepDiagnostics.note(step.id, "VERDICT", "toggled via_dialog=1 checked_after=dialog_closed")
+        return Result(true, "toggled")
+    }
+
     private suspend fun tapActionButton(step: SimpleSteps.Step, tapTexts: List<String>): Result {
         val node = findClickableByTextWithScroll(tapTexts)
             ?: return Result(false, "switch_not_found")

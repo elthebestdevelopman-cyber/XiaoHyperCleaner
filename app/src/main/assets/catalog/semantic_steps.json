@@ -2844,6 +2844,10 @@
           "id": "miui12_14",
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
+          "route": [
+            { "intent": "com.mi.android.globalminusscreen/com.mi.android.globalminusscreen.tab.TabSettingActivity", "waitMs": 2500, "confirmPackage": ["com.mi.android.globalminusscreen"], "confirmMarkers": ["Лента виджетов", "Рекомендуемое"] },
+            { "tapText": "Рекомендуемое", "waitMs": 1000 }
+          ],
           "control": "toggle",
           "drillPath": [
             ["Рекомендуемое", "Recommendations"]
@@ -2934,6 +2938,10 @@
           "id": "miui12_14",
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
+          "route": [
+            { "intent": "com.mi.android.globalminusscreen/com.mi.android.globalminusscreen.tab.TabSettingActivity", "waitMs": 2500, "confirmPackage": ["com.mi.android.globalminusscreen"], "confirmMarkers": ["Лента виджетов", "О ленте виджетов"] },
+            { "tapText": "О ленте виджетов", "waitMs": 1200 }
+          ],
           "control": "toggle",
           "drillPath": [
             ["О ленте виджетов", "About App Vault"]

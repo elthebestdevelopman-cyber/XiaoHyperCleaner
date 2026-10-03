@@ -604,4 +604,40 @@ class SemanticCatalogTest {
         )
         assertEquals(listOf("com.miui.cleaner"), first?.confirmPackage)
     }
+
+    @Test
+    fun `appvault steps enter their own settings screen`() {
+        // Прогон rmuslthv7: лента виджетов открывалась фидом, где строк шага нет
+        // (appvault_services → drill_failed, appvault_about → not_applicable).
+        // Проверенный вход — своя активность настроек ленты:
+        // probe p_appvault_comp_tabsetting / p_appvault_about_tabsetting, verdict OK.
+        SemanticCatalog.selectVariant(
+            RomProfile(
+                region = RomRegion.GLOBAL,
+                miuiVersion = "V130",
+                hyperOsHint = false,
+                isTablet = false,
+                family = RomFamily.MIUI,
+                uiVersion = "13"
+            )
+        )
+
+        val services = SemanticCatalog.route("appvault_services")
+        assertEquals(
+            "com.mi.android.globalminusscreen/com.mi.android.globalminusscreen.tab.TabSettingActivity",
+            services.first().intent
+        )
+        assertEquals(listOf("com.mi.android.globalminusscreen"), services.first().confirmPackage)
+        assertEquals(listOf("Лента виджетов", "Рекомендуемое"), services.first().confirmMarkers)
+        assertEquals("Рекомендуемое", services[1].tapText)
+
+        val about = SemanticCatalog.route("appvault_about")
+        assertEquals(
+            "com.mi.android.globalminusscreen/com.mi.android.globalminusscreen.tab.TabSettingActivity",
+            about.first().intent
+        )
+        assertEquals(listOf("com.mi.android.globalminusscreen"), about.first().confirmPackage)
+        assertEquals(listOf("Лента виджетов", "О ленте виджетов"), about.first().confirmMarkers)
+        assertEquals("О ленте виджетов", about[1].tapText)
+    }
 }
