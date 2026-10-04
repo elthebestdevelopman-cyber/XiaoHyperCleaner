@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 33 suites, 286 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 36 suites, 307 tests (full table below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 17 tests
 │   ├── OptimizationEngineTest.kt # 15 tests
@@ -305,7 +305,7 @@ app/src/test/java/com/xiaohypercleaner/          # 33 suites, 286 tests (full ta
 │   └── SimpleStepsTest.kt        # 7 tests
 ├── service/
 │   ├── SimpleRunnerDrillTest.kt  # 11 tests (drill level verification)
-│   ├── SimpleRunnerApplicabilityTest.kt # 6 tests (not applicable steps, notif_* entry)
+│   ├── SimpleRunnerApplicabilityTest.kt # 11 tests (not applicable steps, notif_* entry)
 │   ├── SimpleRunnerAppEntryTest.kt # 4 tests (app screen readiness)
 │   └── SimpleRunnerClearDataTest.kt # 2 tests
 ├── ui/
@@ -370,7 +370,7 @@ app/src/test/java/com/xiaohypercleaner/          # 33 suites, 286 tests (full ta
 
 ## 🧪 Testing
 
-### Unit Tests (286 tests, 33 suites)
+### Unit Tests (307 tests, 36 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -382,19 +382,20 @@ app/src/test/java/com/xiaohypercleaner/          # 33 suites, 286 tests (full ta
 | `RestoreSnapshotTest`         | 5     | Rollback snapshot of original values               |
 | `AdbPortResolverTest`         | 5     | mDNS discovery, mergePorts                         |
 | `AdaptiveCatalogTest`         | 17    | Variant catalog, text merging                      |
-| `SemanticCatalogTest`         | 22    | Step semantics, packages, dialog policy            |
+| `SemanticCatalogTest`         | 26    | Step semantics, packages, dialog policy            |
 | `SemanticVariantTest`         | 9     | OS variant selection (MIUI 13 / HyperOS 2)         |
 | `SemanticGateTest`            | 6     | Confidence gate                                    |
-| `PlanBuilderTest`             | 7     | Plan pre-filter + red list                         |
+| `PlanBuilderTest`             | 9     | Plan pre-filter + red list                         |
 | `DirectIntentNavigatorTest`   | 8     | Step entry point: launcher, direct settings screens |
 | `ManualStepsTest`             | 4     | Manual checklist: 7-locale parity                  |
 | `SwitchFinderTest`            | 16    | Toggles, checked_before, foreign row rejection     |
-| `ConsentWallTest`             | 33    | Dialogs: force-stop, default app, consent, decoys  |
+| `ConsentWallTest`             | 35    | Dialogs: force-stop, default app, consent, decoys  |
 | `ConsentPermissionTest`       | 4     | Permission request: deny by default, allow for target |
-| `SimpleRunnerMsaResumeTest`   | 5     | Drill resume + msa revoke confirmation             |
-| `SimpleRunnerMsaRevokeTest`   | 3     | msa revoke: dialog button, countdown, confirmation |
+| `SimpleRunnerMsaResumeTest`   | 6     | Drill resume + msa revoke confirmation             |
+| `SimpleRunnerMsaRevokeTest`   | 6     | msa revoke: dialog button, countdown, confirmation |
 | `SimpleRunnerClearDataTest`   | 2     | CLEAR_DATA_DECLINE without false success           |
 | `SimpleRunnerConfirmTest`     | 2     | Confirm button: its own label, not the dialog title |
+| `SimpleRunnerDialogActionTest` | 1    | Own confirm dialog on the target screen counts as the step action |
 | `SimpleRunnerFolderTest`      | 16    | Home folder search (structural markers)            |
 | `SimpleRunnerInstallerTest`   | 3     | Installer settings route, no APK install           |
 | `SimpleRunnerScrollTest`      | 5     | Scroll container lookup, row below the fold, edge switch |
@@ -403,6 +404,8 @@ app/src/test/java/com/xiaohypercleaner/          # 33 suites, 286 tests (full ta
 | `SimpleRunnerAppEntryTest`    | 4     | App screen readiness before drilling              |
 | `SimpleRunnerMuteTest`        | 4     | Media volume: save→mute→restore, fresh-device snapshot |
 | `SimpleRunnerOverlayGateTest` | 5     | Overlay integrity gate, ±500 ms gesture guard      |
+| `SimpleRunnerRouteTest`       | 5     | Route as hint: screen confirmed by package and markers |
+| `SimpleRunnerVerifyTest`      | 3     | Honest verdict when the row vanished behind a dialog |
 | `ScanOrchestratorTest`        | 4     | Navigation planning, cache                         |
 | `ScreenCrawlerTest`           | 6     | Screen crawler (diagnostics)                       |
 | `ActivityScannerTest`         | 8     | Package/activity visibility                        |
