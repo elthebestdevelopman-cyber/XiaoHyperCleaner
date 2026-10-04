@@ -33,11 +33,18 @@ BOM, AccessibilityService, Shizuku API, DataStore, Coroutines. Версии —
 gradle/libs.versions.toml (единственный источник истины).
 
 ## Где живут факты (указатели, не копии)
+- Активный контекст: docs/diag/handoff_active.md (агент обновляет после каждого
+  эпика) — позиция, очередь, рецепты, «НЕ ломать». Кодовую задачу начинай отсюда.
 - Текущее состояние и что сделано: docs/SUMMARY.md (агент обновляет после
   каждого эпика).
-- Очередь работ и стоп-точки: свежий epic/handoff-файл в docs/diag/ (на него
-  указывает пользователь); если его нет — планируй по SUMMARY и коду.
-- Спеки крупных задач: docs/diag/master_prompt_v2.md и соседние файлы.
+- Очередь работ и стоп-точки: docs/diag/handoff_active.md; план пакета R —
+  docs/diag/handoff_r_package.md.
+- Архив, не обновлять: docs/diag/archive/* (handoff_history.md, summary_history.md,
+  master_prompt_v2.md, global_ru_plan.md, night_report3.md). handoff_flash.md и
+  night_report* с 05.10 — архив.
+- Спеки крупных задач: docs/diag/handoff_r_package.md и соседние файлы.
+- Счётчики тестов/сьютов: единственный источник — docs/diag/handoff_active.md +
+  README; исторические счётчики в архиве не обновляются.
 - Состав классов, тесты, ресурсы: читай из кода; в этом файле не перечислять.
 - Факты из docs в ответы не дублируй.
 
