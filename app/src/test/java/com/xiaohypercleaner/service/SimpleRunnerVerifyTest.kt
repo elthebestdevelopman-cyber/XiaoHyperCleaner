@@ -10,6 +10,7 @@ import com.xiaohypercleaner.data.SimpleSteps
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -92,6 +93,18 @@ class SimpleRunnerVerifyTest {
         confirmWaitMs = 10_000L
     )
 
+    /** Тумблер строки карусели (desc содержит подпись строки). */
+    private fun carouselSwitch(checked: Boolean): AccessibilityNodeInfo {
+        val n = Mockito.mock(AccessibilityNodeInfo::class.java)
+        Mockito.`when`(n.className).thenReturn("android.widget.Switch")
+        Mockito.`when`(n.isCheckable).thenReturn(true)
+        Mockito.`when`(n.isChecked).thenReturn(checked)
+        Mockito.`when`(n.contentDescription)
+            .thenReturn("Карусель экрана блокировки Просмотр выбранных обоев")
+        Mockito.`when`(n.childCount).thenReturn(0)
+        return n
+    }
+
     @Test
     fun `vanished row is not success while the step confirm dialog is visible`() = runTest {
         // Экран: целевой экран виден, но поверх него диалог/прогресс «Отзыв разрешения…».
@@ -129,6 +142,36 @@ class SimpleRunnerVerifyTest {
         assertTrue(
             "строка ушла вместе с настройкой на своём экране — успех",
             runner.verifySwitchState(carousel, listOf("Карусель экрана блокировки"))
+        )
+    }
+
+    /**
+     * C3 (прогон rmuu1hsq6): после применения настройка-строка исчезает из дерева, и
+     * финальное чтение даёт null — но состояние читалось раньше. Вердикт обязан
+     * подставить последнее фактически прочитанное состояние, а не терять факт (null):
+     * шаги ux_program/browser_sys писали `checked_after=null` при успешном тумблере.
+     */
+    @Test
+    fun `vanished row keeps the last read state for the verdict`() = runTest {
+        val step = SimpleSteps.ALL.first { it.id == "carousel" }
+
+        // 1) verify читает фактическое состояние (false) — оно становится «последним фактом».
+        val rowRoot = node(
+            text = "Карусель обоев",
+            children = arrayOf(carouselSwitch(checked = false))
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(rowRoot)
+        assertTrue(runner.verifySwitchState(step, listOf("Карусель экрана блокировки")))
+        assertEquals(false, runner.lastReadSwitchState)
+
+        // 2) строка ушла из дерева (настройка применена), маркеры экрана на месте, диалога нет.
+        val cleanRoot = node(text = "Карусель обоев")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(cleanRoot)
+        assertTrue(runner.verifySwitchState(step, listOf("Карусель экрана блокировки")))
+        assertEquals(
+            "факт последнего чтения не теряется, когда строка ушла",
+            false,
+            runner.lastReadSwitchState
         )
     }
 }

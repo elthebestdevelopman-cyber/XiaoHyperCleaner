@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 36 сьютов, 307 тестов (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 36 сьютов, 310 тестов (полная таблица ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 17 тестов
 │   ├── OptimizationEngineTest.kt # 15 тестов
@@ -388,7 +388,7 @@ app/src/test/java/com/xiaohypercleaner/          # 36 сьютов, 307 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (307 тестов, 36 сьютов)
+### Unit-тесты (310 тестов, 36 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -407,7 +407,7 @@ app/src/test/java/com/xiaohypercleaner/          # 36 сьютов, 307 тест
 | `DirectIntentNavigatorTest`   | 8      | Точка входа шага: launcher, прямые экраны настроек   |
 | `ManualStepsTest`             | 4      | Ручная памятка: паритет 7 локалей                  |
 | `SwitchFinderTest`            | 16     | Тумблеры, checked_before, запрет чужой строки      |
-| `ConsentWallTest`             | 35     | Диалоги: force-stop, «по умолчанию», consent, обманки |
+| `ConsentWallTest`             | 36     | Диалоги: force-stop, «по умолчанию», consent, обманки |
 | `ConsentPermissionTest`       | 4      | Permission-запрос: deny по умолчанию, allow для цели |
 | `SimpleRunnerMsaResumeTest`   | 6      | Resume бурения + подтверждение отзыва msa          |
 | `SimpleRunnerMsaRevokeTest`   | 6      | Отзыв msa: кнопка диалога, отсчёт, подтверждение   |
@@ -421,9 +421,9 @@ app/src/test/java/com/xiaohypercleaner/          # 36 сьютов, 307 тест
 | `SimpleRunnerApplicabilityTest` | 11   | Неприменимые шаги, вход notif_*, поздняя проверка состояния |
 | `SimpleRunnerAppEntryTest`    | 4      | Готовность экрана приложения перед бурением        |
 | `SimpleRunnerMuteTest`        | 4      | Громкость медиа: save→mute→restore, снапшот fresh-device |
-| `SimpleRunnerOverlayGateTest` | 5      | Гейт целостности оверлея, сторож жестов ±500 мс    |
+| `SimpleRunnerOverlayGateTest` | 6      | Гейт целостности оверлея, сторож жестов ±500 мс    |
 | `SimpleRunnerRouteTest`       | 5      | Маршрут-подсказка: подтверждение экрана пакетом и маркерами |
-| `SimpleRunnerVerifyTest`      | 3      | Честный вердикт при исчезнувшей строке и открытом диалоге |
+| `SimpleRunnerVerifyTest`      | 4      | Честный вердикт при исчезнувшей строке и открытом диалоге |
 | `ScanOrchestratorTest`        | 4      | Планирование навигации, кэш                        |
 | `ScreenCrawlerTest`           | 6      | Сканер экранов (диагностика)                       |
 | `ActivityScannerTest`         | 8      | Видимость пакетов и активностей                    |

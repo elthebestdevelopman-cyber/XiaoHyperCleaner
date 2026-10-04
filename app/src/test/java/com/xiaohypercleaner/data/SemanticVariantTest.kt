@@ -145,10 +145,11 @@ class SemanticVariantTest {
         assertEquals("Блокировка экрана", path.first().first())
         assertEquals("Карусель обоев", path.last().first())
         // Устройство-верифицированный контракт (дампы after/car_main.xml, car_dlg2.xml,
-        // car_priv.xml): главный тумблер «Карусель экрана блокировки», отказ «Отмена»,
-        // четыре зависимые строки после главной (одна из них — с подтверждением).
+        // car_priv.xml): главный тумблер «Карусель экрана блокировки», отказ «Нет, спасибо»
+        // (диалог «Пока вы не ушли…», прогон rmuu1hsq6), четыре зависимые строки после
+        // главной (одна из них — с подтверждением).
         assertTrue(SemanticCatalog.itemTexts("carousel").contains("Карусель экрана блокировки"))
-        assertTrue(SemanticCatalog.toggleDeclineTexts("carousel").contains("Отмена"))
+        assertTrue(SemanticCatalog.toggleDeclineTexts("carousel").contains("Нет, спасибо"))
 
         val preTargets = SemanticCatalog.extraTargetsBeforeMain("carousel")
         assertEquals("все зависимые строки — до главного тумблера", 3, preTargets.size)

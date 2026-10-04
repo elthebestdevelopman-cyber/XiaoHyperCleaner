@@ -67,6 +67,14 @@ object OverlayController {
     /** Оверлей на месте: прикреплён + видим. */
     fun isOverlaySolid(): Boolean = isAttached && isVisible
 
+    /**
+     * Контракт восстановления окна: фаза идёт, окно потеряно, разрешение на окно есть —
+     * окно обязано быть пересоздано. При отсутствии разрешения пересоздание невозможно
+     * (MIUI мог снять «Поверх других окон»/фоновый pop-up), и это честный предел.
+     */
+    fun needsAutomationRecovery(canDrawOverlays: Boolean): Boolean =
+        phaseRunning && !isAttached && canDrawOverlays
+
     /** Вызывается OverlayService при добавлении окна. */
     fun markAttached() {
         isAttached = true
@@ -158,6 +166,21 @@ object OverlayController {
     fun updateAutomation(ctx: Context, step: Int, total: Int, title: String) {
         ctx.startService(
             intent(ctx, OverlayService.ACTION_AUTO_UPDATE)
+                .putExtra(OverlayService.EXTRA_STEP, step)
+                .putExtra(OverlayService.EXTRA_TOTAL, total)
+                .putExtra(OverlayService.EXTRA_TITLE, title)
+        )
+    }
+
+    /**
+     * Форсирует пересоздание окна автоматизации, когда оно потеряно: сервис мог быть убит
+     * системой и пересоздан startService'ом, а updateStatus/updateAutomation пишут в null и
+     * окно НЕ возвращают. Раннер зовёт это из гейта целостности, когда окно не solid, —
+     * ждать вслепую бессмысленно, окно нужно пересоздать (прогон rmuu1hsq6).
+     */
+    fun ensureAutomation(ctx: Context, step: Int, total: Int, title: String) {
+        ctx.startService(
+            intent(ctx, OverlayService.ACTION_AUTO_START)
                 .putExtra(OverlayService.EXTRA_STEP, step)
                 .putExtra(OverlayService.EXTRA_TOTAL, total)
                 .putExtra(OverlayService.EXTRA_TITLE, title)

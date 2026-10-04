@@ -987,9 +987,6 @@
           "id": "miui12_14",
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
-          "route": [
-            { "intent": "com.miui.android.fashiongallery/com.miui.cw.feature.ui.setting.SettingActivity", "waitMs": 3000, "confirmPackage": ["com.miui.android.fashiongallery"], "confirmMarkers": ["Карусель обоев", "Настройки экрана блокировки"] }
-          ],
           "drillPath": [
             ["Блокировка экрана", "Lock screen"],
             ["Карусель обоев", "Wallpaper Carousel"]
@@ -1000,8 +997,13 @@
             "en": ["Lock screen carousel"]
           },
           "toggleDeclineTexts": {
-            "ru": ["Отмена"],
-            "en": ["Cancel"]
+            "ru": ["Нет, спасибо"],
+            "en": ["No, thanks", "No thanks"],
+            "es": ["No, gracias"],
+            "zh": ["不用了，谢谢"],
+            "hi": ["नहीं, धन्यवाद"],
+            "pt": ["Não, obrigado"],
+            "id": ["Tidak, terima kasih"]
           },
           "confirmTexts": {
             "ru": ["Выключить"]

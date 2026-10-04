@@ -120,6 +120,17 @@ class OverlayService : Service() {
     /** Подряд идущие zero-rect удары heartbeat: после порога окно пересоздаётся. */
     private var zeroRectRecoveries = 0
 
+    /**
+     * Последняя сессия автоматизации: total/step/title/status окна. Нужна, чтобы
+     * ПЕРЕСОЗДАТЬ окно, если оно потеряно (сервис убит системой и пересоздан
+     * startService, либо root ушёл): иначе окно не вернуть, и все последующие шаги
+     * падают `overlay_not_attached` (прогон rmuu1hsq6: оверлей убит после 11-го шага).
+     */
+    private var automationTotal = 0
+    private var automationStep = 0
+    private var automationTitle = ""
+    private var automationStatus = ""
+
     /** Корневое окно оверлея: логирует все смены attach/detach/visibility. */
     private inner class OverlayRootView(context: android.content.Context) : FrameLayout(context) {
         override fun onAttachedToWindow() {
@@ -182,21 +193,41 @@ class OverlayService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!Settings.canDrawOverlays(this)) {
+            // Окно рисовать нельзя: MIUI мог снять «Поверх других окон»/фоновый pop-up после
+            // ухода приложения в фон — тогда пересоздание окна невозможно (прогон rmuu1hsq6:
+            // сервис умирал без следа в логе, последующие шаги — overlay_not_attached).
+            AppLog.w(TAG, "onStartCommand: overlay permission missing — stopSelf (window lost)")
             stopSelf(); return START_NOT_STICKY
         }
-        when (intent?.action) {
+        val action = intent?.action
+        when (action) {
             ACTION_HIDE -> hide()
             ACTION_SET_BLOCKING -> setBlocking(intent.getBooleanExtra(EXTRA_BLOCKING, true))
             ACTION_SET_PASSTHROUGH -> setPassthrough(
                 intent.getLongExtra(EXTRA_PASSTHROUGH_MS, 800L)
             )
-            ACTION_AUTO_START -> showAutomation(intent.getIntExtra(EXTRA_TOTAL, 0))
+            ACTION_AUTO_START -> {
+                val total = intent.getIntExtra(EXTRA_TOTAL, 0)
+                val step = intent.getIntExtra(EXTRA_STEP, 0)
+                showAutomation(total)
+                if (step > 0) {
+                    updateAutomation(step, total, intent.getStringExtra(EXTRA_TITLE) ?: "")
+                } else {
+                    // Новый прогон: сохранённая сессия сбрасывается.
+                    automationStep = 0
+                    automationTitle = ""
+                    automationStatus = ""
+                }
+            }
             ACTION_AUTO_UPDATE -> updateAutomation(
                 intent.getIntExtra(EXTRA_STEP, 0),
                 intent.getIntExtra(EXTRA_TOTAL, 0),
                 intent.getStringExtra(EXTRA_TITLE) ?: ""
             )
-            ACTION_AUTO_STATUS -> tvStatus?.text = intent.getStringExtra(EXTRA_STATUS) ?: ""
+            ACTION_AUTO_STATUS -> {
+                automationStatus = intent.getStringExtra(EXTRA_STATUS) ?: ""
+                tvStatus?.text = automationStatus
+            }
             ACTION_RESULT -> showResult(
                 intent.getIntExtra(EXTRA_COMPLETED, 0),
                 intent.getIntExtra(EXTRA_TOTAL, 0),
@@ -207,6 +238,11 @@ class OverlayService : Service() {
                 intent.getIntExtra(EXTRA_LAUNCHER_SKIPPED, 0),
                 intent.getIntExtra(EXTRA_UNRESOLVED, 0)
             )
+        }
+        // Сервис мог быть убит MIUI и пересоздан этим startService: окна нет, а фаза идёт.
+        // Без пересоздания окна каждый следующий шаг падал `overlay_not_attached` (rmuu1hsq6).
+        if (action == ACTION_AUTO_UPDATE || action == ACTION_AUTO_STATUS) {
+            recoverAutomationIfMissing()
         }
         return START_NOT_STICKY
     }
@@ -250,6 +286,7 @@ class OverlayService : Service() {
 
     private fun showAutomation(total: Int) {
         hide()
+        automationTotal = total
         isBlocking = true
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -393,10 +430,32 @@ class OverlayService : Service() {
     }
 
     private fun updateAutomation(step: Int, total: Int, title: String) {
+        automationStep = step
+        automationTotal = total
+        if (title.isNotEmpty()) automationTitle = title
         tvStep?.text = getString(R.string.automation_step, step, total)
         progressBar?.max = total.coerceAtLeast(1)
         progressBar?.progress = step
         if (title.isNotEmpty()) tvTitle?.text = title
+    }
+
+    /**
+     * Пересоздаёт окно автоматизации, если фаза идёт, а окна нет. Так окно возвращается
+     * после того, как сервис был убит системой и пересоздан startService'ом, либо root
+     * потерялся. Без этого окно пропадало навсегда: heartbeat/updateStatus писали в null
+     * и не восстанавливали окно (прогон rmuu1hsq6: 16 шагов подряд overlay_not_attached).
+     */
+    private fun recoverAutomationIfMissing(): Boolean {
+        if (!OverlayController.needsAutomationRecovery(Settings.canDrawOverlays(this))) return false
+        val v = root
+        if (v != null && v.isAttachedToWindow) return false
+        AppLog.w(TAG, "overlay: recreating automation window (phase running, root=${v != null})")
+        showAutomation(automationTotal.coerceAtLeast(1))
+        if (automationStep > 0) {
+            updateAutomation(automationStep, automationTotal, automationTitle)
+        }
+        if (automationStatus.isNotEmpty()) tvStatus?.text = automationStatus
+        return true
     }
 
     // ═══ RESULT ═══
@@ -543,7 +602,23 @@ class OverlayService : Service() {
                 }
                 heartbeatTicks++
                 val v = root
-                if (v == null) { AppLog.w(TAG, "overlay: heartbeat recovered reason=root-null"); return }
+                if (v == null) {
+                    // Окно потеряно, сервис жив: пересоздаём. showAutomation() сам
+                    // перезапускает heartbeat, поэтому повторно НЕ постим; если пересоздать
+                    // нельзя (фаза кончилась / нет разрешения) — heartbeat останавливаем.
+                    // Прежний `return` без reschedule останавливал heartbeat навсегда
+                    // (прогон rmuu1hsq6: окно уже не возвращалось).
+                    if (OverlayController.phaseRunning &&
+                        Settings.canDrawOverlays(this@OverlayService)
+                    ) {
+                        AppLog.w(TAG, "overlay: heartbeat root-null — recreating window")
+                        recoverAutomationIfMissing()
+                    } else {
+                        AppLog.w(TAG, "overlay: heartbeat stopped reason=root-null")
+                        stopHeartbeat()
+                    }
+                    return
+                }
                 val attached = v.isAttachedToWindow
                 val visible = attached && v.windowVisibility == View.VISIBLE && v.getGlobalVisibleRect(Rect())
                 if (visible) verifyGeometry(v)

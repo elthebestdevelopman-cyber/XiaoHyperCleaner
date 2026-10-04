@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 36 suites, 307 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 36 suites, 310 tests (full table below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 17 tests
 │   ├── OptimizationEngineTest.kt # 15 tests
@@ -370,7 +370,7 @@ app/src/test/java/com/xiaohypercleaner/          # 36 suites, 307 tests (full ta
 
 ## 🧪 Testing
 
-### Unit Tests (307 tests, 36 suites)
+### Unit Tests (310 tests, 36 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -389,7 +389,7 @@ app/src/test/java/com/xiaohypercleaner/          # 36 suites, 307 tests (full ta
 | `DirectIntentNavigatorTest`   | 8     | Step entry point: launcher, direct settings screens |
 | `ManualStepsTest`             | 4     | Manual checklist: 7-locale parity                  |
 | `SwitchFinderTest`            | 16    | Toggles, checked_before, foreign row rejection     |
-| `ConsentWallTest`             | 35    | Dialogs: force-stop, default app, consent, decoys  |
+| `ConsentWallTest`             | 36    | Dialogs: force-stop, default app, consent, decoys  |
 | `ConsentPermissionTest`       | 4     | Permission request: deny by default, allow for target |
 | `SimpleRunnerMsaResumeTest`   | 6     | Drill resume + msa revoke confirmation             |
 | `SimpleRunnerMsaRevokeTest`   | 6     | msa revoke: dialog button, countdown, confirmation |
@@ -403,9 +403,9 @@ app/src/test/java/com/xiaohypercleaner/          # 36 suites, 307 tests (full ta
 | `SimpleRunnerApplicabilityTest` | 11  | Not applicable steps, notif_* entry, late verify   |
 | `SimpleRunnerAppEntryTest`    | 4     | App screen readiness before drilling              |
 | `SimpleRunnerMuteTest`        | 4     | Media volume: save→mute→restore, fresh-device snapshot |
-| `SimpleRunnerOverlayGateTest` | 5     | Overlay integrity gate, ±500 ms gesture guard      |
+| `SimpleRunnerOverlayGateTest` | 6     | Overlay integrity gate, ±500 ms gesture guard      |
 | `SimpleRunnerRouteTest`       | 5     | Route as hint: screen confirmed by package and markers |
-| `SimpleRunnerVerifyTest`      | 3     | Honest verdict when the row vanished behind a dialog |
+| `SimpleRunnerVerifyTest`      | 4     | Honest verdict when the row vanished behind a dialog |
 | `ScanOrchestratorTest`        | 4     | Navigation planning, cache                         |
 | `ScreenCrawlerTest`           | 6     | Screen crawler (diagnostics)                       |
 | `ActivityScannerTest`         | 8     | Package/activity visibility                        |

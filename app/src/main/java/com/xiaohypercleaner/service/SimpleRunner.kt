@@ -450,6 +450,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
     /** Дедлайн бюджета текущего шага: по нему считается остаток перед тумблером. */
     private var stepDeadlineMs: Long = 0L
 
+    /**
+     * Последнее ФАКТИЧЕСКИ прочитанное состояние тумблера главной строки текущего шага
+     * (null — не читали). Строка-настройка исчезает из дерева после применения, и финальный
+     * readSwitchState даёт null, хотя состояние читалось раньше (ux_program/browser_sys,
+     * прогон rmuu1hsq6: VERDICT `checked_after=null`). Подставляется в вердикт как факт.
+     * Сбрасывается на старте шага ([run]).
+     */
+    // internal — для тестируемости (SimpleRunnerVerifyTest).
+    internal var lastReadSwitchState: Boolean? = null
+
     /** Остаток бюджета шага (Long.MAX_VALUE, если дедлайн не задан — unit-тесты). */
     private fun remainingBudgetMs(): Long =
         if (stepDeadlineMs <= 0L) Long.MAX_VALUE else stepDeadlineMs - System.currentTimeMillis()
@@ -590,6 +600,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         isRunning = true
         currentStepId = step.id
         lastFailureReason = null
+        lastReadSwitchState = null
         romProfile = profile
         // Семантика шага (keywords/markers/consent) должна быть загружена.
         SemanticCatalog.ensureLoaded(service)
@@ -2305,9 +2316,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
         handleConsentWalls(step)
 
         // Вердикт с обоими состояниями: checked_before взят в момент тумблера (он же уходит
-        // в снапшот отката), checked_after — фактическое чтение после тапа (null = строка
-        // исчезла вместе с функцией, что для этих экранов норма).
-        val afterState = readSwitchState(step)
+        // в снапшот отката), checked_after — фактическое чтение после тапа. Строка исчезает
+        // вместе с функцией (норм для этих экранов), поэтому при null подставляем ПОСЛЕДНЕЕ
+        // фактически прочитанное состояние ([lastReadSwitchState]): иначе вердикт терял факт
+        // (ux_program/browser_sys, прогон rmuu1hsq6: `checked_after=null`).
+        val afterState = readSwitchState(step) ?: lastReadSwitchState
         StepDiagnostics.note(
             step.id,
             "VERDICT",
@@ -2611,6 +2624,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
             }
             val switchNode = findSwitchByText(root, texts)
             val actual = switchNode?.let { SwitchFinder.isChecked(it) }
+            // Последнее фактически прочитанное состояние — факт для вердикта после применения
+            // (когда строка ушла из дерева и финальное чтение даёт null).
+            if (actual != null) lastReadSwitchState = actual
             // Тумблер исчезает из дерева, когда настройка применена: App Vault после
             // подтверждения «Отключить» оставляет строку, а CheckBox убирает (дамп
             // av_recheck.xml — в дереве ни CheckBox, ни Switch). Поэтому «узла нет» —

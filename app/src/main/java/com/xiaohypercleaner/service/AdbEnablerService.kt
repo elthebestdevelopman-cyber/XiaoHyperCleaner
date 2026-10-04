@@ -345,8 +345,12 @@ class AdbEnablerService : AccessibilityService() {
             // Гейт прикреплённости оверлея: 2 с на восстановление, затем пауза
             // до 10 с; при отказе — шаг фейлится с явной причиной.
             if (!OverlayController.isOverlaySolid()) {
-                AppLog.w(TAG, "runSimpleStep: overlay not solid, waiting up to 2s")
+                AppLog.w(TAG, "runSimpleStep: overlay not solid — requesting re-show")
                 OverlayController.updateStatus(this, getString(R.string.overlay_recovering))
+                // Окно потеряно (сервис убит MIUI/root ушёл): updateStatus не пересоздаёт
+                // окно — форсируем showAutomation, иначе каждый шаг падал overlay_not_attached
+                // (прогон rmuu1hsq6).
+                OverlayController.ensureAutomation(this, index + 1, total, step.titleRu)
                 var waited = 0
                 while (!OverlayController.isOverlaySolid() && waited < 2000) {
                     delay(100)
@@ -355,6 +359,7 @@ class AdbEnablerService : AccessibilityService() {
                 if (!OverlayController.isOverlaySolid()) {
                     AppLog.w(TAG, "runSimpleStep: overlay still not solid after 2s, pausing")
                     OverlayController.updateStatus(this, getString(R.string.overlay_paused))
+                    OverlayController.ensureAutomation(this, index + 1, total, step.titleRu)
                     var paused = 0
                     while (!OverlayController.isOverlaySolid() && paused < 8000) {
                         delay(250)

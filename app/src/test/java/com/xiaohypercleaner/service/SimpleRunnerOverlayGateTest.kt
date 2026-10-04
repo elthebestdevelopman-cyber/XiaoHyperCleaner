@@ -125,4 +125,31 @@ class SimpleRunnerOverlayGateTest {
         )
         OverlayController.resetGestureGuardForTest()
     }
+
+    @Test
+    fun `lost overlay during a phase is recoverable, not a dead end`() {
+        // Прогон rmuu1hsq6: окно умирало, фаза продолжалась, окно не возвращалось —
+        // 16 шагов подряд падали overlay_not_attached. Контракт восстановления: во время
+        // фазы потерянное окно пересоздаётся; без разрешения на окно это невозможно, и
+        // тогда «нет окна» — честный предел (не молчаливая поломка).
+        OverlayController.beginPhase()
+        OverlayController.markDetached()
+        assertFalse(OverlayController.isOverlaySolid())
+        assertTrue(
+            "фаза идёт, окна нет, разрешение есть — окно надо пересоздать",
+            OverlayController.needsAutomationRecovery(canDrawOverlays = true)
+        )
+        assertFalse(
+            "без разрешения на окно пересоздание невозможно",
+            OverlayController.needsAutomationRecovery(canDrawOverlays = false)
+        )
+
+        OverlayController.markAttached()
+        OverlayController.markVisible(true)
+        assertTrue("после пересоздания окно снова solid", OverlayController.isOverlaySolid())
+        OverlayController.endPhase()
+        // Возвращаем контроллер в исходное (detached) состояние: иначе состояние
+        // протекает в соседние тесты (awaitOverlayReadyOrPause ждёт не-solid).
+        OverlayController.markDetached()
+    }
 }

@@ -354,18 +354,28 @@ object ConsentWallHandler {
     ): DialogAction? {
         if (ownsDialog(screenText, stepConfirmTexts)) return null
 
+        val welcomeMarkers = SemanticCatalog.welcomeMarkers()
+        val permissionMarkers = SemanticCatalog.permissionMarkers()
+        // Владелец диалога — пакет шага (используется и ниже, для app-owned).
+        val appOwned = ownerPackage != null &&
+            stepPackages.any { it.equals(ownerPackage, ignoreCase = true) }
+        val welcomeHit = markerHit(screenText, welcomeMarkers)
+        val permissionHit = markerHit(screenText, permissionMarkers)
+        // Welcome/permission-стена СОБСТВЕННОГО приложения шага «чужой» не считается: её
+        // текст может случайно содержать confirm-текст другого шага (первый запуск
+        // «Безопасности»: описание содержит «отзыв разрешения», совпадая с confirmTexts msa —
+        // стена уходила в skip, security_sys падал drill_failed, прогон rmuu1hsq6).
+        val appOwnedWall = appOwned && (welcomeHit || permissionHit)
         // Диалог, чей текст совпадает с confirm-маркерами ДРУГОГО шага (msa «Отзыв
         // разрешения», appvault_about «Отключить службы?»), — не наш: dismiss/alert-политика
         // текущего шага его не трогает, иначе отменяет чужой отзыв (прогон rmupuud3s:
         // sys_recommendations погасил диалог отзыва msa).
-        val foreignOwner = foreignConfirmOwner(screenText, stepId)
+        val foreignOwner = if (appOwnedWall) null else foreignConfirmOwner(screenText, stepId)
         if (foreignOwner != null) {
             AppLog.i(TAG, "consent: skip foreign confirm dialog step=$stepId owner=$foreignOwner")
             return null
         }
 
-        val welcomeMarkers = SemanticCatalog.welcomeMarkers()
-        val permissionMarkers = SemanticCatalog.permissionMarkers()
         val dismissMarkers = SemanticCatalog.dismissMarkers()
         val dismissTexts = SemanticCatalog.dismissTexts()
         val alertMarkers = SemanticCatalog.alertMarkerTexts()
@@ -438,8 +448,6 @@ object ConsentWallHandler {
         //    лаунчера (btnCancel) — app-шаги не поднимались (прогон rmuihm2vo). Поэтому
         //    dismiss применяем только когда владелец диалога — пакет шага либо текст
         //    короткий (настоящий диалог), либо владелец неизвестен.
-        val appOwned = ownerPackage != null &&
-            stepPackages.any { it.equals(ownerPackage, ignoreCase = true) }
         val foreignScreen = ownerPackage != null && !appOwned && !shortDialog
         if (!alertDialog && dismissTexts.isNotEmpty() && !foreignScreen &&
             dismissDialogVisible(screenText, dismissTexts, dismissMarkers)
@@ -456,8 +464,6 @@ object ConsentWallHandler {
             )
         }
 
-        val welcomeHit = markerHit(screenText, welcomeMarkers)
-        val permissionHit = markerHit(screenText, permissionMarkers)
         val welcomeMarker = welcomeMarkers.firstOrNull { TextMatcher.normalizedContains(screenText, it) }.orEmpty()
 
         // Кнопки согласия: пер-шаговый набор стены идёт первым (стена «Загрузок»),

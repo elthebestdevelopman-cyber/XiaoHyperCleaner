@@ -103,8 +103,8 @@ class SemanticCatalogTest {
     fun `carousel on miui12_14 turns the carousel off through the lock screen route`() {
         // Владелец + разведка агента на POCO X3 Pro (MIUI 13), прогон rmumuqr53:
         // вход компонентой SettingActivity (verdict OK), на экране ПЯТЬ тумблеров:
-        // «Карусель экрана блокировки» (главный, диалог «Добавить в выбранные фото?» →
-        // «Отмена»), «Проведите вправо по Экрану блокировки» (диалог подтверждается),
+        // «Карусель экрана блокировки» (главный, диалог «Пока вы не ушли…» → «Нет, спасибо»),
+        // «Проведите вправо по Экрану блокировки» (диалог подтверждается),
         // «Обновлять через мобильный Интернет» и подменю «Политика конфиденциальности»:
         // «Реклама на Экране блокировки» + «Включить персонализированные услуги».
         // Дампы: after/car_main.xml, after/car_dlg2.xml, after/car_priv.xml,
@@ -115,13 +115,18 @@ class SemanticCatalogTest {
 
         assertEquals("Блокировка экрана", variant.drillPath.first().first())
         assertEquals("Карусель обоев", variant.drillPath.last().first())
-        assertEquals(
-            "первым идёт проверенный интент экрана настроек",
-            "com.miui.android.fashiongallery/com.miui.cw.feature.ui.setting.SettingActivity",
-            variant.route.first().intent
+        // Битый route (интент SettingActivity на устройстве не резолвится — прогон
+        // rmuu1hsq6: «Unable to find explicit activity class») снят: вход идёт drill-путём.
+        assertTrue(
+            "битый маршрут карусели снят — вход drill-путём",
+            variant.route.isEmpty()
         )
         assertEquals(listOf("Карусель экрана блокировки"), variant.itemTexts["ru"])
-        assertEquals(listOf("Отмена"), variant.toggleDeclineTexts["ru"])
+        assertEquals(
+            "главный тумблер закрывается отказом «Нет, спасибо»",
+            listOf("Нет, спасибо"),
+            variant.toggleDeclineTexts["ru"]
+        )
         assertTrue(
             "маркеры экрана — строки устройства: ${variant.screenMarkers["ru"]}",
             variant.screenMarkers["ru"].orEmpty().containsAll(
@@ -451,8 +456,8 @@ class SemanticCatalogTest {
         // Прогон rmumuqr53 (второй, 23:49): карусель ушла в skip из-за внешнего промпта,
         // а зависимые строки гасли ПОСЛЕ главного тумблера — активность уже закрывалась,
         // и drill «Политика конфиденциальности» шёл по чужим экранам. Контракт: все
-        // зависимые строки — ДО главного тумблера, главный последний; диалоги: «Отмена»
-        // на «Добавить в выбранные фото?», «Подтвердить» на «Выключить карусель…?».
+        // зависимые строки — ДО главного тумблера, главный последний; диалоги: «Нет, спасибо»
+        // на «Пока вы не ушли…», «Подтвердить» на «Выключить карусель…?».
         // Строки — из дампов after/car_main.xml, car_dlg2.xml, car_priv.xml.
         val original = Locale.getDefault()
         try {
@@ -505,8 +510,8 @@ class SemanticCatalogTest {
                 targets[1].confirmTexts.isEmpty()
             )
             assertEquals(
-                "главный тумблер закрывается отказом «Отмена»",
-                listOf("Отмена"),
+                "главный тумблер закрывается отказом «Нет, спасибо»",
+                listOf("Нет, спасибо"),
                 SemanticCatalog.toggleDeclineTexts("carousel")
             )
         } finally {

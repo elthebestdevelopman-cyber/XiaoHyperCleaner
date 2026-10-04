@@ -222,6 +222,33 @@ class ConsentWallTest {
     }
 
     @Test
+    fun `security first-run terms wall is accepted though it echoes the msa revoke text`() = runTest {
+        // Первый запуск «Безопасности»: стена «Условия использования / Добро пожаловать
+        // в Безопасность» с кнопкой «Согласиться» (дамп diagnostic_snapshot_security_sys_*).
+        // Её текст содержит «Отзыв разрешения», совпадая с confirmTexts шага msa, — прежний
+        // foreign-guard уводил стену в skip, и security_sys падал drill_failed (прогон
+        // rmuu1hsq6). Владелец стены — пакет шага, поэтому это app-owned welcome, а не чужой
+        // confirm: такая стена принимается.
+        withLocale("ru") {
+            val action = ConsentWallHandler.classify(
+                screenText = "Условия использования Добро пожаловать в \"Безопасность\"! " +
+                    "Это приложение проверяет приложения и выполняет Отзыв разрешения. " +
+                    "Отмена Согласиться",
+                ownerPackage = "com.miui.securitycenter",
+                stepPackages = listOf("com.miui.securitycenter"),
+                stepId = "security_sys",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = SemanticCatalog.consentTexts("security_sys"),
+                alertDialog = true
+            )
+
+            assertEquals("стена Безопасности принимается, а не пропускается", "welcome", action?.kind)
+            assertEquals("app_owned", action?.cause)
+            assertEquals("accepted", action?.decision)
+        }
+    }
+
+    @Test
     fun `foreign confirm dialog is never closed by another step`() = runTest {
         // Диалог «Отключить службы?» принадлежит appvault_about; на чужом шаге он тоже
         // не должен закрываться отказом — иначе служба остаётся включённой.
