@@ -2,6 +2,7 @@ package com.xiaohypercleaner.ui
 
 import android.app.Application
 import android.content.ComponentName
+import android.content.Intent
 import android.provider.Settings
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.AndroidViewModel
@@ -100,24 +101,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         SimpleStepBridge.onResult = { success, reason ->
             AppLog.i(TAG, "SimpleStepBridge result: $success reason=$reason")
-            // already_off/already_done — тумблер не трогали, откат эти шаги не касается.
-            if (success && (reason == "toggled" || reason == "confirmed" || reason == "tapped_fallback")) {
-                val stepId = _state.value.simpleStep?.step?.id
-                if (stepId != null) {
-                    // Экран результатов: что именно отключено по уведомлениям.
-                    simpleController.noteNotifToggled(stepId)
-                    viewModelScope.launch {
-                        prefs.addSimpleToggledStep(stepId)
-                        prefs.setHiddenSettingsApplied(true)
-                    }
-                }
+            // P0 (прогон rmuu7xcch): разрешение «Поверх других окон» пропало и не
+            // восстановилось. Продолжать шаги нельзя — каждый следующий упал бы
+            // overlay_not_attached (17 шагов каскадом). Прогон останавливается одним
+            // итогом, и итог показывается БЕЗ оверлея: он мёртв, поэтому экран
+            // результатов поднимает MainActivity.
+            if (reason == SimpleStepBridge.REASON_OVERLAY_PERMISSION_LOST) {
+                simpleController.onOverlayPermissionLost()
+                showResultWithoutOverlay()
+            } else {
+                handleSimpleStepResult(success, reason)
             }
-            // Уже выключено: состояние проверено, менять нечего — показываем отдельным
-            // разделом на экране результатов, чтобы пользователь знал фактическую картину.
-            if (success && (reason == "already_off" || reason == "already_done")) {
-                _state.value.simpleStep?.step?.id?.let { simpleController.noteAlreadyOff(it) }
-            }
-            onSimpleStepResult(success)
         }
 
         SimpleStepBridge.onSkipped = { stepId, kind ->
@@ -478,6 +472,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             attempt = attempt,
             finalFailure = true
         )
+    }
+
+    /**
+     * Обычный результат шага: учёт notif-тумблеров, «уже выключено» и переход дальше.
+     * Отделено от bridge-лямбды, потому что причина `overlay_permission_lost` обрывает
+     * прогон целиком, а не переводит его к следующему шагу (см. init).
+     */
+    private fun handleSimpleStepResult(success: Boolean, reason: String) {
+        // already_off/already_done — тумблер не трогали, откат эти шаги не касается.
+        if (success && (reason == "toggled" || reason == "confirmed" || reason == "tapped_fallback")) {
+            val stepId = _state.value.simpleStep?.step?.id
+            if (stepId != null) {
+                // Экран результатов: что именно отключено по уведомлениям.
+                simpleController.noteNotifToggled(stepId)
+                viewModelScope.launch {
+                    prefs.addSimpleToggledStep(stepId)
+                    prefs.setHiddenSettingsApplied(true)
+                }
+            }
+        }
+        // Уже выключено: состояние проверено, менять нечего — показываем отдельным
+        // разделом на экране результатов, чтобы пользователь знал фактическую картину.
+        if (success && (reason == "already_off" || reason == "already_done")) {
+            _state.value.simpleStep?.step?.id?.let { simpleController.noteAlreadyOff(it) }
+        }
+        onSimpleStepResult(success)
+    }
+
+    /**
+     * Альтернативный показ итога, когда оверлея нет (потеря разрешения «Поверх других
+     * окон»): окно результата нарисовать нельзя, поэтому активность приложения
+     * поднимается на передний план — состояние DONE уже рендерит экран результатов.
+     */
+    private fun showResultWithoutOverlay() {
+        AppLog.w(TAG, "overlay dead — bringing MainActivity to show the run result")
+        runCatching {
+            app.startActivity(
+                Intent(app, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            )
+        }.onFailure { AppLog.w(TAG, "cannot bring MainActivity: ${it.message}") }
     }
 
     @VisibleForTesting

@@ -645,4 +645,36 @@ class SemanticCatalogTest {
         assertEquals(listOf("Лента виджетов", "О ленте виджетов"), about.first().confirmMarkers)
         assertEquals("О ленте виджетов", about[1].tapText)
     }
+
+    /**
+     * Опрос «Ваше мнение важно для нас» (прогон rmuu7xcch, дамп
+     * diagnostic_snapshot_carousel_1791142475741.json): на этом устройстве вместо
+     * диалога-заглушки «Нет, спасибо» приходит WebView-опрос. Строки — точные с
+     * устройства; «Нет, спасибо» остаётся для другого варианта того же диалога.
+     */
+    @Test
+    fun `carousel feedback survey exposes the device dialog strings`() {
+        val variant = SemanticCatalog.step("carousel")?.variants
+            .orEmpty()
+            .first { it.id == "miui12_14" }
+
+        assertEquals(
+            listOf("Ваше мнение важно для нас", "Почему вы хотите выключить Карусель обоев"),
+            variant.feedbackDialogMarkers["ru"]
+        )
+        assertEquals(listOf("Неинтересный контент"), variant.feedbackRadioTexts["ru"])
+        assertEquals(listOf("Отправить"), variant.feedbackSubmitTexts["ru"])
+        assertEquals(
+            "прежний фикс с «Нет, спасибо» не откатывается",
+            listOf("Нет, спасибо"),
+            variant.toggleDeclineTexts["ru"]
+        )
+    }
+
+    @Test
+    fun `steps without a feedback survey expose no markers`() {
+        assertTrue(SemanticCatalog.feedbackDialogMarkers("msa").isEmpty())
+        assertTrue(SemanticCatalog.feedbackRadioTexts("msa").isEmpty())
+        assertTrue(SemanticCatalog.feedbackSubmitTexts("msa").isEmpty())
+    }
 }

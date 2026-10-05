@@ -68,6 +68,28 @@ object OverlayController {
     fun isOverlaySolid(): Boolean = isAttached && isVisible
 
     /**
+     * Разрешение «Поверх других окон» пропало во время прогона и не восстановилось:
+     * окно пересоздать нельзя, шаги продолжать нельзя. Ставится сервисом/гейтом,
+     * читается контроллером для честной остановки прогона (прогон rmuu7xcch: 17 шагов
+     * упали `overlay_not_attached` каскадом). Снимается на старте новой фазы.
+     */
+    @Volatile
+    var permissionLost: Boolean = false
+        private set
+
+    fun markPermissionLost() {
+        if (!permissionLost) {
+            AppLog.w(TAG, "permissionLost=true caller=${callerName()}")
+        }
+        permissionLost = true
+    }
+
+    fun clearPermissionLost() {
+        if (permissionLost) AppLog.i(TAG, "permissionLost=false caller=${callerName()}")
+        permissionLost = false
+    }
+
+    /**
      * Контракт восстановления окна: фаза идёт, окно потеряно, разрешение на окно есть —
      * окно обязано быть пересоздано. При отсутствии разрешения пересоздание невозможно
      * (MIUI мог снять «Поверх других окон»/фоновый pop-up), и это честный предел.
@@ -154,6 +176,7 @@ object OverlayController {
 
     fun startAutomation(ctx: Context, total: Int) {
         beginPhase()
+        clearPermissionLost()
         AppLog.i(TAG, "startAutomation: total=$total caller=${callerName()}")
         ctx.startService(
             intent(ctx, OverlayService.ACTION_AUTO_START).putExtra(

@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 36 suites, 310 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 38 suites, 320 tests (full table below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 17 tests
 │   ├── OptimizationEngineTest.kt # 15 tests
@@ -370,7 +370,7 @@ app/src/test/java/com/xiaohypercleaner/          # 36 suites, 310 tests (full ta
 
 ## 🧪 Testing
 
-### Unit Tests (310 tests, 36 suites)
+### Unit Tests (320 tests, 38 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -382,7 +382,7 @@ app/src/test/java/com/xiaohypercleaner/          # 36 suites, 310 tests (full ta
 | `RestoreSnapshotTest`         | 5     | Rollback snapshot of original values               |
 | `AdbPortResolverTest`         | 5     | mDNS discovery, mergePorts                         |
 | `AdaptiveCatalogTest`         | 17    | Variant catalog, text merging                      |
-| `SemanticCatalogTest`         | 26    | Step semantics, packages, dialog policy            |
+| `SemanticCatalogTest`         | 28    | Step semantics, packages, dialog policy            |
 | `SemanticVariantTest`         | 9     | OS variant selection (MIUI 13 / HyperOS 2)         |
 | `SemanticGateTest`            | 6     | Confidence gate                                    |
 | `PlanBuilderTest`             | 9     | Plan pre-filter + red list                         |
@@ -405,7 +405,9 @@ app/src/test/java/com/xiaohypercleaner/          # 36 suites, 310 tests (full ta
 | `SimpleRunnerMuteTest`        | 4     | Media volume: save→mute→restore, fresh-device snapshot |
 | `SimpleRunnerOverlayGateTest` | 6     | Overlay integrity gate, ±500 ms gesture guard      |
 | `SimpleRunnerRouteTest`       | 5     | Route as hint: screen confirmed by package and markers |
-| `SimpleRunnerVerifyTest`      | 4     | Honest verdict when the row vanished behind a dialog |
+| `SimpleRunnerVerifyTest`      | 7     | Honest verdict when the row vanished behind a dialog or the carousel survey |
+| `SimpleModeControllerOverlayTest` | 2 | Overlay permission loss stops the run with a single result |
+| `OverlayPermissionProbeTest`  | 3     | Overlay permission via two sources (Settings + app-op) |
 | `ScanOrchestratorTest`        | 4     | Navigation planning, cache                         |
 | `ScreenCrawlerTest`           | 6     | Screen crawler (diagnostics)                       |
 | `ActivityScannerTest`         | 8     | Package/activity visibility                        |

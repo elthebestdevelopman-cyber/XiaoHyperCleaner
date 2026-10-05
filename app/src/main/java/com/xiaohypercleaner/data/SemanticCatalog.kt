@@ -146,7 +146,18 @@ object SemanticCatalog {
          * без него тумблер остаётся включённым, а шаг падает verify_failed
          * (дамп diag-dumps/fresh/carousel_after_tap1.xml).
          */
-        val toggleDeclineTexts: Map<String, List<String>> = emptyMap()
+        val toggleDeclineTexts: Map<String, List<String>> = emptyMap(),
+        /**
+         * Экран-опрос «Ваше мнение важно для нас» (Карусель обоев, MIUI 13): вместо
+         * диалога-заглушки с «Нет, спасибо» приходит WebView-опрос, кнопки отказа в
+         * котором нет — прежний фикс его не закрывал (прогон rmuu7xcch: carousel
+         * verify_failed с открытым опросом). [feedbackDialogMarkers] опознают экран,
+         * [feedbackRadioTexts] — фиксированный нейтральный пункт, [feedbackSubmitTexts]
+         * — кнопка отправки. Пустые списки = опроса у шага нет.
+         */
+        val feedbackDialogMarkers: Map<String, List<String>> = emptyMap(),
+        val feedbackRadioTexts: Map<String, List<String>> = emptyMap(),
+        val feedbackSubmitTexts: Map<String, List<String>> = emptyMap()
     )
 
     /**
@@ -458,6 +469,18 @@ object SemanticCatalog {
     /** Тексты кнопки-отказа диалога, который оболочка показывает после главного тумблера. */
     fun toggleDeclineTexts(id: String): List<String> =
         localizedTexts(selection(id)?.variant?.toggleDeclineTexts)
+
+    /** Маркеры экрана-опроса «Ваше мнение важно для нас» (пусто = опроса нет). */
+    fun feedbackDialogMarkers(id: String): List<String> =
+        localizedTexts(selection(id)?.variant?.feedbackDialogMarkers)
+
+    /** Фиксированный нейтральный радио-пункт экрана-опроса. */
+    fun feedbackRadioTexts(id: String): List<String> =
+        localizedTexts(selection(id)?.variant?.feedbackRadioTexts)
+
+    /** Кнопка отправки экрана-опроса. */
+    fun feedbackSubmitTexts(id: String): List<String> =
+        localizedTexts(selection(id)?.variant?.feedbackSubmitTexts)
 
     /**
      * Подсказки имени папки рабочего стола: имя страны региона, затем вариант, затем
@@ -805,6 +828,9 @@ object SemanticCatalog {
                     control = o.optString("control").takeIf { it.isNotEmpty() }?.let { ActionType.from(it) },
                     extraTargets = parseExtraTargets(o.optJSONArray("extraTargets")),
                     toggleDeclineTexts = parseListMap(o.optJSONObject("toggleDeclineTexts")),
+                    feedbackDialogMarkers = parseListMap(o.optJSONObject("feedbackDialogMarkers")),
+                    feedbackRadioTexts = parseListMap(o.optJSONObject("feedbackRadioTexts")),
+                    feedbackSubmitTexts = parseListMap(o.optJSONObject("feedbackSubmitTexts")),
                     folderNames = parseListMap(o.optJSONObject("folderNames")),
                     fallbackAction = o.optString("fallbackAction").takeIf { it.isNotEmpty() },
                     route = parseRoute(o.optJSONArray("route")),

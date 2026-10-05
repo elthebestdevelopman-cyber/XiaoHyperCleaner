@@ -1005,6 +1005,18 @@
             "pt": ["Não, obrigado"],
             "id": ["Tidak, terima kasih"]
           },
+          "feedbackDialogMarkers": {
+            "ru": ["Ваше мнение важно для нас", "Почему вы хотите выключить Карусель обоев"],
+            "en": ["Your opinion matters", "Why do you want to turn off Wallpaper Carousel"]
+          },
+          "feedbackRadioTexts": {
+            "ru": ["Неинтересный контент"],
+            "en": ["Uninteresting content"]
+          },
+          "feedbackSubmitTexts": {
+            "ru": ["Отправить"],
+            "en": ["Submit", "Send"]
+          },
           "confirmTexts": {
             "ru": ["Выключить"]
           },

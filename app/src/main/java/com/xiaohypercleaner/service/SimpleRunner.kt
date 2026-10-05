@@ -267,6 +267,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
         private const val SWITCH_VERIFY_RETRY_DELAY_MS = 600L
         /** Ожидание кнопки-отказа после главного тумблера (Карусель: «Нет, спасибо»). */
         private const val TOGGLE_DECLINE_WAIT_MS = 2500L
+
+        /** Ожидание исчезновения экрана-опроса после BACK/отправки (WebView-переход). */
+        private const val FEEDBACK_SURVEY_WAIT_MS = 3_000L
+        private const val FEEDBACK_SURVEY_POLL_MS = 250L
         private const val CONFIRM_RETRY_MS = 1500L
 
         /**
@@ -2287,6 +2291,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Диалог-заглушка MIUI сразу после тапа (Карусель обоев: «Нет, спасибо» / «Хорошо»):
         // отказ — часть шага, иначе тумблер остаётся включённым и шаг падает verify_failed.
         tapToggleDeclineIfNeeded(step)
+        // Второй вариант того же диалога: экран-опрос «Ваше мнение важно для нас» — кнопки
+        // отказа в нём нет, закрывается BACK'ом или отправкой нейтрального ответа (rmuu7xcch).
+        handleFeedbackSurveyIfNeeded(step, mergedSearchTexts)
         postToggleConfirm(step, mergedSearchTexts)?.let { return it }
 
         // П.3: Дополнительные переключатели. В списке лежат переводы одной и той же строки
@@ -2371,6 +2378,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
             recycleNode(retryNode); recycleNode(retryRoot)
             delay(600)
             tapToggleDeclineIfNeeded(step)
+            // Опрос «Ваше мнение важно для нас» появляется и на повторном тапе.
+            handleFeedbackSurveyIfNeeded(step, texts)
             if (tapConfirmIfNeeded(step) == ConfirmOutcome.FAILED) {
                 return Result(false, "confirm_not_closed")
             }
@@ -2516,6 +2525,100 @@ class SimpleRunner(private val service: AdbEnablerService) {
             }
             delay(CONFIRM_RETRY_MS)
         }
+    }
+
+    /**
+     * Экран-опрос «Ваше мнение важно для нас» (Карусель обоев, MIUI 13). После тапа
+     * главного тумблера MIUI открывает WebView-опрос («Почему вы хотите выключить
+     * Карусель обоев?», радиокнопки, кнопка «Отправить»), кнопки «Нет, спасибо» в нём
+     * нет — [tapToggleDeclineIfNeeded] его не закрывал, и шаг падал verify_failed
+     * (прогон rmuu7xcch, дамп diagnostic_snapshot_carousel_1791142475741.json).
+     *
+     * Порядок: BACK (безопасен, только если экран карусели на месте и тумблер УЖЕ
+     * применён) → фиксированный нейтральный радио-пункт + «Отправить». Возвращает true,
+     * если опрос опознан; вердикт по-прежнему пишет основной путь verify.
+     */
+    internal suspend fun handleFeedbackSurveyIfNeeded(
+        step: SimpleSteps.Step,
+        texts: List<String>
+    ): Boolean {
+        val markers = SemanticCatalog.feedbackDialogMarkers(step.id)
+        if (markers.isEmpty()) return false
+        if (!feedbackSurveyVisible(markers)) return false
+        StepDiagnostics.note(step.id, "FEEDBACK", "survey detected")
+        AppLog.i(TAG, "feedback: survey detected step=${step.id}")
+
+        // 1) BACK: закрывает опрос, если он отдельным экраном над настройками карусели.
+        //    Только после этого проверяем тумблер: BACK, закрывший опрос без применения
+        //    настройки (или увёдший с экрана), успехом не считается.
+        pressBack()
+        if (awaitFeedbackGone(markers)) {
+            if (verifySwitchState(step, texts)) {
+                StepDiagnostics.note(step.id, "FEEDBACK", "closed=back")
+                AppLog.i(TAG, "feedback: closed via back step=${step.id}")
+                return true
+            }
+            AppLog.w(TAG, "feedback: back closed survey but switch not applied step=${step.id}")
+            StepDiagnostics.note(step.id, "FEEDBACK", "back_without_apply")
+            // Повторный тап возвращает опрос: без него отправлять ответ нечему.
+            val root = service.rootInActiveWindow
+            val node = root?.let { findSwitchByText(it, texts)?.takeIf { s -> isSwitchLike(s) } }
+            if (root != null) recycleNode(root)
+            if (node != null) {
+                tapNode(node)
+                recycleNode(node)
+                delay(600)
+            }
+        }
+        if (!feedbackSurveyVisible(markers)) return true
+
+        // 2) Фиксированный нейтральный пункт + «Отправить»: без отправки MIUI опрос не
+        //    закрывает, и настройка не применяется.
+        val picked: String? = SemanticCatalog.feedbackRadioTexts(step.id).firstOrNull { radio ->
+            val root = service.rootInActiveWindow ?: return@firstOrNull false
+            val node = findClickableByText(root, listOf(radio))
+            recycleNode(root)
+            if (node == null) return@firstOrNull false
+            val tapped = tapNode(node)
+            recycleNode(node)
+            tapped
+        }
+        if (picked == null) {
+            StepDiagnostics.note(step.id, "FEEDBACK", "radio_not_found")
+            AppLog.w(TAG, "feedback: neutral radio not found step=${step.id}")
+            return true
+        }
+        delay(CONFIRM_SETTLE_MS)
+        val submitRoot = service.rootInActiveWindow
+        val submitNode = submitRoot?.let {
+            findClickableByText(it, SemanticCatalog.feedbackSubmitTexts(step.id))
+        }
+        if (submitRoot != null) recycleNode(submitRoot)
+        val submitted = submitNode != null && tapNode(submitNode)
+        recycleNode(submitNode)
+        StepDiagnostics.note(step.id, "FEEDBACK", "submitted=$submitted radio='$picked'")
+        AppLog.i(TAG, "feedback: submitted=$submitted radio='$picked' step=${step.id}")
+        if (submitted) awaitFeedbackGone(markers)
+        return true
+    }
+
+    /** Экран-опрос виден на активном экране (маркеры варианта). */
+    private fun feedbackSurveyVisible(markers: List<String>): Boolean {
+        val screenText = currentScreenText()
+        return screenText.isNotBlank() &&
+            markers.any { TextMatcher.normalizedContains(screenText, it) }
+    }
+
+    /** Ждёт исчезновения экрана-опроса: true — опрос ушёл до дедлайна. */
+    private suspend fun awaitFeedbackGone(markers: List<String>): Boolean {
+        val budget = minOf(FEEDBACK_SURVEY_WAIT_MS, maxOf(0L, remainingBudgetMs() - 1000L))
+        val deadline = System.currentTimeMillis() + budget
+        while (!cancelled) {
+            if (!feedbackSurveyVisible(markers)) return true
+            if (System.currentTimeMillis() >= deadline) return false
+            delay(FEEDBACK_SURVEY_POLL_MS)
+        }
+        return false
     }
 
     /**

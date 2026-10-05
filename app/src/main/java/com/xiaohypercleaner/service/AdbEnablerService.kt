@@ -2,8 +2,10 @@ package com.xiaohypercleaner.service
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
+import android.provider.Settings
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
@@ -14,6 +16,7 @@ import com.xiaohypercleaner.data.RomProfile
 import com.xiaohypercleaner.data.SimplePlan
 import com.xiaohypercleaner.data.SimpleSteps
 import com.xiaohypercleaner.util.AppLog
+import com.xiaohypercleaner.util.OverlayPermissionProbe
 import com.xiaohypercleaner.util.StepDiagnostics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -104,6 +107,29 @@ class AdbEnablerService : AccessibilityService() {
         )
         private val ALLOW_TEXTS: Array<String> = arrayOf(
             "Allow", "Разрешить", "OK", "ОК", "Да", "Yes"
+        )
+
+        // ── Самовосстановление оверлея (P0, прогон rmuu7xcch) ──
+        /** Сколько раз пробуем вернуть разрешение «Поверх других окон» за один гейт. */
+        private const val OVERLAY_RECOVERY_ATTEMPTS = 2
+
+        /** Попыток найти и включить тумблер на экране разрешения (внутри попытки). */
+        private const val OVERLAY_RECOVERY_TRIES = 4
+
+        /** Шаг ожидания после возврата с экрана разрешения. */
+        private const val OVERLAY_RECOVERY_POLL_MS = 250L
+
+        /**
+         * Подписи тумблера на экране «Поверх других окон» / «Показывать поверх других
+         * приложений» — строки устройства (как DEV_OPTIONS_TEXTS), не UI-ресурсы:
+         * по ним ищется узел, а не показывается текст.
+         */
+        private val OVERLAY_PERMISSION_TEXTS: Array<String> = arrayOf(
+            "Показывать поверх других приложений",
+            "Разрешить отображение поверх других приложений",
+            "Display over other apps",
+            "Allow display over other apps",
+            "Permitir sobreposição a outros apps"
         )
 
         // ── Кнопки диалогов первого запуска (только ВНЕ шага) ──
@@ -342,6 +368,40 @@ class AdbEnablerService : AccessibilityService() {
                 getString(R.string.automation_status_search, step.titleRu)
             )
 
+            // Префлайт гейта: при отозванном «Поверх других окон» окно НЕ пересоздаётся
+            // вовсе, и прежнее ожидание 2+8 с давало по одному overlay_not_attached на
+            // каждый шаг (прогон rmuu7xcch: 17 шагов каскадом). Сначала пробуем вернуть
+            // разрешение, и только потом — честная остановка всего прогона.
+            if (!OverlayPermissionProbe.isGranted(this)) {
+                AppLog.w(
+                    TAG,
+                    "runSimpleStep: overlay permission lost (${OverlayPermissionProbe.describe(this)})"
+                )
+                OverlayController.updateStatus(this, getString(R.string.overlay_recovering))
+                if (recoverOverlayPermission()) {
+                    AppLog.i(TAG, "runSimpleStep: overlay permission recovered")
+                } else {
+                    AppLog.e(
+                        TAG,
+                        "runSimpleStep: overlay permission unrecoverable, aborting run at ${step.id}"
+                    )
+                    OverlayController.markPermissionLost()
+                    StepDiagnostics.note(
+                        step.id,
+                        "FAIL",
+                        "reason=${SimpleStepBridge.REASON_OVERLAY_PERMISSION_LOST} " +
+                            OverlayPermissionProbe.describe(this)
+                    )
+                    SimpleStepBridge.onResult?.invoke(
+                        false,
+                        SimpleStepBridge.REASON_OVERLAY_PERMISSION_LOST
+                    )
+                    if (index == total - 1) releaseWakeLock()
+                    return
+                }
+            }
+            OverlayController.clearPermissionLost()
+
             // Гейт прикреплённости оверлея: 2 с на восстановление, затем пауза
             // до 10 с; при отказе — шаг фейлится с явной причиной.
             if (!OverlayController.isOverlaySolid()) {
@@ -367,6 +427,28 @@ class AdbEnablerService : AccessibilityService() {
                     }
                 }
                 if (!OverlayController.isOverlaySolid()) {
+                    // Разрешение могло пропасть уже во время ожидания: это не «окно не
+                    // прикрепилось», а потеря разрешения — прогон останавливается целиком,
+                    // а не одним шагом (rmuu7xcch: 17 шагов каскадом).
+                    if (!OverlayPermissionProbe.isGranted(this)) {
+                        AppLog.e(
+                            TAG,
+                            "runSimpleStep: overlay permission lost during wait, aborting ${step.id}"
+                        )
+                        OverlayController.markPermissionLost()
+                        StepDiagnostics.note(
+                            step.id,
+                            "FAIL",
+                            "reason=${SimpleStepBridge.REASON_OVERLAY_PERMISSION_LOST} " +
+                                OverlayPermissionProbe.describe(this)
+                        )
+                        SimpleStepBridge.onResult?.invoke(
+                            false,
+                            SimpleStepBridge.REASON_OVERLAY_PERMISSION_LOST
+                        )
+                        if (index == total - 1) releaseWakeLock()
+                        return
+                    }
                     AppLog.e(TAG, "runSimpleStep: overlay never solid, failing step ${step.id}")
                     StepDiagnostics.note(step.id, "FAIL", "reason=overlay_not_attached")
                     SimpleStepBridge.onResult?.invoke(false, "overlay_not_attached")
@@ -691,6 +773,91 @@ class AdbEnablerService : AccessibilityService() {
             if (ok) return true
         }
         return false
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Самовосстановление оверлея (P0, прогон rmuu7xcch)
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Пытается вернуть разрешение «Поверх других окон», пропавшее в середине прогона.
+     *
+     * Слой 1 — повторное чтение двумя источниками ([OverlayPermissionProbe]): MIUI
+     * успевает сбросить `canDrawOverlays` при живом app-op, и тогда разрешение не
+     * «потеряно», а лишь читается иначе — окно поднимется само. Слой 2 — экран
+     * разрешения открывается и тумблер включается той же Accessibility-автоматизацией:
+     * это собственное разрешение приложения, чужих согласий не тапаем.
+     *
+     * Возвращает true, если разрешение подтверждено после попыток. Предел честный: если
+     * MIUI требует пароль на экране разрешения или блокирует «фоновые всплывающие окна»
+     * политикой, восстановление невозможно — прогон останавливается
+     * (`overlay_permission_lost`), а не идёт дальше вслепую.
+     */
+    private suspend fun recoverOverlayPermission(): Boolean {
+        repeat(OVERLAY_RECOVERY_ATTEMPTS) { attempt ->
+            if (OverlayPermissionProbe.isGranted(this)) return true
+            AppLog.i(TAG, "overlay recovery attempt ${attempt + 1}/$OVERLAY_RECOVERY_ATTEMPTS")
+            val opened = runCatching {
+                startActivity(
+                    Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                        .setData(Uri.parse("package:$packageName"))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            }.onFailure {
+                AppLog.w(TAG, "overlay recovery: cannot open permission screen: ${it.message}")
+            }.isSuccess
+            if (opened) {
+                turnOnOverlaySwitch()
+                for (wait in 0 until 8) {
+                    if (OverlayPermissionProbe.isGranted(this)) {
+                        runCatching { performGlobalAction(GLOBAL_ACTION_BACK) }
+                        AppLog.i(TAG, "overlay recovery: permission granted again")
+                        return true
+                    }
+                    delay(OVERLAY_RECOVERY_POLL_MS)
+                }
+                // Экран разрешения остался открытым: возвращаемся назад, чтобы прогон
+                // продолжился на прежнем экране, а не «в незнакомом месте».
+                runCatching { performGlobalAction(GLOBAL_ACTION_BACK) }
+            }
+            delay(400)
+        }
+        return OverlayPermissionProbe.isGranted(this)
+    }
+
+    /**
+     * Включает тумблер на открытом экране разрешения. Тапаем только подтверждённо
+     * ВЫКЛЮЧЕННЫЙ тумблер (состояние читается у узла): слепой тап по строке мог бы
+     * выключить живое разрешение, если `canDrawOverlays` соврал в минус.
+     */
+    private suspend fun turnOnOverlaySwitch(): Boolean {
+        repeat(OVERLAY_RECOVERY_TRIES) { attempt ->
+            if (attempt > 0) delay(400)
+            val root = rootInActiveWindow ?: return@repeat
+            val label: AccessibilityNodeInfo? = findNodeByTexts(root, OVERLAY_PERMISSION_TEXTS)
+            if (label == null) {
+                recycleNode(root)
+                return@repeat
+            }
+            val clickable: AccessibilityNodeInfo = findClickableParent(label) ?: label
+            val checked: Boolean? = switchCheckedState(clickable) ?: switchCheckedState(label)
+            val toggled: Boolean =
+                if (checked == false) clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK) else false
+            AppLog.i(TAG, "overlay recovery: switch found checked=$checked tapped=$toggled")
+            recycleNode(label)
+            if (clickable !== label) recycleNode(clickable)
+            recycleNode(root)
+            if (toggled) return true
+        }
+        return false
+    }
+
+    /** Состояние тумблера узла: null — узел не переключатель (подпись/строка). */
+    @Suppress("DEPRECATION")
+    private fun switchCheckedState(node: AccessibilityNodeInfo): Boolean? {
+        val cls = node.className?.toString().orEmpty()
+        val looksLikeSwitch = cls.contains("Switch") || cls.contains("CheckBox")
+        return if (node.isCheckable || looksLikeSwitch) node.isChecked else null
     }
 
     // ═══════════════════════════════════════════════════════════════

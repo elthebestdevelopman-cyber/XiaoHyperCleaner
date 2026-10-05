@@ -30,6 +30,7 @@ import com.xiaohypercleaner.R
 import com.xiaohypercleaner.data.SemanticCatalog
 import com.xiaohypercleaner.ui.openUrl
 import com.xiaohypercleaner.util.AppLog
+import com.xiaohypercleaner.util.OverlayPermissionProbe
 
 /**
  * Оверлей с heartbeat-защитой от пропадания.
@@ -189,14 +190,27 @@ class OverlayService : Service() {
     override fun onCreate() {
         super.onCreate()
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        // Разрешения нет уже на старте сервиса (MIUI снял «Поверх других окон»/фоновый
+        // pop-up): окно нарисовать нельзя — фиксируем факт для честной остановки прогона.
+        if (!OverlayPermissionProbe.isGranted(this)) {
+            AppLog.w(TAG, "onCreate: overlay permission missing (${OverlayPermissionProbe.describe(this)})")
+            OverlayController.markPermissionLost()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (!Settings.canDrawOverlays(this)) {
+        if (!OverlayPermissionProbe.isGranted(this)) {
             // Окно рисовать нельзя: MIUI мог снять «Поверх других окон»/фоновый pop-up после
             // ухода приложения в фон — тогда пересоздание окна невозможно (прогон rmuu1hsq6:
             // сервис умирал без следа в логе, последующие шаги — overlay_not_attached).
-            AppLog.w(TAG, "onStartCommand: overlay permission missing — stopSelf (window lost)")
+            // Причина помечается: гейт раннера останавливает прогон одним итогом вместо
+            // каскада overlay_not_attached (прогон rmuu7xcch: 17 шагов).
+            AppLog.w(
+                TAG,
+                "onStartCommand: overlay permission missing — stopSelf (window lost) " +
+                    OverlayPermissionProbe.describe(this)
+            )
+            OverlayController.markPermissionLost()
             stopSelf(); return START_NOT_STICKY
         }
         val action = intent?.action
@@ -609,12 +623,23 @@ class OverlayService : Service() {
                     // Прежний `return` без reschedule останавливал heartbeat навсегда
                     // (прогон rmuu1hsq6: окно уже не возвращалось).
                     if (OverlayController.phaseRunning &&
-                        Settings.canDrawOverlays(this@OverlayService)
+                        OverlayPermissionProbe.isGranted(this@OverlayService)
                     ) {
                         AppLog.w(TAG, "overlay: heartbeat root-null — recreating window")
                         recoverAutomationIfMissing()
                     } else {
-                        AppLog.w(TAG, "overlay: heartbeat stopped reason=root-null")
+                        // Разрешение пропало — окно не вернуть: это не «heartbeat устал»,
+                        // а потеря разрешения; прогон обязан остановиться честно.
+                        if (OverlayController.phaseRunning) {
+                            AppLog.e(
+                                TAG,
+                                "overlay: heartbeat stopped reason=permission-missing " +
+                                    OverlayPermissionProbe.describe(this@OverlayService)
+                            )
+                            OverlayController.markPermissionLost()
+                        } else {
+                            AppLog.w(TAG, "overlay: heartbeat stopped reason=root-null")
+                        }
                         stopHeartbeat()
                     }
                     return
@@ -757,7 +782,22 @@ class OverlayService : Service() {
         }
 
         addedViaAccService = accService?.attachOverlay(v, params) == true
-        if (!addedViaAccService) wm?.addView(v, params)
+        if (!addedViaAccService) {
+            // addView при отозванном разрешении бросает SecurityException/BadToken на main
+            // thread — это падение сервиса, а не «окно не прикрепилось». Ловим и помечаем
+            // потерю разрешения: прогон остановится одним итогом (rmuu7xcch).
+            val added = runCatching { wm?.addView(v, params) }
+            if (added.isFailure) {
+                AppLog.e(
+                    TAG,
+                    "overlay: addView failed: ${added.exceptionOrNull()?.message} " +
+                        OverlayPermissionProbe.describe(this)
+                )
+                OverlayController.markPermissionLost()
+                stopSelf()
+                return v
+            }
+        }
 
         updateExpectedGeometry()
         root = v

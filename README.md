@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 36 сьютов, 310 тестов (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 38 сьютов, 320 тестов (полная таблица ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 17 тестов
 │   ├── OptimizationEngineTest.kt # 15 тестов
@@ -388,7 +388,7 @@ app/src/test/java/com/xiaohypercleaner/          # 36 сьютов, 310 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (310 тестов, 36 сьютов)
+### Unit-тесты (320 тестов, 38 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -400,7 +400,7 @@ app/src/test/java/com/xiaohypercleaner/          # 36 сьютов, 310 тест
 | `RestoreSnapshotTest`         | 5      | Снапшот оригиналов для отката                      |
 | `AdbPortResolverTest`         | 5      | mDNS discovery, mergePorts                         |
 | `AdaptiveCatalogTest`         | 17     | Вариантный каталог, мердж текстов                  |
-| `SemanticCatalogTest`         | 26     | Семантика шагов, пакеты-цели, политика диалогов    |
+| `SemanticCatalogTest`         | 28     | Семантика шагов, пакеты-цели, политика диалогов    |
 | `SemanticVariantTest`         | 9      | Выбор вариантов по версии ОС (MIUI 13 / HyperOS 2) |
 | `SemanticGateTest`            | 6      | Гейт уверенности                                   |
 | `PlanBuilderTest`             | 9      | Префильтр плана + красный список                   |
@@ -423,7 +423,9 @@ app/src/test/java/com/xiaohypercleaner/          # 36 сьютов, 310 тест
 | `SimpleRunnerMuteTest`        | 4      | Громкость медиа: save→mute→restore, снапшот fresh-device |
 | `SimpleRunnerOverlayGateTest` | 6      | Гейт целостности оверлея, сторож жестов ±500 мс    |
 | `SimpleRunnerRouteTest`       | 5      | Маршрут-подсказка: подтверждение экрана пакетом и маркерами |
-| `SimpleRunnerVerifyTest`      | 4      | Честный вердикт при исчезнувшей строке и открытом диалоге |
+| `SimpleRunnerVerifyTest`      | 7      | Честный вердикт при исчезнувшей строке, открытом диалоге и опросе карусели |
+| `SimpleModeControllerOverlayTest` | 2  | Потеря разрешения оверлея останавливает прогон одним итогом |
+| `OverlayPermissionProbeTest`  | 3      | Разрешение оверлея по двум источникам (Settings + app-op) |
 | `ScanOrchestratorTest`        | 4      | Планирование навигации, кэш                        |
 | `ScreenCrawlerTest`           | 6      | Сканер экранов (диагностика)                       |
 | `ActivityScannerTest`         | 8      | Видимость пакетов и активностей                    |

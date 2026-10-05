@@ -174,4 +174,89 @@ class SimpleRunnerVerifyTest {
             runner.lastReadSwitchState
         )
     }
+
+    /** Кликабельный узел с собственной подписью (радиокнопка/кнопка опроса). */
+    private fun clickableNode(text: String): AccessibilityNodeInfo {
+        val n = Mockito.mock(AccessibilityNodeInfo::class.java)
+        Mockito.`when`(n.text).thenReturn(text)
+        Mockito.`when`(n.isClickable).thenReturn(true)
+        Mockito.`when`(n.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true)
+        Mockito.`when`(n.childCount).thenReturn(0)
+        return n
+    }
+
+    /** Экран-опрос карусели: заголовок, вопрос, нейтральный пункт и «Отправить». */
+    private fun feedbackSurveyRoot(
+        radio: AccessibilityNodeInfo,
+        submit: AccessibilityNodeInfo
+    ): AccessibilityNodeInfo = node(
+        text = "Ваше мнение важно для нас",
+        children = arrayOf(
+            node(text = "Почему вы хотите выключить Карусель обоев?"),
+            radio,
+            submit
+        )
+    )
+
+    /**
+     * P1 (прогон rmuu7xcch): у шага без опроса новые поля пусты — экран не трогаем
+     * (иначе чужой WebView-опрос можно «закрыть» на произвольном шаге).
+     */
+    @Test
+    fun `feedback survey is ignored for steps that have no survey markers`() = runTest {
+        val survey = node(text = "Ваше мнение важно для нас")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(survey)
+
+        assertFalse(
+            "у msa опроса нет — обработчик не срабатывает",
+            runner.handleFeedbackSurveyIfNeeded(msaStep(), listOf("msa"))
+        )
+        Mockito.verify(service, Mockito.never()).rootInActiveWindow
+    }
+
+    /**
+     * BACK безопасен, когда опрос лежит отдельным экраном: после него экран карусели
+     * на месте и тумблер уже выключен — отправлять ответ не нужно.
+     */
+    @Test
+    fun `feedback survey closes via back when the toggle was already applied`() = runTest {
+        val survey = node(text = "Ваше мнение важно для нас")
+        val applied = node(
+            text = "Карусель обоев",
+            children = arrayOf(carouselSwitch(checked = false))
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(survey, applied)
+
+        val carousel = SimpleSteps.ALL.first { it.id == "carousel" }
+
+        assertTrue(
+            "опрос опознан и закрыт BACK'ом",
+            runner.handleFeedbackSurveyIfNeeded(carousel, listOf("Карусель экрана блокировки"))
+        )
+        assertEquals("тумблер прочитан после BACK", false, runner.lastReadSwitchState)
+    }
+
+    /**
+     * BACK опрос не закрывает — шаг обязан отправить нейтральный ответ: фиксированный
+     * радио-пункт + «Отправить» (иначе настройка не применится, а шаг уйдёт в
+     * carousel verify_failed).
+     */
+    @Test
+    fun `feedback survey is submitted with the neutral option when back does not close it`() = runTest {
+        val radio = clickableNode("Неинтересный контент")
+        val submit = clickableNode("Отправить")
+        val survey = feedbackSurveyRoot(radio, submit)
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(survey)
+
+        val carousel = SimpleSteps.ALL.first { it.id == "carousel" }
+
+        assertTrue(
+            "опрос опознан",
+            runner.handleFeedbackSurveyIfNeeded(carousel, listOf("Карусель экрана блокировки"))
+        )
+        Mockito.verify(radio, Mockito.atLeastOnce())
+            .performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        Mockito.verify(submit, Mockito.atLeastOnce())
+            .performAction(AccessibilityNodeInfo.ACTION_CLICK)
+    }
 }

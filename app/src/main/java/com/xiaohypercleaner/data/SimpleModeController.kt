@@ -10,6 +10,7 @@ import com.xiaohypercleaner.service.ChainFlags
 import com.xiaohypercleaner.service.OverlayController
 import com.xiaohypercleaner.service.SimpleRunner
 import com.xiaohypercleaner.util.AppLog
+import com.xiaohypercleaner.util.OverlayPermissionProbe
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -138,6 +139,13 @@ class SimpleModeController(
      */
     private var batteryDialogAlreadyShown: Boolean = false
 
+    /**
+     * Разрешение оверлея пропало во время прогона и не восстановилось: прогон уже
+     * остановлен одним итогом, повторные сигналы игнорируются (see
+     * [onOverlayPermissionLost]).
+     */
+    private var overlayLost: Boolean = false
+
     fun setState(update: SimpleModeState.() -> SimpleModeState) {
         state = state.update()
         onStateChanged(state)
@@ -152,6 +160,65 @@ class SimpleModeController(
     fun markPartialRun() {
         AppLog.i(TAG, "run: partial=true (отмена подтверждена пользователем)")
         setState { copy(partialRun = true) }
+    }
+
+    /**
+     * P0 (прогон rmuu7xcch): разрешение «Поверх других окон» пропало во время прогона и
+     * не восстановилось. Продолжать шаги нельзя — окна автоматизации нет, каждый
+     * следующий шаг упал бы `overlay_not_attached` (17 шагов каскадом), а настройки
+     * применялись бы «слепой» автоматизацией. Прогон закрывается одним честным итогом;
+     * экран результата поднимает MainActivity (оверлея нет).
+     */
+    fun onOverlayPermissionLost() {
+        if (!state.active) {
+            AppLog.w(TAG, "onOverlayPermissionLost: controller inactive, ignoring")
+            return
+        }
+        if (overlayLost) {
+            AppLog.w(TAG, "onOverlayPermissionLost: already stopped, ignoring duplicate")
+            return
+        }
+        overlayLost = true
+        autoFlowJob?.cancel()
+        releaseWakeLock()
+        val total = SimplePlan.all().size
+        val executed = (state.currentStepIndex + 1).coerceAtMost(total)
+        val notRun = (total - executed).coerceAtLeast(0)
+        AppLog.e(
+            TAG,
+            "overlay permission lost: run stopped at $executed/$total " +
+                "(${state.step?.step?.id}), not_executed=$notRun"
+        )
+        setState {
+            copy(
+                phase = SimpleModePhase.DONE,
+                permissionSubPhase = PermissionSubPhase.DONE,
+                step = null,
+                partialRun = true,
+                done = Pair(completedCount, (total - skippedIds.size).coerceAtLeast(0))
+            )
+        }
+        // Фазу завершает обычный путь закрытия результата (reset -> endPhase + hide):
+        // инвариант «один show на фазу» не ломаем.
+        publishResult()
+    }
+
+    /**
+     * Экран результата: один и тот же итог для штатного финиша и для аварийной
+     * остановки (потеря разрешения оверлея) — иначе ветки разъезжаются при правке.
+     */
+    private fun publishResult() {
+        OverlayController.showResult(
+            context,
+            state.completedCount,
+            state.done?.second ?: 0,
+            failedIds.size,
+            skippedIds.size,
+            notifToggledIds.map { stepTitle(it) },
+            alreadyOffIds.map { stepTitle(it) },
+            launcherSkippedIds.size,
+            unresolvedIds.size
+        )
     }
 
     fun destroy() {
@@ -213,6 +280,7 @@ class SimpleModeController(
         stepsStarted = false
         restrictedLocation = RestrictedLocation.UNKNOWN
         batteryDialogAlreadyShown = false  // НОВОЕ (beta11): сброс флага
+        overlayLost = false
 
         state = SimpleModeState(
             active = true,
@@ -411,6 +479,49 @@ class SimpleModeController(
                     .setPendingSimpleMode(false)
             }
         }
+        // Префлайт перед шагами: разрешения перечитываются «здесь и сейчас», а не берутся
+        // из кэша старта (за фазу разрешений кэш успевает устареть). appops
+        // SYSTEM_ALERT_WINDOW читается публичным AppOpsManager (OverlayPermissionProbe);
+        // MIUI-ops 10017/10020/10021 сторонним приложением не читаются — их проверяет
+        // adb-рецепт (docs/diag/handoff_active.md). Прогон rmuu7xcch: без такой проверки
+        // разрешение пропало на 11-м шаге и 17 шагов упали каскадом.
+        val overlayPreflight = OverlayPermissionProbe.isGranted(context)
+        isOverlayGranted = overlayPreflight
+        isAccessibilityEnabled = checkAccessibility()
+        val batteryPreflight = permissionFlow.isIgnoringBatteryOptimizations()
+        AppLog.i(
+            TAG,
+            "preflight: overlay=$overlayPreflight (${OverlayPermissionProbe.describe(context)}) " +
+                "accessibility=$isAccessibilityEnabled battery=$batteryPreflight"
+        )
+        if (!overlayPreflight) {
+            // Шаги без окна автоматизации — это «слепая» автоматизация: возвращаемся к
+            // диалогу разрешения, а не стартуем цепочку.
+            AppLog.w(TAG, "preflight: overlay permission missing — back to permission phase")
+            OverlayController.markPermissionLost()
+            if (state.overlayAttempts >= AppConstants.MAX_ACCESSIBILITY_ATTEMPTS) {
+                setState {
+                    copy(
+                        phase = SimpleModePhase.PERMISSIONS,
+                        permissionSubPhase = PermissionSubPhase.OVERLAY,
+                        showPermissionFallbackDialog = true,
+                        showOverlayDialog = false,
+                        stuckPhase = PermissionSubPhase.OVERLAY
+                    )
+                }
+            } else {
+                setState {
+                    copy(
+                        phase = SimpleModePhase.PERMISSIONS,
+                        permissionSubPhase = PermissionSubPhase.OVERLAY,
+                        showOverlayDialog = true
+                    )
+                }
+            }
+            return
+        }
+        OverlayController.clearPermissionLost()
+
         // Префильтр плана: только установленные пакеты, plan-time home-skip,
         // фильтр notif_* по настройке прозрачности уведомлений.
         val profile = RomProfile.detect(context)
@@ -638,13 +749,7 @@ class SimpleModeController(
                     step = null, done = Pair(finalCompleted, applicable)
                 )
             }
-            OverlayController.showResult(
-                context, finalCompleted, applicable, failedIds.size, skippedIds.size,
-                notifToggledIds.map { stepTitle(it) },
-                alreadyOffIds.map { stepTitle(it) },
-                launcherSkippedIds.size,
-                unresolvedIds.size
-            )
+            publishResult()
             return
         }
 
@@ -822,6 +927,7 @@ class SimpleModeController(
         SimplePlan.reset()
         restrictedLocation = RestrictedLocation.UNKNOWN
         batteryDialogAlreadyShown = false  // НОВОЕ (beta11): сброс флага
+        overlayLost = false
         state = SimpleModeState()
         onStateChanged(state)
     }
