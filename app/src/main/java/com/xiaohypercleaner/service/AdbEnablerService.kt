@@ -347,6 +347,8 @@ class AdbEnablerService : AccessibilityService() {
             if (index == 0) {
                 acquireWakeLock()
                 StepDiagnostics.beginRun()
+                // Новый прогон — новый бюджет возврата в приложение шага (P4).
+                simpleRunner.resetForeignRelaunchBudget()
             }
 
             val profile = RomProfile.detect(this)

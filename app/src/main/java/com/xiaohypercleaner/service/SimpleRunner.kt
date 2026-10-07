@@ -207,8 +207,19 @@ class SimpleRunner(private val service: AdbEnablerService) {
          */
         private const val HOME_PAGE_SWEEP_MAX = 4
 
-        /** Нижний отступ рабочего окна перед тапом тумблера (жест-зона навбара). */
-        private const val WINDOW_TAP_BOTTOM_MARGIN_PX = 96
+        /**
+         * Нижний отступ рабочего окна перед тапом тумблера (жест-зона навбара).
+         * Запасное значение в dp: основной путь — фактическая высота навбара
+         * ([bottomTapMarginPx]). 96 px из прогона rmuyfjtvk — это 32 dp при density 3.0,
+         * а не универсальное число: на другом DPI фиксированные пиксели врут.
+         */
+        private const val WINDOW_TAP_BOTTOM_MARGIN_DP = 32
+
+        /** Нижняя граница отступа: меньше — тап возвращается в жест-зону навбара. */
+        private const val WINDOW_TAP_BOTTOM_MARGIN_MIN_DP = 16
+
+        /** Верхняя граница — пятая часть окна: больше зациклило бы прокрутку к строке. */
+        private const val WINDOW_TAP_BOTTOM_MARGIN_MAX_FRACTION = 5
 
         /** Жест и пауза перелистывания страницы рабочего стола. */
         private const val HOME_PAGE_SWIPE_MS = 260L
@@ -576,6 +587,30 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * Mi Music открыла Google Play, и автоматизация продолжила тапать магазин).
      */
     private val entryPackages = HashSet<String>(4)
+
+    /**
+     * Шаг, для которого бюджет «возврат в приложение после ухода в чужое окно» уже
+     * израсходован (P4). Один возврат на ШАГ, а не на попытку: в логе не должно быть
+     * более одной строки `foreign_window_relaunch` на шаг, даже если шаг запущен повторно.
+     * Бюджет обнуляется новым прогоном ([resetForeignRelaunchBudget]).
+     */
+    private var foreignRelaunchStepId: String? = null
+
+    /** Новый прогон — новый бюджет возврата в приложение шага. */
+    internal fun resetForeignRelaunchBudget() {
+        foreignRelaunchStepId = null
+    }
+
+    /**
+     * Выдаёт разрешение на один возврат в приложение шага: `true` — бюджет выдан и потрачен,
+     * `false` — на этом шаге возврат уже был. Второй возврат не делаем: приложение не
+     * поднялось — честный `foreign_window`, а не повторный цикл. internal — для тестируемости.
+     */
+    internal fun claimForeignRelaunch(stepId: String): Boolean {
+        if (foreignRelaunchStepId == stepId) return false
+        foreignRelaunchStepId = stepId
+        return true
+    }
 
     /** Остаток бюджета шага (Long.MAX_VALUE, если дедлайн не задан — unit-тесты). */
     private fun remainingBudgetMs(): Long =
@@ -1251,8 +1286,6 @@ class SimpleRunner(private val service: AdbEnablerService) {
             if (step.preDrillWaitMs > 0) delay(step.preDrillWaitMs)
             // Окно «цель дорисовалась» — не более одного раза на шаг (см. ниже).
             var targetGraceSpent = false
-            // Возврат в приложение после ухода в чужое окно — тоже один раз на шаг.
-            var foreignWindowRecovered = false
             for (levelIndex in startLevel until mergedDrillPath.size) {
                 if (cancelled) return Result(false, "cancelled")
                 // Навигационное действие — только при целостном оверлее.
@@ -1261,8 +1294,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 // не помогло — честный foreign_window (инвариант: робот взаимодействует
                 // только с приложениями шага).
                 if (isForeignWindowFor(step)) {
-                    val recovered = if (!foreignWindowRecovered) {
-                        foreignWindowRecovered = true
+                    // Бюджет возврата — на ШАГ (claimForeignRelaunch), не на попытку:
+                    // повтор шага не даёт второй relaunch entry.
+                    val recovered = if (claimForeignRelaunch(step.id)) {
                         AppLog.w(
                             TAG,
                             "drill: foreign window for ${step.id} fg=${activePackage() ?: "-"} — relaunch entry"
@@ -1809,20 +1843,60 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     /**
      * Узел целиком внутри рабочего окна: тап по краю/под навбаром эффекта не даёт.
-     * Нижний отступ [WINDOW_TAP_BOTTOM_MARGIN_PX]: строка у самой нижней кромки окна
-     * (Mi Видео: тумблер «Онлайн-рекомендации» с видимой высотой 27 px из ~100) тапается
-     * в область жестов, и переключение не применяется (прогон rmuyfjtvk).
+     * Нижний отступ — [bottomTapMarginPx]: строка у самой нижней кромки окна (Mi Видео:
+     * тумблер «Онлайн-рекомендации» с видимой высотой 27 px из ~100) тапается в область
+     * жестов, и переключение не применяется (прогон rmuyfjtvk). Отступ считается от
+     * фактической высоты навбара и плотности, а не фиксированными пикселями.
+     * internal — для тестируемости (SimpleRunnerRouteTest).
      */
-    private fun isFullyVisible(node: AccessibilityNodeInfo): Boolean {
+    internal fun isFullyVisible(node: AccessibilityNodeInfo): Boolean {
         val rect = Rect().also { node.getBoundsInScreen(it) }
         if (rect.width() <= 0 || rect.height() <= 0) return false
         val root = service.rootInActiveWindow ?: return false
         val window = Rect().also { root.getBoundsInScreen(it) }
         recycleNode(root)
         if (window.width() <= 0 || window.height() <= 0) return false
+        val bottomMargin = bottomTapMarginPx(window.height())
         return rect.left >= window.left && rect.right <= window.right &&
             rect.top >= window.top &&
-            rect.bottom <= window.bottom - WINDOW_TAP_BOTTOM_MARGIN_PX
+            rect.bottom <= window.bottom - bottomMargin
+    }
+
+    /**
+     * Высота нижней жест-зоны окна в px: фактическая высота навбара, если система её отдаёт,
+     * иначе [WINDOW_TAP_BOTTOM_MARGIN_DP] × плотность. Проверка на устройстве с другим DPI
+     * покажет, какой путь сработал: в логе — `switch: scroll to off-screen row`.
+     */
+    private fun bottomTapMarginPx(windowHeight: Int): Int {
+        val base = navBarHeightPx().takeIf { it > 0 } ?: dpToPx(WINDOW_TAP_BOTTOM_MARGIN_DP)
+        return clampBottomTapMargin(base, windowHeight)
+    }
+
+    /** Высота системного навбара (`android:navigation_bar_height`); 0 — неизвестна. */
+    private fun navBarHeightPx(): Int = runCatching {
+        val res = service.resources
+        val id = res.getIdentifier("navigation_bar_height", "dimen", "android")
+        if (id > 0) res.getDimensionPixelSize(id) else 0
+    }.getOrDefault(0)
+
+    private fun dpToPx(dp: Int): Int {
+        // Плотность недоступна (нет ресурсов у сервиса — тестовый/битый контекст): считаем
+        // как mdpi, чтобы отступ остался ненулевым, а шаг не падал на NPE.
+        val density = runCatching { service.resources.displayMetrics.density }.getOrDefault(1f)
+        return (dp * (if (density > 0f) density else 1f)).toInt()
+    }
+
+    /**
+     * Ограничивает нижний отступ разумными рамками. Слишком большой отступ объявил бы «не
+     * видимой» любую нижнюю строку и зациклил прокрутку, нулевой — вернул бы тапы в жест-зону
+     * навбара. При вырожденно малом окне побеждает верхняя граница. internal — для тестов.
+     */
+    internal fun clampBottomTapMargin(basePx: Int, windowHeight: Int): Int {
+        val floorPx = dpToPx(WINDOW_TAP_BOTTOM_MARGIN_MIN_DP).coerceAtLeast(1)
+        val value = basePx.coerceAtLeast(floorPx)
+        if (windowHeight <= 0) return value
+        val capPx = (windowHeight / WINDOW_TAP_BOTTOM_MARGIN_MAX_FRACTION).coerceAtLeast(1)
+        return value.coerceIn(1, capPx)
     }
 
     /**
@@ -2737,7 +2811,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
             // активность (security_sys, прогон rmuwvcqiw: шаг остался в корне Настроек и
             // честно, но зря объявил настройку отсутствующей). Один повторный вход с
             // ожиданием целевого окна — прежде, чем объявлять настройку отсутствующей.
-            if (!recovered && !isForegroundStepPackage(step) && retryEnterStep(step)) {
+            // Один подъём входа на шаг: если чужое окно уже потребовало возврата — не дублируем.
+            if (!recovered && !isForegroundStepPackage(step) &&
+                foreignRelaunchStepId != step.id && retryEnterStep(step)
+            ) {
                 recovered = awaitScreen(mergedSearchTexts) ||
                     scrollUntilScreenHasAny(mergedSearchTexts + markers)
                 if (recovered) {
@@ -3121,6 +3198,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
             ConfirmOutcome.ABSENT -> return null
             ConfirmOutcome.CLOSED -> Unit
         }
+        // checked_before для этого пути недоступен по построению: в диалог входят только
+        // тогда, когда тумблер не найден по тем же текстам и тому же корню
+        // (mergedSearchTexts == searchTextsFor(step)) — читать до тапа нечего. Откат берёт
+        // инверсию targetChecked (R1); фиксируем факт, чтобы это не выглядело пропуском.
+        StepDiagnostics.note(step.id, "VERDICT", "checked_before=unavailable dialog=confirm")
         // Фактическое чтение вместо предположения: «диалог закрылся» ≠ «настройка применена».
         // Разведка 08.10 на устройстве: personalized_service_slide остаётся в дереве и сразу
         // после «Отключить» читается checked=false. Узел исчез — MIUI убирает тумблер у

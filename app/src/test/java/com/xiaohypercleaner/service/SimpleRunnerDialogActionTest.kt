@@ -11,6 +11,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -117,5 +118,45 @@ class SimpleRunnerDialogActionTest {
             result.reason
         )
         assertTrue(result.success)
+    }
+
+    @Test
+    @Suppress("DEPRECATION")
+    fun `own confirm dialog with the wrong resulting state fails honestly`() = runTest {
+        // Третий исход после via_dialog: диалог закрылся, строка читается и состояние НЕ
+        // целевое — честный провал, а не «диалог закрылся, значит готово» (шаг 2.6).
+        val title = node(text = "Персонализированные услуги")
+        val body = node(text = "Отключить службы?")
+        val button = node(
+            text = "Отключить",
+            className = "android.widget.Button",
+            clickable = true
+        )
+        val dialogRoot = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(title, body, button)
+        )
+        // Цель appvault_about — выключить; после диалога строка осталась включённой.
+        val row = node(text = "Персонализированные услуги", className = "android.widget.CheckBox")
+        Mockito.`when`(row.isChecked).thenReturn(true)
+        val afterRoot = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(node(text = "О ленте виджетов"), row)
+        )
+        var tapped = false
+        Mockito.`when`(button.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenAnswer {
+            tapped = true
+            true
+        }
+        Mockito.`when`(service.rootInActiveWindow).thenAnswer { if (tapped) afterRoot else dialogRoot }
+
+        val step = SimpleSteps.ALL.first { it.id == "appvault_about" }
+        val result = runner.findAndToggleSwitch(step)
+
+        assertFalse(
+            "диалог не привёл тумблер к цели — шаг не может считаться успешным",
+            result.success
+        )
+        assertEquals("причина — честный verify_failed", "verify_failed", result.reason)
     }
 }

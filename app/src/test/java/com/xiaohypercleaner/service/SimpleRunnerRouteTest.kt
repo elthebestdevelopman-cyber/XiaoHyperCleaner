@@ -381,4 +381,58 @@ class SimpleRunnerRouteTest {
             runner.executeRouteScript(step("filemanager"), listOf(item))
         )
     }
+
+    @Test
+    fun `foreign relaunch budget is granted once per step`() {
+        // В логе не должно быть более одной строки foreign_window_relaunch на шаг
+        // (прогон rmuyfjtvk): приложение не поднялось — честный foreign_window,
+        // а не повторный цикл возврата.
+        assertTrue("первый возврат разрешён", runner.claimForeignRelaunch("music_sys"))
+        assertFalse("второй возврат на том же шаге запрещён", runner.claimForeignRelaunch("music_sys"))
+        assertTrue("другой шаг — свой бюджет", runner.claimForeignRelaunch("themes"))
+        runner.resetForeignRelaunchBudget()
+        assertTrue("новый прогон — бюджет снова доступен", runner.claimForeignRelaunch("music_sys"))
+    }
+
+    @Test
+    fun `bottom tap margin is never zero and is capped by a fifth of the window`() {
+        assertTrue(
+            "отступ не может быть нулевым — тап ушёл бы в жест-зону навбара",
+            runner.clampBottomTapMargin(0, 2400) > 0
+        )
+        assertEquals("отступ ограничен пятой частью окна", 200, runner.clampBottomTapMargin(300, 1000))
+        assertEquals("высота окна неизвестна — отступ не режется", 300, runner.clampBottomTapMargin(300, 0))
+        assertEquals(
+            "вырожденно малое окно: режет верхняя граница, а не минимум",
+            20,
+            runner.clampBottomTapMargin(300, 100)
+        )
+    }
+
+    @Test
+    fun `row at the bottom window edge is not fully visible for a tap`() {
+        val root = node(pkg = "com.miui.videoplayer", className = "android.widget.FrameLayout")
+        bounds(root, 0, 0, 1080, 2400)
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        val edgeRow = node(text = "Онлайн-рекомендации", className = "android.widget.TextView")
+        bounds(edgeRow, 60, 2300, 900, 2399)
+        assertFalse(
+            "строка вплотную к нижней кромке — тап попадёт в жест-зону",
+            runner.isFullyVisible(edgeRow)
+        )
+
+        val topRow = node(text = "Онлайн-рекомендации", className = "android.widget.TextView")
+        bounds(topRow, 60, 300, 900, 420)
+        assertTrue("строка в рабочей области считается видимой", runner.isFullyVisible(topRow))
+    }
+
+    /** Границы узла: `getBoundsInScreen` заполняет переданный Rect. */
+    private fun bounds(n: AccessibilityNodeInfo, l: Int, t: Int, r: Int, b: Int) {
+        Mockito.`when`(n.getBoundsInScreen(Mockito.any(android.graphics.Rect::class.java)))
+            .thenAnswer { inv ->
+                (inv.arguments[0] as android.graphics.Rect).set(l, t, r, b)
+                null
+            }
+    }
 }
