@@ -556,6 +556,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
         if (stepDeadlineMs <= 0L) Long.MAX_VALUE else stepDeadlineMs - System.currentTimeMillis()
 
     /**
+     * Окно «цель дорисовалась после провала уровня»: не больше [APP_SCREEN_WAIT_MS] и всегда
+     * с резервом бюджета на тумблер ([TOGGLE_BUDGET_RESERVE_MS]) — ожидание не имеет права
+     * оставить шаг без времени на само действие (<=0 — ожидания нет).
+     */
+    internal fun targetGraceBudgetMs(budgetMs: Long = remainingBudgetMs()): Long {
+        if (budgetMs == Long.MAX_VALUE) return APP_SCREEN_WAIT_MS
+        return minOf(APP_SCREEN_WAIT_MS, budgetMs - TOGGLE_BUDGET_RESERVE_MS)
+    }
+
+    /**
      * Единая точка ожидания UI: опрос [pollMs] (150..250 мс), ранний выход по
      * [condition], [confirmations] чтений ПОДРЯД для важных состояний и жёсткий
      * лимит — не больше запрошенного [timeoutMs] и не больше остатка бюджета шага
@@ -1017,7 +1027,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
                         break
                     }
                     screenOpened = false
-                } else if (awaitEntryScreen(step, notifTarget, verifyTexts, CONTENT_WAIT_MS)) {
+                } else if (
+                    awaitEntryScreen(
+                        step,
+                        notifTarget,
+                        verifyTexts,
+                        CONTENT_WAIT_MS,
+                        entryGatePackage(intent)
+                    )
+                ) {
                     break
                 } else if (onTargetScreen(step)) {
                     // S6: цель уже на экране (строки + маркеры шага совпали) — следующий
@@ -1189,6 +1207,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
         if (mergedDrillPath.isNotEmpty() && startLevel < mergedDrillPath.size) {
             if (startLevel > 0) AppLog.i(TAG, "drill: resume at level $startLevel for ${step.id}")
             if (step.preDrillWaitMs > 0) delay(step.preDrillWaitMs)
+            // Окно «цель дорисовалась» — не более одного раза на шаг (см. ниже).
+            var targetGraceSpent = false
             for (levelIndex in startLevel until mergedDrillPath.size) {
                 if (cancelled) return Result(false, "cancelled")
                 // Навигационное действие — только при целостном оверлее.
@@ -1225,12 +1245,19 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     // Последний шанс: целевой экран мог дорисоваться, пока уровень
                     // бурился (carousel, прогон rmuybnsfu: drill_failed на уже
                     // открытой цели — маркеры и тумблер были на экране).
-                    val appeared = waitFor(
-                        stepId = step.id,
-                        reason = WAIT_UI_SETTLE,
-                        timeoutMs = APP_SCREEN_WAIT_MS,
-                        pollMs = WAIT_POLL_MS
-                    ) { onTargetScreen(step) }
+                    // Ожидание — ОДИН раз на шаг и только с резервом бюджета на тумблер:
+                    // иначе 3 c на каждом уровне съедают бюджет (карусель: 20 c, маршрут
+                    // 4 уровня) и шаг падает budget_exhausted вместо честного drill_failed.
+                    val graceMs = targetGraceBudgetMs()
+                    val appeared = !targetGraceSpent && graceMs > 0 && run {
+                        targetGraceSpent = true
+                        waitFor(
+                            stepId = step.id,
+                            reason = WAIT_UI_SETTLE,
+                            timeoutMs = graceMs,
+                            pollMs = WAIT_POLL_MS
+                        ) { onTargetScreen(step) }
+                    }
                     if (appeared) {
                         AppLog.i(
                             TAG,
@@ -2457,19 +2484,41 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * Проверка входного экрана: для notif_* — экран уведомлений приложения, для
      * остальных — любой из маркеров. Неподтверждённый вход дальше не разбирается.
      */
-    private suspend fun awaitEntryScreen(
+    /**
+     * Пакет, который обязан выйти на передний план, прежде чем ТЕКСТ экрана подтвердит
+     * интент. Остаток предыдущего шага остаётся в дереве доступности, и его маркеры
+     * ложно подтверждали вход (прогон rmuybnsfu: carousel «подтвердился» по слову
+     * «Включить» с экрана google_diagnostics и ушёл бурить чужой экран).
+     * Интент целится в пакет, который УЖЕ на переднем плане (подэкраны Настроек) или не
+     * имеет явной компоненты — гейта нет, подтверждение остаётся текстовым.
+     */
+    // internal — для тестируемости (SimpleRunnerRouteTest).
+    internal fun entryGatePackage(intent: Intent): String? {
+        val pkg = intent.component?.packageName ?: return null
+        return if (activePackage().equals(pkg, ignoreCase = true)) null else pkg
+    }
+
+    // internal — для тестируемости (SimpleRunnerRouteTest).
+    internal suspend fun awaitEntryScreen(
         step: SimpleSteps.Step,
         notifTarget: String?,
         markers: List<String>,
-        timeoutMs: Long
+        timeoutMs: Long,
+        requiredForeground: String? = null
     ): Boolean {
         val start = System.currentTimeMillis()
         while (true) {
             if (cancelled) return false
-            if (step.id.startsWith(NOTIF_PREFIX)) {
-                if (isAppNotificationScreen(notifTarget, markers)) return true
-            } else if (screenHasAny(markers)) {
-                return true
+            // Пока на переднем плане ЧУЖОЙ пакет (остаток предыдущего шага), текст
+            // экрана вход не подтверждает: ждём фактическую смену окна.
+            val foregroundOk = requiredForeground == null ||
+                activePackage().equals(requiredForeground, ignoreCase = true)
+            if (foregroundOk) {
+                if (step.id.startsWith(NOTIF_PREFIX)) {
+                    if (isAppNotificationScreen(notifTarget, markers)) return true
+                } else if (screenHasAny(markers)) {
+                    return true
+                }
             }
             if (System.currentTimeMillis() - start >= timeoutMs) return false
             delay(ENTRY_POLL_MS)

@@ -1,6 +1,8 @@
 package com.xiaohypercleaner.service
 
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
+import android.content.Intent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.data.AdaptiveCatalog
 import com.xiaohypercleaner.data.SemanticCatalog
@@ -8,7 +10,9 @@ import com.xiaohypercleaner.data.SimpleSteps
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -211,5 +215,81 @@ class SimpleRunnerRouteTest {
         Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
 
         assertFalse(runner.confirmRouteIntentScreen(step("cleaner"), cleanerRouteItem()))
+    }
+
+    @Test
+    fun `entry confirmation does not trust the stale screen of the previous step`() = runTest {
+        // Прогон rmuybnsfu: carousel подтвердил вход по слову «Включить» с ОСТАТКА экрана
+        // google_diagnostics (GMS) и ушёл бурить чужой экран. Пока на переднем плане чужой
+        // пакет, текст экрана вход не подтверждает — ждём окно целевого пакета.
+        val stale = node(
+            pkg = "com.google.android.gms",
+            className = "android.widget.FrameLayout",
+            children = arrayOf(node(text = "Включить"))
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(stale)
+
+        assertFalse(
+            "маркер чужого (оставшегося) экрана не подтверждает вход",
+            runner.awaitEntryScreen(
+                step("carousel"),
+                null,
+                listOf("Включить"),
+                100L,
+                "com.miui.android.fashiongallery"
+            )
+        )
+        assertTrue(
+            "без гейта пакета подтверждение остаётся текстовым (подэкраны Настроек)",
+            runner.awaitEntryScreen(step("carousel"), null, listOf("Включить"), 100L)
+        )
+    }
+
+    @Test
+    fun `entry gate package only applies to a foreign foreground`() {
+        val carouselIntent = Intent().setComponent(
+            ComponentName(
+                "com.miui.android.fashiongallery",
+                "com.miui.cw.feature.ui.setting.SettingActivity"
+            )
+        )
+        val foreign = node(pkg = "com.google.android.gms", className = "android.widget.FrameLayout")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(foreign)
+        assertEquals(
+            "чужой экран на переднем плане — ждём пакет интента",
+            "com.miui.android.fashiongallery",
+            runner.entryGatePackage(carouselIntent)
+        )
+
+        val same = node(
+            pkg = "com.miui.android.fashiongallery",
+            className = "android.widget.FrameLayout"
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(same)
+        assertNull(
+            "пакет интента уже на переднем плане — гейт не нужен",
+            runner.entryGatePackage(carouselIntent)
+        )
+        assertNull(
+            "интент без явной компоненты гейта не имеет",
+            runner.entryGatePackage(Intent("android.settings.SETTINGS"))
+        )
+    }
+
+    @Test
+    fun `target grace window always leaves the toggle reserve`() {
+        // Карусель: бюджет 20 c, маршрут 4 уровня — окно «цель дорисовалась» не имеет права
+        // съесть время тумблера (резерв 4 c), иначе шаг падает budget_exhausted вместо
+        // честного drill_failed.
+        assertEquals(3_000L, runner.targetGraceBudgetMs(Long.MAX_VALUE))
+        assertEquals(
+            "резерв тумблера вычитается из окна ожидания",
+            2_000L,
+            runner.targetGraceBudgetMs(6_000L)
+        )
+        assertTrue(
+            "резерва нет — ожидания нет (skip окна, а не пустая трата бюджета)",
+            runner.targetGraceBudgetMs(3_000L) <= 0L
+        )
     }
 }
