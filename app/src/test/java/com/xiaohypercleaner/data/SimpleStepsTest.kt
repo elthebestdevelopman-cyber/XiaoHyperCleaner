@@ -17,6 +17,18 @@ import org.robolectric.annotation.Config
 class SimpleStepsTest {
 
     @Test
+    fun `appvault services step runs after appvault about to let the feed warm up`() {
+        // Прогон rmuvlyyor: на чистом устройстве строка с рекомендациями Ленты появляется
+        // только после первого взаимодействия с Лентой — ранний порядок давал
+        // low_confidence на экране «Уже добавлено» без тумблера.
+        val ids = SimpleSteps.ALL.map { it.id }
+        val services = ids.indexOf("appvault_services")
+        val about = ids.indexOf("appvault_about")
+        assertTrue("оба шага Ленты на месте", services >= 0 && about >= 0)
+        assertTrue("appvault_services идёт ПОСЛЕ appvault_about", services > about)
+    }
+
+    @Test
     fun `launcher recommendation swipe steps removed`() {
         assertTrue(SimpleSteps.ALL.none { it.id == "search_ads" })
         assertTrue(SimpleSteps.ALL.none { it.id == "search_page" })

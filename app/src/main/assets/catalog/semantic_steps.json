@@ -109,6 +109,33 @@
     },
     "decoyCloseIds": ["upgrade_x_out", "iv_close", "close_button", "btn_close"],
     "dismissCloseIds": ["tv_ok"],
+    "masterMarkers": {
+      "ru": ["Mi фаны рекомендуют"],
+      "en": ["Mi fans recommend"],
+      "es": ["Los fans de Mi recomiendan"],
+      "zh": ["米粉推荐"],
+      "hi": ["Mi प्रशंसक सुझाव देते हैं"],
+      "pt": ["Fãs da Mi recomendam"],
+      "id": ["Penggemar Mi merekomendasikan"]
+    },
+    "masterSkipTexts": {
+      "ru": ["Пропустить", "Пропуск"],
+      "en": ["Skip"],
+      "es": ["Omitir", "Saltar"],
+      "zh": ["跳过"],
+      "hi": ["छोड़ें"],
+      "pt": ["Pular"],
+      "id": ["Lewati"]
+    },
+    "installBlockedTexts": {
+      "ru": ["СКАЧАТЬ", "Скачать", "Установить", "Обновить", "Загрузить"],
+      "en": ["Install", "Update", "Upgrade", "Download"],
+      "es": ["Instalar", "Actualizar", "Descargar"],
+      "zh": ["安装", "更新", "下载"],
+      "hi": ["इंस्टॉल", "अपडेट", "डाउनलोड"],
+      "pt": ["Instalar", "Atualizar", "Baixar"],
+      "id": ["Pasang", "Perbarui", "Unduh"]
+    },
     "guideMarkers": {
       "ru": ["Проведите вверх для просмотра других видео"],
       "en": ["Swipe up to view more videos"],
@@ -462,13 +489,14 @@
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
           "route": [
-            { "intent": "com.miui.securitycenter/com.miui.appmanager.AppManagerMainActivity", "waitMs": 2500, "confirmPackage": ["com.miui.securitycenter"], "confirmMarkers": ["Управление приложениями", "Сортировка по имени приложения", "По имени приложения"] },
-            { "tapDesc": "Еще", "waitMs": 1000 },
-            { "tapText": "Настройки", "waitMs": 1000 }
+            { "intent": "com.miui.securitycenter/com.miui.appmanager.AppManagerMainActivity", "waitMs": 2500, "confirmPackage": ["com.miui.securitycenter"], "confirmMarkers": ["Приложения", "Работало недавно", "Сортировка по имени приложения"] },
+            { "tapId": "more", "fallbackDesc": "Еще", "waitMs": 1200 },
+            { "tapText": "Настройки", "waitMs": 1500 }
           ],
           "drillPath": [
             ["Приложения", "Apps", "Applications"],
-            ["⋮", "Ещё", "More", "Дополнительно", "More options"]
+            ["⋮", "Ещё", "More", "Дополнительно", "More options"],
+            ["Настройки", "Settings"]
           ],
           "screenMarkers": {
             "ru": ["Приложения по умолчанию", "Сбросить настройки приложений", "Уведомлять о наличии обновлений", "Получать рекомендации"],
@@ -1411,7 +1439,7 @@
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
           "route": [
-            { "intent": "com.mi.globalbrowser/com.android.browser.BrowserSettingsActivity", "fallbackIntent": "com.android.browser.OPEN_SETTINGS", "confirmMarkers": ["Основные настройки", "Браузер по умолчанию"], "waitMs": 1500 },
+            { "intent": "com.mi.globalbrowser/com.android.browser.BrowserSettingsActivity", "fallbackIntent": "com.android.browser.OPEN_SETTINGS", "confirmMarkers": ["Основные настройки", "Браузер по умолчанию", "Безопасность", "Сохранять пароли"], "waitMs": 1500 },
             { "scroll": true, "waitMs": 700 },
             { "tapText": "Дополнительные настройки", "waitMs": 1000 }
           ],
@@ -2337,6 +2365,15 @@
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
           "control": "toggle",
+          "entryReadyIds": ["tab_container"],
+          "route": [
+            { "intent": "com.xiaomi.mipicks/.DefaultAlias", "waitMs": 2500, "confirmPackage": ["com.xiaomi.mipicks"] },
+            { "tapId": "tab", "tapIdIndex": 3, "waitMs": 2500 },
+            { "tapTopRightBlank": true, "waitMs": 2500 },
+            { "scroll": true, "waitMs": 800 },
+            { "scroll": true, "waitMs": 800 },
+            { "tapText": "Конфиденциальность", "waitMs": 1500 }
+          ],
           "drillPath": [
             ["Профиль", "Profile", "我的"],
             ["Настройки", "Settings", "设置"],
@@ -2858,21 +2895,26 @@
           "id": "miui12_14",
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
+          "control": "toggle",
           "route": [
             { "intent": "com.mi.android.globalminusscreen/com.mi.android.globalminusscreen.tab.TabSettingActivity", "waitMs": 2500, "confirmPackage": ["com.mi.android.globalminusscreen"], "confirmMarkers": ["Лента виджетов", "Рекомендуемое"] },
-            { "tapText": "Рекомендуемое", "waitMs": 1000 }
+            { "tapId": "ll_about_appvault", "fallbackDesc": "О ленте виджетов", "waitMs": 1500 }
           ],
-          "control": "toggle",
           "drillPath": [
-            ["Рекомендуемое", "Recommendations"]
+            ["О ленте виджетов", "About App Vault"]
           ],
           "screenMarkers": {
-            "ru": ["Рекомендации приложений", "Ярлыки"],
-            "en": ["App recommendations", "Shortcuts"]
+            "ru": ["Персонализированные услуги", "Условия использования", "Политика конфиденциальности"],
+            "en": ["Personalized services", "Terms of use", "Privacy policy"]
           },
           "itemTexts": {
-            "ru": ["Рекомендации приложений"],
-            "en": ["App recommendations"]
+            "ru": ["Персонализированные услуги", "Предложения"],
+            "en": ["Personalized services", "Suggestions"],
+            "es": ["Servicios personalizados"],
+            "zh": ["个性化服务"],
+            "hi": ["व्यक्तिगत सेवाएँ"],
+            "pt": ["Serviços personalizados"],
+            "id": ["Layanan yang dipersonalisasi"]
           }
         },
         {
@@ -2954,15 +2996,15 @@
           "fallback": true,
           "route": [
             { "intent": "com.mi.android.globalminusscreen/com.mi.android.globalminusscreen.tab.TabSettingActivity", "waitMs": 2500, "confirmPackage": ["com.mi.android.globalminusscreen"], "confirmMarkers": ["Лента виджетов", "О ленте виджетов"] },
-            { "tapText": "О ленте виджетов", "waitMs": 1200 }
+            { "tapId": "ll_about_appvault", "fallbackDesc": "О ленте виджетов", "waitMs": 1500 }
           ],
           "control": "toggle",
           "drillPath": [
             ["О ленте виджетов", "About App Vault"]
           ],
           "screenMarkers": {
-            "ru": ["Персонализированные услуги", "О ленте виджетов"],
-            "en": ["Personalized services", "About App Vault"]
+            "ru": ["Персонализированные услуги", "О ленте виджетов", "Условия использования"],
+            "en": ["Personalized services", "About App Vault", "Terms of use"]
           },
           "itemTexts": {
             "ru": ["Персонализированные услуги"],

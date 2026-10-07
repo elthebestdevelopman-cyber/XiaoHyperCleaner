@@ -41,6 +41,77 @@ class SemanticCatalogTest {
     }
 
     @Test
+    fun `getapps declares entry ready id and positional profile tab route`() {
+        // Прогон rmuvlyyor: шаг getapps уходил в not_applicable на сплэше магазина.
+        // Готовность теперь по КОНКРЕТНОМУ id главной (`tab_container`), а вкладка
+        // «Профиль» выбирается позицией по id (`tab` #3 — дамп
+        // diag-dumps/fresh/getapps_market_tab.xml).
+        SemanticCatalog.selectVariant(
+            RomProfile(
+                region = RomRegion.GLOBAL,
+                miuiVersion = "V130",
+                hyperOsHint = false,
+                isTablet = false,
+                family = RomFamily.MIUI,
+                uiVersion = "13"
+            )
+        )
+        val readyIds = SemanticCatalog.entryReadyIds("getapps")
+        assertTrue("готовность магазина по id главной: $readyIds", readyIds.contains("tab_container"))
+        val route = SemanticCatalog.route("getapps")
+        assertTrue(
+            "вкладка «Профиль» — позиционный тап по id=tab, индекс 3",
+            route.any { it.tapId == "tab" && it.tapIdIndex == 3 }
+        )
+        assertTrue(
+            "маршрут начинается с интента запуска магазина",
+            route.firstOrNull()?.intent?.startsWith("com.xiaomi.mipicks") == true
+        )
+        // Снапшот fresh/getapps_privacy_now.xml (ручная разведка 07.10): путь подтверждён
+        // целиком — шестерёнка профиля → скролл настроек → «Конфиденциальность» с тумблером
+        // «Персональные рекомендации».
+        assertTrue(
+            "шестерёнка профиля тапается позиционно",
+            route.any { it.tapTopRightBlank }
+        )
+        assertTrue(
+            "маршрут доходит до «Конфиденциальности» после скроллов",
+            route.any { it.tapText == "Конфиденциальность" } && route.count { it.scroll } >= 2
+        )
+    }
+
+    @Test
+    fun `sys recommendations route enters app manager settings directly`() {
+        // Снапшоты: adb-probe/p_sysrec_seccenter.verdict.txt (verdict=OK, фокус
+        // AppManagerSettings, маркер «Получать рекомендации») и
+        // _quarantine/fresh/appmgr_settings2.xml (экран «Настройки / Получать рекомендации»).
+        SemanticCatalog.selectVariant(
+            RomProfile(
+                region = RomRegion.GLOBAL,
+                miuiVersion = "V130",
+                hyperOsHint = false,
+                isTablet = false,
+                family = RomFamily.MIUI,
+                uiVersion = "13"
+            )
+        )
+        val route = SemanticCatalog.route("sys_recommendations")
+        assertTrue(
+            "вход через AppManagerMainActivity: прямой интент AppManagerSettings из приложения не exported",
+            route.firstOrNull()?.intent?.endsWith("AppManagerMainActivity") == true
+        )
+        assertEquals(listOf("com.miui.securitycenter"), route.first().confirmPackage)
+        assertTrue(
+            "меню открывается кнопкой ⋮ (id more, дамп appmgr_main.xml)",
+            route.any { it.tapId == "more" }
+        )
+        assertTrue(
+            "пункт «Настройки» в меню (дамп appmgr_menu2.xml)",
+            route.any { it.tapText == "Настройки" }
+        )
+    }
+
+    @Test
     fun `getapps targets mipicks first`() {
         val packages = SemanticCatalog.requiredPackages("getapps")
         assertEquals("com.xiaomi.mipicks", packages.first())
@@ -336,6 +407,9 @@ class SemanticCatalogTest {
         assertEquals("welcomeMarkers: 7 локалей", locales, policy!!.welcomeMarkers.keys.sorted())
         assertEquals("welcomeActions: 7 локалей", locales, policy.welcomeActions.keys.sorted())
         assertEquals("decoyMarkers: 7 локалей", locales, policy.decoyMarkers.keys.sorted())
+        assertEquals("masterMarkers: 7 локалей", locales, policy.masterMarkers.keys.sorted())
+        assertEquals("masterSkipTexts: 7 локалей", locales, policy.masterSkipTexts.keys.sorted())
+        assertEquals("installBlockedTexts: 7 локалей", locales, policy.installBlockedTexts.keys.sorted())
         assertTrue(
             "крестик апдейт-промпта GetApps закрывается по id",
             policy.decoyCloseIds.contains("upgrade_x_out")
@@ -411,10 +485,18 @@ class SemanticCatalogTest {
                 "com.android.browser.OPEN_SETTINGS",
                 route.first().fallbackIntent
             )
-            assertEquals(
-                "маркеры экрана настроек сняты с устройства",
-                listOf("Основные настройки", "Браузер по умолчанию"),
-                route.first().confirmMarkers
+            // Маркеры сняты с устройства: owner_recon/browser_settings.xml («Основные настройки»,
+            // «Браузер по умолчанию») и owner_recon/browser_security.xml (раздел «Безопасность»,
+            // «Сохранять пароли») — браузер может открыться на любой из этих страниц.
+            val browserMarkers = route.first().confirmMarkers
+            assertTrue(
+                "маркеры раздела «Основные настройки»: $browserMarkers",
+                browserMarkers.contains("Основные настройки") &&
+                    browserMarkers.contains("Браузер по умолчанию")
+            )
+            assertTrue(
+                "маркеры раздела «Безопасность»: $browserMarkers",
+                browserMarkers.contains("Безопасность") && browserMarkers.contains("Сохранять пароли")
             )
             val routeWhat = route.map { it.intent ?: it.tapText ?: it.tapDesc ?: it.tapId ?: "scroll" }
             val routeScroll = route.any { it.scroll }
@@ -627,14 +709,30 @@ class SemanticCatalogTest {
             )
         )
 
-        val services = SemanticCatalog.route("appvault_services")
-        assertEquals(
-            "com.mi.android.globalminusscreen/com.mi.android.globalminusscreen.tab.TabSettingActivity",
-            services.first().intent
+        // Снапшоты: after/diagnostic_snapshot_appvault_services_*.json (экран настроек Ленты с
+        // ll_about_appvault) + _quarantine/owner_recon/appvault_more.xml (тумблер
+        // personalized_service_slide на экране «О ленте виджетов»). Маршрут ведёт в настройки
+        // Ленты, затем по id ll_about_appvault — в «О ленте виджетов».
+        val servicesRoute = SemanticCatalog.route("appvault_services")
+        assertTrue(
+            "вход в настройки Ленты — интент TabSettingActivity",
+            servicesRoute.firstOrNull()?.intent?.contains("TabSettingActivity") == true
         )
-        assertEquals(listOf("com.mi.android.globalminusscreen"), services.first().confirmPackage)
-        assertEquals(listOf("Лента виджетов", "Рекомендуемое"), services.first().confirmMarkers)
-        assertEquals("Рекомендуемое", services[1].tapText)
+        assertTrue(
+            "экран «О ленте виджетов» открывается по id ll_about_appvault",
+            servicesRoute.any { it.tapId == "ll_about_appvault" }
+        )
+        val servicesTexts = SemanticCatalog.itemTexts("appvault_services")
+        assertTrue(
+            "цель — тумблер personalized_service_slide («Персонализированные услуги»): $servicesTexts",
+            servicesTexts.contains("Персонализированные услуги") ||
+                servicesTexts.contains("Personalized services")
+        )
+        val serviceTexts = SemanticCatalog.itemTexts("appvault_services")
+        assertTrue(
+            "цель — строка предложений, а не сортировка карточек: $serviceTexts",
+            serviceTexts.contains("Предложения") || serviceTexts.contains("Suggestions")
+        )
 
         val about = SemanticCatalog.route("appvault_about")
         assertEquals(
@@ -643,7 +741,7 @@ class SemanticCatalogTest {
         )
         assertEquals(listOf("com.mi.android.globalminusscreen"), about.first().confirmPackage)
         assertEquals(listOf("Лента виджетов", "О ленте виджетов"), about.first().confirmMarkers)
-        assertEquals("О ленте виджетов", about[1].tapText)
+        assertEquals("ll_about_appvault", about[1].tapId)
     }
 
     /**

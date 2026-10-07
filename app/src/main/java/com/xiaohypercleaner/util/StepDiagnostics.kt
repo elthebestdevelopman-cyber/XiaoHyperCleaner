@@ -73,6 +73,21 @@ object StepDiagnostics {
         AppLog.i(TAG, "DIAG run=$runId step=$stepId event=$event $detail")
     }
 
+    /**
+     * Событие ожидания (WAIT): одна строка на каждое ожидание UI. Нужно, чтобы
+     * пустые паузы между успешным действием и следующим были видны в логе:
+     * `reason` — чего ждали (dialog_appear/route_confirm/verify_state/app_entry/…),
+     * `elapsed` — фактическое время, `hit` — сработало ли условие, `reads` — число
+     * чтений дерева.
+     */
+    fun wait(stepId: String, reason: String, elapsedMs: Long, hit: Boolean, reads: Int) {
+        AppLog.i(
+            TAG,
+            "DIAG run=$runId step=$stepId event=WAIT reason=$reason " +
+                "elapsed=${elapsedMs}ms hit=$hit reads=$reads"
+        )
+    }
+
     private fun dumpWindows(service: AdbEnablerService): String {
         return try {
             service.windows

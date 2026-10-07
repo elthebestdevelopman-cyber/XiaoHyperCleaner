@@ -743,8 +743,47 @@ object SimpleSteps {
         // (шаги search_ads / search_page / папки «Рекомендуемое сегодня» убраны —
         //  ненадёжны под блокирующим оверлеем; после отзыва msa реклама в папках пропадает)
 
-        // П.8 в инструкции: Лента виджетов → ⋮ → Управление службами → «Предложения»
+        // П.8 (appvault_services) перенесён НИЖЕ — сразу после «appvault_about»:
+        // на чистом устройстве строка с рекомендациями Ленты появляется только после
+        // первого взаимодействия с Лентой, и ранний запуск ловил экран «Уже добавлено»
+        // без тумблера (прогон rmuvlyyor: low_confidence, дамп
+        // diag-dumps/after/diagnostic_snapshot_appvault_services_*.json).
+
+        // П.8b: … → О ленте виджетов → «Персонализированные услуги»
         // ИСПРАВЛЕНО (beta6): добавлены глобал и AOSP имена
+        Step(
+            id = "appvault_about",
+            titleRu = "Лента виджетов: услуги",
+            titleEn = "App Vault services",
+            descRu = "Выключаем «Персонализированные услуги».",
+            descEn = "Turning off personalized services.",
+            intents = listOf(launchIntent("com.miui.personalassistant")),
+            searchTexts = listOf(
+                "Персонализированные услуги",
+                "Personalized services"
+            ),
+            manualHintRu = "Лента виджетов → ⋮ → О ленте виджетов → " +
+                    "выключите «Персонализированные услуги».",
+            manualHintEn = "App Vault → ⋮ → About → turn off Personalized services.",
+            launchPackage = "com.mi.android.globalminusscreen",
+            drillPath = listOf(
+                OVERFLOW,
+                listOf("О ленте виджетов", "About App Vault", "About widget feed")
+            ),
+            requiredPackages = listOf(
+                "com.mi.android.globalminusscreen",
+                "com.miui.personalassistant",
+                "com.mi.android.global.personalassistant",
+                "com.android.personalassistant"
+            ),
+            riskLevel = RiskLevel.CONDITIONAL,
+
+        ),
+
+        // П.8 в инструкции: Лента виджетов → ⋮ → Управление службами → «Предложения»
+        // (перенесён СЮДА: после «appvault_about» Лента уже прогрета — на чистом
+        // устройстве строка с рекомендациями появляется только после первого
+        // взаимодействия, прогон rmuvlyyor: low_confidence без тумблера).
         Step(
             id = "appvault_services",
             titleRu = "Лента виджетов: предложения",
@@ -774,37 +813,6 @@ object SimpleSteps {
                 "com.miui.personalassistant",                    // Китай (основное)
                 "com.mi.android.global.personalassistant",       // Глобал
                 "com.android.personalassistant"                  // AOSP
-            ),
-            riskLevel = RiskLevel.CONDITIONAL,
-
-        ),
-
-        // П.8b: … → О ленте виджетов → «Персонализированные услуги»
-        // ИСПРАВЛЕНО (beta6): добавлены глобал и AOSP имена
-        Step(
-            id = "appvault_about",
-            titleRu = "Лента виджетов: услуги",
-            titleEn = "App Vault services",
-            descRu = "Выключаем «Персонализированные услуги».",
-            descEn = "Turning off personalized services.",
-            intents = listOf(launchIntent("com.miui.personalassistant")),
-            searchTexts = listOf(
-                "Персонализированные услуги",
-                "Personalized services"
-            ),
-            manualHintRu = "Лента виджетов → ⋮ → О ленте виджетов → " +
-                    "выключите «Персонализированные услуги».",
-            manualHintEn = "App Vault → ⋮ → About → turn off Personalized services.",
-            launchPackage = "com.mi.android.globalminusscreen",
-            drillPath = listOf(
-                OVERFLOW,
-                listOf("О ленте виджетов", "About App Vault", "About widget feed")
-            ),
-            requiredPackages = listOf(
-                "com.mi.android.globalminusscreen",
-                "com.miui.personalassistant",
-                "com.mi.android.global.personalassistant",
-                "com.android.personalassistant"
             ),
             riskLevel = RiskLevel.CONDITIONAL,
 

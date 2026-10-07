@@ -5,6 +5,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.NodeTree
 import com.xiaohypercleaner.util.TextMatcher
+import com.xiaohypercleaner.util.UiWait
 import kotlinx.coroutines.delay
 
 /**
@@ -53,23 +54,26 @@ object ComponentVerifier {
         isCancelled: () -> Boolean = { false }
     ): Boolean {
         if (markers.isEmpty()) return false
-        val start = System.currentTimeMillis()
-        while (System.currentTimeMillis() - start < timeoutMs) {
-            if (isCancelled()) return false
+        // Единый механизм ожидания: опрос с ранним выходом, жёсткий лимит, отмена.
+        val hit = UiWait.until(
+            timeoutMs = timeoutMs,
+            pollMs = POLL_INTERVAL_MS,
+            isCancelled = isCancelled
+        ) {
             val root = service.rootInActiveWindow
-            if (root != null) {
-                val matched = matchesScreen(screenText(root), markers, minMatches)
-                recycle(root)
-                if (matched) return true
-            }
-            delay(POLL_INTERVAL_MS)
-        }
+            val matched = root != null && matchesScreen(screenText(root), markers, minMatches)
+            recycle(root)
+            matched
+        }.hit
+        if (hit) return true
         if (!isCancelled()) {
             val root = service.rootInActiveWindow
             if (root != null) {
-                val hit = NodeTree.findInTree(root) { NodeTree.matchesAny(it, markers, fuzzy = true) } != null
+                val fuzzy = NodeTree.findInTree(root) {
+                    NodeTree.matchesAny(it, markers, fuzzy = true)
+                } != null
                 recycle(root)
-                if (hit) {
+                if (fuzzy) {
                     AppLog.w(TAG, "awaitScreen: fuzzy marker match (minMatches=$minMatches)")
                     return true
                 }

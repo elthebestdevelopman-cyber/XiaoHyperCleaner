@@ -60,6 +60,8 @@ class SimpleRunnerMsaRevokeTest {
         className: String? = null,
         clickable: Boolean = false,
         enabled: Boolean = true,
+        checked: Boolean = false,
+        checkable: Boolean = false,
         vararg children: AccessibilityNodeInfo
     ): AccessibilityNodeInfo {
         val n = Mockito.mock(AccessibilityNodeInfo::class.java)
@@ -68,6 +70,8 @@ class SimpleRunnerMsaRevokeTest {
         if (className != null) Mockito.`when`(n.className).thenReturn(className)
         Mockito.`when`(n.isClickable).thenReturn(clickable)
         Mockito.`when`(n.isEnabled).thenReturn(enabled)
+        Mockito.`when`(n.isChecked).thenReturn(checked)
+        Mockito.`when`(n.isCheckable).thenReturn(checkable)
         Mockito.`when`(n.childCount).thenReturn(children.size)
         children.forEachIndexed { i, c -> Mockito.`when`(n.getChild(i)).thenReturn(c) }
         return n
@@ -188,6 +192,83 @@ class SimpleRunnerMsaRevokeTest {
         val result = runner.postToggleConfirm(plain, listOf("plain"))
 
         assertNull("не-DELAYED шаг не уходит в revoke_not_confirmed", result)
+    }
+
+    @Test
+    fun `revoke is confirmed right after the dialog closes without the full settle wait`() = runTest {
+        // Settle обязан выходить сразу по закрытию диалога: прежний цикл сжигал до
+        // 12 с, хотя состояние тумблера уже читалось целевым (прогон rmuvijbl1: msa 30 с).
+        val revoke = node(
+            text = "Отозвать",
+            id = "android:id/button1",
+            className = "android.widget.Button",
+            clickable = true,
+            enabled = true
+        )
+        Mockito.`when`(revoke.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true)
+        val dialogRoot = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(revoke)
+        )
+        val msaSwitch = node(
+            text = "msa",
+            checked = false,
+            checkable = true,
+            className = "android.widget.Switch"
+        )
+        val listRoot = node(className = "android.widget.FrameLayout", children = arrayOf(msaSwitch))
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(dialogRoot, listRoot, listRoot, listRoot)
+
+        val confirmed = runner.confirmDelayedRevoke(msaStep(), listOf("Отозвать"), listOf("msa"))
+
+        assertTrue("отзыв подтверждён фактическим состоянием тумблера", confirmed)
+    }
+
+    @Test
+    fun `already revoked switch is accepted without waiting the countdown`() = runTest {
+        // Диалога нет вовсе (MIUI 13 отозвала доступ прямо по чекбоксу): состояние
+        // тумблера целевое — шаг подтверждается коротким окном появления диалога,
+        // а не полным отсчётом ~10 с.
+        val msaSwitch = node(
+            text = "msa",
+            checked = false,
+            checkable = true,
+            className = "android.widget.Switch"
+        )
+        val listRoot = node(className = "android.widget.FrameLayout", children = arrayOf(msaSwitch))
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(listRoot)
+
+        val confirmed = runner.confirmDelayedRevoke(msaStep(), listOf("Отозвать"), listOf("msa"))
+
+        assertTrue("отзыв уже применён — подтверждаем по состоянию", confirmed)
+    }
+
+    @Test
+    fun `revoke is not confirmed while the switch stayed on even after the dialog closed`() = runTest {
+        // Прогон rmuvlyyor: диалог ушёл сам, а чекбокс msa остался ВКЛючённым. Прежний
+        // вердикт `dialogGone && onTargetScreen` (маркеры пусты = «целевой экран»)
+        // отдавал ложный успех — теперь успех только по фактическому состоянию.
+        val revoke = node(
+            text = "Отозвать",
+            id = "android:id/button1",
+            className = "android.widget.Button",
+            clickable = true,
+            enabled = true
+        )
+        Mockito.`when`(revoke.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true)
+        val dialogRoot = node(className = "android.widget.FrameLayout", children = arrayOf(revoke))
+        val stayedOn = node(
+            text = "msa",
+            checked = true,
+            checkable = true,
+            className = "android.widget.Switch"
+        )
+        val listRoot = node(className = "android.widget.FrameLayout", children = arrayOf(stayedOn))
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(dialogRoot, listRoot, listRoot, listRoot)
+
+        val confirmed = runner.confirmDelayedRevoke(msaStep(), listOf("Отозвать"), listOf("msa"))
+
+        assertFalse("живой чекбокс — отзыв не подтверждён", confirmed)
     }
 
     @Test

@@ -310,6 +310,24 @@ class SimpleRunnerApplicabilityTest {
     }
 
     @Test
+    fun `route screen is confirmed by entry ready id without step markers`() = runTest {
+        // Прогон rmuwvcqiw: у route-шага getapps не было confirmMarkers, и awaitRouteScreen
+        // подставлял маркеры ШАГА («Конфиденциальность»), которых на главной магазина нет:
+        // маршрут уходил в relaunch/fallback и терял ~7 с. Готовность по id (tab_container)
+        // подтверждает экран маршрута без маркеров шага.
+        val step = SimpleSteps.ALL.first { it.id == "getapps" }
+        val item = SemanticCatalog.RouteItem(intent = "com.xiaomi.mipicks/.DefaultAlias")
+        val tabContainer = Mockito.mock(AccessibilityNodeInfo::class.java)
+        Mockito.`when`(tabContainer.viewIdResourceName)
+            .thenReturn("com.xiaomi.mipicks:id/tab_container")
+        Mockito.`when`(tabContainer.childCount).thenReturn(0)
+        val root = node(text = "Mi Apps Главная Игры Рейтинги Профиль", children = arrayOf(tabContainer))
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        assertTrue("главная магазина опознана по id готовности", runner.awaitRouteScreen(step, item, 400))
+    }
+
+    @Test
     fun `route screen is not confirmed on a foreign screen`() = runTest {
         val step = SimpleSteps.ALL.first { it.id == "browser_sys" }
         val item = SemanticCatalog.RouteItem(

@@ -215,6 +215,39 @@ class SimpleRunnerVerifyTest {
     }
 
     /**
+     * Ускорение verify: совпавшее состояние завершает проверку на ПЕРВОМ чтении —
+     * прежний цикл дочитывал повторы и жёг паузы между ними.
+     */
+    @Test
+    fun `verify stops at the first matching read`() = runTest {
+        val root = node(
+            text = "Карусель обоев",
+            children = arrayOf(carouselSwitch(checked = false))
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        val carousel = SimpleSteps.ALL.first { it.id == "carousel" }
+
+        assertTrue(runner.verifySwitchState(carousel, listOf("Карусель экрана блокировки")))
+        Mockito.verify(service, Mockito.times(1)).rootInActiveWindow
+    }
+
+    /**
+     * «Строка исчезла» — важное состояние: успех только после ДВУХ чтений подряд
+     * (одиночный кадр с перекрытием не засчитывается применённой настройкой).
+     */
+    @Test
+    fun `vanished row needs two confirming reads`() = runTest {
+        val root = node(text = "Карусель обоев")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        val carousel = SimpleSteps.ALL.first { it.id == "carousel" }
+
+        assertTrue(runner.verifySwitchState(carousel, listOf("Карусель экрана блокировки")))
+        Mockito.verify(service, Mockito.times(2)).rootInActiveWindow
+    }
+
+    /**
      * BACK безопасен, когда опрос лежит отдельным экраном: после него экран карусели
      * на месте и тумблер уже выключен — отправлять ответ не нужно.
      */

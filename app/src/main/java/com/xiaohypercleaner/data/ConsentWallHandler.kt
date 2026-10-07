@@ -5,6 +5,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.NodeTree
 import com.xiaohypercleaner.util.TextMatcher
+import com.xiaohypercleaner.util.UiWait
 import kotlinx.coroutines.delay
 
 /**
@@ -34,8 +35,11 @@ object ConsentWallHandler {
     /** Длиннее этого текста экран считается настройками, а не диалогом. */
     private const val DIALOG_TEXT_MAX = 500
 
-    /** Пауза перед проверкой «диалог закрылся» (тап уже отправлен). */
+    /** Пауза перед проверкой «диалог закрылся» (тап уже отправлен) — верхний лимит опроса. */
     private const val VERIFY_DELAY_MS = 250L
+
+    /** Поллинг проверки «экран изменился»: ранний выход, а не фиксированная пауза. */
+    private const val VERIFY_POLL_MS = 100L
 
     /** Максимальное число попыток закрытия видеорекламы при запуске приложения. */
     private const val MAX_AD_DISMISS_ATTEMPTS = 3
@@ -168,10 +172,26 @@ object ConsentWallHandler {
 
         /**
          * Свайп вверх: закрытие полноэкранного гайда-жеста (Mi Video «Проведите
-         * вверх для просмотра других видео»). По умолчанию — «не умею»: тестовые
-         * мосты свайпов не делают.
+         * вверх»). По умолчанию — «не умею»: тестовые мосты свайпов не делают.
          */
         suspend fun swipeUp(): Boolean = false
+
+        /**
+         * Тап по ЦЕНТРУ узла с подписью из [texts], даже если узел НЕ кликабелен
+         * (промо-страницы WebView: мастер Mi Apps «Mi фаны рекомендуют» → «Пропустить»).
+         * Узлы-маркеры ([avoidTexts]) не тапаются. По умолчанию — обычный тап.
+         */
+        suspend fun tapLabelByTexts(
+            texts: List<String>,
+            avoidTexts: List<String>
+        ): Boolean = tapByTexts(texts)
+
+        /**
+         * Системный BACK: закрытие промо/обманки, у которой кнопки закрытия в дереве
+         * нет вовсе (обманка обновления GetApps `UpgradeDialogActivity` — только
+         * «Обновить», которую нажимать нельзя). По умолчанию — «не умею».
+         */
+        suspend fun pressBack(): Boolean = false
     }
 
     /** Разобранный диалог: что это и каким действием он закрывается. */
@@ -224,6 +244,10 @@ object ConsentWallHandler {
         val screenText = NodeTree.collectText(root)
         val alertDialog = isAlertDialog(root)
 
+        // Подписи кнопочных узлов нужны классификатору, чтобы опознать СВОЙ confirm-диалог
+        // по кнопке, а не по подстроке в тексте всего экрана (C4/R2-6).
+        val confirmButtonTexts = dialogButtonTexts(root)
+
         val action = classify(
             screenText = screenText,
             ownerPackage = owner,
@@ -233,7 +257,8 @@ object ConsentWallHandler {
             stepConsentTexts = stepConsentTexts,
             alertDialog = alertDialog,
             stepLabels = stepLabels,
-            allowWelcome = allowWelcome
+            allowWelcome = allowWelcome,
+            confirmButtonTexts = confirmButtonTexts
         )
         if (action == null) {
             recycle(root)
@@ -242,25 +267,41 @@ object ConsentWallHandler {
         // Welcome-стена — только при НАЛИЧИИ живой кнопки согласия: на обычных экранах
         // (список Проводника, drawer) слова «Еще»/«Настройки» совпадают с welcomeActions,
         // и без этой проверки робот «принимал» рабочую страницу, схлопывая drawer.
-        if (action.kind == "welcome" &&
-            !hasEnabledAction(
-                root,
-                // Узкая стена шага: живую кнопку ищем только в его наборе — иначе
-                // «Еще»/«Настройки» рабочего экрана проходили гейт (route-шаги).
-                if (action.strictTexts) {
-                    action.texts
-                } else {
-                    (action.texts + SemanticCatalog.welcomeActionsAllLocales()).distinct()
+        if (action.kind == "welcome") {
+            // Узкая стена шага: живую кнопку ищем только в его наборе — иначе
+            // «Еще»/«Настройки» рабочего экрана проходили гейт (route-шаги).
+            val welcomeTapTexts = if (action.strictTexts) {
+                action.texts
+            } else {
+                (action.texts + SemanticCatalog.welcomeActionsAllLocales()).distinct()
+            }
+            if (!hasEnabledAction(root, welcomeTapTexts)) {
+                // Фолбэк разрешён ТОЛЬКО когда в дереве реально есть enabled-узел с
+                // подписью согласия БЕЗ кликабельного предка (WebView-стены: Загрузки,
+                // магазин). Иначе — прежний честный skip: «тапать на веру» нельзя,
+                // иначе чужая/рабочая кнопка принималась бы как согласие.
+                val labelOnlyPresent = hasLabelOnlyAction(root, welcomeTapTexts)
+                recycle(root)
+                if (!labelOnlyPresent || !bridge.tapLabelByTexts(welcomeTapTexts, action.markers)) {
+                    AppLog.i(
+                        TAG,
+                        "consent: kind=welcome decision=skipped_no_button step=$stepId " +
+                            "matched='${action.marker}' cause=${action.cause}"
+                    )
+                    return Outcome(false, "none", "welcome_without_button", true)
                 }
-            )
-        ) {
-            recycle(root)
-            AppLog.i(
-                TAG,
-                "consent: kind=welcome decision=skipped_no_button step=$stepId " +
-                    "matched='${action.marker}' cause=${action.cause}"
-            )
-            return Outcome(false, "none", "welcome_without_button", true)
+                val labelVerified = settled(service, screenText)
+                log(
+                    stepId = stepId,
+                    action = action,
+                    ownerPackage = owner,
+                    verified = labelVerified,
+                    decision = if (labelVerified) "accepted:label" else "accepted:label:unverified",
+                    screenText = screenText,
+                    tapped = bridge.lastTappedText
+                )
+                return Outcome(true, action.kind, action.decision, labelVerified)
+            }
         }
         recycle(root)
 
@@ -314,24 +355,32 @@ object ConsentWallHandler {
     }
 
     private suspend fun dispatch(bridge: TapBridge, action: DialogAction): Boolean =
-        if (action.kind == "welcome") {
-            bridge.tapEnabledDialogButtonByTexts(action.texts, action.markers)
-        } else if (action.kind == "guide") {
+        when (action.kind) {
+            "welcome" -> bridge.tapEnabledDialogButtonByTexts(action.texts, action.markers)
             // Гайд-жест: тапать нечего, экран закрывается свайпом вверх.
-            bridge.swipeUp()
-        } else {
-            // Обманка закрывается крестиком по id; если крестика в дереве нет —
-            // отрицательная кнопка/текст, как у обычного диалога.
-            bridge.tapByIds(action.ids) ||
-                bridge.tapDialogButtonByTexts(action.texts, action.markers) ||
+            "guide" -> bridge.swipeUp()
+            // Промо-мастер магазина: кнопка-пропуск в дереве есть, но кликабельного
+            // узла у неё нет (WebView) — тапаем по центру её подписи.
+            "master" -> bridge.tapLabelByTexts(action.texts, action.markers)
+            else -> {
+                // Обманка закрывается крестиком по id; если крестика в дереве нет —
+                // отрицательная кнопка/текст, как у обычного диалога.
+                val byIdOrText = bridge.tapByIds(action.ids) ||
+                    bridge.tapDialogButtonByTexts(action.texts, action.markers)
                 // Стена-промо без отрицательной кнопки (Mi Браузер: «Совершенно новые
                 // AI-функции», «Приватные файлы»): у неё есть только кнопка продолжения,
                 // поэтому после отказа по dismiss-текстам пробуем действия стены.
                 // Только для kind=dismiss: permission-диалоги этот путь не трогает.
-                (action.kind == "dismiss" && bridge.tapEnabledDialogButtonByTexts(
-                    (SemanticCatalog.welcomeActions() + action.texts).distinct(),
-                    action.markers
-                ))
+                val byWall = byIdOrText || (action.kind == "dismiss" &&
+                    bridge.tapEnabledDialogButtonByTexts(
+                        (SemanticCatalog.welcomeActions() + action.texts).distinct(),
+                        action.markers
+                    ))
+                // Обманка обновления GetApps (`UpgradeDialogActivity`): кнопки закрытия в
+                // дереве нет вовсе (только «Обновить», которую нажимать нельзя) — закрываем
+                // системным BACK (проверено на устройстве: промпт уходит, магазин остаётся).
+                byWall || (action.kind == "decoy" && bridge.pressBack())
+            }
         }
 
 
@@ -350,9 +399,15 @@ object ConsentWallHandler {
         /** Подписи приложений-целей шага («Проводник», «Музыка»): по ним узнаём адресата запроса. */
         stepLabels: List<String> = emptyList(),
         /** Welcome-стены разрешены только на стенах, не на рабочих экранах route-шагов. */
-        allowWelcome: Boolean = true
+        allowWelcome: Boolean = true,
+        /**
+         * Подписи ТОЛЬКО кнопочных узлов экрана (id button1/2/3 либо класс Button):
+         * «свой» confirm-диалог шага опознаётся по его КНОПКЕ, а не по подстроке в тексте
+         * всего экрана — та же фраза встречается в описаниях чужих экранов (C4/R2-6).
+         */
+        confirmButtonTexts: List<String> = emptyList()
     ): DialogAction? {
-        if (ownsDialog(screenText, stepConfirmTexts)) return null
+        if (ownsDialog(confirmButtonTexts, stepConfirmTexts)) return null
 
         val welcomeMarkers = SemanticCatalog.welcomeMarkers()
         val permissionMarkers = SemanticCatalog.permissionMarkers()
@@ -370,7 +425,7 @@ object ConsentWallHandler {
         // разрешения», appvault_about «Отключить службы?»), — не наш: dismiss/alert-политика
         // текущего шага его не трогает, иначе отменяет чужой отзыв (прогон rmupuud3s:
         // sys_recommendations погасил диалог отзыва msa).
-        val foreignOwner = if (appOwnedWall) null else foreignConfirmOwner(screenText, stepId)
+        val foreignOwner = if (appOwnedWall) null else foreignConfirmOwner(confirmButtonTexts, stepId)
         if (foreignOwner != null) {
             AppLog.i(TAG, "consent: skip foreign confirm dialog step=$stepId owner=$foreignOwner")
             return null
@@ -420,6 +475,24 @@ object ConsentWallHandler {
                 cause = "swipe_guide",
                 texts = emptyList(),
                 markers = guideMarkers
+            )
+        }
+
+        // 1c. Промо-мастер магазина (Mi Apps «Mi фаны рекомендуют», RecommendPageActivity):
+        //     страница перекрывает вход в магазин, кнопка-пропуск в дереве есть, но
+        //     БЕЗ кликабельного узла (WebView) — гейт «живой кнопки» её не видел, и
+        //     drill уровня «Профиль» уходил в ENTRY timeout / not_applicable
+        //     (прогон rmuvijbl1, дамп diag-dumps/fresh/getapps_recommend.xml).
+        //     Тап по центру подписи делает мост (kind=master, [dispatch]).
+        val masterMarkers = SemanticCatalog.masterMarkers()
+        val masterSkipTexts = SemanticCatalog.masterSkipTextsAllLocales()
+        if (markerHit(screenText, masterMarkers) && markerHit(screenText, masterSkipTexts)) {
+            return DialogAction(
+                kind = "master",
+                decision = "skipped",
+                cause = "promo_master",
+                texts = masterSkipTexts,
+                markers = masterMarkers
             )
         }
 
@@ -514,7 +587,15 @@ object ConsentWallHandler {
         // 5. Welcome-стена: тапаем согласие и продолжаем шаг. Стена шага, объявленного
         //    через welcomeDecision=accept, принимается и тогда, когда её текст совпал
         //    со screenMarkers шага (PrivacyGrantDialog Загрузок: «…приложению Загрузки…»).
-        if ((allowWelcome || restrictedWall) && (stepAcceptsWall || !onTargetScreen) && welcomeHit) {
+        //    Но НЕ когда на экране лежит САМА ЦЕЛЬ шага: в настройках Загрузок строка
+        //    «Политика конфиденциальности» (маркер welcomeMarkers) — это целевой экран,
+        //    а не стена (прогон rmuvlyyor: ложная стена skipped_no_button на downloads).
+        val targetRows = SemanticCatalog.itemTexts(stepId)
+        val onTargetRows = targetRows.isNotEmpty() &&
+            targetRows.any { TextMatcher.normalizedContains(screenText, it) }
+        if ((allowWelcome || restrictedWall) && (stepAcceptsWall || !onTargetScreen) &&
+            !onTargetRows && welcomeHit
+        ) {
             return DialogAction(
                 kind = "welcome",
                 decision = "accepted",
@@ -612,16 +693,31 @@ object ConsentWallHandler {
                 NodeTree.clickableAncestorOrSelf(node) != null
         } != null
 
+    /**
+     * На экране есть enabled-узел с подписью из [texts] БЕЗ кликабельного предка —
+     * только для такого случая разрешён тап по центру подписи (WebView-стены: Загрузки,
+     * магазин). Без этой проверки фолбэк «тапал на веру» и принимал чужую кнопку.
+     */
+    private fun hasLabelOnlyAction(root: AccessibilityNodeInfo, texts: List<String>): Boolean =
+        texts.isNotEmpty() && NodeTree.findInTree(root) { node ->
+            NodeTree.matchesAny(node, texts) &&
+                node.isEnabled &&
+                NodeTree.clickableAncestorOrSelf(node) == null
+        } != null
+
     /** Текст-маркер считается вхождением по нормализованному тексту экрана. */
     private fun markerHit(screenText: String, markers: List<String>): Boolean =
         markers.isNotEmpty() && markers.any { TextMatcher.normalizedContains(screenText, it) }
 
     /** Экран изменился после тапа (пустой экран — успех: проверять нечего). */
-    private suspend fun settled(service: AccessibilityService, before: String): Boolean {
-        delay(VERIFY_DELAY_MS)
-        val after = screenSignature(service)
-        return after.isEmpty() || after != before
-    }
+    private suspend fun settled(service: AccessibilityService, before: String): Boolean =
+        UiWait.until(
+            timeoutMs = VERIFY_DELAY_MS,
+            pollMs = VERIFY_POLL_MS
+        ) {
+            val after = screenSignature(service)
+            after.isEmpty() || after != before
+        }.hit
 
     /** Стандартный alert-диалог: id `alertTitle`/`message` + кнопка `button1/button2`. */
     internal fun isAlertDialog(root: AccessibilityNodeInfo): Boolean {
@@ -632,26 +728,50 @@ object ConsentWallHandler {
         return hasMessage && hasNegative
     }
 
-    /** Диалог принадлежит шагу, если на экране его собственный confirm-текст (msa). */
-    private fun ownsDialog(screenText: String, stepConfirmTexts: List<String>): Boolean =
-        stepConfirmTexts.any { text ->
+    /**
+     * Диалог принадлежит шагу, если его confirm-текст стоит на КНОПОЧНОМ узле диалога.
+     * Подстрока по всему экрану давала ложное «свой диалог» на чужих экранах, где та же
+     * фраза встречается в описании (msa «Отзыв разрешения» — заголовок) (C4/R2-6).
+     */
+    private fun ownsDialog(confirmButtonTexts: List<String>, stepConfirmTexts: List<String>): Boolean {
+        if (confirmButtonTexts.isEmpty() || stepConfirmTexts.isEmpty()) return false
+        return stepConfirmTexts.any { text ->
             val normalized = TextMatcher.normalize(text)
             normalized.isNotEmpty() &&
                 normalized !in GENERIC_CONFIRM_TEXTS &&
-                TextMatcher.normalizedContains(screenText, text)
+                confirmButtonTexts.any { button -> TextMatcher.normalizedContains(button, text) }
         }
+    }
 
     /**
-     * Владелец чужого confirm-диалога: шаг (не текущий), чьи confirm-тексты видны на
+     * Владелец чужого confirm-диалога: шаг (не текущий), чья confirm-КНОПКА видна на
      * экране. Такой диалог ведёт сам шаг-владелец — хендлер стен обязан отойти.
      */
-    private fun foreignConfirmOwner(screenText: String, currentStepId: String): String? =
+    private fun foreignConfirmOwner(confirmButtonTexts: List<String>, currentStepId: String): String? =
         SemanticCatalog.all().firstNotNullOfOrNull { other ->
             other.id.takeIf {
                 it != currentStepId &&
-                    ownsDialog(screenText, SemanticCatalog.confirmTexts(it))
+                    ownsDialog(confirmButtonTexts, SemanticCatalog.confirmTexts(it))
             }
         }
+
+    /** Подписи кнопочных узлов экрана: id `button1`/`button2`/`button3` либо класс Button. */
+    private fun dialogButtonTexts(root: AccessibilityNodeInfo): List<String> {
+        val labels = ArrayList<String>()
+        NodeTree.findAllInTree(root, predicate = { node ->
+            val id = viewId(node)
+            val isButton = id.endsWith("button1") || id.endsWith("button2") ||
+                id.endsWith("button3") ||
+                node.className?.toString()?.contains("Button", ignoreCase = true) == true
+            if (isButton) {
+                val label = node.text?.toString()?.takeIf { it.isNotBlank() }
+                    ?: node.contentDescription?.toString()?.takeIf { it.isNotBlank() }
+                if (label != null) labels.add(label)
+            }
+            false
+        })
+        return labels
+    }
 
     /**
      * Запрос доступа адресован приложению-цели шага: в тексте диалога есть его

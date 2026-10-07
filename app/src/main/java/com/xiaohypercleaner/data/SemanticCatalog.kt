@@ -157,7 +157,15 @@ object SemanticCatalog {
          */
         val feedbackDialogMarkers: Map<String, List<String>> = emptyMap(),
         val feedbackRadioTexts: Map<String, List<String>> = emptyMap(),
-        val feedbackSubmitTexts: Map<String, List<String>> = emptyMap()
+        val feedbackSubmitTexts: Map<String, List<String>> = emptyMap(),
+        /**
+         * Resource-id, по которым магазин/приложение считаются ГОТОВЫМИ к навигации
+         * (Mi Apps: `tab_container` — главная с нижними вкладками; splash
+         * `web_view_lazy_load_wrapper` готовности не даёт). Ждём по id, а не по
+         * времени: прогон rmuvlyyor — шаг getapps уходил в not_applicable, пока
+         * магазин ещё показывал сплэш.
+         */
+        val entryReadyIds: List<String> = emptyList()
     )
 
     /**
@@ -177,6 +185,15 @@ object SemanticCatalog {
         val tapDesc: String? = null,
         /** Суффикс resource-id узла (`more`, `button1`). */
         val tapId: String? = null,
+        /**
+         * Индекс среди узлов с одним и тем же [tapId] (0-based): нижние вкладки MIUI
+         * (`id=tab` ×4) не имеют ни подписи, ни различимого id — выбираем позицией
+         * (Mi Apps: «Профиль» = 4-я вкладка, индекс 3; дамп
+         * diag-dumps/fresh/getapps_market_tab.xml).
+         */
+        val tapIdIndex: Int? = null,
+        /** Тап по самой правой кликабельной иконке заголовка без текста (шестерёнка Mi Apps). */
+        val tapTopRightBlank: Boolean = false,
         /**
          * Запасной поиск по content-description, если узел по id/тексту не найден
          * (Проводник: `more_action_btn` перекрыт всплывшим промо-диалогом либо на
@@ -295,6 +312,23 @@ object SemanticCatalog {
          * drill уровня «Профиль» упирался в ENTRY timeout — прогон `rmuoaz4jm`).
          */
         val guideMarkers: Map<String, List<String>> = emptyMap(),
+        /**
+         * Маркеры промо-мастера магазина (Mi Apps, `RecommendPageActivity`): страница
+         * «Mi фаны рекомендуют» перекрывает вход в магазин, а её кнопка «Пропустить»
+         * есть в дереве БЕЗ кликабельного узла (WebView) — обычный гейт «живой кнопки»
+         * её не видел, и шаг `getapps` уходил `ENTRY timeout`/`not_applicable`
+         * (дамп `diag-dumps/fresh/getapps_recommend.xml`).
+         */
+        val masterMarkers: Map<String, List<String>> = emptyMap(),
+        /** Подписи кнопки-пропуска мастера («Пропустить»/«Пропуск»). */
+        val masterSkipTexts: Map<String, List<String>> = emptyMap(),
+        /**
+         * Подписи кнопок установки/обновления/скачивания (машинные, 7 локалей): тап по
+         * ним запрещён НАВСЕГДА. Инцидент 06.10.2026: координатный тап разведки на
+         * мастере GetApps активировал «СКАЧАТЬ(3077.1MB)» — магазин поставил 11
+         * приложений пачкой (`diag-dumps/fresh/_recon_facts.md` §6).
+         */
+        val installBlockedTexts: Map<String, List<String>> = emptyMap(),
         /** Решение для диалога, которым владеет приложение шага (accept). */
         val appOwnedDecision: String = "accept",
         /**
@@ -716,6 +750,29 @@ object SemanticCatalog {
     /** Маркеры полноэкранных гайдов-жестов (закрываются свайпом вверх). */
     fun guideMarkers(): List<String> = localizedTexts(consentPolicy?.guideMarkers)
 
+    /** Маркеры промо-мастера магазина (закрывается кнопкой-пропуском). */
+    fun masterMarkers(): List<String> = localizedTexts(consentPolicy?.masterMarkers)
+
+    /**
+     * Resource-id готовности экрана входа варианта (Mi Apps: `tab_container`): ждём
+     * появление конкретного узла вместо «успел ли за N секунд».
+     */
+    fun entryReadyIds(id: String): List<String> = selection(id)?.variant?.entryReadyIds.orEmpty()
+
+    /**
+     * Подписи кнопки-пропуска мастера на ВСЕХ локалях: страница мастера может быть на
+     * другом языке, чем интерфейс приложения (та же причина, что у welcomeActionsAllLocales).
+     */
+    fun masterSkipTextsAllLocales(): List<String> =
+        (consentPolicy?.masterSkipTexts?.values?.flatten() ?: emptyList()).distinct()
+
+    /**
+     * Подписи кнопок установки/обновления/скачивания на всех локалях: тап по ним
+     * запрещён всегда (инцидент 06.10.2026 — тап разведки запустил пачку установок).
+     */
+    fun installBlockedTextsAllLocales(): List<String> =
+        (consentPolicy?.installBlockedTexts?.values?.flatten() ?: emptyList()).distinct()
+
     /** Решение для диалога, которым владеет приложение шага (accept). */
     fun appOwnedDecision(): String = consentPolicy?.appOwnedDecision ?: "accept"
 
@@ -731,7 +788,8 @@ object SemanticCatalog {
      */
     fun alertMarkerTexts(): List<String> = listOf(
         forceStopMarkers(), crashReportMarkers(), defaultAppMarkers(),
-        welcomeMarkers(), permissionMarkers(), dismissMarkers(), decoyMarkers()
+        welcomeMarkers(), permissionMarkers(), dismissMarkers(), decoyMarkers(),
+        masterMarkers()
     ).flatten().filter { it.isNotBlank() }.distinct()
 
     fun shouldAllow(stepId: String): Boolean =
@@ -828,6 +886,7 @@ object SemanticCatalog {
                     control = o.optString("control").takeIf { it.isNotEmpty() }?.let { ActionType.from(it) },
                     extraTargets = parseExtraTargets(o.optJSONArray("extraTargets")),
                     toggleDeclineTexts = parseListMap(o.optJSONObject("toggleDeclineTexts")),
+                    entryReadyIds = parseStringArray(o.optJSONArray("entryReadyIds")),
                     feedbackDialogMarkers = parseListMap(o.optJSONObject("feedbackDialogMarkers")),
                     feedbackRadioTexts = parseListMap(o.optJSONObject("feedbackRadioTexts")),
                     feedbackSubmitTexts = parseListMap(o.optJSONObject("feedbackSubmitTexts")),
@@ -863,6 +922,8 @@ object SemanticCatalog {
                     tapText = o.optString("tapText").takeIf { it.isNotEmpty() },
                     tapDesc = o.optString("tapDesc").takeIf { it.isNotEmpty() },
                     tapId = o.optString("tapId").takeIf { it.isNotEmpty() },
+                    tapIdIndex = o.optInt("tapIdIndex", -1).takeIf { it >= 0 },
+                    tapTopRightBlank = o.optBoolean("tapTopRightBlank", false),
             fallbackDesc = o.optString("fallbackDesc").takeIf { it.isNotEmpty() },
                     fallbackIntent = o.optString("fallbackIntent").takeIf { it.isNotEmpty() },
                     confirmMarkers = parseStringArray(o.optJSONArray("confirmMarkers")),
@@ -942,6 +1003,9 @@ object SemanticCatalog {
             decoyCloseIds = parseStringArray(o.optJSONArray("decoyCloseIds")),
             dismissCloseIds = parseStringArray(o.optJSONArray("dismissCloseIds")),
             guideMarkers = parseListMap(o.optJSONObject("guideMarkers")),
+            masterMarkers = parseListMap(o.optJSONObject("masterMarkers")),
+            masterSkipTexts = parseListMap(o.optJSONObject("masterSkipTexts")),
+            installBlockedTexts = parseListMap(o.optJSONObject("installBlockedTexts")),
             uncheckIds = parseListMap(o.optJSONObject("uncheckIds")),
             uncheckTexts = parseListMap(o.optJSONObject("uncheckTexts")),
             appOwnedDecision = o.optString("appOwnedDecision", "accept")

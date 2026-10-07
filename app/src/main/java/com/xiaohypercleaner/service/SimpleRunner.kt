@@ -31,6 +31,7 @@ import com.xiaohypercleaner.util.NodeTree
 import com.xiaohypercleaner.util.TextMatcher
 import com.xiaohypercleaner.util.DiagnosticSnapshotManager
 import com.xiaohypercleaner.util.StepDiagnostics
+import com.xiaohypercleaner.util.UiWait
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -191,14 +192,24 @@ class SimpleRunner(private val service: AdbEnablerService) {
          * быть не первой по дереву (POCO: первой стоит «Инструменты»), поэтому шаг
          * проверяет ВСЕ папки, а не сдаётся после первой (прогон владельца 2026-09-28).
          */
-        private const val MAX_FOLDER_PROBES = 6
+        private const val MAX_FOLDER_PROBES = 12
 
         /**
          * Сколько папок проверяем структурно, если НИ ОДНО имя не совпало с подсказками
          * каталога: у пользователя бывает 20 папок, и перебор всех — недопустимо дорогой
          * путь. Не нашли среди них — честное «не найдено автоматически».
          */
-        private const val MAX_FOLDER_STRUCTURAL_PROBES = 3
+        private const val MAX_FOLDER_STRUCTURAL_PROBES = 4
+
+        /**
+         * Сколько страниц рабочего стола просматриваем в поиске папок: папка может стоять
+         * не на активной странице. После обхода возвращаемся на исходную страницу (C4/R2-5).
+         */
+        private const val HOME_PAGE_SWEEP_MAX = 4
+
+        /** Жест и пауза перелистывания страницы рабочего стола. */
+        private const val HOME_PAGE_SWIPE_MS = 260L
+        private const val HOME_PAGE_SWIPE_SETTLE_MS = 350L
 
         /** Резерв бюджета шага: ниже него новые папки не пробуем. */
         private const val FOLDER_BUDGET_RESERVE_MS = 4_000L
@@ -220,15 +231,27 @@ class SimpleRunner(private val service: AdbEnablerService) {
             listOf("установить", "установка", "install", "安装", "instalar", "instalir")
 
         /** msa: максимум ожидания включённой кнопки отзыва, поллинг и пауза на сам отзыв. */
-        private const val MSA_REVOKE_WAIT_MAX_MS = 11_000L
-        private const val MSA_CONFIRM_POLL_MS = 350L
+        private const val MSA_REVOKE_WAIT_MAX_MS = 12_000L
+        private const val MSA_CONFIRM_POLL_MS = 250L
+
+        /**
+         * Окно ПОЯВЛЕНИЯ диалога отзыва после тапа по чекбоксу msa. У диалога свой
+         * отсчёт MIUI (~10 с до активации «Отозвать»), поэтому ограничивается именно
+         * появление диалога: если признаков диалога нет, дальше ждать нечего —
+         * проверяем фактическое состояние тумблера и выходим.
+         */
+        private const val MSA_DIALOG_APPEAR_WAIT_MS = 2_000L
+
+        /** Повтор тапа по отсчётной кнопке: не чаще одного в это окно, всего ≤3. */
+        private const val MSA_TAP_RETRY_MIN_MS = 500L
+        private const val MSA_TAP_MAX = 3
 
         /** Отсчётный хвост кнопки MIUI: «(9 с)», «(9s)», «(9)» — кнопка ещё неактивна. */
         private val COUNTDOWN_LABEL_REGEX = Regex("\\(\\s*\\d+\\s*(с|s)?\\s*\\)")
         /** Потолок ожидания фактического отзыва после тапа подтверждения: MIUI держит
          *  прогресс «Отзыв разрешения…» дольше короткой паузы, а завершать шаг с открытым
          *  диалогом нельзя — он уносит следующий шаг (прогон rmuslthv7). */
-        private const val MSA_REVOKE_SETTLE_MAX_MS = 12_000L
+        private const val MSA_REVOKE_SETTLE_MAX_MS = 7_000L
 
         /** Фолбэк-действие варианта: очистка данных + отклонение приветствия. */
         private const val FALLBACK_ACTION_CLEAR_DATA = "clear_data_decline"
@@ -257,21 +280,62 @@ class SimpleRunner(private val service: AdbEnablerService) {
          * чего раннер сжигал бюджет на «App not ready» по всем кандидатам и
          * стартовал бурение на сплэше (прогон rmu8qhjhi).
          */
-        private const val APP_READY_WAIT_MS = 4_000L
+        private const val APP_READY_WAIT_MS = 3_000L
 
         /** Готовность экрана приложения перед бурением: подписи первого уровня маршрута. */
-        private const val APP_SCREEN_WAIT_MS = 4_000L
+        private const val APP_SCREEN_WAIT_MS = 3_000L
+        /** Пакет шага уже на переднем плане: уровень входа ждём коротким окном. */
+        private const val APP_SCREEN_WAIT_FOREGROUND_MS = 2_000L
         private const val APP_READY_POLL_MS = 250L
+
+        /** Потолок ожидания перехода drill-уровня (тексты уровня ЛИБО смена экрана). */
+        private const val DRILL_LANDED_WAIT_MS = 2_000L
+
+        /** Settle после прокрутки: опрос сдвига экрана, 400 мс — верхний лимит. */
+        private const val SCROLL_SETTLE_WAIT_MS = 400L
         /** Повторное чтение состояния тумблера: MIUI применяет его с задержкой. */
         private const val SWITCH_VERIFY_ATTEMPTS = 3
-        private const val SWITCH_VERIFY_RETRY_DELAY_MS = 600L
+        private const val SWITCH_VERIFY_RETRY_DELAY_MS = 250L
         /** Ожидание кнопки-отказа после главного тумблера (Карусель: «Нет, спасибо»). */
-        private const val TOGGLE_DECLINE_WAIT_MS = 2500L
+        private const val TOGGLE_DECLINE_WAIT_MS = 1500L
+
+        // ─── Единый механизм ожиданий (waitFor) ───────────────────────────
+        // Интервалы опроса 150..250 мс: ожидания стали опросными с ранним выходом,
+        // фиксированные паузы после успешного действия убраны.
+        private const val WAIT_POLL_MS = 200L
+        private const val WAIT_POLL_FAST_MS = 150L
+        private const val WAIT_POLL_SLOW_MS = 250L
+        /** Сколько чтений ПОДРЯД подтверждают важное состояние (отзыв msa, исчезнувшая строка). */
+        private const val WAIT_CONFIRM_READS = 2
+
+        /** Сколько раз пробуем закрыть оставшийся диалог шага (кнопка-отказ, затем BACK). */
+        private const val CLOSE_LEFT_DIALOG_ATTEMPTS = 2
+
+        /** Ожидание готовности рабочего стола после HOME (опрос, а не фиксированные 500 мс). */
+        private const val HOME_SETTLE_WAIT_MS = 500L
+
+        /** Словарь причин ожиданий: попадает в StepDiag как `event=WAIT reason=…`. */
+        private const val WAIT_DIALOG_APPEAR = "dialog_appear"
+        private const val WAIT_ROUTE_CONFIRM = "route_confirm"
+        private const val WAIT_VERIFY_STATE = "verify_state"
+        private const val WAIT_APP_ENTRY = "app_entry"
+        private const val WAIT_DECLINE_DIALOG = "decline_dialog"
+        private const val WAIT_REVOKE_SETTLE = "revoke_settle"
+        private const val WAIT_UI_SETTLE = "ui_settle"
 
         /** Ожидание исчезновения экрана-опроса после BACK/отправки (WebView-переход). */
         private const val FEEDBACK_SURVEY_WAIT_MS = 3_000L
         private const val FEEDBACK_SURVEY_POLL_MS = 250L
-        private const val CONFIRM_RETRY_MS = 1500L
+        private const val CONFIRM_RETRY_MS = 700L
+        /**
+         * Окно ПОЯВЛЕНИЯ кнопки подтверждения после тапа: диалог MIUI отрисовывается
+         * за ~0.7 с (Карусель «Нет, спасибо», Загрузки «OK»), поэтому верхний лимит
+         * слепой паузы [SimpleSteps.Step.confirmWaitMs] усекается этим окном, а выход
+         * идёт сразу по найденной кнопке.
+         */
+        private const val CONFIRM_APPEAR_WAIT_MS = 1_500L
+        /** Финальная проверка «диалог не остался открытым» после подтверждённого состояния. */
+        private const val CONFIRM_QUICK_WAIT_MS = 500L
 
         /**
          * Попыток подтверждения диалога: основная + один повтор. Дальше — честный провал
@@ -346,6 +410,23 @@ class SimpleRunner(private val service: AdbEnablerService) {
             else -> SkipKind.UNRESOLVED
         }
 
+        /**
+         * Кнопки установки/обновления/скачивания: тап по ним запрещён НАВСЕГДА.
+         *
+         * Инцидент 06.10.2026: координатный тап разведки по мастеру GetApps активировал
+         * «СКАЧАТЬ(3077.1MB)» — магазин установил 11 приложений пачкой. Ни консент, ни
+         * маршруты, ни тап по подписи не имеют права нажимать такие кнопки, поэтому
+         * проверка стоит на всех путях выбора узла для тапа.
+         */
+        internal fun isInstallBlockedLabel(label: String?): Boolean {
+            val normalized = TextMatcher.normalize(label)
+            if (normalized.isEmpty()) return false
+            return SemanticCatalog.installBlockedTextsAllLocales().any { blocked ->
+                val candidate = TextMatcher.normalize(blocked)
+                candidate.isNotEmpty() && normalized.contains(candidate)
+            }
+        }
+
 
         /** Поллинг проверки входного экрана (notif_*: подпись приложения). */
         private const val ENTRY_POLL_MS = 200L
@@ -378,6 +459,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     /** Поллинг подтверждения экрана маршрута. */
     private const val ROUTE_SCREEN_POLL_MS = 250L
+
+    /** Ожидание повторного тапа маршрута: узел появляется после анимации списка. */
+    private const val ROUTE_TAP_RETRY_WAIT_MS = 400L
+
+    /** Ожидание готовности экрана входа маршрута по resource-id (`tab_container`). */
+    private const val ROUTE_ENTRY_READY_WAIT_MS = 4_000L
 
     /** Повторы уровня drill после закрытия всплывшего диалога (permission целевого приложения). */
     private const val DRILL_CONSENT_RETRIES = 2
@@ -467,6 +554,35 @@ class SimpleRunner(private val service: AdbEnablerService) {
     /** Остаток бюджета шага (Long.MAX_VALUE, если дедлайн не задан — unit-тесты). */
     private fun remainingBudgetMs(): Long =
         if (stepDeadlineMs <= 0L) Long.MAX_VALUE else stepDeadlineMs - System.currentTimeMillis()
+
+    /**
+     * Единая точка ожидания UI: опрос [pollMs] (150..250 мс), ранний выход по
+     * [condition], [confirmations] чтений ПОДРЯД для важных состояний и жёсткий
+     * лимит — не больше запрошенного [timeoutMs] и не больше остатка бюджета шага
+     * (бюджеты шагов механизм не увеличивает). Каждое ожидание видно в диагностике
+     * ([StepDiagnostics.wait], `event=WAIT reason=… elapsed=…`).
+     */
+    private suspend fun waitFor(
+        stepId: String,
+        reason: String,
+        timeoutMs: Long,
+        pollMs: Long = WAIT_POLL_MS,
+        confirmations: Int = 1,
+        condition: suspend () -> Boolean
+    ): Boolean {
+        val budget = remainingBudgetMs()
+        val limit = if (budget == Long.MAX_VALUE) timeoutMs
+        else minOf(timeoutMs, budget.coerceAtLeast(0L))
+        val outcome = UiWait.until(
+            timeoutMs = limit,
+            pollMs = pollMs,
+            confirmations = confirmations,
+            isCancelled = { cancelled },
+            condition = condition
+        )
+        StepDiagnostics.wait(stepId, reason, outcome.elapsedMs, outcome.hit, outcome.reads)
+        return outcome.hit
+    }
 
     /** Подписи приложений для проверки входа notif_*-шагов (кэш на прогон). */
     private val appLabelCache = HashMap<String, String>()
@@ -888,8 +1004,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 screenOpened = true
                 if (isAppStep) {
                     // Для app-шагов: ждём целевой пакет в foreground с непустым
-                    // деревом. Жёсткие 2 c не покрывали холодный старт MIUI.
-                    if (awaitForegroundApp(resolvedPkg, APP_READY_WAIT_MS)) {
+                    // деревом. Пакет уже на переднем плане — короткое окно (уровень
+                    // входа появится быстрее), иначе полное окно готовности.
+                    val alreadyForeground = activePackage().equals(resolvedPkg, ignoreCase = true)
+                    val readyWait = if (alreadyForeground) {
+                        APP_SCREEN_WAIT_FOREGROUND_MS
+                    } else {
+                        APP_READY_WAIT_MS
+                    }
+                    if (awaitForegroundApp(step.id, resolvedPkg, readyWait)) {
                         AppLog.i(TAG, "App launched: $resolvedPkg, tree=true")
                         break
                     }
@@ -947,7 +1070,30 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         if (!screenOpened) return Result(false, "no_screen_opened")
 
-        delay(if (step.launchPackage != null) APP_LAUNCH_DELAY_MS else UI_SETTLE_DELAY_MS)
+        // Пауза после запуска стала опросной: для app-шага выходим сразу, как только
+        // целевой пакет в foreground с непустым деревом, для settings-шага — как только
+        // экран сменился. Слепые 1200/450 мс не тратятся, когда готовность уже есть.
+        if (step.launchPackage != null) {
+            val pkg = step.launchPackage
+            waitFor(
+                stepId = step.id,
+                reason = WAIT_APP_ENTRY,
+                timeoutMs = APP_LAUNCH_DELAY_MS,
+                pollMs = WAIT_POLL_FAST_MS
+            ) {
+                val root = service.rootInActiveWindow
+                val ok = root?.packageName?.toString() == pkg && root.childCount > 0
+                recycleNode(root)
+                ok
+            }
+        } else {
+            waitFor(
+                stepId = step.id,
+                reason = WAIT_UI_SETTLE,
+                timeoutMs = UI_SETTLE_DELAY_MS,
+                pollMs = WAIT_POLL_FAST_MS
+            ) { onTargetScreen(step) }
+        }
         // Mi Video (muteMediaOnLaunch): промо-ролик стартует со звуком — глушим до
         // запуска, возвращаем громкость в конце шага (restoreStepMute).
         muteForStepIfNeeded(step)
@@ -961,7 +1107,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
         if (consentHandled > 0 && !isForegroundTarget(step, resolvedPkg)) {
             // Стена согласия могла увести с целевого экрана: один relaunch, дальше — без догадок.
             AppLog.w(TAG, "consent accepted but fg not target for ${step.id} — relaunch once")
-            if (relaunchOnce(intents)) handleConsentWalls(step)
+            if (relaunchOnce(intents)) {
+                // Ждём ЦЕЛЕВОЕ окно опросом: смена текста экрана наступала раньше, чем
+                // приложение выходило на передний план, и шаг продолжался из чужого окна
+                // (security_sys, прогон rmuwvcqiw: not_applicable из корня Настроек).
+                waitFor(
+                    stepId = step.id,
+                    reason = WAIT_APP_ENTRY,
+                    timeoutMs = APP_SCREEN_WAIT_MS,
+                    pollMs = WAIT_POLL_MS
+                ) { isForegroundTarget(step, resolvedPkg) }
+                handleConsentWalls(step)
+            }
         }
 
         // Навигация по маршруту: авторитетный drillPath варианта ОС, иначе legacy + подсказки каталога.
@@ -1024,7 +1181,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Resume (startLevel>0) и шаги Настроек/CLEAR_DATA (App Info) не ждут:
         // экран уже подтверждён интентом либо приложение шага не открывается.
         if (isAppStep && mergedDrillPath.isNotEmpty()) {
-            awaitAppScreenReady(step, mergedDrillPath, APP_SCREEN_WAIT_MS, startLevel)
+            val foreground = resolvedPkg != null &&
+                activePackage().equals(resolvedPkg, ignoreCase = true)
+            awaitAppScreenReady(step, mergedDrillPath, APP_SCREEN_WAIT_MS, startLevel, foreground)
         }
         var drillFailure: String? = null
         if (mergedDrillPath.isNotEmpty() && startLevel < mergedDrillPath.size) {
@@ -1400,13 +1559,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 // вместо тапа, шаг ушёл искать тумблер и падал switch_not_found, прогон rmubgvwm5).
                 val beforeTapText = currentScreenText()
                 val tapped = tapNode(candidate)
-                if (tapped && levelLanded(nextTexts, beforeTapText)) {
+                if (tapped && levelLanded(step.id, nextTexts, beforeTapText)) {
                     landed = true
                     break
                 }
                 if (tapAt(rect.centerX(), rect.centerY())) {
-                    delay(UI_SETTLE_DELAY_MS)
-                    if (levelLanded(nextTexts, beforeTapText)) {
+                    // Отдельная пауза не нужна: [levelLanded] сам опрашивает переход
+                    // (следующий уровень ИЛИ смена экрана) до [DRILL_LANDED_WAIT_MS].
+                    if (levelLanded(step.id, nextTexts, beforeTapText)) {
                         landed = true
                         break
                     }
@@ -1423,17 +1583,27 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return false
     }
 
-    /** Уровень пройден: виден следующий уровень либо экран фактически сменился. */
-    private suspend fun levelLanded(nextTexts: List<String>, baseScreenText: String): Boolean =
-        if (nextTexts.isNotEmpty()) {
-            // Переход засчитывается и по смене экрана: тексты следующего уровня бывают
-            // видны только после полной отрисовки/скролла, и шаг ошибочно сообщал
-            // «not passed after 1 attempt» при фактически открытом экране
-            // (sys_recommendations, прогон rmubgvwm5).
-            awaitScreen(nextTexts) || screenChangedSince(baseScreenText)
-        } else {
-            screenChangedSince(baseScreenText)
-        }
+    /**
+     * Уровень пройден: виден следующий уровень ЛИБО экран фактически сменился.
+     *
+     * Оба признака проверяются В ОДНОМ опросе: раньше сначала полностью выжидался
+     * следующий уровень (до 3 с), и только после этого проверялась смена экрана —
+     * переход, отрисовавшийся без текстов уровня (пункт ниже сгиба), ждал впустую
+     * (Mi Браузер, прогон rmuef7nbf).
+     */
+    private suspend fun levelLanded(
+        stepId: String,
+        nextTexts: List<String>,
+        baseScreenText: String
+    ): Boolean = waitFor(
+        stepId = stepId,
+        reason = WAIT_UI_SETTLE,
+        timeoutMs = DRILL_LANDED_WAIT_MS,
+        pollMs = WAIT_POLL_MS
+    ) {
+        if (nextTexts.isNotEmpty() && screenHasAny(nextTexts)) return@waitFor true
+        screenChangedSince(baseScreenText)
+    }
 
     /**
      * Кандидаты-узлы уровня: первый — обычным путём (scroll-until-found и
@@ -1533,29 +1703,38 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * Единственное состояние, в котором приложение шага считается готовым к
      * навигации; иначе раннер пробует следующий интент. Прежние жёсткие 2 c
      * объявляли «App not ready» даже поднимающемуся приложению (GetApps: холодный
-     * старт ~4 c), и остаток бюджета уходил на перебор кандидатов.
+     * старт ~4 c). Опрос с ранним выходом: как только пакет поднялся — идём дальше,
+     * пустое окно не выжидается.
      */
-    private suspend fun awaitForegroundApp(targetPkg: String?, timeoutMs: Long): Boolean {
+    private suspend fun awaitForegroundApp(
+        stepId: String,
+        targetPkg: String?,
+        timeoutMs: Long
+    ): Boolean {
         if (targetPkg == null) return false
-        val attempts = (timeoutMs / APP_READY_POLL_MS).toInt().coerceAtLeast(1)
         var lastFg: String? = null
         var lastTree = false
-        repeat(attempts) { attempt ->
-            if (cancelled) return false
+        val hit = waitFor(
+            stepId = stepId,
+            reason = WAIT_APP_ENTRY,
+            timeoutMs = timeoutMs,
+            pollMs = APP_READY_POLL_MS
+        ) {
             val root = service.rootInActiveWindow
             val fg = root?.packageName?.toString()
             val hasTree = root != null && root.childCount > 0
             recycleNode(root)
-            if (fg == targetPkg && hasTree) return true
             lastFg = fg
             lastTree = hasTree
-            if (attempt < attempts - 1) delay(APP_READY_POLL_MS)
+            fg == targetPkg && hasTree
         }
-        AppLog.w(
-            TAG,
-            "App not ready after ${timeoutMs}ms: fg=$lastFg target=$targetPkg tree=$lastTree, retrying"
-        )
-        return false
+        if (!hit) {
+            AppLog.w(
+                TAG,
+                "App not ready after ${timeoutMs}ms: fg=$lastFg target=$targetPkg tree=$lastTree, retrying"
+            )
+        }
+        return hit
     }
 
     /**
@@ -1577,35 +1756,113 @@ class SimpleRunner(private val service: AdbEnablerService) {
         step: SimpleSteps.Step,
         path: List<List<String>>,
         timeoutMs: Long,
-        startLevel: Int = 0
+        startLevel: Int = 0,
+        /** Пакет шага уже на переднем плане: уровень ждём коротким окном. */
+        foreground: Boolean = false
     ): Boolean {
         if (startLevel > 0 || path.isEmpty()) return true
+        // Маршрут/интент уже подтвердили целевой экран — уровень входа ждать не нужно
+        // вовсе (прежние 4 с уходили впустую на уже готовом экране).
+        if (onTargetScreen(step)) return true
         val levelTexts = nextLevelVerificationTexts(path, startLevel)
-        if (levelTexts.isEmpty()) return true
-        if (awaitScreenTexts(levelTexts, timeoutMs)) return true
+        val readyIds = SemanticCatalog.entryReadyIds(step.id)
+        if (levelTexts.isEmpty() && readyIds.isEmpty()) return true
+        // Готовность по КОНКРЕТНОМУ id (Mi Apps: `tab_container` — главная загрузилась):
+        // не «сколько прошло времени», а «нужный экран на месте». Сплэш
+        // (`web_view_lazy_load_wrapper`) условие не выполняет.
+        if (readyIds.isNotEmpty() && awaitEntryReadyId(step.id, readyIds, timeoutMs)) return true
+        if (levelTexts.isEmpty()) {
+            AppLog.w(TAG, "app entry: ready ids $readyIds not visible after ${timeoutMs}ms — drilling anyway")
+            StepDiagnostics.note(step.id, "ENTRY", "reason=timeout ids=$readyIds")
+            return false
+        }
+        val window = if (foreground) minOf(timeoutMs, APP_SCREEN_WAIT_FOREGROUND_MS) else timeoutMs
+        if (awaitScreenTexts(step.id, levelTexts, window)) return true
         AppLog.w(
             TAG,
-            "app entry: '${levelTexts.first()}' not visible after ${timeoutMs}ms — drilling anyway"
+            "app entry: '${levelTexts.first()}' not visible after ${window}ms — drilling anyway"
         )
         StepDiagnostics.note(step.id, "ENTRY", "reason=timeout level=${levelTexts.first()}")
         return false
     }
 
-    /** Опрос подписей уровня: время до появления видно в логе (готовность экрана приложения). */
-    private suspend fun awaitScreenTexts(texts: List<String>, timeoutMs: Long): Boolean {
-        val attempts = (timeoutMs / APP_READY_POLL_MS).toInt().coerceAtLeast(1)
-        repeat(attempts) { attempt ->
-            if (cancelled) return false
-            if (screenHasAny(texts)) {
-                AppLog.i(
-                    TAG,
-                    "app entry: level '${texts.first()}' visible after ~${attempt * APP_READY_POLL_MS}ms"
-                )
-                return true
-            }
-            if (attempt < attempts - 1) delay(APP_READY_POLL_MS)
+    /** Активное окно принадлежит пакету шага (launch/required): признак «мы в нужном приложении». */
+    private fun isForegroundStepPackage(step: SimpleSteps.Step): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val pkg = root.packageName?.toString().orEmpty()
+        recycleNode(root)
+        return stepPackagesFor(step).any { pkg == it }
+    }
+
+    /**
+     * Один повторный вход в приложение шага с ожиданием целевого окна: спасает шаг,
+     * когда relaunch после стены согласия не поднял активность и автоматизация
+     * искала тумблер в чужом окне (security_sys, прогон rmuwvcqiw).
+     */
+    private suspend fun retryEnterStep(step: SimpleSteps.Step): Boolean {
+        val intent = step.intents.firstOrNull() ?: return false
+        return try {
+            service.startActivity(intent)
+            val ok = waitFor(
+                stepId = step.id,
+                reason = WAIT_APP_ENTRY,
+                timeoutMs = APP_SCREEN_WAIT_MS,
+                pollMs = WAIT_POLL_MS
+            ) { isForegroundStepPackage(step) }
+            if (ok) handleConsentWalls(step)
+            ok
+        } catch (e: Exception) {
+            AppLog.w(TAG, "re-entry failed for {step.id}: {e.message}")
+            false
         }
-        return false
+    }
+
+    /** Ожидание узла готовности по resource-id (опрос с ранним выходом). */
+    private suspend fun awaitEntryReadyId(
+        stepId: String,
+        ids: List<String>,
+        timeoutMs: Long
+    ): Boolean = waitFor(
+        stepId = stepId,
+        reason = WAIT_APP_ENTRY,
+        timeoutMs = timeoutMs,
+        pollMs = APP_READY_POLL_MS
+    ) { screenHasId(ids) }
+
+    /** На экране есть узел, чей resource-id заканчивается одним из [ids]. */
+    private fun screenHasId(ids: List<String>): Boolean {
+        if (ids.isEmpty()) return false
+        val root = service.rootInActiveWindow ?: return false
+        val found = NodeTree.findInTree(root, predicate = { node ->
+            val id = node.viewIdResourceName ?: ""
+            id.isNotEmpty() && ids.any { id.endsWith(it, ignoreCase = true) }
+        }) != null
+        recycleNode(root)
+        return found
+    }
+
+    /** Опрос подписей уровня: время до появления видно в логе (готовность экрана приложения). */
+    private suspend fun awaitScreenTexts(
+        stepId: String,
+        texts: List<String>,
+        timeoutMs: Long
+    ): Boolean {
+        var visibleAfterMs = -1L
+        val started = System.currentTimeMillis()
+        val hit = waitFor(
+            stepId = stepId,
+            reason = WAIT_APP_ENTRY,
+            timeoutMs = timeoutMs,
+            pollMs = APP_READY_POLL_MS
+        ) {
+            val ok = screenHasAny(texts)
+            if (ok && visibleAfterMs < 0) visibleAfterMs = System.currentTimeMillis() - started
+            ok
+        }
+        if (hit) {
+            AppLog.i(TAG, "app entry: level '${texts.first()}' visible after ~${visibleAfterMs}ms")
+        }
+        return hit
     }
 
     /** Повторный поиск узла после горизонтальной прокрутки: вкладка может быть за краем. */
@@ -1652,8 +1909,19 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     /**
      * Подтверждение с задержкой (msa): кнопка «Отозвать»/«ОК» становится активной
-     * только после отсчёта (~10 c). Ждём включённую кнопку, тапаем, даём системе
-     * 2–3 c на фактический отзыв и подтверждаем результат. Без подтверждения — fail.
+     * только после отсчёта MIUI (~10 c). Три фазы:
+     *
+     * 1. ПОЯВЛЕНИЕ диалога — короткое окно [MSA_DIALOG_APPEAR_WAIT_MS]. Признаков
+     *    диалога нет — проверяем фактическое состояние тумблера и выходим: MIUI 13
+     *    отзывает доступ прямо по чекбоксу, и пустого ожидания отсчёта нет;
+     * 2. АКТИВАЦИЯ кнопки (отсчёт прошивки) — тап сразу при активной кнопке,
+     *    повторов тапа ≤[MSA_TAP_MAX] с интервалом [MSA_TAP_RETRY_MIN_MS], ранний
+     *    выход по уже применённому состоянию;
+     * 3. SETTLE после тапа — до [MSA_REVOKE_SETTLE_MAX_MS] с ранним выходом по
+     *    закрытию диалога/прогресса.
+     *
+     * Без фактического подтверждения отзыва шаг не успешен (инвариант честности:
+     * открытый диалог/прогресс успехом не считается — прогон rmuslthv7).
      */
     internal suspend fun confirmDelayedRevoke(
         step: SimpleSteps.Step,
@@ -1661,11 +1929,45 @@ class SimpleRunner(private val service: AdbEnablerService) {
         switchTexts: List<String>
     ): Boolean {
         if (confirmTexts.isEmpty()) return false
-        val waitMs = SemanticCatalog.confirmWaitMs(step.id, step.confirmWaitMs)
-            .takeIf { it > 0L }?.coerceAtMost(MSA_REVOKE_WAIT_MAX_MS) ?: MSA_REVOKE_WAIT_MAX_MS
-        val tapped = withTimeoutOrNull(waitMs) {
-            var countdownLogged = false
+        // Окно активации кнопки — ВСЕГДА полный лимит [MSA_REVOKE_WAIT_MAX_MS]:
+        // отсчёт MIUI на устройстве занимает ~10.4 с (прогон rmuvlyyor: кнопка стала
+        // активной уже после 10 с, и каталожный confirmWaitMs=10_000 урезал окно —
+        // шаг падал, оставляя диалог открытым). Бюджет шага (40 с) не меняется.
+        val waitMs = MSA_REVOKE_WAIT_MAX_MS
+        val appearStart = System.currentTimeMillis()
+
+        // Фаза 1: появление диалога отзыва (короткое окно с ранним выходом).
+        val dialogAppeared = waitFor(
+            stepId = step.id,
+            reason = WAIT_DIALOG_APPEAR,
+            timeoutMs = MSA_DIALOG_APPEAR_WAIT_MS,
+            pollMs = WAIT_POLL_MS
+        ) { msaDialogVisible(confirmTexts) }
+        if (!dialogAppeared) {
+            // Признаков диалога нет: единственное честное доказательство — фактическое
+            // состояние тумблера (отзыв мог примениться прямо по чекбоксу).
+            if (msaSwitchInTargetState(step, switchTexts)) {
+                AppLog.i(TAG, "msa: нет диалога подтверждения, тумблер в целевом состоянии")
+                return true
+            }
+            AppLog.w(
+                TAG,
+                "msa: no revoke dialog within ${MSA_DIALOG_APPEAR_WAIT_MS}ms (step=${step.id})"
+            )
+        }
+
+        // Фаза 2: ожидание активной кнопки (отсчёт MIUI). Общий лимит не увеличиваем:
+        // из него вычитаем время, потраченное на появление диалога.
+        val activationWindow = (waitMs - (System.currentTimeMillis() - appearStart)).coerceAtLeast(0L)
+        var countdownLogged = false
+        var taps = 0
+        val tapped = withTimeoutOrNull(activationWindow) {
+            var lastTapAt = 0L
             while (!cancelled) {
+                // Отзыв мог примениться сам (диалог закрылся) — дальше ждать нечего.
+                if (msaSwitchInTargetState(step, switchTexts, timeoutMs = WAIT_POLL_MS)) {
+                    return@withTimeoutOrNull true
+                }
                 val root = service.rootInActiveWindow
                 val node = root?.let { findDialogConfirmButton(it, confirmTexts) }
                 if (root != null) recycleNode(root)
@@ -1679,9 +1981,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
                             countdownLogged = true
                         }
                     } else {
-                        val ok = tapNode(node)
-                        recycleNode(node)
-                        if (ok) return@withTimeoutOrNull true
+                        val now = System.currentTimeMillis()
+                        if (taps < MSA_TAP_MAX && now - lastTapAt >= MSA_TAP_RETRY_MIN_MS) {
+                            taps++
+                            lastTapAt = now
+                            val ok = tapNode(node)
+                            recycleNode(node)
+                            if (ok) return@withTimeoutOrNull true
+                        }
                     }
                 }
                 delay(MSA_CONFIRM_POLL_MS)
@@ -1690,16 +1997,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
         } ?: false
 
         if (!tapped) {
-            // Кнопки подтверждения нет вовсе: MIUI 13 отзывает доступ прямо по чекбоксу
-            // строки («Доступ к личным данным») — подтверждаем по состоянию тумблера,
-            // но только если тумблер реально найден (иначе экран чужой).
-            val stateRoot = service.rootInActiveWindow
-            val stateNode = stateRoot?.let { findSwitchByText(it, switchTexts) }
-            val stateOk = stateNode != null &&
-                SwitchFinder.isChecked(stateNode) == step.targetChecked
-            recycleNode(stateNode); recycleNode(stateRoot)
-            if (stateOk) {
-                AppLog.i(TAG, "msa: нет кнопки подтверждения, тумблер в целевом состоянии")
+            // Кнопка так и не стала активной: подтверждаем по фактическому состоянию
+            // тумблера (MIUI 13 отзывает прямо по чекбоксу), иначе честный fail.
+            if (msaSwitchInTargetState(step, switchTexts)) {
+                AppLog.i(TAG, "msa: кнопка не активировалась, тумблер в целевом состоянии")
                 return true
             }
             AppLog.w(TAG, "msa: revoke button not enabled within ${waitMs}ms (step=${step.id})")
@@ -1707,16 +2008,20 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
         AppLog.i(TAG, "msa: revoke tapped, waiting up to ${MSA_REVOKE_SETTLE_MAX_MS}ms")
 
-        // Отзыв не мгновенный, а тап по отсчётной кнопке MIUI иногда не срабатывает с
-        // первого раза: на чистом устройстве (прогон rmuk1h2al) диалог остался открыт
-        // через 2.5 с (`dialogGone=false`). Опрашиваем диалог, при упорном диалоге
-        // повторяем тап, факт отзыва принимаем по состоянию тумблера ЛИБО по закрытию
+        // Фаза 3: settle. Первая проверка идёт СРАЗУ (диалог мог закрыться мгновенно),
+        // ранний выход — как только диалог/прогресс ушёл. При упорном диалоге один
+        // повтор тапа, факт отзыва принимается по состоянию тумблера ЛИБО по закрытию
         // диалога на целевом экране — на MIUI 13 состояние sliding_button читается не всегда.
         var dialogGone = false
         var retried = false
-        val deadline = System.currentTimeMillis() + MSA_REVOKE_SETTLE_MAX_MS
-        while (!cancelled && System.currentTimeMillis() < deadline) {
-            delay(MSA_CONFIRM_POLL_MS)
+        val settleStart = System.currentTimeMillis()
+        val deadline = settleStart + MSA_REVOKE_SETTLE_MAX_MS
+        // Лимит по числу чтений — жёсткий и детерминированный (медленное чтение дерева
+        // не растягивает settle, как и в [UiWait]).
+        val maxReads = (MSA_REVOKE_SETTLE_MAX_MS / MSA_CONFIRM_POLL_MS).toInt() + 1
+        var settleReads = 0
+        while (!cancelled) {
+            settleReads++
             val confirmation = service.rootInActiveWindow
             val confirmText = ComponentVerifier.screenText(confirmation)
             val dialogNode = confirmation?.let { findDialogConfirmButton(it, confirmTexts) }
@@ -1734,25 +2039,32 @@ class SimpleRunner(private val service: AdbEnablerService) {
             }
             dialogNode?.let { recycleNode(it) }
             if (confirmation != null) recycleNode(confirmation)
+            if (settleReads >= maxReads || System.currentTimeMillis() >= deadline) break
+            delay(MSA_CONFIRM_POLL_MS)
         }
+        StepDiagnostics.wait(
+            step.id,
+            WAIT_REVOKE_SETTLE,
+            System.currentTimeMillis() - settleStart,
+            dialogGone,
+            settleReads
+        )
         val switchOk = verifySwitchState(step, switchTexts)
-        val screenRoot = service.rootInActiveWindow
-        val screenText = ComponentVerifier.screenText(screenRoot)
-        if (screenRoot != null) recycleNode(screenRoot)
-        val markers = SemanticCatalog.screenMarkers(step.id)
-        val onTargetScreen = markers.isEmpty() ||
-            markers.any { TextMatcher.normalizedContains(screenText, it) }
-        val confirmed = switchOk || (dialogGone && onTargetScreen)
-        if (confirmed) {
+        // Успех — ТОЛЬКО факт: состояние тумблера целевое либо строка исчезла на чистом
+        // целевом экране (два чтения подряд — внутри verify). Прежняя ветка
+        // `dialogGone && onTargetScreen` давала «успех» при живом чекбоксе, когда диалог
+        // ушёл сам: по логу шаг «успешен», в реальности отзыв не применён
+        // (прогон rmuvlyyor, скриншот diag-dumps/after/screenshot_msa_*.png).
+        if (switchOk) {
             AppLog.i(TAG, "msa: revoke confirmed step=${step.id}")
-        } else {
-            AppLog.w(TAG, "msa: revoke NOT confirmed step=${step.id} dialogGone=$dialogGone")
-            // Незавершённое действие не должно утекать в следующий шаг: прогресс
-            // «Отзыв разрешения…» перекрывал старт sys_recommendations и шаг уходил
-            // в timeout (прогон rmuslthv7).
-            closeLeftoverDialog(step)
+            return true
         }
-        return confirmed
+        AppLog.w(TAG, "msa: revoke NOT confirmed step=${step.id} dialogGone=$dialogGone")
+        // Незавершённое действие не должно утекать в следующий шаг: открытый диалог
+        // отзыва перекрывал старт sys_recommendations (прогоны rmuslthv7, rmuvlyyor:
+        // `skip foreign confirm dialog step=sys_recommendations owner=msa`).
+        closeLeftoverDialog(step)
+        return false
     }
 
     /**
@@ -1760,22 +2072,92 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * Открытый диалог уносит следующий шаг в чужой экран — гасим его сами.
      */
     private suspend fun closeLeftoverDialog(step: SimpleSteps.Step) {
-        val root = service.rootInActiveWindow
-        val node = root?.let { findClickableByText(it, DIALOG_NEGATIVE_TEXTS) }
-        if (root != null) recycleNode(root)
-        if (node != null) {
-            val label = buttonLabel(node)
-            val tapped = tapNode(node)
-            recycleNode(node)
-            AppLog.i(TAG, "leftover dialog: tapped '$label' ok=$tapped step=${step.id}")
-            if (tapped) {
-                delay(CONFIRM_SETTLE_MS)
-                return
+        repeat(CLOSE_LEFT_DIALOG_ATTEMPTS) { attempt ->
+            if (!leftoverDialogVisible(step)) return
+            val root = service.rootInActiveWindow
+            val node = root?.let { findClickableByText(it, DIALOG_NEGATIVE_TEXTS) }
+            if (root != null) recycleNode(root)
+            if (node != null) {
+                val label = buttonLabel(node)
+                val tapped = tapNode(node)
+                recycleNode(node)
+                AppLog.i(TAG, "leftover dialog: tapped '$label' ok=$tapped step=${step.id}")
+                if (tapped) {
+                    // Ждём ФАКТИЧЕСКОГО закрытия, а не фиксированную паузу.
+                    waitFor(
+                        stepId = step.id,
+                        reason = WAIT_DIALOG_APPEAR,
+                        timeoutMs = CONFIRM_RETRY_MS,
+                        pollMs = WAIT_POLL_FAST_MS
+                    ) { !leftoverDialogVisible(step) }
+                    return@repeat
+                }
             }
+            AppLog.w(TAG, "leftover dialog: BACK attempt=${attempt + 1} step=${step.id}")
+            pressBack()
+            waitFor(
+                stepId = step.id,
+                reason = WAIT_DIALOG_APPEAR,
+                timeoutMs = CONFIRM_RETRY_MS,
+                pollMs = WAIT_POLL_FAST_MS
+            ) { !leftoverDialogVisible(step) }
         }
-        AppLog.w(TAG, "leftover dialog: negative button not found — BACK step=${step.id}")
-        pressBack()
+        if (leftoverDialogVisible(step)) {
+            AppLog.w(
+                TAG,
+                "leftover dialog: still open after ${CLOSE_LEFT_DIALOG_ATTEMPTS} attempts step=${step.id}"
+            )
+        }
     }
+
+    /**
+     * Диалог-остаток шага всё ещё на экране: его confirm-тексты (msa «Отзыв разрешения»)
+     * либо негативные кнопки. Нужно только для проверки факта закрытия — тап идёт
+     * обычным путём, по кнопкам.
+     */
+    private fun leftoverDialogVisible(step: SimpleSteps.Step): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val text = ComponentVerifier.screenText(root)
+        recycleNode(root)
+        val markers = confirmTextsFor(step) + DIALOG_NEGATIVE_TEXTS
+        return markers.any { it.isNotBlank() && TextMatcher.normalizedContains(text, it) }
+    }
+
+    /**
+     * Признак открытого диалога/прогресса отзыва msa: кнопка подтверждения (в любом
+     * состоянии, включая отсчётную) ИЛИ её confirm-текст на экране. Нет обоих —
+     * ждать диалог нечего (фаза появления отвечает коротким окном, а не отсчётом).
+     */
+    private fun msaDialogVisible(confirmTexts: List<String>): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val text = ComponentVerifier.screenText(root)
+        val node = root.let { findDialogConfirmButton(it, confirmTexts) }
+        recycleNode(node)
+        recycleNode(root)
+        return node != null || confirmTexts.any { TextMatcher.normalizedContains(text, it) }
+    }
+
+    /**
+     * Фактическое состояние тумблера msa в целевом (по умолчанию — 2 чтения ПОДРЯД):
+     * без диалога отзыва это единственное честное доказательство, что доступ отозван.
+     */
+    private suspend fun msaSwitchInTargetState(
+        step: SimpleSteps.Step,
+        switchTexts: List<String>,
+        timeoutMs: Long = 600L
+    ): Boolean = UiWait.until(
+        timeoutMs = timeoutMs,
+        pollMs = WAIT_POLL_FAST_MS,
+        confirmations = WAIT_CONFIRM_READS,
+        isCancelled = { cancelled }
+    ) {
+        val root = service.rootInActiveWindow
+        val node = root?.let { findSwitchByText(it, switchTexts) }
+        val ok = node != null && SwitchFinder.isChecked(node) == step.targetChecked
+        recycleNode(node)
+        recycleNode(root)
+        ok
+    }.hit
 
     /**
      * Дополнительная цель варианта (второй экран/второй тумблер): «Назад» (back раз),
@@ -1879,7 +2261,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
             AppLog.w(TAG, "extra target tap failed step=${step.id} text='$text'")
             return false
         }
-        delay(600)
+        // Ранний выход: диалог цели появился ЛИБО состояние уже достигнуто —
+        // фиксированные 600 мс тратились и там, где цель применяется мгновенно.
+        waitFor(
+            stepId = step.id,
+            reason = WAIT_DIALOG_APPEAR,
+            timeoutMs = CONFIRM_RETRY_MS,
+            pollMs = WAIT_POLL_FAST_MS
+        ) { extraTargetDialogOrState(target, listOf(text)) }
         // У цели бывает свой диалог: отказ («Отмена» на «Добавить в выбранные фото?»)
         // ИЛИ подтверждение («Выключить карусель экрана блокировки?» → «Подтвердить»,
         // дамп car_dlg2.xml). Взаимоисключающе: на диалоге подтверждения «Отмена»
@@ -1933,8 +2322,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
         for (intent in intents) {
             if (cancelled) return false
             try {
+                val before = currentScreenText()
                 service.startActivity(intent)
-                delay(CONTENT_WAIT_MS)
+                // Опрос вместо фиксированных 1600 мс: возврат на целевой экран виден сразу.
+                waitFor(
+                    stepId = currentStepId ?: "relaunch",
+                    reason = WAIT_APP_ENTRY,
+                    timeoutMs = CONTENT_WAIT_MS,
+                    pollMs = WAIT_POLL_FAST_MS
+                ) { currentScreenText() != before }
                 return true
             } catch (e: Exception) {
                 AppLog.w(TAG, "relaunch after consent failed: ${e.message}")
@@ -2090,7 +2486,20 @@ class SimpleRunner(private val service: AdbEnablerService) {
             // в разделе «Дополнительные настройки» экрана «Расширенные настройки» — прогон
             // rmueebsvu, шаг зря объявлялся not_applicable), поэтому сначала прокручиваем.
             val markers = SemanticCatalog.screenMarkers(step.id)
-            if (!scrollUntilScreenHasAny(mergedSearchTexts + markers)) {
+            var recovered = scrollUntilScreenHasAny(mergedSearchTexts + markers)
+            // Мы можем оказаться ВНЕ целевого приложения: relaunch после стены не поднял
+            // активность (security_sys, прогон rmuwvcqiw: шаг остался в корне Настроек и
+            // честно, но зря объявил настройку отсутствующей). Один повторный вход с
+            // ожиданием целевого окна — прежде, чем объявлять настройку отсутствующей.
+            if (!recovered && !isForegroundStepPackage(step) && retryEnterStep(step)) {
+                recovered = awaitScreen(mergedSearchTexts) ||
+                    scrollUntilScreenHasAny(mergedSearchTexts + markers)
+                if (recovered) {
+                    AppLog.i(TAG, "step {step.id}: target screen found after re-entry")
+                    StepDiagnostics.note(step.id, "APPLICABILITY", "recovered_after_reentry")
+                }
+            }
+            if (!recovered) {
                 if (markers.isEmpty() || screenHasAny(markers)) {
                     return Result(false, "switch_not_found")
                 }
@@ -2260,7 +2669,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val toggleEnabled = targetSwitch.isEnabled || tapRow.isEnabled
         if (tapRow !== targetSwitch) recycleNode(tapRow)
         if (!toggleEnabled) {
-            AppLog.w(TAG, "switch disabled by rom for ${step.id} — switch_disabled")
+            // ROM заблокировал тумблер, но состояние УЖЕ целевое (уведомления Ленты
+            // выключены системой, дамп appvault_notif_disabled): цель достигнута —
+            // честный already_off, а не skip «нет на устройстве» (прогон rmuwvcqiw:
+            // notif_appvault skipped при уже выключенных уведомлениях).
+            if (isChecked == step.targetChecked) {
+                AppLog.i(TAG, "switch disabled by rom but already in target state for {step.id}")
+                StepDiagnostics.note(step.id, "APPLICABILITY", "switch_disabled_already_target")
+                recycleNode(targetSwitch); recycleNode(currentRoot)
+                return Result(true, if (step.targetChecked) "already_done" else "already_off")
+            }
+            AppLog.w(TAG, "switch disabled by rom for {step.id} — switch_disabled")
             StepDiagnostics.note(step.id, "APPLICABILITY", "switch_disabled")
             recycleNode(targetSwitch); recycleNode(currentRoot)
             return Result(false, SWITCH_DISABLED_BY_ROM)
@@ -2287,7 +2706,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
         recycleNode(targetSwitch); recycleNode(currentRoot)
 
-        delay(600)
+        // Диалог MIUI после тапа появляется за ~0.7 с, но если состояние уже целевое и
+        // диалога нет — ждать нечего: опрос с ранним выходом вместо фиксированной паузы.
+        waitFor(
+            stepId = step.id,
+            reason = WAIT_DIALOG_APPEAR,
+            timeoutMs = CONFIRM_RETRY_MS,
+            pollMs = WAIT_POLL_FAST_MS
+        ) { toggleDialogOrStateSettled(step, mergedSearchTexts) }
         // Диалог-заглушка MIUI сразу после тапа (Карусель обоев: «Нет, спасибо» / «Хорошо»):
         // отказ — часть шага, иначе тумблер остаётся включённым и шаг падает verify_failed.
         tapToggleDeclineIfNeeded(step)
@@ -2309,9 +2735,26 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 if (!TextMatcher.normalizedContains(screenText, toggleText)) continue
                 val addRoot = service.rootInActiveWindow ?: continue
                 val addNode = findSwitchByText(addRoot, listOf(toggleText))
-                if (addNode != null && SwitchFinder.isChecked(addNode) != step.targetChecked) tapNode(addNode)
-                recycleNode(addNode); recycleNode(addRoot)
-                delay(400)
+                if (addNode != null && SwitchFinder.isChecked(addNode) != step.targetChecked) {
+                    tapNode(addNode)
+                    recycleNode(addNode); recycleNode(addRoot)
+                    // Доп. тумблер применяется не мгновенно: короткий опрос фактического
+                    // состояния вместо фиксированных 400 мс (ранний выход по факту).
+                    waitFor(
+                        stepId = step.id,
+                        reason = WAIT_VERIFY_STATE,
+                        timeoutMs = 400L,
+                        pollMs = WAIT_POLL_FAST_MS
+                    ) {
+                        val r = service.rootInActiveWindow
+                        val n = r?.let { findSwitchByText(it, listOf(toggleText)) }
+                        val ok = n != null && SwitchFinder.isChecked(n) == step.targetChecked
+                        recycleNode(n); recycleNode(r)
+                        ok
+                    }
+                } else {
+                    recycleNode(addNode); recycleNode(addRoot)
+                }
             }
         }
 
@@ -2376,7 +2819,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
             val retryNode = findSwitchByText(retryRoot, texts)
             if (retryNode != null) tapNode(retryNode)
             recycleNode(retryNode); recycleNode(retryRoot)
-            delay(600)
+            // Повторный тап: ждём факт состояния, а не фиксированные 600 мс.
+            waitFor(
+                stepId = step.id,
+                reason = WAIT_VERIFY_STATE,
+                timeoutMs = CONFIRM_RETRY_MS,
+                pollMs = WAIT_POLL_FAST_MS
+            ) { switchReachedTarget(step, texts) }
             tapToggleDeclineIfNeeded(step)
             // Опрос «Ваше мнение важно для нас» появляется и на повторном тапе.
             handleFeedbackSurveyIfNeeded(step, texts)
@@ -2386,8 +2835,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
             if (!verifySwitchState(step, texts)) return Result(false, "verify_failed")
         }
         // Незакрытый после тапа диалог — провал шага, а не «почти получилось»:
-        // открытый диалог уносит следующий шаг в чужой экран.
-        if (tapConfirmIfNeeded(step) == ConfirmOutcome.FAILED) {
+        // открытый диалог уносит следующий шаг в чужой экран. Состояние уже
+        // подтверждено, поэтому проверка идёт быстрым режимом (диалога нет — не ждём).
+        if (tapConfirmIfNeeded(step, confirmTextsFor(step), ConfirmMode.QUICK) == ConfirmOutcome.FAILED) {
             return Result(false, "confirm_not_closed")
         }
         return null
@@ -2438,7 +2888,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
             return Result(false, "tap_failed")
         }
         recycleNode(node)
-        delay(600)
+        // Кнопка-действие может открыть свой диалог сразу: короткий опрос вместо паузы.
+        waitFor(
+            stepId = step.id,
+            reason = WAIT_DIALOG_APPEAR,
+            timeoutMs = CONFIRM_RETRY_MS,
+            pollMs = WAIT_POLL_FAST_MS
+        ) { dialogConfirmButtonVisible(step) }
         if (tapConfirmIfNeeded(step) == ConfirmOutcome.FAILED) {
             return Result(false, "confirm_not_closed")
         }
@@ -2503,28 +2959,29 @@ class SimpleRunner(private val service: AdbEnablerService) {
     private suspend fun tapToggleDeclineIfNeeded(step: SimpleSteps.Step) {
         val texts = SemanticCatalog.toggleDeclineTexts(step.id)
         if (texts.isEmpty()) return
-        val deadline = System.currentTimeMillis() +
-            minOf(TOGGLE_DECLINE_WAIT_MS, maxOf(0L, remainingBudgetMs() - 1000L))
-        while (!cancelled) {
+        // Опрос, а не серия фиксированных пауз: диалог «Нет, спасибо» появляется за
+        // ~0.8 с (прогон rmuvijbl1), и выход идёт сразу по найденной кнопке.
+        var tapped = false
+        val budget = maxOf(0L, remainingBudgetMs() - 1000L)
+        waitFor(
+            stepId = step.id,
+            reason = WAIT_DECLINE_DIALOG,
+            timeoutMs = minOf(TOGGLE_DECLINE_WAIT_MS, budget),
+            pollMs = WAIT_POLL_SLOW_MS
+        ) {
             val root = service.rootInActiveWindow
             val node = root?.let { findClickableByText(it, texts) }
             if (root != null) recycleNode(root)
-            if (node != null) {
-                val label = buttonLabel(node)
-                val tapped = tapNode(node)
-                recycleNode(node)
-                AppLog.i(TAG, "toggle decline: tapped " + label + " ok=" + tapped + " step=" + step.id)
-                if (tapped) {
-                    delay(CONFIRM_SETTLE_MS)
-                    return
-                }
-            }
-            if (System.currentTimeMillis() >= deadline) {
-                AppLog.i(TAG, "toggle decline: dialog not found for " + step.id)
-                return
-            }
-            delay(CONFIRM_RETRY_MS)
+            if (node == null) return@waitFor false
+            val label = buttonLabel(node)
+            val ok = tapNode(node)
+            recycleNode(node)
+            AppLog.i(TAG, "toggle decline: tapped " + label + " ok=" + ok + " step=" + step.id)
+            if (ok) tapped = true
+            ok
         }
+        if (!tapped) AppLog.i(TAG, "toggle decline: dialog not found for " + step.id)
+        else delay(CONFIRM_SETTLE_MS)
     }
 
     /**
@@ -2567,7 +3024,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
             if (node != null) {
                 tapNode(node)
                 recycleNode(node)
-                delay(600)
+                // Ждём возврата опроса (ранний выход), а не слепые 600 мс.
+                waitFor(
+                    stepId = step.id,
+                    reason = WAIT_DIALOG_APPEAR,
+                    timeoutMs = CONFIRM_RETRY_MS,
+                    pollMs = WAIT_POLL_FAST_MS
+                ) { feedbackSurveyVisible(markers) }
             }
         }
         if (!feedbackSurveyVisible(markers)) return true
@@ -2629,6 +3092,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
     internal enum class ConfirmOutcome { ABSENT, CLOSED, FAILED }
 
     /**
+     * Режим обработки диалога подтверждения.
+     * - [APPEAR] — ждём появления кнопки коротким окном с ранним выходом;
+     * - [QUICK] — только «диалог не остался открытым»: вызывается уже после
+     *   подтверждённого состояния, слепых пауз не делает вовсе.
+     */
+    internal enum class ConfirmMode { APPEAR, QUICK }
+
+    /**
      * Тапает кнопку подтверждения диалога, если он появился (confirmTexts шага).
      *
      * Правила:
@@ -2648,10 +3119,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * То же, но с явным набором кнопок подтверждения: диалог бывает у ОТДЕЛЬНОЙ цели
      * шага («Проведите вправо по Экрану блокировки» → «Выключить карусель экрана
      * блокировки?» → «Подтвердить»), и его кнопки не совпадают с confirmTexts шага.
+     * [mode] = [ConfirmMode.QUICK] — только «диалог не остался открытым» (после
+     * подтверждённого состояния проверка не ждёт появления диалога).
      */
     private suspend fun tapConfirmIfNeeded(
         step: SimpleSteps.Step,
-        texts: List<String>
+        texts: List<String>,
+        mode: ConfirmMode = ConfirmMode.APPEAR
     ): ConfirmOutcome {
         // У DELAYED_CONFIRM (msa) свой путь: кнопка активируется только после отсчёта,
         // здесь она не кликабельна и только жгла бы повторы.
@@ -2660,53 +3134,62 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
         val mergedConfirmTexts = texts.filter { it.isNotBlank() }.distinct()
         if (mergedConfirmTexts.isEmpty()) return ConfirmOutcome.ABSENT
-        val waitMs = SemanticCatalog.confirmWaitMs(step.id, step.confirmWaitMs)
-        if (waitMs > 0) delay(waitMs)
-        for (attempt in 1..CONFIRM_ATTEMPTS) {
+        // Окно появления кнопки: диалог MIUI отрисовывается за ~0.7 с, поэтому
+        // каталогный confirmWaitMs остаётся верхним лимитом, а выход идёт сразу по
+        // найденной кнопке. Слепой delay(confirmWaitMs) убран: без диалога он жёг
+        // 2.5 с на каждом шаге (прогон rmuvijbl1, security_sys).
+        val catalogWait = SemanticCatalog.confirmWaitMs(step.id, step.confirmWaitMs)
+        val appearWindow = if (mode == ConfirmMode.QUICK) {
+            CONFIRM_QUICK_WAIT_MS
+        } else {
+            minOf(catalogWait.takeIf { it > 0L } ?: CONFIRM_APPEAR_WAIT_MS, CONFIRM_APPEAR_WAIT_MS)
+        }.coerceAtLeast(0L)
+        val attempts = if (mode == ConfirmMode.QUICK) 1 else CONFIRM_ATTEMPTS
+        for (attempt in 1..attempts) {
             if (cancelled) return ConfirmOutcome.ABSENT
+            val appeared = waitFor(
+                stepId = step.id,
+                reason = WAIT_DIALOG_APPEAR,
+                timeoutMs = appearWindow,
+                pollMs = WAIT_POLL_MS
+            ) { dialogConfirmButtonVisible(step, mergedConfirmTexts) }
+            if (!appeared) {
+                // Диалога нет вовсе — это не провал: у большинства шагов подтверждения
+                // не бывает (QUICK-режим вызывается после уже подтверждённого состояния).
+                AppLog.i(TAG, "confirm: dialog not found step=${step.id}")
+                return ConfirmOutcome.ABSENT
+            }
             val confirmRoot = service.rootInActiveWindow
             val confirmNode = findDialogConfirmButton(confirmRoot, mergedConfirmTexts)
             if (confirmRoot != null) recycleNode(confirmRoot)
             if (confirmNode == null) {
-                // Диалога нет вовсе — это не провал: у большинства шагов подтверждения
-                // не бывает. Ждём только на первой попытке (диалог мог отрисоваться позже).
-                if (attempt < CONFIRM_ATTEMPTS) {
-                    delay(CONFIRM_RETRY_MS)
-                    continue
-                }
-                AppLog.i(TAG, "confirm: dialog not found step=${step.id}")
-                return ConfirmOutcome.ABSENT
+                // Кнопка ушла между чтениями: для QUICK это и есть «диалог закрыт».
+                if (mode == ConfirmMode.QUICK) return ConfirmOutcome.CLOSED
+                continue
             }
             val label = buttonLabel(confirmNode)
             if (label == null) {
                 recycleNode(confirmNode)
                 AppLog.w(TAG, "confirm: label unresolved step=${step.id} attempt=$attempt")
                 StepDiagnostics.note(step.id, "CONFIRM", "label_unresolved attempt=$attempt")
-                if (attempt < CONFIRM_ATTEMPTS) {
-                    delay(CONFIRM_RETRY_MS)
-                    continue
-                }
-                return ConfirmOutcome.FAILED
+                continue
             }
             val tapped = tapNode(confirmNode)
             recycleNode(confirmNode)
             AppLog.i(TAG, "confirm: tapped '$label' ok=$tapped step=${step.id}")
-            if (!tapped) {
-                if (attempt < CONFIRM_ATTEMPTS) {
-                    delay(CONFIRM_RETRY_MS)
-                    continue
-                }
-                return ConfirmOutcome.FAILED
-            }
-            delay(CONFIRM_SETTLE_MS)
-            val afterRoot = service.rootInActiveWindow
-            val stillOpen = findDialogConfirmButton(afterRoot, mergedConfirmTexts)
-            if (afterRoot != null) recycleNode(afterRoot)
-            if (stillOpen == null) return ConfirmOutcome.CLOSED
-            recycleNode(stillOpen)
+            if (!tapped) continue
+            // Закрытие диалога: короткий опрос с двумя подтверждающими чтениями
+            // вместо фиксированной паузы settle.
+            val gone = waitFor(
+                stepId = step.id,
+                reason = WAIT_UI_SETTLE,
+                timeoutMs = CONFIRM_QUICK_WAIT_MS,
+                pollMs = WAIT_POLL_FAST_MS,
+                confirmations = WAIT_CONFIRM_READS
+            ) { !dialogConfirmButtonVisible(step, mergedConfirmTexts) }
+            if (gone) return ConfirmOutcome.CLOSED
             AppLog.w(TAG, "confirm: dialog still open after tap step=${step.id}")
             StepDiagnostics.note(step.id, "CONFIRM", "still_open after_tap attempt=$attempt")
-            if (attempt < CONFIRM_ATTEMPTS) delay(CONFIRM_RETRY_MS)
         }
         return ConfirmOutcome.FAILED
     }
@@ -2715,65 +3198,200 @@ class SimpleRunner(private val service: AdbEnablerService) {
     internal suspend fun verifySwitchState(step: SimpleSteps.Step, texts: List<String>): Boolean {
         // MIUI применяет состояние не мгновенно (App Vault: тумблер отрисовался
         // включённым ещё мгновение после тапа — шаг рапортовал verify_failed, прогон
-        // rmuh2vb1r): читаем состояние повторно, без дополнительных тапов.
-        repeat(SWITCH_VERIFY_ATTEMPTS) { attempt ->
-            if (attempt > 0) delay(SWITCH_VERIFY_RETRY_DELAY_MS)
-            val root = service.rootInActiveWindow
-            if (root == null) {
-                // Окно недоступно (переход активности): попытку повторяем, а не объявляем
-                // состояние совпавшим — «нет данных» это не «выключено».
-                AppLog.w(TAG, "verify: no active window attempt=${attempt + 1} step=${step.id}")
-                return@repeat
-            }
-            val switchNode = findSwitchByText(root, texts)
-            val actual = switchNode?.let { SwitchFinder.isChecked(it) }
-            // Последнее фактически прочитанное состояние — факт для вердикта после применения
-            // (когда строка ушла из дерева и финальное чтение даёт null).
-            if (actual != null) lastReadSwitchState = actual
-            // Тумблер исчезает из дерева, когда настройка применена: App Vault после
-            // подтверждения «Отключить» оставляет строку, а CheckBox убирает (дамп
-            // av_recheck.xml — в дереве ни CheckBox, ни Switch). Поэтому «узла нет» —
-            // успех ТОЛЬКО без диалога подтверждения шага на экране; иначе это
-            // перекрытый диалогом экран, и прежний `?: true` давал ложный toggled
-            // (прогон rmuod5cmm: диалог погасили отказом, тумблер остался включён).
-            val result = when {
-                actual != null -> actual == step.targetChecked
-                else -> {
-                    val screenText = NodeTree.collectText(root)
-                    // Признаки ОТКРЫТОГО диалога: свой confirm шага, его кнопка-отказ и
-                    // стандартные негативные кнопки. Диалог перекрывает экран — значит
-                    // исчезновение узла это перекрытие, а не применённая настройка
-                    // (прогон rmuslthv7: msa «подтверждался» через 480 мс с открытым
-                    // прогрессом, carousel — с диалогом «Выключить карусель…?»).
-                    val dialogTexts =
-                        confirmTextsFor(step) + SemanticCatalog.toggleDeclineTexts(step.id)
-                    val dialogVisible = dialogTexts.any {
-                        TextMatcher.normalizedContains(screenText, it)
-                    } || DIALOG_ACTION_TEXTS.any { TextMatcher.normalizedContains(screenText, it) }
-                    // Экран подтверждаем маркерами шага: без них «узел исчез» читается
-                    // на чужом экране (та же логика, что в lateVerify).
-                    val markers = SemanticCatalog.screenMarkers(step.id)
-                    val markersOk = markers.isEmpty() ||
-                        markers.any { TextMatcher.normalizedContains(screenText, it) }
-                    val vanished = !dialogVisible && markersOk
-                    AppLog.i(
-                        TAG,
-                        "verify: switch node gone row_vanished=$vanished dialog=$dialogVisible " +
-                            "markers=$markersOk step=${step.id}"
-                    )
-                    vanished
+        // rmuh2vb1r): первое чтение идёт СРАЗУ после тапа, затем быстрые проверки по
+        // 250 мс — ранний выход на первом же совпавшем состоянии.
+        var vanishedStreak = 0
+        var reads = 0
+        val started = System.currentTimeMillis()
+        val hit = UiWait.until(
+            timeoutMs = SWITCH_VERIFY_RETRY_DELAY_MS * SWITCH_VERIFY_ATTEMPTS,
+            pollMs = SWITCH_VERIFY_RETRY_DELAY_MS,
+            isCancelled = { cancelled }
+        ) {
+            reads++
+            when (readSwitchVerdict(step, texts)) {
+                SwitchVerdict.REACHED -> true
+                SwitchVerdict.VANISHED -> {
+                    // «Строка исчезла» — важное состояние: нужно 2 чтения ПОДРЯД, иначе
+                    // перекрывающий экран сбойный кадр засчитывается как применённая
+                    // настройка (инвариант честности, прогон rmuslthv7).
+                    vanishedStreak++
+                    vanishedStreak >= WAIT_CONFIRM_READS
+                }
+                SwitchVerdict.PENDING -> {
+                    vanishedStreak = 0
+                    false
                 }
             }
+        }.hit
+        if (!hit) AppLog.w(TAG, "verify: state not reached step=${step.id} reads=$reads")
+        StepDiagnostics.wait(
+            step.id,
+            WAIT_VERIFY_STATE,
+            System.currentTimeMillis() - started,
+            hit,
+            reads
+        )
+        return hit
+    }
+
+    /** Исход одного чтения состояния главного тумблера шага. */
+    private enum class SwitchVerdict { REACHED, VANISHED, PENDING }
+
+    /**
+     * Одно чтение вердикта тумблера: состояние совпало с целевым ([SwitchVerdict.REACHED]),
+     * строка исчезла на ЧИСТОМ целевом экране ([SwitchVerdict.VANISHED]) либо пока нет
+     * ([SwitchVerdict.PENDING]).
+     *
+     * Тумблер исчезает из дерева, когда настройка применена: App Vault после
+     * подтверждения «Отключить» оставляет строку, а CheckBox убирает (дамп
+     * av_recheck.xml — в дереве ни CheckBox, ни Switch). Поэтому «узла нет» — успех
+     * ТОЛЬКО без диалога подтверждения шага на экране; иначе это перекрытый диалогом
+     * экран, и прежний `?: true` давал ложный toggled (прогон rmuod5cmm).
+     */
+    private fun readSwitchVerdict(step: SimpleSteps.Step, texts: List<String>): SwitchVerdict {
+        val root = service.rootInActiveWindow
+        if (root == null) {
+            // Окно недоступно (переход активности): это не «применено», повторяем чтение.
+            AppLog.w(TAG, "verify: no active window step=${step.id}")
+            return SwitchVerdict.PENDING
+        }
+        val switchNode = findSwitchByText(root, texts)
+        val actual = switchNode?.let { SwitchFinder.isChecked(it) }
+        // Последнее фактически прочитанное состояние — факт для вердикта после применения
+        // (когда строка ушла из дерева и финальное чтение даёт null).
+        if (actual != null) lastReadSwitchState = actual
+        val verdict = if (actual != null) {
+            if (actual == step.targetChecked) SwitchVerdict.REACHED else SwitchVerdict.PENDING
+        } else {
+            val screenText = NodeTree.collectText(root)
+            // Признаки ОТКРЫТОГО диалога: свой confirm шага, его кнопка-отказ и
+            // стандартные негативные кнопки. Диалог перекрывает экран — значит
+            // исчезновение узла это перекрытие, а не применённая настройка.
+            val dialogTexts =
+                confirmTextsFor(step) + SemanticCatalog.toggleDeclineTexts(step.id)
+            val dialogVisible = dialogTexts.any {
+                TextMatcher.normalizedContains(screenText, it)
+            } || DIALOG_ACTION_TEXTS.any { TextMatcher.normalizedContains(screenText, it) }
+            // Экран подтверждаем маркерами шага: без них «узел исчез» читается
+            // на чужом экране (та же логика, что в lateVerify).
+            val markers = SemanticCatalog.screenMarkers(step.id)
+            val markersOk = markers.isEmpty() ||
+                markers.any { TextMatcher.normalizedContains(screenText, it) }
+            val vanished = !dialogVisible && markersOk
             AppLog.i(
                 TAG,
-                "verify: state ${if (attempt == 0) "before" else "after"} " +
-                    "attempt=${attempt + 1} actual=$actual target=${step.targetChecked} " +
-                    "found=${switchNode != null} step=${step.id}"
+                "verify: switch node gone row_vanished=$vanished dialog=$dialogVisible " +
+                    "markers=$markersOk step=${step.id}"
             )
-            recycleNode(switchNode); recycleNode(root)
-            if (result) return true
+            if (vanished) SwitchVerdict.VANISHED else SwitchVerdict.PENDING
         }
-        return false
+        AppLog.i(
+            TAG,
+            "verify: state actual=$actual target=${step.targetChecked} " +
+                "found=${switchNode != null} step=${step.id}"
+        )
+        recycleNode(switchNode); recycleNode(root)
+        return verdict
+    }
+
+    /** Кнопка подтверждения диалога шага видна на активном экране (ранний выход ожиданий). */
+    private fun dialogConfirmButtonVisible(
+        step: SimpleSteps.Step,
+        texts: List<String> = confirmTextsFor(step)
+    ): Boolean {
+        if (texts.isEmpty()) return false
+        val root = service.rootInActiveWindow ?: return false
+        val node = findDialogConfirmButton(root, texts)
+        recycleNode(node)
+        recycleNode(root)
+        return node != null
+    }
+
+    /**
+     * Тап по ЦЕНТРУ узла с подписью из [texts], даже если узел НЕ кликабелен: страницы
+     * WebView (мастер Mi Apps «Mi фаны рекомендуют» → «Пропустить») отдают текст без
+     * кликабельного предка, и обычный поиск кнопки их не видит. Узлы-маркеры
+     * ([avoidTexts]) не тапаются; состояние узла (enabled) проверяется.
+     */
+    private suspend fun tapLabelCenterByTexts(
+        texts: List<String>,
+        avoidTexts: List<String>
+    ): Boolean {
+        if (texts.isEmpty()) return false
+        val root = service.rootInActiveWindow ?: return false
+        val wanted = texts.map { TextMatcher.normalize(it) }.filter { it.isNotEmpty() }
+        val avoided = avoidTexts.map { TextMatcher.normalize(it) }
+        val node = NodeTree.findInTree(root, predicate = { n ->
+            val label = TextMatcher.normalize(
+                n.text?.toString() ?: n.contentDescription?.toString().orEmpty()
+            )
+            label.isNotEmpty() && label in wanted && label !in avoided && n.isEnabled
+        })
+        recycleNode(root)
+        if (node == null) {
+            AppLog.w(TAG, "tap label: узел не найден texts=${texts.firstOrNull()}")
+            return false
+        }
+        // Кнопки установки/обновления/скачивания не нажимаем НИКОГДА (инцидент
+        // 06.10.2026: такой тап запустил пачку установок из магазина).
+        val nodeLabel = buttonLabel(node)
+        if (isInstallBlockedLabel(nodeLabel)) {
+            AppLog.w(TAG, "tap label: blocked install/update button '$nodeLabel'")
+            recycleNode(node)
+            return false
+        }
+        lastDialogTapText = TextMatcher.normalize(nodeLabel.orEmpty())
+        val tapped = tapNode(node)
+        recycleNode(node)
+        AppLog.i(TAG, "tap label: '${lastDialogTapText}' ok=$tapped (tap by center)")
+        return tapped
+    }
+
+    /** Тумблер шага найден И его состояние равно целевому (ранний выход ожиданий). */
+    private fun switchReachedTarget(step: SimpleSteps.Step, texts: List<String>): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val node = findSwitchByText(root, texts)
+        val ok = node != null && SwitchFinder.isChecked(node) == step.targetChecked
+        recycleNode(node)
+        recycleNode(root)
+        return ok
+    }
+
+    /**
+     * После тапа по цели варианта: диалог цели виден ЛИБО состояние цели уже
+     * достигнуто (условие раннего выхода ожидания, заменяющего фиксированные 600 мс).
+     */
+    private fun extraTargetDialogOrState(
+        target: SemanticCatalog.ExtraTarget,
+        texts: List<String>
+    ): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val screenText = collectAllText(root)
+        val dialogVisible = target.confirmTexts.isNotEmpty() &&
+            target.confirmTexts.any { TextMatcher.normalizedContains(screenText, it) }
+        val node = if (dialogVisible) null else findSwitchByText(root, texts)
+        val stateOk = node != null && SwitchFinder.isChecked(node) == target.targetChecked
+        recycleNode(node)
+        recycleNode(root)
+        return dialogVisible || stateOk
+    }
+
+    /**
+     * После тапа по тумблеру: состояние уже целевое на ЧИСТОМ экране ЛИБО появился
+     * диалог шага (подтверждение/отказ). Позволяет не ждать диалог там, где его нет
+     * вовсе, — раньше здесь стояла фиксированная пауза 600 мс.
+     */
+    private fun toggleDialogOrStateSettled(step: SimpleSteps.Step, texts: List<String>): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val screenText = collectAllText(root)
+        val dialogTexts = confirmTextsFor(step) + SemanticCatalog.toggleDeclineTexts(step.id)
+        val dialogVisible = dialogTexts.any { TextMatcher.normalizedContains(screenText, it) }
+        val node = if (dialogVisible) null else findSwitchByText(root, texts)
+        val stateOk = node != null && SwitchFinder.isChecked(node) == step.targetChecked
+        recycleNode(node)
+        recycleNode(root)
+        return dialogVisible || stateOk
     }
 
     // ═════════════════════════════════════════════════════════════════════
@@ -3019,7 +3637,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             listOfNotNull(loadFolderHints()[folderHintKey(step.id)]) +
                 SemanticCatalog.folderNameHints(step.id, runCatching { romProfile.regionCode }.getOrNull())
             ).distinct()
-        val candidates = homeFolderCandidates()
+        val candidates = collectFolderCandidatesAcrossPages(hints, MAX_FOLDER_PROBES)
             .sortedByDescending { node -> if (matchesFolderHint(folderLabel(node), hints)) 1 else 0 }
         val hintMatch = candidates.any { matchesFolderHint(folderLabel(it), hints) }
         val probeLimit = if (hints.isEmpty() || hintMatch) MAX_FOLDER_PROBES else MAX_FOLDER_STRUCTURAL_PROBES
@@ -3137,6 +3755,50 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Только папки: иконка приложения секции рекомендаций не содержит, а пробы по
         // ним жгли бюджет шага (прогон rmua2sd7x: probes 1-6 = Проводник, Заметки…).
         scanHomeRoot { isFolderCandidate(it) }
+
+    /**
+     * Кандидаты-папки СО СТРАНИЦ рабочего стола: текущая, затем до [HOME_PAGE_SWEEP_MAX]
+     * страниц вперёд (папка с рекомендациями у владельца стояла не на первой), после —
+     * возврат на исходную страницу. Листаем только пока папка «по подсказке» не найдена
+     * и кандидатов меньше лимита: полный перебор страниц жёг бюджет шага (C4/R2-5).
+     */
+    private suspend fun collectFolderCandidatesAcrossPages(
+        hints: List<String>,
+        limit: Int
+    ): List<AccessibilityNodeInfo> {
+        val seen = LinkedHashMap<String, AccessibilityNodeInfo>()
+        fun collect() {
+            for (node in homeFolderCandidates()) {
+                val rect = Rect()
+                node.getBoundsInScreen(rect)
+                val key = folderLabel(node) + "#" + rect.toShortString()
+                if (seen.containsKey(key)) recycleNode(node) else seen[key] = node
+            }
+        }
+        collect()
+        var pages = 0
+        while (pages < HOME_PAGE_SWEEP_MAX && seen.size < limit && !cancelled &&
+            !seen.values.any { matchesFolderHint(folderLabel(it), hints) }
+        ) {
+            if (!swipeHomePage(forward = true)) break
+            pages++
+            collect()
+        }
+        repeat(pages) { if (!cancelled) swipeHomePage(forward = false) }
+        if (pages > 0) AppLog.i(TAG, "folder: pages swept=" + pages + " candidates=" + seen.size)
+        return seen.values.toList()
+    }
+
+    /** Горизонтальный свайп страницы рабочего стола (лаунчер остаётся в фокусе). */
+    private suspend fun swipeHomePage(forward: Boolean): Boolean {
+        val dm = service.resources.displayMetrics
+        val y = dm.heightPixels * 0.55f
+        val from = if (forward) dm.widthPixels * 0.85f else dm.widthPixels * 0.15f
+        val to = if (forward) dm.widthPixels * 0.15f else dm.widthPixels * 0.85f
+        val ok = performGesture(from, y, to, y, HOME_PAGE_SWIPE_MS)
+        delay(HOME_PAGE_SWIPE_SETTLE_MS)
+        return ok
+    }
 
     /** Иконка рабочего стола: кликабельный узел с подписью и структурой иконки. */
     internal fun isHomeIconNode(node: AccessibilityNodeInfo): Boolean {
@@ -3517,7 +4179,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val tapped = tapNode(switchNode)
         recycleNode(switchNode); recycleNode(root)
         if (!tapped) return Result(false, "tap_failed")
-        delay(600)
+        // Ранний выход по факту состояния вместо фиксированных 600 мс.
+        waitFor(
+            stepId = step.id,
+            reason = WAIT_VERIFY_STATE,
+            timeoutMs = CONFIRM_RETRY_MS,
+            pollMs = WAIT_POLL_FAST_MS
+        ) { switchReachedTarget(step, toggleTexts) }
         if (!verifySwitchState(step, toggleTexts)) {
             AppLog.w(TAG, "folder: switch state not verified after tap (step=${step.id})")
             return Result(false, "verify_failed")
@@ -3598,7 +4266,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 continue
             }
             launchedAny = true
-            delay(APP_LAUNCH_DELAY_MS)
+            // Экран настроек установщика поднимается не мгновенно: опрос вместо паузы,
+            // как только он на месте — идём дальше.
+            waitFor(
+                stepId = step.id,
+                reason = WAIT_APP_ENTRY,
+                timeoutMs = APP_LAUNCH_DELAY_MS,
+                pollMs = WAIT_POLL_FAST_MS
+            ) { isInstallerSettingsScreen(settingsMarkers, toggleTexts) }
             handleConsentWalls(step)
             if (!isInstallerSettingsScreen(settingsMarkers, toggleTexts)) {
                 AppLog.w(TAG, "installer: not a settings screen ($short)")
@@ -3717,6 +4392,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         override suspend fun tapByIds(ids: List<String>): Boolean = tapSystemNodeByIds(ids)
 
+        override suspend fun tapLabelByTexts(
+            texts: List<String>,
+            avoidTexts: List<String>
+        ): Boolean = tapLabelCenterByTexts(texts, avoidTexts)
+
+        /** Системный BACK — закрытие обманки/промо без кнопки закрытия в дереве. */
+        override suspend fun pressBack(): Boolean {
+            this@SimpleRunner.pressBack()
+            return true
+        }
+
         /** Свайп вверх по центру экрана: закрытие полноэкранного гайда-жеста. */
         override suspend fun swipeUp(): Boolean {
             val dm = service.resources.displayMetrics
@@ -3785,7 +4471,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
             ),
             isCancelled = { cancelled }
         )
-        if (handled > 0) delay(UI_SETTLE_DELAY_MS)
+        if (handled > 0) {
+            // Стена только что закрыта: короткий опрос вместо фиксированной паузы —
+            // как только рекламного/диалогового экрана нет, идём дальше.
+            waitFor(
+                stepId = step.id,
+                reason = WAIT_UI_SETTLE,
+                timeoutMs = UI_SETTLE_DELAY_MS,
+                pollMs = WAIT_POLL_FAST_MS
+            ) { !ConsentWallHandler.isAdScreenNow(service) }
+        }
         return handled
     }
 
@@ -3897,10 +4592,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val root = service.rootInActiveWindow ?: return false
         val node = findDialogButton(root, texts, avoidTexts, requireEnabled)
         if (node != null) {
+            val label = node.text?.toString() ?: node.contentDescription?.toString()
+            // Кнопки установки/обновления/скачивания не нажимаем НИКОГДА (инцидент
+            // 06.10.2026: тап по такой кнопке магазина запустил пачку установок).
+            if (isInstallBlockedLabel(label)) {
+                AppLog.w(TAG, "consent: blocked install/update button '$label'")
+                recycleNode(node); recycleNode(root)
+                return false
+            }
             // Подпись нажатой кнопки идёт в лог стены (`tapped='Согласен'`).
-            lastDialogTapText = TextMatcher.normalize(
-                node.text?.toString() ?: node.contentDescription?.toString().orEmpty()
-            )
+            lastDialogTapText = TextMatcher.normalize(label.orEmpty())
             val tapped = tapNode(node)
             recycleNode(node); recycleNode(root)
             if (!tapped && requireEnabled) AppLog.w(TAG, "consent: button found but not tappable")
@@ -3979,6 +4680,91 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return node.className?.toString()?.contains("Button", ignoreCase = true) == true
     }
 
+    /**
+     * Самая правая кликабельная иконка заголовка без текста и описания: верхняя зона
+     * (1/8 высоты окна) и правая пятая часть ширины — шестерёнка настроек Mi Apps
+     * среди таких же иконок (колокольчик левее).
+     */
+    /** На экране есть пустая кликабельная иконка заголовка: шапка приложения отрисовалась. */
+    private fun screenHasBlankHeaderIcon(): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        val found = findTopRightBlankNode(root)
+        recycleNode(root)
+        if (found != null) recycleNode(found)
+        return found != null
+    }
+
+    private fun findTopRightBlankNode(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val toolbar = findToolbarNode(root) ?: return null
+        val tb = Rect()
+        toolbar.getBoundsInScreen(tb)
+        // Кандидаты — кликабельные потомки ЗАГОЛОВКА с пустыми text/desc, лежащие внутри
+        // его bounds: зона поиска задаётся узлом заголовка, а не долями окна (требование
+        // владельца: позиционные тапы по расчётным точкам экрана — архитектурный долг).
+        val candidates = NodeTree.findAllInTree(toolbar, predicate = { node ->
+            val b = Rect()
+            node.getBoundsInScreen(b)
+            node.isClickable &&
+                node.text.isNullOrBlank() &&
+                node.contentDescription.isNullOrBlank() &&
+                b.width() > 0 &&
+                tb.contains(b)
+        })
+        val chosen = candidates.maxByOrNull { node ->
+            val b = Rect()
+            node.getBoundsInScreen(b)
+            b.right
+        }
+        candidates.forEach { if (it !== chosen) recycleNode(it) }
+        if (toolbar !== root) recycleNode(toolbar)
+        return chosen
+    }
+
+    /**
+     * Узел заголовка/тулбара: сначала по resource-id тулбара (нативные экраны), иначе —
+     * верхний контейнер ограниченной высоты, содержащий и подпись экрана, и кликабельную
+     * пустую иконку (WebView-профиль Mi Apps: полоса «Защита приложений» + иконки, дамп
+     * diagnostic_snapshot_getapps_*.json). Доли окна используются ТОЛЬКО как верхняя
+     * граница высоты полосы заголовка относительно высоты самого окна, все зоны поиска —
+     * bounds найденных узлов; тап идёт по bounds выбранной иконки.
+     */
+    private fun findToolbarNode(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        NodeTree.findInTree(root, predicate = { node ->
+            val id = node.viewIdResourceName ?: ""
+            id.endsWith("action_bar") || id.endsWith("toolbar") || id.endsWith("app_bar") ||
+                id.endsWith("title_bar") || id.endsWith("toolbar_container")
+        })?.let { return it }
+        val window = Rect()
+        root.getBoundsInScreen(window)
+        val candidates = NodeTree.findAllInTree(root, predicate = { node ->
+            val b = Rect()
+            node.getBoundsInScreen(b)
+            b.top <= window.height() / 8 &&
+                b.height() in 1..(window.height() / 4) &&
+                node.childCount > 0 &&
+                containsBlankClickable(node) &&
+                containsLabelText(node)
+        })
+        // Ближайший к реальной полосе заголовка контейнер — самый низкий из подходящих.
+        val toolbar = candidates.minByOrNull { node ->
+            val b = Rect()
+            node.getBoundsInScreen(b)
+            b.height()
+        }
+        candidates.forEach { if (it !== toolbar) recycleNode(it) }
+        return toolbar
+    }
+
+    /** Внутри [node] есть кликабельный потомок без текста и описания (иконка заголовка). */
+    private fun containsBlankClickable(node: AccessibilityNodeInfo): Boolean =
+        NodeTree.findInTree(node, predicate = { child ->
+            child.isClickable && child.text.isNullOrBlank() && child.contentDescription.isNullOrBlank()
+        }) != null
+
+    /** Внутри [node] есть потомок с непустой подписью (заголовок экрана). */
+    private fun containsLabelText(node: AccessibilityNodeInfo): Boolean =
+        NodeTree.findInTree(node, predicate = { child -> !child.text.isNullOrBlank() }) != null
+
     /** Пакеты-цели шага: владелец такого диалога = само приложение шага. */
     private fun stepPackagesFor(step: SimpleSteps.Step): List<String> =
         (listOfNotNull(step.launchPackage) + SemanticCatalog.requiredPackages(step.id) + step.requiredPackages)
@@ -3995,7 +4781,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
             AppLog.w(TAG, "resetSettingsToRoot: startActivity failed: ${e.message}")
             return false
         }
-        delay(CONTENT_WAIT_MS)
+        // Опрос корня Настроек вместо фиксированных 1600 мс: как только корень на
+        // экране — идём дальше (шаги Настроек вызывают это постоянно).
+        waitFor(
+            stepId = currentStepId ?: SETTINGS_PACKAGE,
+            reason = WAIT_UI_SETTLE,
+            timeoutMs = CONTENT_WAIT_MS,
+            pollMs = WAIT_POLL_MS
+        ) { isSettingsRoot() }
         // Корень подтверждается совпадением >= 2 маркеров одновременно;
         // если ACTION_SETTINGS открыл не корень — возвращаемся назад (до 5 раз).
         repeat(5) {
@@ -4022,7 +4815,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // GLOBAL_ACTION_HOME — нативный переход домой; в отличие от
         // ACTION_MAIN+CATEGORY_HOME не вызывает resolver «Главный экран по умолчанию».
         val ok = service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
-        delay(500)
+        waitFor(
+            stepId = currentStepId ?: "home",
+            reason = WAIT_UI_SETTLE,
+            timeoutMs = HOME_SETTLE_WAIT_MS,
+            pollMs = WAIT_POLL_FAST_MS
+        ) { isLauncherDesktop() }
         // MIUI помнит последнюю страницу лаунчера: если это лента виджетов (App Vault),
         // папок рабочего стола на экране нет — шаг `folder_recommendations` видел
         // candidates=0 (прогон rmuk1h2al). Уводим на главную страницу: сначала повторным
@@ -4031,7 +4829,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
             if (!isAppVaultVisible()) return ok
             AppLog.i(TAG, "resetToHome: launcher on App Vault — returning to desktop page")
             service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
-            delay(500)
+            waitFor(
+                stepId = currentStepId ?: "home",
+                reason = WAIT_UI_SETTLE,
+                timeoutMs = HOME_SETTLE_WAIT_MS,
+                pollMs = WAIT_POLL_FAST_MS
+            ) { isLauncherDesktop() }
         }
         if (isAppVaultVisible()) {
             val dm = service.resources.displayMetrics
@@ -4040,9 +4843,21 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 dm.widthPixels * 0.1f, dm.heightPixels * 0.6f,
                 250
             )
-            delay(500)
+            waitFor(
+                stepId = currentStepId ?: "home",
+                reason = WAIT_UI_SETTLE,
+                timeoutMs = HOME_SETTLE_WAIT_MS,
+                pollMs = WAIT_POLL_FAST_MS
+            ) { isLauncherDesktop() }
         }
         return ok
+    }
+
+    /** Лаунчер на переднем плане и это НЕ лента виджетов (рабочий стол для папок). */
+    private fun isLauncherDesktop(): Boolean {
+        val fg = activePackage() ?: return false
+        if (fg !in LAUNCHER_PACKAGES) return false
+        return !isAppVaultVisible()
     }
 
     /**
@@ -4055,6 +4870,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
         step: SimpleSteps.Step,
         route: List<SemanticCatalog.RouteItem>
     ): Boolean {
+        // Готовность экрана входа по КОНКРЕТНОМУ id, а не по «успел ли за N секунд»:
+        // Mi Apps сначала показывает сплэш (`web_view_lazy_load_wrapper`), и тапы
+        // маршрута уходили в пустоту (прогон rmuvlyyor: getapps).
+        val readyIds = SemanticCatalog.entryReadyIds(step.id)
+        if (readyIds.isNotEmpty()) {
+            awaitEntryReadyId(step.id, readyIds, ROUTE_ENTRY_READY_WAIT_MS)
+        }
         for ((index, item) in route.withIndex()) {
             if (cancelled) return false
             if (!awaitOverlayReadyOrPause()) return false
@@ -4073,15 +4895,24 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 }
                 item.tapText != null -> tapRouteNode(step, text = item.tapText)
                 item.tapDesc != null -> tapRouteNode(step, desc = item.tapDesc)
-                item.tapId != null -> tapRouteNode(step, id = item.tapId)
+                item.tapId != null -> tapRouteNode(step, id = item.tapId, idIndex = item.tapIdIndex)
+                item.tapTopRightBlank -> tapRouteNode(step, topRightBlank = true)
                 else -> false
             }
+            // Подпись экрана до действия — база для «экран изменился» у тап/скролл-шагов.
+            val beforeActionText = if (item.intent == null) currentScreenText() else ""
             // Один ретрай тапа по тексту через 400 мс: drawer/список MIUI анимируется,
             // и первый тап может прийтись мимо строки (прогон rmumuqr53: route
             // filemanager 3/4 «Настройки» и 4/4 «Информация» = ok=false).
             var retried = false
             val finalOk = if (!ok && (item.tapText != null || item.tapDesc != null)) {
-                delay(400)
+                // Ждём появления узла (или короткий settle), а не слепые 400 мс.
+                waitFor(
+                    stepId = step.id,
+                    reason = WAIT_UI_SETTLE,
+                    timeoutMs = ROUTE_TAP_RETRY_WAIT_MS,
+                    pollMs = WAIT_POLL_FAST_MS
+                ) { routeNodePresent(item) }
                 retried = true
                 if (item.tapText != null) tapRouteNode(step, text = item.tapText)
                 else tapRouteNode(step, desc = item.tapDesc!!)
@@ -4126,17 +4957,39 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 StepDiagnostics.note(step.id, "ROUTE", "intent_failed what='$what'")
                 return false
             }
-            delay(item.waitMs)
-            // Поверх маршрута встаёт стена первого запуска (Проводник: «Добро пожаловать
-            // в Проводник» перекрывает «Еще» → «Настройки» → «Информация»; Mi Браузер:
-            // страницы мастера) либо обманка-промпт (GetApps: «Доступно обновление»).
-            // Закрываем её ДО следующего действия, иначе тап уходит в стену, а шаг
-            // объявляется неприменимым (прогон rmulhb4yq: filemanager route 2–4 ok=false,
-            // browser_sys/getapps — drill_level_absent).
+            // Ожидание после действия маршрута — опрос с ранним выходом. Intent-шаг ждёт
+            // подтверждения целевого экрана (маркеры/пакет каталога; подтверждённым
+            // экраном сразу уходит идущая следом [confirmRouteIntentScreen]), тап/скролл —
+            // смены подписи экрана. Слепая пауза item.waitMs (до 3 с) больше не тратится
+            // на уже готовом экране, а её значение осталось верхним лимитом.
+            if (item.intent != null) {
+                // Стена первого запуска встаёт ПОВЕРХ целевого экрана (Проводник:
+                // «Добро пожаловать в Проводник»): закрываем её ДО окна подтверждения,
+                // иначе окно съедается стеной, маршрут уходит в relaunch и fallback
+                // (прогон rmuvlyyor: route_confirm 3.1 c hit=false → accepted →
+                // screen_unconfirmed → fallback_to_auto_nav).
+                handleConsentWalls(step)
+                awaitRouteScreen(step, item, item.waitMs)
+            } else {
+                waitFor(
+                    stepId = step.id,
+                    reason = WAIT_UI_SETTLE,
+                    timeoutMs = item.waitMs,
+                    pollMs = WAIT_POLL_FAST_MS
+                ) { currentScreenText() != beforeActionText }
+            }
+            // Промо/обманка может всплыть и на самом экране маршрута (GetApps: «Доступно
+            // обновление») — закрываем её ДО следующего действия, иначе тап уходит в стену,
+            // а шаг объявляется неприменимым (прогон rmulhb4yq).
             val walls = handleConsentWalls(step)
             if (walls > 0) {
                 AppLog.i(TAG, "route ${step.id}: consent walls handled=$walls before next action")
-                delay(UI_SETTLE_DELAY_MS)
+                waitFor(
+                    stepId = step.id,
+                    reason = WAIT_UI_SETTLE,
+                    timeoutMs = UI_SETTLE_DELAY_MS,
+                    pollMs = WAIT_POLL_FAST_MS
+                ) { !ConsentWallHandler.isAdScreenNow(service) }
             }
             // D1/R2-2: intent-шаг обязан ПОДТВЕРДИТЬ целевой экран пакетом-владельцем и
             // маркерами (браузер открывал домашнюю ленту; карусель «подтверждалась» на
@@ -4161,14 +5014,44 @@ class SimpleRunner(private val service: AdbEnablerService) {
     ): Boolean {
         val markers = item.confirmMarkers.ifEmpty { SemanticCatalog.screenMarkers(step.id) }
         val packages = item.confirmPackage
+        val readyIds = SemanticCatalog.entryReadyIds(step.id)
         if (markers.isEmpty() && packages.isEmpty()) return true
-        val deadline = System.currentTimeMillis() + timeoutMs
-        while (System.currentTimeMillis() < deadline) {
-            if (routeScreenMatches(markers, packages)) return true
-            if (cancelled) return false
-            delay(ROUTE_SCREEN_POLL_MS)
+        // Опрос с ранним выходом: как только экран маршрута опознан — идём дальше.
+        val hit = waitFor(
+            stepId = step.id,
+            reason = WAIT_ROUTE_CONFIRM,
+            timeoutMs = timeoutMs,
+            pollMs = ROUTE_SCREEN_POLL_MS
+        ) { routeScreenMatches(markers, packages) || (readyIds.isNotEmpty() && screenHasId(readyIds)) }
+        if (!hit) {
+            // Точная причина провала подтверждения: пакет окна и подпись экрана — иначе
+            // разбор следующего прогона снова упирается в догадки (sys_recommendations,
+            // прогон rmux0jpyi: экран AppManager виден, а подтверждение не проходит).
+            val root = service.rootInActiveWindow
+            val pkg = root?.packageName?.toString().orEmpty()
+            val text = ComponentVerifier.screenText(root)
+            if (root != null) recycleNode(root)
+            StepDiagnostics.note(
+                step.id, "ROUTE",
+                "confirm_miss pkg=" + pkg + " want=" + packages + " markers=" + markers +
+                    " screen='" + text.take(90) + "'"
+            )
         }
-        return false
+        return hit
+    }
+
+    /**
+     * Узел маршрута (текст/описание) присутствует на текущем экране: условие раннего
+     * выхода ожидания повторного тапа (drawer/список MIUI анимируется).
+     */
+    private fun routeNodePresent(item: SemanticCatalog.RouteItem): Boolean {
+        val texts = listOfNotNull(item.tapText, item.tapDesc)
+        if (texts.isEmpty()) return false
+        val root = service.rootInActiveWindow ?: return false
+        val node = findClickableByText(root, texts)
+        recycleNode(node)
+        recycleNode(root)
+        return node != null
     }
 
     /**
@@ -4198,6 +5081,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
         item: SemanticCatalog.RouteItem
     ): Boolean {
         if (awaitRouteScreen(step, item)) return true
+        // Экран мог быть просто перекрыт стеной/промо (а не сбоем интента): закрываем
+        // стену и даём ещё одно полное окно подтверждения БЕЗ relaunch — перезапуск
+        // тратил время впустую (прогон rmuvlyyor: filemanager).
+        if (handleConsentWalls(step) > 0 && awaitRouteScreen(step, item)) {
+            AppLog.i(TAG, "route ${step.id}: screen confirmed after consent wall")
+            return true
+        }
         AppLog.w(TAG, "route ${step.id}: screen unconfirmed — relaunch")
         StepDiagnostics.note(step.id, "ROUTE", "screen_unconfirmed")
         relaunchRouteIntent(item)
@@ -4302,14 +5192,63 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * ниже сгиба («Использование и диагностика» в Конфиденциальности) — до 3 попыток
      * с прокруткой.
      */
-    private suspend fun tapRouteNode(
+    internal suspend fun tapRouteNode(
         step: SimpleSteps.Step,
         text: String? = null,
         desc: String? = null,
-        id: String? = null
+        id: String? = null,
+        /** Индекс среди узлов с тем же id (нижние вкладки без подписей: `id=tab` ×4). */
+        idIndex: Int? = null,
+        /** Тап по самой правой кликабельной иконке заголовка без текста и описания:
+         * шестерёнка настроек Mi Apps в дереве WebView не имеет ни текста, ни id
+         * (дамп diagnostic_snapshot_getapps_*.json, прогон rmuwvcqiw). */
+        topRightBlank: Boolean = false
     ): Boolean {
         repeat(3) { attempt ->
             val root = service.rootInActiveWindow ?: return false
+            if (topRightBlank) {
+                recycleNode(root)
+                // Шапка WebView GetApps рисуется не мгновенно (прогон rmux1uiii: через 1.5 с
+                // после тапа вкладки иконок ещё не было) — ждём появления самой правой
+                // пустой кликабельной иконки заголовка опросом, а не одним снимком.
+                val ready = waitFor(
+                    stepId = step.id,
+                    reason = WAIT_UI_SETTLE,
+                    timeoutMs = ROUTE_ENTRY_READY_WAIT_MS,
+                    pollMs = WAIT_POLL_FAST_MS
+                ) { screenHasBlankHeaderIcon() }
+                val icon = if (ready) {
+                    val fresh = service.rootInActiveWindow
+                    val found = fresh?.let { findTopRightBlankNode(it) }
+                    if (fresh != null) recycleNode(fresh)
+                    found
+                } else {
+                    null
+                }
+                if (icon != null) {
+                    val rect = Rect().also { icon.getBoundsInScreen(it) }
+                    val before = currentScreenText()
+                    val tapped = tapNode(icon)
+                    recycleNode(icon)
+                    if (!tapped) return false
+                    // WebView-иконка принимает ACTION_CLICK, но перехода не делает:
+                    // экран не сменился — повторяем тап ЖЕСТОМ по центру тех же bounds
+                    // (скриншот прогона rmux0jpyi: профиль GetApps остался на месте).
+                    val changed = waitFor(
+                        stepId = step.id,
+                        reason = WAIT_UI_SETTLE,
+                        timeoutMs = ROUTE_TAP_RETRY_WAIT_MS * 2,
+                        pollMs = WAIT_POLL_FAST_MS
+                    ) { currentScreenText() != before }
+                    if (changed) return true
+                    val viaGesture = withOverlayPassthrough {
+                        tapAtRaw(rect.centerX(), rect.centerY())
+                    }
+                    AppLog.i(TAG, "route ${step.id}: blank icon gesture retry=$viaGesture")
+                    return viaGesture
+                }
+                if (attempt < 2) delay(ROUTE_TAP_RETRY_WAIT_MS)
+            }
             val nodes = NodeTree.findAllInTree(root, predicate = { node ->
                 val matches = when {
                     text != null -> TextMatcher.normalizedContains(node.text?.toString(), text)
@@ -4318,9 +5257,22 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     id != null -> node.viewIdResourceName?.endsWith(id) == true
                     else -> false
                 }
-                matches && clickableAncestorOrSelf(node) != null
+                // Кнопки установки/обновления/скачивания маршрут не нажимает никогда
+                // (инцидент 06.10.2026: тап по «СКАЧАТЬ» магазина запустил пачку установок).
+                val label = node.text?.toString() ?: node.contentDescription?.toString()
+                matches && !isInstallBlockedLabel(label) && clickableAncestorOrSelf(node) != null
             })
-            val node = nodes.firstOrNull { n ->
+            // Позиционный выбор (вкладки MIUI без подписи): берём N-й совпавший узел,
+            // а не первый — иначе «Профиль» подменялся бы «Главной».
+            val indexed = if (idIndex != null && id != null) {
+                nodes.getOrNull(idIndex)?.let { chosen ->
+                    nodes.forEach { if (it !== chosen) recycleNode(it) }
+                    listOf(chosen)
+                } ?: emptyList()
+            } else {
+                nodes
+            }
+            val node = indexed.firstOrNull { n ->
                 // Точное совпадение приоритетнее вхождения: «Настройки» не должно
                 // матчить «Сбросить настройки приложений» (иначе маршрут жмёт соседний
                 // пункт меню — прогон rmuk3w8a5, шаг sys_recommendations).
@@ -4332,9 +5284,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 val query = text ?: desc ?: id ?: ""
                 TextMatcher.normalizedContains(label, query) &&
                     TextMatcher.normalizedContains(query, label)
-            } ?: nodes.firstOrNull()
+            } ?: indexed.firstOrNull()
             if (node != null) {
-                nodes.forEach { if (it !== node) recycleNode(it) }
+                indexed.forEach { if (it !== node) recycleNode(it) }
                 val target = clickableAncestorOrSelf(node) ?: node
                 val tapped = tapNode(target)
                 if (target !== node) recycleNode(target)
@@ -4345,6 +5297,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
             recycleNode(root)
             if (attempt < 2) scrollDownOnce()
         }
+        // Узел с подписью есть, но кликабельного предка у него нет (страницы WebView:
+        // мастер магазина — «Пропустить»): тапаем по центру самой подписи, иначе
+        // маршрут считался бы непройденным при видимой кнопке. Для позиционного
+        // выбора (idIndex) этот путь не применяется — там подписи нет.
+        val byLabel = if (idIndex == null) listOfNotNull(text, desc) else emptyList()
+        if (byLabel.isNotEmpty() && tapLabelCenterByTexts(byLabel, emptyList())) return true
         return false
     }
 
@@ -4541,7 +5499,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         recycleNode(root)
         if (scrolled) {
             AppLog.i(TAG, "scroll: container right")
-            delay(400)
+            delay(SCROLL_SETTLE_WAIT_MS)
         }
         return scrolled
     }
@@ -4557,7 +5515,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         recycleNode(scrollable); recycleNode(root)
         if (!byContainer) swipeUp()
         AppLog.i(TAG, "scroll: ${if (byContainer) "container" else "gesture"} down")
-        delay(400)
+        // Settle анимации прокрутки: фактический сдвиг проверяет вызывающий
+        // ([scrollDownVerified] — по подписи экрана), дублировать опрос не нужно.
+        delay(SCROLL_SETTLE_WAIT_MS)
     }
 
     /**

@@ -74,6 +74,53 @@ class SimpleRunnerRouteTest {
         return n
     }
 
+    @Test
+    fun `top right blank header icon is tapped positionally`() = runTest {
+        // Mi Apps: шестерёнка настроек профиля — кликабельный TextView без текста, desc и
+        // id (дамп diagnostic_snapshot_getapps_*.json, прогон rmuwvcqiw). Выбор — самая
+        // правая пустая иконка заголовка: колокольчик уведомлений левее.
+        val title = node(text = "Защита приложений")
+        val bell = blankIcon(827, 902, 123, 200)
+        val gear = blankIcon(946, 1023, 123, 200)
+        var iconTapped = false
+        Mockito.`when`(gear.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenAnswer {
+            iconTapped = true
+            true
+        }
+        // Полоса заголовка WebView-профиля: подпись + две пустые кликабельные иконки.
+        val header = node(pkg = "com.xiaomi.mipicks", children = arrayOf(title, bell, gear))
+        Mockito.`when`(header.getBoundsInScreen(any())).thenAnswer { inv ->
+            (inv.arguments[0] as android.graphics.Rect).set(0, 0, 1080, 203)
+            null
+        }
+        val root = node(pkg = "com.xiaomi.mipicks", children = arrayOf(header))
+        Mockito.`when`(root.getBoundsInScreen(any())).thenAnswer { inv ->
+            (inv.arguments[0] as android.graphics.Rect).set(0, 0, 1080, 2400)
+            null
+        }
+        // До тапа активное окно — профиль, после ACTION_CLICK по иконке экран сменился
+        // (в WebView переход асинхронный): повторный жест по центру не нужен.
+        val shifted = node(text = "Настройки Конфиденциальность", pkg = "com.xiaomi.mipicks")
+        Mockito.`when`(service.rootInActiveWindow).thenAnswer { if (iconTapped) shifted else root }
+
+        val tapped = runner.tapRouteNode(step("getapps"), topRightBlank = true)
+
+        assertTrue("шестерёнка нажата", tapped)
+        Mockito.verify(gear).performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        Mockito.verify(bell, Mockito.never()).performAction(AccessibilityNodeInfo.ACTION_CLICK)
+    }
+
+    /** Кликабельная иконка заголовка без текста/описания с заданной рамкой. */
+    private fun blankIcon(left: Int, right: Int, top: Int, bottom: Int): AccessibilityNodeInfo {
+        val n = Mockito.mock(AccessibilityNodeInfo::class.java)
+        Mockito.`when`(n.isClickable).thenReturn(true)
+        Mockito.`when`(n.getBoundsInScreen(any())).thenAnswer { inv ->
+            (inv.arguments[0] as android.graphics.Rect).set(left, top, right, bottom)
+            null
+        }
+        return n
+    }
+
     private fun step(id: String) = SimpleSteps.Step(
         id = id,
         titleRu = id,

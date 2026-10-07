@@ -138,6 +138,43 @@ class ConsentWallTest {
     }
 
     @Test
+    fun `wall with a label-only button is accepted by tapping the label`() = runTest {
+        // WebView-стены (Загрузки, магазин) отдают подпись согласия БЕЗ кликабельного
+        // узла: прежний гейт «живой кнопки» уводил стену в skipped_no_button, и
+        // приложение не пускало дальше (прогон rmuvlyyor: downloads).
+        withLocale("ru") {
+            val labelOnly = Mockito.mock(AccessibilityNodeInfo::class.java)
+            Mockito.`when`(labelOnly.text).thenReturn("Принять и продолжить")
+            Mockito.`when`(labelOnly.isEnabled).thenReturn(true)
+            Mockito.`when`(labelOnly.isClickable).thenReturn(false)
+            Mockito.`when`(labelOnly.childCount).thenReturn(0)
+            val node = screen("Условия использования Принять и продолжить")
+            Mockito.`when`(node.childCount).thenReturn(1)
+            Mockito.`when`(node.getChild(0)).thenReturn(labelOnly)
+            Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
+            var labelTaps = 0
+            val labelBridge = object : ConsentWallHandler.TapBridge {
+                override suspend fun tapByTexts(texts: List<String>): Boolean = false
+
+                override suspend fun tapLabelByTexts(
+                    texts: List<String>,
+                    avoidTexts: List<String>
+                ): Boolean {
+                    labelTaps++
+                    tappedTexts.addAll(texts)
+                    return true
+                }
+            }
+
+            val outcome = ConsentWallHandler.handleOnce(service, labelBridge, "downloads")
+
+            assertTrue("стена принята тапом по подписи", outcome.handled)
+            assertEquals("welcome", outcome.kind)
+            assertEquals("тап идёт по подписи согласия", 1, labelTaps)
+        }
+    }
+
+    @Test
     fun `no dialog leads to no action`() = runTest {
         val node = screen("Настройки Отпечатки")
         Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
@@ -192,9 +229,29 @@ class ConsentWallTest {
                 stepId = "appvault_about",
                 stepConfirmTexts = listOf("Отключить"),
                 stepConsentTexts = emptyList(),
-                alertDialog = true
+                alertDialog = true,
+                confirmButtonTexts = listOf("Отключить", "Нет, спасибо")
             )
             assertNull("диалог шага не обрабатывает хендлер стен: kind=${action?.kind}", action)
+        }
+    }
+
+    @Test
+    fun `confirm text only in body text is not owned by the step`() = runTest {
+        // C4/R2-6: ужесточение ownsDialog — та же фраза в ОПИСАНИИ экрана больше не делает
+        // диалог «своим» шага: опознание идёт по подписи КНОПОЧНОГО узла.
+        withLocale("ru") {
+            val action = ConsentWallHandler.classify(
+                screenText = "Персонализированные услуги Отключить службы? Отмена",
+                ownerPackage = "com.mi.android.globalminusscreen",
+                stepPackages = listOf("com.mi.android.globalminusscreen"),
+                stepId = "appvault_about",
+                stepConfirmTexts = listOf("Отключить"),
+                stepConsentTexts = emptyList(),
+                alertDialog = true,
+                confirmButtonTexts = listOf("Отмена")
+            )
+            assertTrue("без своей кнопки диалог не считается своим: ${action?.kind}", action != null)
         }
     }
 
@@ -215,7 +272,8 @@ class ConsentWallTest {
                 stepId = "sys_recommendations",
                 stepConfirmTexts = emptyList(),
                 stepConsentTexts = emptyList(),
-                alertDialog = true
+                alertDialog = true,
+                confirmButtonTexts = listOf("Отмена", "Отозвать (5 с)")
             )
             assertNull("чужой confirm-диалог не гасится: kind=${action?.kind}", action)
         }
@@ -262,7 +320,8 @@ class ConsentWallTest {
                 stepId = "sys_recommendations",
                 stepConfirmTexts = emptyList(),
                 stepConsentTexts = emptyList(),
-                alertDialog = true
+                alertDialog = true,
+                confirmButtonTexts = listOf("Отключить", "Нет, спасибо")
             )
             assertNull("чужой диалог не закрывается", action)
         }
@@ -663,6 +722,77 @@ class ConsentWallTest {
 
         assertFalse("ничего не нажали — не сообщаем об обработке", outcome.handled)
         assertEquals("deny", outcome.decision)
+    }
+
+    @Test
+    fun `mi apps promo master is skipped by tapping the label without a clickable node`() = runTest {
+        // Прогон rmuvijbl1: мастер Mi Apps («Mi фаны рекомендуют», дамп
+        // diag-dumps/fresh/getapps_recommend.xml) отдаёт кнопку «Пропустить» БЕЗ
+        // кликабельного узла (WebView) — прежний гейт «живой кнопки» её не видел, и
+        // шаг getapps уходил ENTRY timeout / not_applicable.
+        withLocale("ru") {
+            val node = screen(
+                "Mi Apps Основные приложения Mi фаны рекомендуют 18 приложений " +
+                    "СКАЧАТЬ(3077.1MB) Пропустить"
+            )
+            Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
+            var labelTaps = 0
+            val labelBridge = object : ConsentWallHandler.TapBridge {
+                override suspend fun tapByTexts(texts: List<String>): Boolean = false
+
+                override suspend fun tapLabelByTexts(
+                    texts: List<String>,
+                    avoidTexts: List<String>
+                ): Boolean {
+                    labelTaps++
+                    tappedTexts.addAll(texts)
+                    return true
+                }
+            }
+
+            val outcome = ConsentWallHandler.handleOnce(service, labelBridge, "getapps")
+
+            assertTrue("мастер распознан и закрыт", outcome.handled)
+            assertEquals("master", outcome.kind)
+            assertEquals("skipped", outcome.decision)
+            assertEquals("тап идёт по подписи пропуска", 1, labelTaps)
+            assertTrue("подписи содержат «Пропустить»", tappedTexts.any { it == "Пропустить" })
+        }
+    }
+
+    @Test
+    fun `update decoy without a close button is dismissed by back`() = runTest {
+        // GetApps UpgradeDialogActivity (дамп diag-dumps/fresh/getapps_after_skip.xml):
+        // в дереве только «Обновить» (нажимать нельзя), крестика нет — закрываем BACK.
+        val node = screen(
+            "Доступно обновление Версия 6021644 64.3M Улучшена стабильность и " +
+                "производительность. Также были исправлены ошибки. Обновить"
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
+        var backs = 0
+        val backBridge = object : ConsentWallHandler.TapBridge {
+            override suspend fun tapByTexts(texts: List<String>): Boolean = false
+
+            override suspend fun tapByIds(ids: List<String>): Boolean = false
+
+            override suspend fun tapDialogButtonByTexts(
+                texts: List<String>,
+                avoidTexts: List<String>
+            ): Boolean = false
+
+            override suspend fun pressBack(): Boolean {
+                backs++
+                return true
+            }
+        }
+
+        val outcome = withLocale("ru") {
+            ConsentWallHandler.handleOnce(service, backBridge, "getapps")
+        }
+
+        assertTrue("обманка распознана и закрыта", outcome.handled)
+        assertEquals("decoy", outcome.kind)
+        assertTrue("обманка без кнопки закрытия закрывается BACK: $backs", backs >= 1)
     }
 
     /** Прогон кейса в конкретной локали (локаль каталога берётся из Locale.getDefault). */
