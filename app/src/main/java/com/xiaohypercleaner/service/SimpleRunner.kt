@@ -1193,6 +1193,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 if (cancelled) return Result(false, "cancelled")
                 // Навигационное действие — только при целостном оверлее.
                 if (!awaitOverlayReadyOrPause()) return Result(false, "overlay_lost")
+                // Цель могла открыться, пока бурение ещё шло: welcome-стена первого
+                // запуска приложения уходит сама, а целевой экран дорисовывается позже
+                // (прогон rmuybnsfu, carousel) — бурить уже открытый экран вредно.
+                if (onTargetScreen(step)) {
+                    AppLog.i(TAG, "drill: target screen reached before level $levelIndex for ${step.id}")
+                    StepDiagnostics.note(step.id, "DRILL", "target_reached_before_level level=$levelIndex")
+                    break
+                }
                 var levelOk = drillIntoLevel(step, levelIndex, mergedDrillPath[levelIndex])
                 if (!levelOk) {
                     // Поверх навигации мог встать диалог (runtime-permission целевого
@@ -1214,6 +1222,25 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     }
                 }
                 if (!levelOk) {
+                    // Последний шанс: целевой экран мог дорисоваться, пока уровень
+                    // бурился (carousel, прогон rmuybnsfu: drill_failed на уже
+                    // открытой цели — маркеры и тумблер были на экране).
+                    val appeared = waitFor(
+                        stepId = step.id,
+                        reason = WAIT_UI_SETTLE,
+                        timeoutMs = APP_SCREEN_WAIT_MS,
+                        pollMs = WAIT_POLL_MS
+                    ) { onTargetScreen(step) }
+                    if (appeared) {
+                        AppLog.i(
+                            TAG,
+                            "drill: target appeared after level $levelIndex failure for ${step.id}"
+                        )
+                        StepDiagnostics.note(
+                            step.id, "DRILL", "target_reached_after_level_fail level=$levelIndex"
+                        )
+                        break
+                    }
                     drillFailure = "drill_failed"
                     break
                 }
@@ -1515,7 +1542,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             return true
         }
 
-        val candidates = levelCandidates(levelTexts)
+        val candidates = levelCandidates(levelTexts, abort = { onTargetScreen(step) })
 
         if (candidates.isEmpty()) {
             // Уровень отсутствует на экране вовсе (GetApps: раздела «Конфиденциальность»
@@ -1609,12 +1636,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * Кандидаты-узлы уровня: первый — обычным путём (scroll-until-found и
      * горизонтальный скролл), затем остальные совпавшие кликабельные подписи.
      */
-    private suspend fun levelCandidates(levelTexts: List<String>): List<AccessibilityNodeInfo> {
+    private suspend fun levelCandidates(
+        levelTexts: List<String>,
+        abort: (() -> Boolean)? = null
+    ): List<AccessibilityNodeInfo> {
         val primary = findClickableByTextWithScroll(
             levelTexts,
             attempts = DRILL_SCROLL_TRIES,
-            logLabel = levelTexts.firstOrNull { it.isNotBlank() }
-        ) ?: findAfterHorizontalScroll(levelTexts)
+            logLabel = levelTexts.firstOrNull { it.isNotBlank() },
+            abort = abort
+        ) ?: if (abort?.invoke() == true) null else findAfterHorizontalScroll(levelTexts)
         val root = service.rootInActiveWindow ?: return listOfNotNull(primary)
         val all = NodeTree.findAllInTree(root = root, predicate = { node ->
             node.isClickable && NodeTree.matchesAny(node, levelTexts)
@@ -5432,11 +5463,20 @@ class SimpleRunner(private val service: AdbEnablerService) {
     internal suspend fun findClickableByTextWithScroll(
         texts: List<String>,
         attempts: Int = SWITCH_FALLBACK_SCROLLS,
-        logLabel: String? = null
+        logLabel: String? = null,
+        abort: (() -> Boolean)? = null
     ): AccessibilityNodeInfo? {
         var stalled = 0
         for (attempt in 0 until attempts) {
             findClickableByText(texts = texts)?.let { return it }
+            // Экран с видимой целью шага не прокручиваем: поиск уровня уже бессмыслен,
+            // а прокрутка уводит целевую строку за сгиб (прогон rmuybnsfu, carousel).
+            if (abort?.invoke() == true) {
+                if (logLabel != null) {
+                    AppLog.i(TAG, "drill: scroll search aborted, target screen is open ('$logLabel')")
+                }
+                return null
+            }
             val root = service.rootInActiveWindow ?: return null
             recycleNode(root)
             if (logLabel != null) {

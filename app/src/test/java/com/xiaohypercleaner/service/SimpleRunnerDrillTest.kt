@@ -415,4 +415,34 @@ class SimpleRunnerDrillTest {
             runner.nextLevelVerificationTexts(path, 1) == listOf("Настройки")
         )
     }
+
+    @Test
+    fun `drill does not scroll a screen that already shows the step target`() = runTest {
+        // Прогон rmuybnsfu (carousel): welcome-стена первого запуска приложения уходит
+        // сама, а экран настроек с тумблером «Карусель экрана блокировки» дорисовывается,
+        // когда бурение ещё ищет уровень «Блокировка экрана». Прежний код докручивал
+        // уже открытый целевой экран до конца и ронял шаг в drill_failed.
+        val title = node(text = "Карусель обоев", className = "android.widget.TextView")
+        val row = node(text = "Карусель экрана блокировки", className = "android.widget.TextView")
+        val settings = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(title, row)
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(settings)
+        captureGestures()
+
+        val path = listOf(
+            listOf("Блокировка экрана", "Lock screen"),
+            listOf("Карусель обоев", "Wallpaper Carousel")
+        )
+
+        assertFalse(
+            "уровня «Блокировка экрана» на целевом экране нет — уровень не пройден",
+            runner.drillIntoLevel(step("carousel"), 0, path[0], path)
+        )
+        assertTrue(
+            "целевой экран не должен прокручиваться: жесты=$gestureCenters",
+            gestureCenters.isEmpty()
+        )
+    }
 }
