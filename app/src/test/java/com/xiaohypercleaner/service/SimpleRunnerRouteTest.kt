@@ -5,6 +5,9 @@ import android.content.ComponentName
 import android.content.Intent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.data.AdaptiveCatalog
+import com.xiaohypercleaner.data.RomFamily
+import com.xiaohypercleaner.data.RomProfile
+import com.xiaohypercleaner.data.RomRegion
 import com.xiaohypercleaner.data.SemanticCatalog
 import com.xiaohypercleaner.data.SimpleSteps
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -425,6 +428,75 @@ class SimpleRunnerRouteTest {
         val topRow = node(text = "Онлайн-рекомендации", className = "android.widget.TextView")
         bounds(topRow, 60, 300, 900, 420)
         assertTrue("строка в рабочей области считается видимой", runner.isFullyVisible(topRow))
+    }
+
+    @Test
+    fun `route uri intent is a view intent with new task flag`() {
+        // Deep-link приложения (`mimarket://settings` — проба OK: экран настроек GetApps):
+        // запускается из фонового сервиса, поэтому NEW_TASK обязателен, а пакет приложения
+        // шага ограничивает обработчика (и телефон не уводит в чужое приложение).
+        val uri = runner.parseRouteIntent("mimarket://settings", "com.xiaomi.mipicks")
+
+        assertEquals(Intent.ACTION_VIEW, uri.action)
+        assertEquals("mimarket://settings", uri.data.toString())
+        assertEquals("com.xiaomi.mipicks", uri.`package`)
+        assertTrue(
+            "NEW_TASK обязателен для старта из сервиса",
+            uri.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0
+        )
+    }
+
+    @Test
+    fun `route component spec still resolves to an explicit component`() {
+        val component = runner.parseRouteIntent(
+            "com.mi.android.globalminusscreen/.tab.TabSettingActivity",
+            "com.mi.android.globalminusscreen"
+        )
+        assertEquals(
+            ComponentName(
+                "com.mi.android.globalminusscreen",
+                "com.mi.android.globalminusscreen.tab.TabSettingActivity"
+            ),
+            component.component
+        )
+    }
+
+    @Test
+    fun `step budget accounts for the route length without raising the ceiling`() {
+        val profile = RomProfile(
+            region = RomRegion.GLOBAL,
+            miuiVersion = "V130",
+            hyperOsHint = false,
+            isTablet = false,
+            family = RomFamily.MIUI,
+            uiVersion = "13"
+        )
+        // getapps: базовый путь приложения + 2 пункта маршрута по 2 с каждый. Берём
+        // настоящий шаг плана: синтетический (без launchPackage/пути) базовый бюджет ниже.
+        val realGetapps = SimpleSteps.ALL.first { it.id == "getapps" }
+        assertTrue(
+            "длина маршрута учтена в бюджете шага",
+            runner.computeTimeout(realGetapps, profile) >= 24_000L
+        )
+        // Потолок не поднят: ни один шаг каталога не выходит за 45 с.
+        val over = SimpleSteps.ALL.filter { runner.computeTimeout(it, profile) > 45_000L }
+        assertTrue("потолок бюджета превышен у: ${over.map { it.id }}", over.isEmpty())
+    }
+
+    @Test
+    fun `blank header icon hunt fails fast without scrolling`() = runTest {
+        // Прогон rmuyl4opt (getapps): охота за шестерёнкой крутила 3 попытки с прокрутками
+        // ~12 с на чужом экране и валила шаг в timeout без строки в логе. Теперь — одна
+        // попытка и честный false, без жестов прокрутки.
+        val foreignHome = node(pkg = "com.xiaomi.mipicks", className = "android.widget.FrameLayout")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(foreignHome)
+
+        assertFalse(
+            "иконки шапки нет — пункт маршрута обязан упасть быстро",
+            runner.tapRouteNode(step("getapps"), topRightBlank = true)
+        )
+        Mockito.verify(service, Mockito.never())
+            .dispatchGesture(any(), any(), any())
     }
 
     /** Границы узла: `getBoundsInScreen` заполняет переданный Rect. */

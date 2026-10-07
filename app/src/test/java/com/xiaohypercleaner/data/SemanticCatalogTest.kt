@@ -41,11 +41,14 @@ class SemanticCatalogTest {
     }
 
     @Test
-    fun `getapps declares entry ready id and positional profile tab route`() {
-        // Прогон rmuvlyyor: шаг getapps уходил в not_applicable на сплэше магазина.
-        // Готовность теперь по КОНКРЕТНОМУ id главной (`tab_container`), а вкладка
-        // «Профиль» выбирается позицией по id (`tab` #3 — дамп
-        // diag-dumps/fresh/getapps_market_tab.xml).
+    fun `getapps route enters settings screen directly`() {
+        // Прогон rmuyl4opt: маршрут из 6 пунктов (вкладка Профиль → шестерёнка → прокрутки)
+        // упирался в промо обновления — тап вкладки был проглочен, шестерёнку искали на
+        // главной и шаг валился в timeout. Пробы 08.10 на устройстве: компонента
+        // MarketPreferenceActivity открывает экран настроек GetApps сразу, в т.ч. холодным
+        // стартом (adb-probe/p_getapps_prefact*.verdict.txt, VERDICT OK, маркер «Настройки»),
+        // оттуда «Конфиденциальность» → тумблер «Персональные рекомендации»
+        // (fresh/getapps_settings2_now.xml, getapps_privacy_now.xml).
         SemanticCatalog.selectVariant(
             RomProfile(
                 region = RomRegion.GLOBAL,
@@ -56,27 +59,30 @@ class SemanticCatalogTest {
                 uiVersion = "13"
             )
         )
-        val readyIds = SemanticCatalog.entryReadyIds("getapps")
-        assertTrue("готовность магазина по id главной: $readyIds", readyIds.contains("tab_container"))
         val route = SemanticCatalog.route("getapps")
+        val entry = route.firstOrNull()
         assertTrue(
-            "вкладка «Профиль» — позиционный тап по id=tab, индекс 3",
-            route.any { it.tapId == "tab" && it.tapIdIndex == 3 }
+            "вход — сразу экран настроек магазина: ${entry?.intent}",
+            entry?.intent?.contains("MarketPreferenceActivity") == true
+        )
+        assertEquals(listOf("com.xiaomi.mipicks"), entry?.confirmPackage)
+        assertTrue(
+            "экран настроек подтверждается маркерами: ${entry?.confirmMarkers}",
+            entry?.confirmMarkers?.contains("Настройки") == true
+        )
+        val privacy = route.getOrNull(1)
+        assertEquals("Конфиденциальность", privacy?.tapText)
+        assertTrue(
+            "тап-шаг подтверждается экраном «Конфиденциальности»: ${privacy?.confirmMarkers}",
+            privacy?.confirmMarkers?.contains("Персональные рекомендации") == true
         )
         assertTrue(
-            "маршрут начинается с интента запуска магазина",
-            route.firstOrNull()?.intent?.startsWith("com.xiaomi.mipicks") == true
-        )
-        // Снапшот fresh/getapps_privacy_now.xml (ручная разведка 07.10): путь подтверждён
-        // целиком — шестерёнка профиля → скролл настроек → «Конфиденциальность» с тумблером
-        // «Персональные рекомендации».
-        assertTrue(
-            "шестерёнка профиля тапается позиционно",
-            route.any { it.tapTopRightBlank }
+            "хрупких позиционных шагов (вкладка/шестерёнка) в маршруте нет",
+            route.none { it.tapTopRightBlank || it.tapId == "tab" }
         )
         assertTrue(
-            "маршрут доходит до «Конфиденциальности» после скроллов",
-            route.any { it.tapText == "Конфиденциальность" } && route.count { it.scroll } >= 2
+            "фолбэк-путь варианта задан (инвариант: обязателен для всех вариантов)",
+            SemanticCatalog.fallbackDrillPath("getapps").isNotEmpty()
         )
     }
 

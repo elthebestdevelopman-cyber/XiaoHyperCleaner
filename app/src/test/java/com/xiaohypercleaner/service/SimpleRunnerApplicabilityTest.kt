@@ -310,21 +310,40 @@ class SimpleRunnerApplicabilityTest {
     }
 
     @Test
-    fun `route screen is confirmed by entry ready id without step markers`() = runTest {
-        // Прогон rmuwvcqiw: у route-шага getapps не было confirmMarkers, и awaitRouteScreen
-        // подставлял маркеры ШАГА («Конфиденциальность»), которых на главной магазина нет:
-        // маршрут уходил в relaunch/fallback и терял ~7 с. Готовность по id (tab_container)
-        // подтверждает экран маршрута без маркеров шага.
+    fun `getapps route confirms the settings screen and never the store home`() = runTest {
+        // Прогон rmuyl4opt: домашний экран магазина (id=tab_container) подтверждал вход, и
+        // маршрут уходил искать шестерёнку на главной → timeout. Новый маршрут входит прямо
+        // в MarketPreferenceActivity (проба adb-probe/p_getapps_prefact_cold.verdict.txt, OK)
+        // и подтверждается маркерами экрана настроек, а главная магазина — не подтверждает.
         val step = SimpleSteps.ALL.first { it.id == "getapps" }
-        val item = SemanticCatalog.RouteItem(intent = "com.xiaomi.mipicks/.DefaultAlias")
-        val tabContainer = Mockito.mock(AccessibilityNodeInfo::class.java)
-        Mockito.`when`(tabContainer.viewIdResourceName)
-            .thenReturn("com.xiaomi.mipicks:id/tab_container")
-        Mockito.`when`(tabContainer.childCount).thenReturn(0)
-        val root = node(text = "Mi Apps Главная Игры Рейтинги Профиль", children = arrayOf(tabContainer))
-        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+        val item = SemanticCatalog.RouteItem(
+            intent = "com.xiaomi.mipicks/com.xiaomi.market.ui.MarketPreferenceActivity",
+            confirmPackage = listOf("com.xiaomi.mipicks"),
+            confirmMarkers = listOf("Настройки", "Settings")
+        )
+        val homeTab = Mockito.mock(AccessibilityNodeInfo::class.java)
+        Mockito.`when`(homeTab.viewIdResourceName).thenReturn("com.xiaomi.mipicks:id/tab_container")
+        Mockito.`when`(homeTab.childCount).thenReturn(0)
+        val home = node(
+            text = "Mi Apps Главная Игры Рейтинги Профиль",
+            packageName = "com.xiaomi.mipicks",
+            children = arrayOf(homeTab)
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(home)
+        assertFalse(
+            "главная магазина не подтверждает экран настроек",
+            runner.awaitRouteScreen(step, item, 150)
+        )
 
-        assertTrue("главная магазина опознана по id готовности", runner.awaitRouteScreen(step, item, 400))
+        val settings = node(
+            text = "Настройки ОСНОВНЫЕ НАСТРОЙКИ Обновлять автоматически",
+            packageName = "com.xiaomi.mipicks"
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(settings)
+        assertTrue(
+            "экран настроек подтверждён маркерами и пакетом",
+            runner.awaitRouteScreen(step, item, 150)
+        )
     }
 
     @Test

@@ -2365,17 +2365,11 @@
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
           "control": "toggle",
-          "entryReadyIds": ["tab_container"],
           "route": [
-            { "intent": "com.xiaomi.mipicks/.DefaultAlias", "waitMs": 2500, "confirmPackage": ["com.xiaomi.mipicks"] },
-            { "tapId": "tab", "tapIdIndex": 3, "waitMs": 2500 },
-            { "tapTopRightBlank": true, "waitMs": 2500 },
-            { "scroll": true, "waitMs": 800 },
-            { "scroll": true, "waitMs": 800 },
-            { "tapText": "Конфиденциальность", "waitMs": 1500 }
+            { "intent": "com.xiaomi.mipicks/com.xiaomi.market.ui.MarketPreferenceActivity", "waitMs": 2500, "confirmPackage": ["com.xiaomi.mipicks"], "confirmMarkers": ["Настройки", "Settings"] },
+            { "tapText": "Конфиденциальность", "waitMs": 1500, "confirmMarkers": ["Персональные рекомендации", "Personalized recommendations"] }
           ],
           "drillPath": [
-            ["Профиль", "Profile", "我的"],
             ["Настройки", "Settings", "设置"],
             ["Конфиденциальность", "Privacy", "隐私"]
           ],
@@ -2439,6 +2433,10 @@
         "hi",
         "pt",
         "id"
+      ],
+      "fallbackDrillPath": [
+        ["Настройки", "Settings", "设置"],
+        ["Конфиденциальность", "Privacy", "隐私"]
       ]
     },
     {

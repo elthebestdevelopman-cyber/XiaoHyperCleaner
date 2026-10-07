@@ -68,6 +68,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
         private const val APP_TIMEOUT_MS = 20_000L
         private const val APP_LONG_PATH_TIMEOUT_MS = 26_000L
         private const val APP_VERY_LONG_PATH_TIMEOUT_MS = 32_000L
+        /** Цена одного пункта маршрута (действие + подтверждение) в бюджете шага. */
+        private const val ROUTE_ITEM_BUDGET_MS = 2_000L
         private const val HYPEROS_MULTIPLIER = 1.3f
         private const val MSA_TIMEOUT_MS = 40_000L
         private const val SECURITY_CLEANER_TIMEOUT_MS = 30_000L
@@ -863,8 +865,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
     }
 
-    // П.2: Расчёт адаптивного таймаута
-    private fun computeTimeout(step: SimpleSteps.Step, profile: RomProfile): Long {
+    // П.2: Расчёт адаптивного таймаута. internal — для тестируемости (SimpleRunnerRouteTest).
+    internal fun computeTimeout(step: SimpleSteps.Step, profile: RomProfile): Long {
         SPECIAL_TIMEOUTS[step.id]?.let { return it }
         val isApp = step.launchPackage != null
         val drillDepth = step.drillPath.size
@@ -878,8 +880,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
             else -> BASE_TIMEOUT_MS
         }
 
+        // Учёт реальной длины маршрута: пунктов может быть 6 при drillPath=3 (GetApps), и
+        // каждая пара «действие + подтверждение» стоит ~2 с — базовых 26 с не хватало на
+        // проход целиком (прогон rmuyl4opt: timeout на 3-м пункте). Это именно учёт длины,
+        // не поднятие потолка: верхняя граница остаётся прежней.
+        val routeBonus = SemanticCatalog.route(step.id).size * ROUTE_ITEM_BUDGET_MS
         val timeout = if (profile.hyperOsHint) (base * HYPEROS_MULTIPLIER).toLong() else base
-        return timeout.coerceIn(12_000L, 45_000L)
+        return (timeout + routeBonus).coerceIn(12_000L, 45_000L)
     }
 
     /**
@@ -1275,7 +1282,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // сплэш «Официальный магазин от Xiaomi» → магазин с нижней навигацией).
         // Resume (startLevel>0) и шаги Настроек/CLEAR_DATA (App Info) не ждут:
         // экран уже подтверждён интентом либо приложение шага не открывается.
-        if (isAppStep && mergedDrillPath.isNotEmpty()) {
+        // Маршрут, который сам открывает экран (первый пункт — интент), подтверждает вход
+        // своим гейтом; ожидание уровня входа жгло ~4 с впустую (прогон rmuyl4opt, getapps:
+        // `WAIT app_entry hit=false` перед полностью рабочим маршрутом).
+        val routeOpensScreen = routeScript.firstOrNull()?.intent != null
+        if (isAppStep && mergedDrillPath.isNotEmpty() && !routeOpensScreen) {
             val foreground = resolvedPkg != null &&
                 activePackage().equals(resolvedPkg, ignoreCase = true)
             awaitAppScreenReady(step, mergedDrillPath, APP_SCREEN_WAIT_MS, startLevel, foreground)
@@ -5046,6 +5057,27 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return found != null
     }
 
+    /**
+     * Опрос пустой кликабельной иконки заголовка с возвратом узла: одна попытка с
+     * ограниченным окном (бюджет шага не выжигаем), узел не найден — null.
+     */
+    private suspend fun awaitBlankHeaderIcon(
+        step: SimpleSteps.Step,
+        timeoutMs: Long
+    ): AccessibilityNodeInfo? {
+        val ready = waitFor(
+            stepId = step.id,
+            reason = WAIT_UI_SETTLE,
+            timeoutMs = timeoutMs,
+            pollMs = WAIT_POLL_FAST_MS
+        ) { screenHasBlankHeaderIcon() }
+        if (!ready) return null
+        val fresh = service.rootInActiveWindow ?: return null
+        val found = findTopRightBlankNode(fresh)
+        recycleNode(fresh)
+        return found
+    }
+
     private fun findTopRightBlankNode(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         val toolbar = findToolbarNode(root) ?: return null
         val tb = Rect()
@@ -5239,7 +5271,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
             val ok = when {
                 item.intent != null -> startRouteIntent(
                     item.intent,
-                    clearTop = isTargetAppForeground(item.intent)
+                    clearTop = isTargetAppForeground(item.intent),
+                    pkg = step.launchPackage
                 )
                 item.scroll -> {
                     scrollDownOnce()
@@ -5362,6 +5395,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     StepDiagnostics.note(
                         step.id, "ROUTE", "tap_screen_unconfirmed step=${index + 1}"
                     )
+                    // Тап мог быть проглочен всплывшим промо (прогон rmuyl4opt: диалог
+                    // обновления GetApps встал ровно на тап вкладки) — закрываем стену ДО
+                    // повторного тапа, иначе второй тап снова уходит в пустоту.
+                    handleConsentWalls(step)
                     val retapped = when {
                         item.tapText != null -> tapRouteNode(step, text = item.tapText)
                         item.tapDesc != null -> tapRouteNode(step, desc = item.tapDesc)
@@ -5482,7 +5519,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
         AppLog.w(TAG, "route ${step.id}: screen unconfirmed — relaunch")
         StepDiagnostics.note(step.id, "ROUTE", "screen_unconfirmed")
-        relaunchRouteIntent(item)
+        relaunchRouteIntent(item, step.launchPackage)
         if (awaitRouteScreen(step, item, ROUTE_SCREEN_RETRY_WAIT_MS)) {
             AppLog.i(TAG, "route ${step.id}: screen confirmed after relaunch")
             return true
@@ -5500,10 +5537,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * Один relaunch intent-шага: сначала та же компонента, затем запасное действие
      * (`RouteItem.fallbackIntent`, вердикт probe OK). Оба исхода логируются.
      */
-    private fun relaunchRouteIntent(item: SemanticCatalog.RouteItem): Boolean {
-        val byComponent = item.intent?.let { startRouteIntent(it, clearTask = true) } == true
+    private fun relaunchRouteIntent(item: SemanticCatalog.RouteItem, pkg: String?): Boolean {
+        val byComponent = item.intent?.let { startRouteIntent(it, clearTask = true, pkg = pkg) } == true
         val action = item.fallbackIntent
-        val byAction = action?.let { startRouteIntent(it, clearTask = true) } == true
+        val byAction = action?.let { startRouteIntent(it, clearTask = true, pkg = pkg) } == true
         AppLog.i(
             TAG,
             "route relaunch: component='${item.intent}' ok=$byComponent " +
@@ -5540,6 +5577,29 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     /**
+     * Интент сценария: `pkg/Class` (явная компонента), `scheme://authority` (deep-link
+     * приложения, напр. `mimarket://settings` — проба OK: экран настроек GetApps без вкладки
+     * и шестерёнки) либо action.
+     *
+     * URI-ветке [Intent.FLAG_ACTIVITY_NEW_TASK] ставится сразу здесь: deep-link стартует из
+     * фонового сервиса, без флага система отказала бы в старте. internal — для тестов.
+     */
+    internal fun parseRouteIntent(spec: String, pkg: String?): Intent = when {
+        spec.contains("://") -> {
+            Intent(Intent.ACTION_VIEW, android.net.Uri.parse(spec)).apply {
+                if (!pkg.isNullOrBlank()) setPackage(pkg)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        }
+        spec.contains('/') -> {
+            val p = spec.substringBefore('/')
+            val cls = spec.substringAfter('/').let { if (it.startsWith(".")) p + it else it }
+            Intent().setComponent(android.content.ComponentName(p, cls))
+        }
+        else -> Intent(spec)
+    }
+
+    /**
      * Интент сценария: `pkg/Class` (явная компонента) либо action.
      *
      * [clearTop] добавляет `FLAG_ACTIVITY_CLEAR_TOP` — нужно, когда приложение шага
@@ -5551,15 +5611,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
     private fun startRouteIntent(
         spec: String,
         clearTop: Boolean = false,
-        clearTask: Boolean = false
+        clearTask: Boolean = false,
+        pkg: String? = null
     ): Boolean = try {
-        val intent = if (spec.contains('/')) {
-            val pkg = spec.substringBefore('/')
-            val cls = spec.substringAfter('/').let { if (it.startsWith(".")) pkg + it else it }
-            Intent().setComponent(android.content.ComponentName(pkg, cls))
-        } else {
-            Intent(spec)
-        }
+        val intent = parseRouteIntent(spec, pkg)
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         if (clearTop) intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         // CLEAR_TASK — только для relaunch route-интента (сброс промо-мастера свежего
@@ -5607,46 +5662,47 @@ class SimpleRunner(private val service: AdbEnablerService) {
             val root = service.rootInActiveWindow ?: return false
             if (topRightBlank) {
                 recycleNode(root)
-                // Шапка WebView GetApps рисуется не мгновенно (прогон rmux1uiii: через 1.5 с
-                // после тапа вкладки иконок ещё не было) — ждём появления самой правой
-                // пустой кликабельной иконки заголовка опросом, а не одним снимком.
-                val ready = waitFor(
+                // Шапка WebView рисуется не мгновенно (прогон rmux1uiii: через 1.5 с после
+                // тапа вкладки иконок ещё не было) — ждём появления самой правой пустой
+                // кликабельной иконки заголовка опросом, а не одним снимком.
+                // Бюджет: одна полная попытка + одна короткая после закрытия промо-стены.
+                // Прежние 3 попытки с прокрутками съедали ~12 с и валили шаг в timeout без
+                // единой строки в логе (прогон rmuyl4opt: getapps, экран был чужой — главная).
+                var icon = awaitBlankHeaderIcon(step, ROUTE_ENTRY_READY_WAIT_MS)
+                if (icon == null && handleConsentWalls(step) > 0) {
+                    AppLog.i(TAG, "route ${step.id}: blank header icon — retry after consent wall")
+                    icon = awaitBlankHeaderIcon(step, ROUTE_TAP_RETRY_WAIT_MS * 3)
+                }
+                if (icon == null) {
+                    // Честный провал пункта маршрута вместо молчаливого выгорания бюджета:
+                    // пункт не найден — вызывающий уходит в авто-навигацию.
+                    AppLog.w(
+                        TAG,
+                        "route ${step.id}: top_right_blank not_found — fallback to auto-nav"
+                    )
+                    StepDiagnostics.note(step.id, "ROUTE", "top_right_blank not_found")
+                    return false
+                }
+                val rect = Rect().also { icon.getBoundsInScreen(it) }
+                val before = currentScreenText()
+                val tapped = tapNode(icon)
+                recycleNode(icon)
+                if (!tapped) return false
+                // WebView-иконка принимает ACTION_CLICK, но перехода не делает:
+                // экран не сменился — повторяем тап ЖЕСТОМ по центру тех же bounds
+                // (скриншот прогона rmux0jpyi: профиль GetApps остался на месте).
+                val changed = waitFor(
                     stepId = step.id,
                     reason = WAIT_UI_SETTLE,
-                    timeoutMs = ROUTE_ENTRY_READY_WAIT_MS,
+                    timeoutMs = ROUTE_TAP_RETRY_WAIT_MS * 2,
                     pollMs = WAIT_POLL_FAST_MS
-                ) { screenHasBlankHeaderIcon() }
-                val icon = if (ready) {
-                    val fresh = service.rootInActiveWindow
-                    val found = fresh?.let { findTopRightBlankNode(it) }
-                    if (fresh != null) recycleNode(fresh)
-                    found
-                } else {
-                    null
+                ) { currentScreenText() != before }
+                if (changed) return true
+                val viaGesture = withOverlayPassthrough {
+                    tapAtRaw(rect.centerX(), rect.centerY())
                 }
-                if (icon != null) {
-                    val rect = Rect().also { icon.getBoundsInScreen(it) }
-                    val before = currentScreenText()
-                    val tapped = tapNode(icon)
-                    recycleNode(icon)
-                    if (!tapped) return false
-                    // WebView-иконка принимает ACTION_CLICK, но перехода не делает:
-                    // экран не сменился — повторяем тап ЖЕСТОМ по центру тех же bounds
-                    // (скриншот прогона rmux0jpyi: профиль GetApps остался на месте).
-                    val changed = waitFor(
-                        stepId = step.id,
-                        reason = WAIT_UI_SETTLE,
-                        timeoutMs = ROUTE_TAP_RETRY_WAIT_MS * 2,
-                        pollMs = WAIT_POLL_FAST_MS
-                    ) { currentScreenText() != before }
-                    if (changed) return true
-                    val viaGesture = withOverlayPassthrough {
-                        tapAtRaw(rect.centerX(), rect.centerY())
-                    }
-                    AppLog.i(TAG, "route ${step.id}: blank icon gesture retry=$viaGesture")
-                    return viaGesture
-                }
-                if (attempt < 2) delay(ROUTE_TAP_RETRY_WAIT_MS)
+                AppLog.i(TAG, "route ${step.id}: blank icon gesture retry=$viaGesture")
+                return viaGesture
             }
             val nodes = NodeTree.findAllInTree(root, predicate = { node ->
                 val matches = when {
