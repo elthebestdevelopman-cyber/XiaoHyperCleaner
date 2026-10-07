@@ -207,6 +207,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
          */
         private const val HOME_PAGE_SWEEP_MAX = 4
 
+        /** Нижний отступ рабочего окна перед тапом тумблера (жест-зона навбара). */
+        private const val WINDOW_TAP_BOTTOM_MARGIN_PX = 96
+
         /** Жест и пауза перелистывания страницы рабочего стола. */
         private const val HOME_PAGE_SWIPE_MS = 260L
         private const val HOME_PAGE_SWIPE_SETTLE_MS = 350L
@@ -218,6 +221,21 @@ class SimpleRunner(private val service: AdbEnablerService) {
         private val LAUNCHER_PACKAGES = listOf(
             "com.miui.home", "com.mi.android.globallauncher", "com.miui.launcher", "com.mi.global.home"
         )
+
+        /**
+         * Системные поверхности, законно перекрывающие экран шага: диалоги разрешений и панель
+         * systemui. Guard чужого окна (P4) считает их своими — иначе шаг останавливался бы на
+         * системном диалоге.
+         */
+        private val SYSTEM_SURFACE_PACKAGES = listOf(
+            "com.android.permissioncontroller",
+            "com.google.android.permissioncontroller",
+            "com.lbe.security.miui",
+            "com.android.systemui"
+        )
+
+        /** Причина остановки навигации на чужом окне: дрил не тапает чужое приложение (P4). */
+        internal const val FOREIGN_WINDOW = "foreign_window"
 
         /** Префикс шагов управления уведомлениями приложений. */
         private const val NOTIF_PREFIX = "notif_"
@@ -551,6 +569,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
     // internal — для тестируемости (SimpleRunnerVerifyTest).
     internal var lastReadSwitchState: Boolean? = null
 
+    /**
+     * Пакеты, окна которых для drilling ТЕКУЩЕГО шага свои: launchPackage, resolvedPkg,
+     * пакеты route-подсказки и пакет, на котором подтвердился вход. Всё остальное — чужое
+     * окно, по нему дрил не тапает и не скроллит (P4, прогон rmuyfjtvk: промо-ссылка свежей
+     * Mi Music открыла Google Play, и автоматизация продолжила тапать магазин).
+     */
+    private val entryPackages = HashSet<String>(4)
+
     /** Остаток бюджета шага (Long.MAX_VALUE, если дедлайн не задан — unit-тесты). */
     private fun remainingBudgetMs(): Long =
         if (stepDeadlineMs <= 0L) Long.MAX_VALUE else stepDeadlineMs - System.currentTimeMillis()
@@ -731,6 +757,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         currentStepId = step.id
         lastFailureReason = null
         lastReadSwitchState = null
+        entryPackages.clear()
         romProfile = profile
         // Семантика шага (keywords/markers/consent) должна быть загружена.
         SemanticCatalog.ensureLoaded(service)
@@ -905,10 +932,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // тумблер ищет общий хвост шага (гейт уверенности + checked_before + verify);
         // не дошёл — шаг продолжает авто-навигацией (intents → drill → сканер):
         // вариантные пути обязаны оставаться подсказками-фолбэками (master-task v2).
+        // Guard чужого окна (P4): набор пакетов, окна которых для этого шага свои.
+        // Пополняется по ходу шага (launchPackage, resolvedPkg, пакеты route-подсказки,
+        // пакет подтверждённого входа); всё остальное — чужое окно.
+        entryPackages.clear()
+        step.launchPackage?.let { entryPackages.add(it) }
         val routeScript = SemanticCatalog.route(step.id)
         if (routeScript.isNotEmpty()) {
             AppLog.i(TAG, "route script for ${step.id}: ${routeScript.size} шаг(ов) — подсказка, не замена навигации")
             StepDiagnostics.note(step.id, "ROUTE", "script=${routeScript.size}")
+            routeScript.forEach { item -> item.confirmPackage.forEach { entryPackages.add(it) } }
             if (executeRouteScript(step, routeScript)) {
                 runPreMainExtras(step)
                 return findAndToggleSwitch(step)
@@ -943,6 +976,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 ?: AdaptiveCatalog.packagesForStep(service, step.id, candidatePackages(step), profile)
                     .firstOrNull { isInstalled(it) }
         }
+        resolvedPkg?.let { entryPackages.add(it) }
 
         // Для app-шагов фактический целевой пакет важнее статического launchPackage:
         // иначе GetApps/App Vault уходят на несуществующие market/personalassistant.
@@ -1036,11 +1070,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
                         entryGatePackage(intent)
                     )
                 ) {
+                    // P4: пакет подтверждённого входа — своё окно для этого шага.
+                    activePackage()?.let { entryPackages.add(it) }
                     break
                 } else if (onTargetScreen(step)) {
                     // S6: цель уже на экране (строки + маркеры шага совпали) — следующий
                     // интент не нужен, drill тоже (sys_recommendations стоял на цели).
                     AppLog.i(TAG, "intent unconfirmed but target screen already reached: ${step.id}")
+                    activePackage()?.let { entryPackages.add(it) }
                     break
                 } else {
                     AppLog.w(TAG, "Экран не подтверждён после интента, пробуем следующий")
@@ -1117,7 +1154,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
         muteForStepIfNeeded(step)
         // Закрытие видеорекламы при запуске приложения (Mi Music, GetApps и др.).
         // Реклама блокирует доступ к настройкам — ищем крестик или кнопку "Пропустить".
-        if (step.launchPackage != null) {
+        // P4: на чужом окне крестик не ищем — тап ушёл бы в чужое приложение.
+        if (step.launchPackage != null && !isForeignWindowFor(step)) {
             ConsentWallHandler.dismissVideoAdsUntilSettled(service, step.id)
         }
         // Единая точка входа для системных диалогов (welcome/permission/dismiss, Аддендум B)
@@ -1174,6 +1212,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
             // окна равен пакету первого явного интента шага.
             val intendedPkg = intents.firstOrNull { it.component != null }?.component?.packageName
             val inIntendedApp = intendedPkg != null && activePackage() == intendedPkg
+            // P4: вход шага мог подтвердиться в пакете интента или в фактическом окне —
+            // запоминаем оба, чтобы guard чужого окна не остановил законную навигацию.
+            intendedPkg?.let { entryPackages.add(it) }
+            if (inIntendedApp) activePackage()?.let { entryPackages.add(it) }
             val inSettings = activePackage() == SETTINGS_PACKAGE || isSettingsRoot()
             val targetRows = verifyTexts + SemanticCatalog.screenMarkers(step.id)
             if (inSettings || inIntendedApp || screenHasAny(targetRows)) {
@@ -1209,10 +1251,39 @@ class SimpleRunner(private val service: AdbEnablerService) {
             if (step.preDrillWaitMs > 0) delay(step.preDrillWaitMs)
             // Окно «цель дорисовалась» — не более одного раза на шаг (см. ниже).
             var targetGraceSpent = false
+            // Возврат в приложение после ухода в чужое окно — тоже один раз на шаг.
+            var foreignWindowRecovered = false
             for (levelIndex in startLevel until mergedDrillPath.size) {
                 if (cancelled) return Result(false, "cancelled")
                 // Навигационное действие — только при целостном оверлее.
                 if (!awaitOverlayReadyOrPause()) return Result(false, "overlay_lost")
+                // P4: на чужом окне не тапаем и не скроллим — один возврат в приложение шага,
+                // не помогло — честный foreign_window (инвариант: робот взаимодействует
+                // только с приложениями шага).
+                if (isForeignWindowFor(step)) {
+                    val recovered = if (!foreignWindowRecovered) {
+                        foreignWindowRecovered = true
+                        AppLog.w(
+                            TAG,
+                            "drill: foreign window for ${step.id} fg=${activePackage() ?: "-"} — relaunch entry"
+                        )
+                        StepDiagnostics.note(
+                            step.id, "DRILL", "foreign_window_relaunch fg=${activePackage() ?: "-"}"
+                        )
+                        relaunchAppEntry(step)
+                    } else {
+                        false
+                    }
+                    if (!recovered) {
+                        AppLog.w(
+                            TAG,
+                            "step ${step.id}: чужое окно — навигация остановлена (foreign_window)"
+                        )
+                        StepDiagnostics.note(step.id, "DRILL", "foreign_window fg=${activePackage() ?: "-"}")
+                        drillFailure = FOREIGN_WINDOW
+                        break
+                    }
+                }
                 // Цель могла открыться, пока бурение ещё шло: welcome-стена первого
                 // запуска приложения уходит сама, а целевой экран дорисовывается позже
                 // (прогон rmuybnsfu, carousel) — бурить уже открытый экран вредно.
@@ -1230,7 +1301,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
                         var progressed = handleConsentWalls(step) > 0
                         // MIUI-interstitial (Темы/GetApps: 2ГИС) кнопки закрытия в дереве
                         // не имеет — классификатор диалогов его не ведёт, закрываем BACK.
-                        if (!progressed) {
+                        if (!progressed && !isForeignWindowFor(step)) {
                             progressed = ConsentWallHandler.dismissVideoAdsUntilSettled(
                                 service, step.id
                             ) > 0
@@ -1306,7 +1377,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
 
         val result = if (drillFailure != null) {
-            if (isForeignScreenForSettingsStep(step, resolvedPkg)) {
+            if (drillFailure == FOREIGN_WINDOW) {
+                // P4: дрил остановлен на чужом окне без единого действия по чужому приложению.
+                AppLog.w(TAG, "step ${step.id}: чужое окно — шаг остановлен (foreign_window)")
+                StepDiagnostics.note(
+                    step.id, "APPLICABILITY", "foreign_window fg=${activePackage() ?: "-"}"
+                )
+                Result(false, FOREIGN_WINDOW)
+            } else if (isForeignScreenForSettingsStep(step, resolvedPkg)) {
                 AppLog.w(TAG, "step ${step.id}: экран другого приложения — шаг неприменим")
                 StepDiagnostics.note(
                     step.id, "APPLICABILITY",
@@ -1338,6 +1416,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 )
                 Result(false, NOT_APPLICABLE)
             } else {
+                // Транзиентное окно-тост (1–2 с) не решает судьбу шага: ждём возврата
+                // нормального окна (прогон rmuyfjtvk: снимок filemanager поймал тост
+                // «Нажмите, чтобы переключиться между внутренней памятью и SD-картой»).
+                if (isTinyActiveWindow()) {
+                    waitFor(
+                        stepId = step.id,
+                        reason = WAIT_UI_SETTLE,
+                        timeoutMs = UI_SETTLE_DELAY_MS,
+                        pollMs = WAIT_POLL_FAST_MS
+                    ) { !isTinyActiveWindow() }
+                }
                 Result(false, drillFailure)
             }
         } else {
@@ -1517,6 +1606,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
         levelTexts: List<String>,
         path: List<List<String>> = emptyList()
     ): Boolean {
+        // P4: чужое окно — ни одного тапа и ни одной прокрутки по нему. Проверка здесь, а не
+        // только в цикле дрила: drillIntoLevel зовут и повторные попытки уровня.
+        if (isForeignWindowFor(step)) {
+            AppLog.w(
+                TAG,
+                "drill: уровень '${levelTexts.firstOrNull()}' пропущен — чужое окно " +
+                    "'${activePackage() ?: "-"}' для ${step.id}"
+            )
+            return false
+        }
         val root = service.rootInActiveWindow ?: return false
         val screenText = collectAllText(root)
         recycleNode(root)
@@ -1708,14 +1807,22 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return now.isNotBlank() && now != before
     }
 
-    /** Узел целиком внутри рабочего окна: тап по краю/под навбаром эффекта не даёт. */
+    /**
+     * Узел целиком внутри рабочего окна: тап по краю/под навбаром эффекта не даёт.
+     * Нижний отступ [WINDOW_TAP_BOTTOM_MARGIN_PX]: строка у самой нижней кромки окна
+     * (Mi Видео: тумблер «Онлайн-рекомендации» с видимой высотой 27 px из ~100) тапается
+     * в область жестов, и переключение не применяется (прогон rmuyfjtvk).
+     */
     private fun isFullyVisible(node: AccessibilityNodeInfo): Boolean {
         val rect = Rect().also { node.getBoundsInScreen(it) }
         if (rect.width() <= 0 || rect.height() <= 0) return false
         val root = service.rootInActiveWindow ?: return false
         val window = Rect().also { root.getBoundsInScreen(it) }
         recycleNode(root)
-        return window.width() > 0 && window.height() > 0 && window.contains(rect)
+        if (window.width() <= 0 || window.height() <= 0) return false
+        return rect.left >= window.left && rect.right <= window.right &&
+            rect.top >= window.top &&
+            rect.bottom <= window.bottom - WINDOW_TAP_BOTTOM_MARGIN_PX
     }
 
     /**
@@ -2531,6 +2638,65 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * Возвращаем `not_applicable` (skip), а не FAIL — отчёт не должен врать
      * (home_suggestions/appvault_* на POCO Launcher, прогон rmu8qhjhi).
      */
+    /**
+     * Активное окно — транзиентное (тост/мини-попап): его площадь на порядок меньше самого
+     * крупного окна. Решения по маркерам/применимости на таком окне недостоверны.
+     * Окна из [android.accessibilityservice.AccessibilityService.getWindows] НЕ рециклим:
+     * они принадлежат сервису, а чтение ограничено bounds.
+     */
+    internal fun isTinyActiveWindow(): Boolean {
+        val active = service.rootInActiveWindow ?: return false
+        val activeRect = Rect().also { active.getBoundsInScreen(it) }
+        recycleNode(active)
+        val activeArea = activeRect.width().toLong() * activeRect.height()
+        if (activeArea <= 0L) return false
+        val windows = runCatching { service.windows }.getOrNull() ?: return false
+        var maxArea = 0L
+        for (window in windows) {
+            val root = window.root ?: continue
+            val r = Rect().also { root.getBoundsInScreen(it) }
+            val area = r.width().toLong() * r.height()
+            if (area > maxArea) maxArea = area
+        }
+        return maxArea > 0L && activeArea * 4L < maxArea
+    }
+
+    /**
+     * Окно drilling принадлежит ЧУЖОМУ приложению: шаг не тапает и не скроллит его
+     * (прогон rmuyfjtvk: промо-ссылка свежей Mi Music открыла Google Play, и дрил продолжал
+     * тапать и скроллить магазин). Свои окна — пакеты, зафиксированные за шагом
+     * ([entryPackages]: launchPackage, resolvedPkg, пакеты route-подсказки, пакет
+     * подтверждённого входа), плюс Настройки, лаунчеры MIUI, системные поверхности и
+     * собственное окно. Пакет не прочитался — окно чужим не считается: иначе шаг падал бы
+     * на мигающем дереве.
+     */
+    // internal — для тестируемости (SimpleRunnerRouteTest).
+    internal fun isForeignWindowFor(step: SimpleSteps.Step): Boolean {
+        val fg = activePackage() ?: return false
+        if (entryPackages.any { it.equals(fg, ignoreCase = true) }) return false
+        step.launchPackage?.let { if (it.equals(fg, ignoreCase = true)) return false }
+        if (SETTINGS_PACKAGE.equals(fg, ignoreCase = true)) return false
+        if (LAUNCHER_PACKAGES.any { it.equals(fg, ignoreCase = true) }) return false
+        if (SYSTEM_SURFACE_PACKAGES.any { it.equals(fg, ignoreCase = true) }) return false
+        val own = runCatching { service.packageName }.getOrNull()
+        if (own != null && own.equals(fg, ignoreCase = true)) return false
+        return true
+    }
+
+    /**
+     * Один возврат в приложение шага после ухода в чужое окно (P4). Без CLEAR_TASK:
+     * состояние приложения между шагами не теряем, задача просто выводится вперёд.
+     */
+    private suspend fun relaunchAppEntry(step: SimpleSteps.Step): Boolean {
+        val pkg = step.launchPackage ?: return false
+        val launch = runCatching { service.packageManager.getLaunchIntentForPackage(pkg) }
+            .getOrNull() ?: return false
+        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val started = runCatching { service.startActivity(launch) }.isSuccess
+        if (!started) return false
+        return awaitForegroundApp(step.id, pkg, APP_SCREEN_WAIT_MS)
+    }
+
     internal fun isForeignScreenForSettingsStep(
         step: SimpleSteps.Step,
         resolvedPkg: String?
@@ -2955,8 +3121,32 @@ class SimpleRunner(private val service: AdbEnablerService) {
             ConfirmOutcome.ABSENT -> return null
             ConfirmOutcome.CLOSED -> Unit
         }
-        AppLog.i(TAG, "step ${step.id}: own confirm dialog confirmed — step action done")
-        StepDiagnostics.note(step.id, "VERDICT", "toggled via_dialog=1 checked_after=dialog_closed")
+        // Фактическое чтение вместо предположения: «диалог закрылся» ≠ «настройка применена».
+        // Разведка 08.10 на устройстве: personalized_service_slide остаётся в дереве и сразу
+        // после «Отключить» читается checked=false. Узел исчез — MIUI убирает тумблер у
+        // выключенной услуги: вердикт dialog_closed_unverified (не фейл — иначе шаг падал бы
+        // там, где сейчас проходит). Тумблер виден и НЕ в целевом состоянии — честный провал.
+        val actual = readSwitchState(step)
+        when {
+            actual == null -> {
+                AppLog.i(TAG, "step ${step.id}: диалог закрыт, узел тумблера не читается — unverified")
+                StepDiagnostics.note(
+                    step.id, "VERDICT", "toggled via_dialog=1 checked_after=dialog_closed_unverified"
+                )
+            }
+            actual == step.targetChecked -> {
+                AppLog.i(TAG, "step ${step.id}: own confirm dialog confirmed — step action done")
+                StepDiagnostics.note(step.id, "VERDICT", "toggled via_dialog=1 checked_after=$actual")
+            }
+            else -> {
+                AppLog.w(
+                    TAG,
+                    "step ${step.id}: диалог подтверждения не привёл тумблер к цели (actual=$actual)"
+                )
+                StepDiagnostics.note(step.id, "VERDICT", "dialog_wrong_state actual=$actual")
+                return Result(false, "verify_failed")
+            }
+        }
         return Result(true, "toggled")
     }
 
@@ -5076,6 +5266,39 @@ class SimpleRunner(private val service: AdbEnablerService) {
             // чужом экране Настроек). Не подтвердилось после одного relaunch — маршрут
             // отдаёт false: тумблер на чужом экране не ищем, шаг идёт авто-навигацией.
             if (item.intent != null && !confirmRouteIntentScreen(step, item)) return false
+            // P5: тап-шаг подсказки тоже обязан подтвердить экран, если маркеры заданы:
+            // «Настройки» Проводника тапнулись, экран не открылся, и следующий уровень
+            // маршрута искали на главном экране (прогон rmuyfjtvk, filemanager).
+            // Не подтвердилось — один повтор тапа; иначе маршрут отдаёт false и шаг
+            // уходит в авто-навигацию (подсказка, а не замена навигации).
+            if (item.intent == null && item.confirmMarkers.isNotEmpty()) {
+                if (!awaitRouteScreen(step, item)) {
+                    AppLog.w(
+                        TAG,
+                        "route ${step.id}: ${index + 1}/${route.size} '$what' screen unconfirmed — retry tap"
+                    )
+                    StepDiagnostics.note(
+                        step.id, "ROUTE", "tap_screen_unconfirmed step=${index + 1}"
+                    )
+                    val retapped = when {
+                        item.tapText != null -> tapRouteNode(step, text = item.tapText)
+                        item.tapDesc != null -> tapRouteNode(step, desc = item.tapDesc)
+                        item.tapId != null -> tapRouteNode(step, id = item.tapId, idIndex = item.tapIdIndex)
+                        item.tapTopRightBlank -> tapRouteNode(step, topRightBlank = true)
+                        else -> false
+                    }
+                    if (!retapped || !awaitRouteScreen(step, item)) {
+                        AppLog.w(
+                            TAG,
+                            "route ${step.id}: ${index + 1}/${route.size} '$what' — fallback to auto-nav"
+                        )
+                        StepDiagnostics.note(
+                            step.id, "ROUTE", "tap_screen_unconfirmed_final step=${index + 1}"
+                        )
+                        return false
+                    }
+                }
+            }
         }
         return true
     }
@@ -5092,7 +5315,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
         item: SemanticCatalog.RouteItem,
         timeoutMs: Long = ROUTE_SCREEN_WAIT_MS
     ): Boolean {
-        val markers = item.confirmMarkers.ifEmpty { SemanticCatalog.screenMarkers(step.id) }
+        // Пакет-владелец задан, а маркеров у шага маршрута нет (маршрут §76: intent → домашний
+        // экран): подтверждаем ПАКЕТОМ, без подстановки маркеров ЦЕЛИ шага — иначе домашний
+        // экран магазина «не подтверждался» маркерами «Конфиденциальность» и маршрут умирал
+        // (прогоны rmuybnsfu/rmuyfjtvk, getapps). Маркеры цели подставляем только когда пакет
+        // не задан — прежнее поведение шагов без явного владельца экрана.
+        val markers = item.confirmMarkers.ifEmpty {
+            if (item.confirmPackage.isNotEmpty()) emptyList() else SemanticCatalog.screenMarkers(step.id)
+        }
         val packages = item.confirmPackage
         val readyIds = SemanticCatalog.entryReadyIds(step.id)
         if (markers.isEmpty() && packages.isEmpty()) return true
@@ -5189,9 +5419,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * (`RouteItem.fallbackIntent`, вердикт probe OK). Оба исхода логируются.
      */
     private fun relaunchRouteIntent(item: SemanticCatalog.RouteItem): Boolean {
-        val byComponent = item.intent?.let { startRouteIntent(it) } == true
+        val byComponent = item.intent?.let { startRouteIntent(it, clearTask = true) } == true
         val action = item.fallbackIntent
-        val byAction = action?.let { startRouteIntent(it) } == true
+        val byAction = action?.let { startRouteIntent(it, clearTask = true) } == true
         AppLog.i(
             TAG,
             "route relaunch: component='${item.intent}' ok=$byComponent " +
@@ -5236,7 +5466,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * (`CardSettingsActivity`) — подтверждение маркеров не проходит, `appvault_about`
      * уходил `not_applicable` (прогон rmusp726z). CLEAR_TOP закрывает экраны над целью.
      */
-    private fun startRouteIntent(spec: String, clearTop: Boolean = false): Boolean = try {
+    private fun startRouteIntent(
+        spec: String,
+        clearTop: Boolean = false,
+        clearTask: Boolean = false
+    ): Boolean = try {
         val intent = if (spec.contains('/')) {
             val pkg = spec.substringBefore('/')
             val cls = spec.substringAfter('/').let { if (it.startsWith(".")) pkg + it else it }
@@ -5246,6 +5480,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         if (clearTop) intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        // CLEAR_TASK — только для relaunch route-интента (сброс промо-мастера свежего
+        // приложения), не для интентов шага: состояние приложения между шагами не теряем.
+        if (clearTask) intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
         service.startActivity(intent)
         true
     } catch (e: Exception) {

@@ -2462,7 +2462,15 @@
             "hi": ["ऑनलाइन सुझाव", "व्यक्तिगत सुझाव"],
             "pt": ["Recomendações online", "Recomendações pessoais"],
             "id": ["Rekomendasi online", "Rekomendasi pribadi"]
-          }
+          },
+          "extraTargets": [
+            {
+              "back": 0,
+              "drillPath": [],
+              "itemTexts": { "ru": ["Персональные рекомендации"], "en": ["Personal recommendations"] },
+              "control": "toggle"
+            }
+          ]
         },
         {
           "id": "hyperos1_3",
@@ -2481,7 +2489,15 @@
             "hi": ["ऑनलाइन सुझाव"],
             "pt": ["Recomendações online"],
             "id": ["Rekomendasi online"]
-          }
+          },
+          "extraTargets": [
+            {
+              "back": 0,
+              "drillPath": [],
+              "itemTexts": { "ru": ["Персональные рекомендации"], "en": ["Personal recommendations"] },
+              "control": "toggle"
+            }
+          ]
         }
       ],
       "title": {
@@ -2898,23 +2914,18 @@
           "control": "toggle",
           "route": [
             { "intent": "com.mi.android.globalminusscreen/com.mi.android.globalminusscreen.tab.TabSettingActivity", "waitMs": 2500, "confirmPackage": ["com.mi.android.globalminusscreen"], "confirmMarkers": ["Лента виджетов", "Рекомендуемое"] },
-            { "tapId": "ll_about_appvault", "fallbackDesc": "О ленте виджетов", "waitMs": 1500 }
+            { "tapId": "rl_home_tab", "fallbackDesc": "Рекомендуемое", "waitMs": 2000, "confirmMarkers": ["Рекомендации приложений", "Уже добавлено"] }
           ],
           "drillPath": [
-            ["О ленте виджетов", "About App Vault"]
+            ["Рекомендуемое", "Recommended"]
           ],
           "screenMarkers": {
-            "ru": ["Персонализированные услуги", "Условия использования", "Политика конфиденциальности"],
-            "en": ["Personalized services", "Terms of use", "Privacy policy"]
+            "ru": ["Рекомендации приложений", "Уже добавлено"],
+            "en": ["App recommendations", "Already added"]
           },
           "itemTexts": {
-            "ru": ["Персонализированные услуги", "Предложения"],
-            "en": ["Personalized services", "Suggestions"],
-            "es": ["Servicios personalizados"],
-            "zh": ["个性化服务"],
-            "hi": ["व्यक्तिगत सेवाएँ"],
-            "pt": ["Serviços personalizados"],
-            "id": ["Layanan yang dipersonalisasi"]
+            "ru": ["Рекомендации приложений"],
+            "en": ["App recommendations"]
           }
         },
         {
@@ -2996,7 +3007,7 @@
           "fallback": true,
           "route": [
             { "intent": "com.mi.android.globalminusscreen/com.mi.android.globalminusscreen.tab.TabSettingActivity", "waitMs": 2500, "confirmPackage": ["com.mi.android.globalminusscreen"], "confirmMarkers": ["Лента виджетов", "О ленте виджетов"] },
-            { "tapId": "ll_about_appvault", "fallbackDesc": "О ленте виджетов", "waitMs": 1500 }
+            { "tapId": "ll_about_appvault", "fallbackDesc": "О ленте виджетов", "waitMs": 1500, "confirmMarkers": ["Персонализированные услуги", "О ленте виджетов"] }
           ],
           "control": "toggle",
           "drillPath": [

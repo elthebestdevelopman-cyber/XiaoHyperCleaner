@@ -54,6 +54,8 @@ class SimpleRunnerRouteTest {
         // Оверлея в тестах нет: без этого гейт целостности окна вернёт false, и
         // маршрут «провалится» не по своей причине.
         runner.overlayGateRequired = false
+        // Прокрутка (swipeUp) читает displayMetrics сервиса.
+        Mockito.`when`(service.resources).thenReturn(RuntimeEnvironment.getApplication().resources)
     }
 
     @After
@@ -290,6 +292,93 @@ class SimpleRunnerRouteTest {
         assertTrue(
             "резерва нет — ожидания нет (skip окна, а не пустая трата бюджета)",
             runner.targetGraceBudgetMs(3_000L) <= 0L
+        )
+    }
+
+    @Test
+    fun `foreign window guard blocks third party apps during drill`() = runTest {
+        // Прогон rmuyfjtvk: промо-ссылка свежей Mi Music открыла Google Play, и дрил продолжил
+        // тапать и скроллить чужой магазин. Инвариант: робот взаимодействует только с
+        // приложениями шага (и системными поверхностями навигации).
+        val playerStep = step("music_sys").copy(launchPackage = "com.miui.player")
+
+        val vending = node(pkg = "com.android.vending", className = "android.widget.FrameLayout")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(vending)
+        assertTrue(
+            "чужое приложение (Play) — не окно шага",
+            runner.isForeignWindowFor(playerStep)
+        )
+
+        val own = node(pkg = "com.miui.player", className = "android.widget.FrameLayout")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(own)
+        assertFalse("пакет шага — своё окно", runner.isForeignWindowFor(playerStep))
+
+        val settings = node(pkg = "com.android.settings", className = "android.widget.FrameLayout")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(settings)
+        assertFalse(
+            "Настройки — законная поверхность (notif_*/settings-маршруты)",
+            runner.isForeignWindowFor(playerStep)
+        )
+
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(null)
+        assertFalse("окно не прочиталось — шаг не блокируем", runner.isForeignWindowFor(playerStep))
+    }
+
+    @Test
+    fun `drill bails out on a foreign window even when the level text is present`() = runTest {
+        val row = node(text = "Настройки", pkg = "com.android.vending", className = "android.widget.TextView")
+        val foreignRoot = node(pkg = "com.android.vending", children = arrayOf(row))
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(foreignRoot)
+        val playerStep = step("music_sys").copy(launchPackage = "com.miui.player")
+
+        assertFalse(
+            "уровень виден, но окно чужое — уровень не проходит (без тапов и прокруток)",
+            runner.drillIntoLevel(playerStep, 1, listOf("Настройки"), listOf(listOf("Настройки")))
+        )
+    }
+
+    @Test
+    fun `route intent with package and no markers confirms by package only`() = runTest {
+        // Прогоны rmuybnsfu/rmuyfjtvk: домашний экран магазина не подтверждался маркерами ЦЕЛИ
+        // шага («Конфиденциальность» живёт глубже по маршруту), и подсказка getapps умирала
+        // на 1/6. Подтверждение идёт пакетом-владельцем из каталога.
+        val homeRow = node(text = "РЕКОМЕНДУЕМЫЕ")
+        val home = node(
+            pkg = "com.xiaomi.mipicks",
+            className = "android.widget.FrameLayout",
+            children = arrayOf(homeRow)
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(home)
+        val item = SemanticCatalog.RouteItem(
+            intent = "com.xiaomi.mipicks/.DefaultAlias",
+            confirmPackage = listOf("com.xiaomi.mipicks")
+        )
+
+        assertTrue(
+            "пакет владельца подтверждает экран без подстановки маркеров цели",
+            runner.awaitRouteScreen(step("getapps"), item, 100L)
+        )
+    }
+
+    @Test
+    fun `tap route item with markers fails when the destination screen is absent`() = runTest {
+        // Прогон rmuyfjtvk (filemanager): «Настройки» тапнулись, экран не открылся, и следующий
+        // уровень маршрута искали на главном экране. Тап-шаг подсказки обязан подтвердиться.
+        val memRow = node(text = "Внутренняя память")
+        val explorerMain = node(
+            pkg = "com.mi.globalFileexplorer",
+            className = "android.widget.FrameLayout",
+            children = arrayOf(memRow)
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(explorerMain)
+        val item = SemanticCatalog.RouteItem(
+            tapId = "more_action_btn",
+            confirmMarkers = listOf("Информация")
+        )
+
+        assertFalse(
+            "экран «Информация» не открылся — подсказка отдаёт false в авто-навигацию",
+            runner.executeRouteScript(step("filemanager"), listOf(item))
         )
     }
 }

@@ -709,29 +709,31 @@ class SemanticCatalogTest {
             )
         )
 
-        // Снапшоты: after/diagnostic_snapshot_appvault_services_*.json (экран настроек Ленты с
-        // ll_about_appvault) + _quarantine/owner_recon/appvault_more.xml (тумблер
-        // personalized_service_slide на экране «О ленте виджетов»). Маршрут ведёт в настройки
-        // Ленты, затем по id ll_about_appvault — в «О ленте виджетов».
+        // §79 (разведка 08.10 на устройстве): у Ленты ДВА разных чекбокса —
+        // «Рекомендации приложений» (раздел «Рекомендуемое» → карточка;
+        // id shortcuts_app_suggest_slide_button, диалога нет) и «Персонализированные услуги»
+        // (экран «О ленте виджетов»; id personalized_service_slide, диалог «Отключить»).
+        // Шаги разведены: services → «Рекомендуемое», about → «О ленте виджетов».
+        // Снапшоты: diag-dumps/fresh/mivideo_settings_*_now.png (разведка),
+        // after/diagnostic_snapshot_appvault_services_*.json (диалог «Отключить»).
         val servicesRoute = SemanticCatalog.route("appvault_services")
         assertTrue(
             "вход в настройки Ленты — интент TabSettingActivity",
             servicesRoute.firstOrNull()?.intent?.contains("TabSettingActivity") == true
         )
         assertTrue(
-            "экран «О ленте виджетов» открывается по id ll_about_appvault",
-            servicesRoute.any { it.tapId == "ll_about_appvault" }
+            "экран «Рекомендуемое» открывается по id rl_home_tab",
+            servicesRoute.any { it.tapId == "rl_home_tab" }
+        )
+        assertTrue(
+            "тап-шаг подсказки подтверждается экраном карточек",
+            servicesRoute.any { it.confirmMarkers.contains("Рекомендации приложений") }
         )
         val servicesTexts = SemanticCatalog.itemTexts("appvault_services")
         assertTrue(
-            "цель — тумблер personalized_service_slide («Персонализированные услуги»): $servicesTexts",
-            servicesTexts.contains("Персонализированные услуги") ||
-                servicesTexts.contains("Personalized services")
-        )
-        val serviceTexts = SemanticCatalog.itemTexts("appvault_services")
-        assertTrue(
-            "цель — строка предложений, а не сортировка карточек: $serviceTexts",
-            serviceTexts.contains("Предложения") || serviceTexts.contains("Suggestions")
+            "цель — тумблер shortcuts_app_suggest_slide_button («Рекомендации приложений»): $servicesTexts",
+            servicesTexts.contains("Рекомендации приложений") ||
+                servicesTexts.contains("App recommendations")
         )
 
         val about = SemanticCatalog.route("appvault_about")
@@ -742,6 +744,21 @@ class SemanticCatalogTest {
         assertEquals(listOf("com.mi.android.globalminusscreen"), about.first().confirmPackage)
         assertEquals(listOf("Лента виджетов", "О ленте виджетов"), about.first().confirmMarkers)
         assertEquals("ll_about_appvault", about[1].tapId)
+        assertEquals(
+            listOf("Персонализированные услуги", "О ленте виджетов"),
+            about[1].confirmMarkers
+        )
+        val aboutConfirm = SemanticCatalog.confirmTexts("appvault_about")
+        assertTrue(
+            "диалог «Отключить» подтверждает именно отключение (проверено на устройстве): $aboutConfirm",
+            aboutConfirm.contains("Отключить") || aboutConfirm.contains("Turn off")
+        )
+        val aboutTexts = SemanticCatalog.itemTexts("appvault_about")
+        assertTrue(
+            "у about цель — «Персонализированные услуги»: $aboutTexts",
+            aboutTexts.contains("Персонализированные услуги") ||
+                aboutTexts.contains("Personalized services")
+        )
     }
 
     /**

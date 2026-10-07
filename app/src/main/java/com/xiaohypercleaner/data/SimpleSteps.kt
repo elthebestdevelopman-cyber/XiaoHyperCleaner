@@ -762,9 +762,9 @@ object SimpleSteps {
                 "Персонализированные услуги",
                 "Personalized services"
             ),
-            manualHintRu = "Лента виджетов → ⋮ → О ленте виджетов → " +
+            manualHintRu = "Лента виджетов → О ленте виджетов → " +
                     "выключите «Персонализированные услуги».",
-            manualHintEn = "App Vault → ⋮ → About → turn off Personalized services.",
+            manualHintEn = "App Vault → About → turn off Personalized services.",
             launchPackage = "com.mi.android.globalminusscreen",
             drillPath = listOf(
                 OVERFLOW,
@@ -800,9 +800,10 @@ object SimpleSteps {
                 "Реклама", "Ads", "Promotions",
                 "Рекомендации приложений", "App recommendations"
             ),
-            manualHintRu = "Лента виджетов → ⋮ → Управление службами → " +
-                    "выключите «Предложения».",
-            manualHintEn = "App Vault → ⋮ → Service management → turn off Suggestions.",
+            manualHintRu = "Лента виджетов → Рекомендуемое → выключите «Рекомендации " +
+                    "приложений» (в списке карточек раздела).",
+            manualHintEn = "App Vault → Recommended → turn off App recommendations " +
+                    "(in the section card list).",
             launchPackage = "com.mi.android.globalminusscreen",
             drillPath = listOf(
                 OVERFLOW,
