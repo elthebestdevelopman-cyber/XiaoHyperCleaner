@@ -6,7 +6,7 @@
 [![Android](https://img.shields.io/badge/Android-10%2B-brightgreen)](https://www.android.com/)
 [![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](https://www.gnu.org/licenses/gpl-3.0)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-success)](https://github.com/elthebestdevelopman-cyber/XiaoHyperCleaner/actions)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.4.10-purple)](https://kotlinlang.org/)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.4.20-purple)](https://kotlinlang.org/)
 
 <div align="center">
 
@@ -341,10 +341,10 @@ app/src/test/java/com/xiaohypercleaner/          # 38 сьютов, 320 тест
 
 | Компонент       | Версия                  |
 |-----------------|-------------------------|
-| **Gradle**      | 9.7.1                   |
-| **AGP**         | 9.4.0 (built-in Kotlin) |
-| **Kotlin**      | 2.4.10                  |
-| **Compose BOM** | 2026.08.00              |
+| **Gradle**      | 9.8.1                   |
+| **AGP**         | 9.4.1 (built-in Kotlin) |
+| **Kotlin**      | 2.4.20                  |
+| **Compose BOM** | 2026.09.00              |
 | **compileSdk**  | 37                      |
 | **targetSdk**   | 36                      |
 | **minSdk**      | 29                      |
