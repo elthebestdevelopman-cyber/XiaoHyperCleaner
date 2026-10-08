@@ -59,6 +59,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
     companion object {
         private const val TAG = "SimpleRunner"
 
+        /**
+         * Маркер снапшот-ключа дополнительной цели: `<stepId>#extra:<подпись строки>`.
+         * Главный тумблер хранится под своим `stepId`; откат разбирает ключи по этому
+         * маркеру и ищет строку ПО ПОДПИСИ (индекса в каталоге у строки нет).
+         */
+        internal const val EXTRA_KEY_MARKER = "#extra:"
+
         // ═══════════════════════════════════════════════════════════════
         // П.2: Адаптивные таймауты
         // ═══════════════════════════════════════════════════════════════
@@ -2500,6 +2507,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Цель может требовать включения, поэтому целевое состояние берём у цели,
         // а не у шага.
         val needed = checked != target.targetChecked
+        // R1: снапшот фактического состояния КАЖДОЙ тумбленной строки-цели. Без него
+        // откат не знает, возвращать ли зависимую строку (карусель гасит четыре
+        // подстроки, а снимок хранил только главный тумблер). Строка, уже стоящая в
+        // целевом состоянии, не пишется: откат её и не трогает.
+        if (needed) recordCheckedBefore(extraToggleKey(step.id, text), checked)
         if (!needed) {
             recycleNode(switch); recycleNode(root)
             AppLog.i(TAG, "extra target already_off step=${step.id} text='$text'")
@@ -6170,6 +6182,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
         runCatching { (service.applicationContext as? XiaoHyperApp)?.preferencesManager }
             .getOrNull()
     }
+
+    /**
+     * Ключ снапшота дополнительной цели: подпись строки, а не индекс — у одной цели
+     * бывает несколько строк (карусель: «Реклама на Экране блокировки» и три подстроки
+     * «Дополнительных настроек»), и откат обязан вернуть каждую свою.
+     */
+    internal fun extraToggleKey(stepId: String, itemText: String): String =
+        "$stepId$EXTRA_KEY_MARKER$itemText"
 
     /** Фиксирует фактическое состояние тумблера (checked_before) в снапшоте отката.
      *  Не блокирует шаг: запись неблокирующая (in-memory зеркало + фоновый persist). */

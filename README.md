@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 40 сьютов, 359 тестов (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 41 сьютов, 360 тестов (полная таблица ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 17 тестов
 │   ├── OptimizationEngineTest.kt # 15 тестов
@@ -388,7 +388,7 @@ app/src/test/java/com/xiaohypercleaner/          # 40 сьютов, 359 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (359 тестов, 40 сьютов)
+### Unit-тесты (360 тестов, 41 сьют)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -425,6 +425,7 @@ app/src/test/java/com/xiaohypercleaner/          # 40 сьютов, 359 тест
 | `SimpleRunnerOverlayGateTest` | 6      | Гейт целостности оверлея, сторож жестов ±500 мс    |
 | `SimpleRunnerRouteTest`       | 20     | Маршрут-подсказка: подтверждение экрана пакетом и маркерами |
 | `SimpleRunnerVerifyTest`      | 9      | Честный вердикт при исчезнувшей строке, открытом диалоге и опросе карусели |
+| `ReverseRollbackTest`         | 1      | Ключ снапшота доп. целей: разбор по `#extra:`, строка ищется по подписи |
 | `SimpleModeControllerOverlayTest` | 2  | Потеря разрешения оверлея останавливает прогон одним итогом |
 | `OverlayPermissionProbeTest`  | 3      | Разрешение оверлея по двум источникам (Settings + app-op) |
 | `ScanOrchestratorTest`        | 4      | Планирование навигации, кэш                        |
