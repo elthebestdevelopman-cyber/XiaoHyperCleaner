@@ -295,17 +295,17 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 38 suites, 320 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 40 suites, 359 tests (full table below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 17 tests
 │   ├── OptimizationEngineTest.kt # 15 tests
 │   ├── AdbPortResolverTest.kt    # 5 tests
 │   ├── DirectIntentNavigatorTest.kt # 8 tests (step entry point, intent chains)
 │   ├── RomProfileTest.kt         # 5 tests
-│   └── SimpleStepsTest.kt        # 7 tests
+│   └── SimpleStepsTest.kt        # 8 tests
 ├── service/
-│   ├── SimpleRunnerDrillTest.kt  # 11 tests (drill level verification)
-│   ├── SimpleRunnerApplicabilityTest.kt # 11 tests (not applicable steps, notif_* entry)
+│   ├── SimpleRunnerDrillTest.kt  # 12 tests (drill level verification)
+│   ├── SimpleRunnerApplicabilityTest.kt # 12 tests (not applicable steps, notif_* entry)
 │   ├── SimpleRunnerAppEntryTest.kt # 4 tests (app screen readiness)
 │   └── SimpleRunnerClearDataTest.kt # 2 tests
 ├── ui/
@@ -370,7 +370,7 @@ app/src/test/java/com/xiaohypercleaner/          # 38 suites, 320 tests (full ta
 
 ## 🧪 Testing
 
-### Unit Tests (320 tests, 38 suites)
+### Unit Tests (359 tests, 40 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -382,40 +382,42 @@ app/src/test/java/com/xiaohypercleaner/          # 38 suites, 320 tests (full ta
 | `RestoreSnapshotTest`         | 5     | Rollback snapshot of original values               |
 | `AdbPortResolverTest`         | 5     | mDNS discovery, mergePorts                         |
 | `AdaptiveCatalogTest`         | 17    | Variant catalog, text merging                      |
-| `SemanticCatalogTest`         | 28    | Step semantics, packages, dialog policy            |
+| `SemanticCatalogTest`         | 30    | Step semantics, packages, dialog policy            |
 | `SemanticVariantTest`         | 9     | OS variant selection (MIUI 13 / HyperOS 2)         |
 | `SemanticGateTest`            | 6     | Confidence gate                                    |
 | `PlanBuilderTest`             | 9     | Plan pre-filter + red list                         |
 | `DirectIntentNavigatorTest`   | 8     | Step entry point: launcher, direct settings screens |
 | `ManualStepsTest`             | 4     | Manual checklist: 7-locale parity                  |
 | `SwitchFinderTest`            | 16    | Toggles, checked_before, foreign row rejection     |
-| `ConsentWallTest`             | 36    | Dialogs: force-stop, default app, consent, decoys  |
+| `ConsentWallTest`             | 40    | Dialogs: force-stop, default app, consent, decoys  |
 | `ConsentPermissionTest`       | 4     | Permission request: deny by default, allow for target |
 | `SimpleRunnerMsaResumeTest`   | 6     | Drill resume + msa revoke confirmation             |
-| `SimpleRunnerMsaRevokeTest`   | 6     | msa revoke: dialog button, countdown, confirmation |
+| `SimpleRunnerMsaRevokeTest`   | 9     | msa revoke: dialog button, countdown, confirmation |
 | `SimpleRunnerClearDataTest`   | 2     | CLEAR_DATA_DECLINE without false success           |
 | `SimpleRunnerConfirmTest`     | 2     | Confirm button: its own label, not the dialog title |
-| `SimpleRunnerDialogActionTest` | 1    | Own confirm dialog on the target screen counts as the step action |
+| `SimpleRunnerDialogActionTest` | 2    | Own confirm dialog on the target screen counts as the step action |
 | `SimpleRunnerFolderTest`      | 16    | Home folder search (structural markers)            |
 | `SimpleRunnerInstallerTest`   | 3     | Installer settings route, no APK install           |
+| `SimpleRunnerInstallGuardTest`| 3     | Install guard: download/install/update labels are never tapped |
 | `SimpleRunnerScrollTest`      | 5     | Scroll container lookup, row below the fold, edge switch |
-| `SimpleRunnerDrillTest`       | 11    | Drill level verification (route, header menu, alternative nodes) |
-| `SimpleRunnerApplicabilityTest` | 11  | Not applicable steps, notif_* entry, late verify   |
+| `SimpleRunnerDrillTest`       | 12    | Drill level verification (route, header menu, alternative nodes) |
+| `SimpleRunnerApplicabilityTest` | 12  | Not applicable steps, notif_* entry, late verify   |
 | `SimpleRunnerAppEntryTest`    | 4     | App screen readiness before drilling              |
 | `SimpleRunnerMuteTest`        | 4     | Media volume: save→mute→restore, fresh-device snapshot |
 | `SimpleRunnerOverlayGateTest` | 6     | Overlay integrity gate, ±500 ms gesture guard      |
-| `SimpleRunnerRouteTest`       | 5     | Route as hint: screen confirmed by package and markers |
-| `SimpleRunnerVerifyTest`      | 7     | Honest verdict when the row vanished behind a dialog or the carousel survey |
+| `SimpleRunnerRouteTest`       | 20    | Route as hint: screen confirmed by package and markers |
+| `SimpleRunnerVerifyTest`      | 9     | Honest verdict when the row vanished behind a dialog or the carousel survey |
 | `SimpleModeControllerOverlayTest` | 2 | Overlay permission loss stops the run with a single result |
 | `OverlayPermissionProbeTest`  | 3     | Overlay permission via two sources (Settings + app-op) |
 | `ScanOrchestratorTest`        | 4     | Navigation planning, cache                         |
 | `ScreenCrawlerTest`           | 6     | Screen crawler (diagnostics)                       |
 | `ActivityScannerTest`         | 8     | Package/activity visibility                        |
 | `RomProfileTest`              | 5     | ROM profile: region, family, version               |
-| `SimpleStepsTest`             | 7     | Simple mode step map, extra toggles                |
+| `SimpleStepsTest`             | 8     | Simple mode step map, extra toggles                |
 | `MainViewModelTest`           | 9     | UI logic, already-off report (Robolectric)         |
 | `LogMaskerTest`               | 15    | IP, token, path masking                            |
 | `TextMatcherTest`             | 10    | Text normalization and fuzzy matching              |
+| `UiWaitTest`                  | 6     | Unified UiWait: early exit, double confirmation, hard limit |
 
 ### Manual Testing
 
