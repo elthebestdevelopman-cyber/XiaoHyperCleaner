@@ -256,6 +256,15 @@
     <string name="automation_status_fail">Couldn\'t do it, moving on…</string>
     <string name="automation_status_skip">Setting not available — skipping</string>
     <string name="automation_status_unresolved">Not found — skipping</string>
+    <string name="automation_percent_time">%1$d%% · %2$s</string>
+    <string name="restore_phase_title">Restoring settings…</string>
+    <string name="restore_status_step">Restoring: %s…</string>
+    <string name="restore_cancel">Stop restore</string>
+    <string name="restore_cancel_confirm_title">Stop restore?</string>
+    <string name="restore_cancel_confirm_body">Restore will stop at the current step: some changes will stay unreverted. You can come back any time.</string>
+    <string name="restore_result_title">Restore finished</string>
+    <string name="restore_result_summary">Restored %1$d of %2$d settings</string>
+    <string name="restore_result_failed">Not restored (check manually): %d</string>
     <string name="result_title">Done! The cat is pleased 🧡</string>
     <string name="result_summary">Completed %1$d of %2$d steps</string>
     <string name="result_skipped">Skipped (not on device): %d</string>

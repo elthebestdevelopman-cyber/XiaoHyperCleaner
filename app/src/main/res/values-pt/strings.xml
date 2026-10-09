@@ -236,6 +236,15 @@
     <string name="automation_status_fail">Avançando…</string>
     <string name="automation_status_skip">Configuração indisponível — ignorando</string>
     <string name="automation_status_unresolved">Não encontrado — ignorando</string>
+    <string name="automation_percent_time">%1$d%% · %2$s</string>
+    <string name="restore_phase_title">Restaurando configurações…</string>
+    <string name="restore_status_step">Restaurando: %s…</string>
+    <string name="restore_cancel">Parar restauração</string>
+    <string name="restore_cancel_confirm_title">Parar restauração?</string>
+    <string name="restore_cancel_confirm_body">A restauração vai parar no passo atual: algumas alterações não serão revertidas. Você pode voltar quando quiser.</string>
+    <string name="restore_result_title">Restauração concluída</string>
+    <string name="restore_result_summary">%1$d de %2$d configurações restauradas</string>
+    <string name="restore_result_failed">Não restaurado (verifique manualmente): %d</string>
     <string name="result_title">Concluído! Tudo limpo 🧡</string>
     <string name="result_summary">Concluídos %1$d de %2$d passos</string>
     <string name="result_skipped">Ignorados: %d</string>

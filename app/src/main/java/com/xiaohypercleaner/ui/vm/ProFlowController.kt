@@ -3,6 +3,7 @@ package com.xiaohypercleaner.ui.vm
 import android.app.Application
 import android.content.Intent
 import com.xiaohypercleaner.AppDependencies
+import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationEngine
 import com.xiaohypercleaner.data.PreferencesManager
@@ -12,6 +13,7 @@ import com.xiaohypercleaner.service.ChainFlags
 import com.xiaohypercleaner.service.OverlayController
 import com.xiaohypercleaner.ui.MainUiState
 import com.xiaohypercleaner.util.AppLog
+import com.xiaohypercleaner.util.OverlayPermissionProbe
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -395,6 +397,11 @@ class ProFlowController(
         if (getState().isWorking) return
 
         scope.launch {
+            // Итог фазы отката: сколько настроек вернулось — из этого собирается экран
+            // результата (проценты и таймер ведёт само окно прогресса).
+            var restoreTotal = 0
+            var restoreRestored = 0
+            var restoreCanceled = false
             try {
                 update { it.copy(isWorking = true, progress = 0f) }
                 val deps: AppDependencies = XiaoHyperApp.testDeps ?: (app as XiaoHyperApp).deps
@@ -414,13 +421,50 @@ class ProFlowController(
                 // 1) Простой режим: возврат тумблеров в значение на момент тумблера.
                 val simpleSteps = prefs.getSimpleToggledSteps()
                 var simpleOk = true
+                // Откат обязан идти В ОКНЕ ПРОГРЕССА, как основной прогон: без окна MIUI
+                // не поднимает приложения шагов из-под нашего foreground
+                // (`App not ready … fg=com.xiaohypercleaner`), и откат вернул 3/16
+                // (прогон rmuzrpqgi: foreign_window / no_screen_opened / not_applicable).
+                val overlay = OverlayPermissionProbe.isGranted(app)
                 if (simpleSteps.isNotEmpty()) {
                     val svc = AdbEnablerService.instance
                     if (svc != null) {
-                        AppLog.i(TAG, "restoreOptimization: reversing ${simpleSteps.size} simple toggles")
+                        restoreTotal = simpleSteps.size
+                        AppLog.i(
+                            TAG,
+                            "restoreOptimization: reversing ${simpleSteps.size} simple toggles " +
+                                "(overlay=$overlay)"
+                        )
+                        if (overlay) {
+                            // У отмены в фазе отката свой итог: «часть изменений не возвращена».
+                            OverlayController.setOnRestoreCancel {
+                                restoreCanceled = true
+                                AppLog.i(TAG, "restoreOptimization: cancelled by user")
+                            }
+                            OverlayController.startAutomation(
+                                app,
+                                restoreTotal,
+                                OverlayController.MODE_RESTORE
+                            )
+                        }
                         simpleOk = svc.reverseSimpleToggles(
                             stepIds = simpleSteps,
                             checkedBeforeStates = checkedBeforeStates,
+                            requireOverlay = overlay,
+                            shouldStop = { restoreCanceled },
+                            onStep = { index, total, title ->
+                                restoreTotal = total
+                                if (overlay) {
+                                    // Номер шага и подпись — в окне прогресса; проценты
+                                    // и таймер оно считает само.
+                                    OverlayController.updateAutomation(app, index, total, title)
+                                    OverlayController.updateStatus(
+                                        app,
+                                        app.getString(R.string.restore_status_step, title)
+                                    )
+                                }
+                            },
+                            onStepDone = { _, ok -> if (ok) restoreRestored++ },
                             onProgress = { p -> update { it.copy(progress = p) } }
                         )
                     } else {
@@ -432,20 +476,44 @@ class ProFlowController(
                 }
 
                 // 2) Pro-канал: ADB/Shizuku-restore только при незакрытом снапшоте.
+                // Отменённый откат дальше не идёт: система остаётся в состоянии, до
+                // которого пользователь его остановил.
                 var adbOk = true
-                val engine = deps.newEngine()
-                val proPending = engine.hasPendingRestore()
-                if (proPending) {
-                    AppLog.i(TAG, "restoreOptimization: pro channel (ADB/Shizuku) has changes to revert")
-                    adbOk = runCatching {
-                        engine.restore(
-                            OptimizationEngine.Callbacks(
-                                onProgress = { p: Float -> update { it.copy(progress = p * 0.4f) } }
-                            )
-                        )
-                    }.getOrDefault(false)
+                var proPending = false
+                if (restoreCanceled) {
+                    AppLog.i(TAG, "restoreOptimization: cancelled — pro channel skipped")
                 } else {
-                    AppLog.i(TAG, "restoreOptimization: pro channel not needed (no pending snapshot)")
+                    val engine = deps.newEngine()
+                    proPending = engine.hasPendingRestore()
+                    if (proPending) {
+                        AppLog.i(TAG, "restoreOptimization: pro channel (ADB/Shizuku) has changes to revert")
+                        adbOk = runCatching {
+                            engine.restore(
+                                OptimizationEngine.Callbacks(
+                                    onProgress = { p: Float -> update { it.copy(progress = p * 0.4f) } }
+                                )
+                            )
+                        }.getOrDefault(false)
+                    } else {
+                        AppLog.i(TAG, "restoreOptimization: pro channel not needed (no pending snapshot)")
+                    }
+                }
+
+                // Экран результата отката — из окна прогресса: фазу закрывает showResult
+                // («один show на фазу»). Числа честные и при отмене: сколько успело вернуться.
+                if (overlay && restoreTotal > 0) {
+                    OverlayController.showResult(
+                        ctx = app,
+                        completed = restoreRestored,
+                        total = restoreTotal,
+                        failed = (restoreTotal - restoreRestored).coerceAtLeast(0),
+                        skipped = 0,
+                        notifSteps = emptyList(),
+                        alreadyOffSteps = emptyList(),
+                        launcherSkipped = 0,
+                        unresolved = 0,
+                        mode = OverlayController.MODE_RESTORE
+                    )
                 }
 
                 prefs.clearSimpleToggledSteps()
@@ -454,13 +522,18 @@ class ProFlowController(
                     it.copy(
                         isWorking = false,
                         isOptimized = false,
-                        // Провал — только по тому каналу, который реально был нужен.
-                        restoreFailed = (simpleSteps.isNotEmpty() && !simpleOk) || (proPending && !adbOk)
+                        // Провал — только по каналу, который реально был нужен; отмена
+                        // пользователем тоже не «успех».
+                        restoreFailed = restoreCanceled ||
+                            (simpleSteps.isNotEmpty() && !simpleOk) ||
+                            (proPending && !adbOk)
                     )
                 }
             } catch (e: Exception) {
                 AppLog.e(TAG, "restore failed: ${e.message}", e)
                 update { it.copy(isWorking = false, restoreFailed = true) }
+            } finally {
+                OverlayController.setOnRestoreCancel(null)
             }
         }
     }

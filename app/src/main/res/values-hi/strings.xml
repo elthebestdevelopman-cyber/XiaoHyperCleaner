@@ -236,6 +236,15 @@
     <string name="automation_status_fail">आगे बढ़ रहे हैं…</string>
     <string name="automation_status_skip">सेटिंग मौजूद नहीं — छोड़ रहे हैं</string>
     <string name="automation_status_unresolved">नहीं मिला — छोड़ रहे हैं</string>
+    <string name="automation_percent_time">%1$d%% · %2$s</string>
+    <string name="restore_phase_title">सेटिंग्स बहाल की जा रही हैं…</string>
+    <string name="restore_status_step">बहाल कर रहे हैं: %s…</string>
+    <string name="restore_cancel">रिस्टोर रोकें</string>
+    <string name="restore_cancel_confirm_title">रिस्टोर रोकें?</string>
+    <string name="restore_cancel_confirm_body">रिस्टोर मौजूदा चरण पर रुक जाएगा: कुछ बदलाव वापस नहीं होंगे। आप कभी भी लौट सकते हैं।</string>
+    <string name="restore_result_title">रिस्टोर पूरा हुआ</string>
+    <string name="restore_result_summary">%2$d में से %1$d सेटिंग्स बहाल हुईं</string>
+    <string name="restore_result_failed">बहाल नहीं हुईं (मैन्युअल जाँच करें): %d</string>
     <string name="result_title">पूर्ण! सब व्यवस्थित है 🧡</string>
     <string name="result_summary">%1$d / %2$d कदम पूर्ण</string>
     <string name="result_skipped">छोड़ा गया: %d</string>

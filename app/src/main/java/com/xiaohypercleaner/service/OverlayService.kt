@@ -31,6 +31,7 @@ import com.xiaohypercleaner.data.SemanticCatalog
 import com.xiaohypercleaner.ui.openUrl
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OverlayPermissionProbe
+import com.xiaohypercleaner.util.ProgressFormat
 
 /**
  * Оверлей с heartbeat-защитой от пропадания.
@@ -56,6 +57,8 @@ class OverlayService : Service() {
         const val EXTRA_TOTAL = "total"
         const val EXTRA_TITLE = "title"
         const val EXTRA_STATUS = "status"
+        /** Режим фазы: [OverlayController.MODE_AUTOMATION] или [OverlayController.MODE_RESTORE]. */
+        const val EXTRA_MODE = "mode"
         const val EXTRA_COMPLETED = "completed"
         const val EXTRA_FAILED = "failed"
         const val EXTRA_SKIPPED = "skipped"
@@ -181,6 +184,13 @@ class OverlayService : Service() {
     private var tvStatus: TextView? = null
     private var progressBar: ProgressBar? = null
 
+    /** Строка «проценты · таймер» под шкалой прогресса. */
+    private var tvProgress: TextView? = null
+
+    /** Режим текущей фазы (прогон/откат) и момент её старта — для процентов и таймера. */
+    private var automationMode = OverlayController.MODE_AUTOMATION
+    private var automationStartedAt = 0L
+
     /** Панель автоматизации: притухает под диалогом подтверждения отмены (S4). */
     private var automationPanel: View? = null
 
@@ -223,7 +233,8 @@ class OverlayService : Service() {
             ACTION_AUTO_START -> {
                 val total = intent.getIntExtra(EXTRA_TOTAL, 0)
                 val step = intent.getIntExtra(EXTRA_STEP, 0)
-                showAutomation(total)
+                val mode = intent.getIntExtra(EXTRA_MODE, OverlayController.MODE_AUTOMATION)
+                showAutomation(total, mode)
                 if (step > 0) {
                     updateAutomation(step, total, intent.getStringExtra(EXTRA_TITLE) ?: "")
                 } else {
@@ -250,7 +261,8 @@ class OverlayService : Service() {
                 intent.getStringExtra(EXTRA_NOTIF_STEPS).orEmpty(),
                 intent.getStringExtra(EXTRA_ALREADY_OFF_STEPS).orEmpty(),
                 intent.getIntExtra(EXTRA_LAUNCHER_SKIPPED, 0),
-                intent.getIntExtra(EXTRA_UNRESOLVED, 0)
+                intent.getIntExtra(EXTRA_UNRESOLVED, 0),
+                intent.getIntExtra(EXTRA_MODE, OverlayController.MODE_AUTOMATION)
             )
         }
         // Сервис мог быть убит MIUI и пересоздан этим startService: окна нет, а фаза идёт.
@@ -298,9 +310,11 @@ class OverlayService : Service() {
 
     // ─── AUTOMATION ───
 
-    private fun showAutomation(total: Int) {
+    private fun showAutomation(total: Int, mode: Int = OverlayController.MODE_AUTOMATION) {
         hide()
         automationTotal = total
+        automationMode = mode
+        automationStartedAt = System.currentTimeMillis()
         isBlocking = true
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -318,7 +332,10 @@ class OverlayService : Service() {
         if (cat.drawable !is Animatable) washWobble(cat)
 
         tvTitle = TextView(this).apply {
-            setText(R.string.automation_title)
+            setText(
+                if (mode == OverlayController.MODE_RESTORE) R.string.restore_phase_title
+                else R.string.automation_title
+            )
             setTextColor(Color.WHITE)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
             gravity = Gravity.CENTER
@@ -339,6 +356,15 @@ class OverlayService : Service() {
             LinearLayout.LayoutParams.MATCH_PARENT, dp(8)
         ).apply { topMargin = dp(12) })
 
+        // «19% · 00:42»: шкала с процентами и таймером — одна строка. Обновляется на старте
+        // шага и каждым ударом heartbeat: таймер идёт и между шагами (запрос владельца).
+        tvProgress = TextView(this).apply {
+            setTextColor(0xB3FFFFFF.toInt())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            gravity = Gravity.CENTER
+        }
+        layout.addView(tvProgress, llWrap().apply { topMargin = dp(4) })
+
         tvStatus = TextView(this).apply {
             setTextColor(0xB3FFFFFF.toInt())
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
@@ -348,7 +374,10 @@ class OverlayService : Service() {
         layout.addView(tvStatus, llWrap().apply { topMargin = dp(8) })
 
         val cancel = Button(this).apply {
-            setText(R.string.automation_cancel)
+            setText(
+                if (mode == OverlayController.MODE_RESTORE) R.string.restore_cancel
+                else R.string.automation_cancel
+            )
             setTextColor(0xFF64B5F6.toInt())
             setBackgroundColor(Color.TRANSPARENT)
         }
@@ -391,11 +420,23 @@ class OverlayService : Service() {
             background = roundBg(0xF01B1B1B.toInt(), radiusDp = 20)
         }
         panel.addView(
-            titleText(getString(R.string.automation_cancel_confirm_title), 16f, bold = true),
+            titleText(
+                getString(
+                    if (automationMode == OverlayController.MODE_RESTORE) R.string.restore_cancel_confirm_title
+                    else R.string.automation_cancel_confirm_title
+                ),
+                16f, bold = true
+            ),
             llWrap()
         )
         panel.addView(
-            bodyText(getString(R.string.automation_cancel_confirm_body), small = true),
+            bodyText(
+                getString(
+                    if (automationMode == OverlayController.MODE_RESTORE) R.string.restore_cancel_confirm_body
+                    else R.string.automation_cancel_confirm_body
+                ),
+                small = true
+            ),
             llWrap().apply { topMargin = dp(6) }
         )
         val row = LinearLayout(this).apply {
@@ -435,6 +476,15 @@ class OverlayService : Service() {
             AppLog.w(TAG, "automation cancel confirm ignored: gesture guard active")
             return
         }
+        if (automationMode == OverlayController.MODE_RESTORE) {
+            // Откат: «частично» тут означает «часть изменений осталась невозвращённой».
+            AppLog.i(TAG, "restore cancelled by user (confirmed, partial=true)")
+            OverlayController.endPhase()
+            hide()
+            AdbEnablerService.instance?.cancelRunner()
+            OverlayController.triggerRestoreCancel()
+            return
+        }
         AppLog.i(TAG, "automation cancelled by user (confirmed, partial=true)")
         SimpleStepBridge.onPartialCancel?.invoke()
         OverlayController.endPhase()
@@ -451,6 +501,16 @@ class OverlayService : Service() {
         progressBar?.max = total.coerceAtLeast(1)
         progressBar?.progress = step
         if (title.isNotEmpty()) tvTitle?.text = title
+        tvProgress?.text = progressLine()
+    }
+
+    /** «19% · 00:42»: проценты от числа шагов, таймер — от старта фазы. */
+    private fun progressLine(): String {
+        return getString(
+            R.string.automation_percent_time,
+            ProgressFormat.percent(automationStep, automationTotal),
+            ProgressFormat.elapsed(System.currentTimeMillis() - automationStartedAt)
+        )
     }
 
     /**
@@ -464,7 +524,7 @@ class OverlayService : Service() {
         val v = root
         if (v != null && v.isAttachedToWindow) return false
         AppLog.w(TAG, "overlay: recreating automation window (phase running, root=${v != null})")
-        showAutomation(automationTotal.coerceAtLeast(1))
+        showAutomation(automationTotal.coerceAtLeast(1), automationMode)
         if (automationStep > 0) {
             updateAutomation(automationStep, automationTotal, automationTitle)
         }
@@ -482,12 +542,16 @@ class OverlayService : Service() {
         notifSteps: String,
         alreadyOffSteps: String,
         launcherSkipped: Int,
-        unresolved: Int
+        unresolved: Int,
+        mode: Int = OverlayController.MODE_AUTOMATION
     ) {
         stopHeartbeat()
         hide()
         isBlocking = true
         manualShown = 0
+        // Фаза отката: экран не про «оптимизировано», а про возврат настроек — свои
+        // подписи, а блоки прогона (пропуски, «уже выключено», памятка) не показываем.
+        val restore = mode == OverlayController.MODE_RESTORE
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
@@ -496,17 +560,36 @@ class OverlayService : Service() {
         }
         val cat = ImageView(this).apply { setImageResource(R.drawable.ic_robot_companion) }
         layout.addView(cat, LinearLayout.LayoutParams(dp(120), dp(120)))
-        layout.addView(titleText(getString(R.string.result_title), 20f, bold = true), llWrap().apply { topMargin = dp(12) })
-        layout.addView(bodyText(getString(R.string.result_summary, completed, total)), llWrap().apply { topMargin = dp(6) })
-        if (skipped > 0) layout.addView(bodyText(getString(R.string.result_skipped, skipped), small = true), llWrap().apply { topMargin = dp(4) })
+        layout.addView(
+            titleText(
+                getString(if (restore) R.string.restore_result_title else R.string.result_title),
+                20f, bold = true
+            ),
+            llWrap().apply { topMargin = dp(12) }
+        )
+        layout.addView(
+            bodyText(
+                if (restore) getString(R.string.restore_result_summary, completed, total)
+                else getString(R.string.result_summary, completed, total)
+            ),
+            llWrap().apply { topMargin = dp(6) }
+        )
+        // «Провал» отката — невозвращённые настройки, а не «защищено системой».
+        if (restore && failed > 0) {
+            layout.addView(
+                bodyText(getString(R.string.restore_result_failed, failed), small = true),
+                llWrap().apply { topMargin = dp(4) }
+            )
+        }
+        if (!restore && skipped > 0) layout.addView(bodyText(getString(R.string.result_skipped, skipped), small = true), llWrap().apply { topMargin = dp(4) })
         // Честный отчёт: «нет настройки в лаунчере» и «робот не нашёл» — разные строки,
         // их нельзя показывать как «нет на устройстве».
-        if (launcherSkipped > 0) layout.addView(bodyText(getString(R.string.result_skipped_launcher, launcherSkipped), small = true), llWrap().apply { topMargin = dp(4) })
-        if (unresolved > 0) layout.addView(bodyText(getString(R.string.result_skipped_unresolved, unresolved), small = true), llWrap().apply { topMargin = dp(4) })
-        if (failed > 0) layout.addView(bodyText(getString(R.string.result_failed, failed), small = true), llWrap().apply { topMargin = dp(4) })
+        if (!restore && launcherSkipped > 0) layout.addView(bodyText(getString(R.string.result_skipped_launcher, launcherSkipped), small = true), llWrap().apply { topMargin = dp(4) })
+        if (!restore && unresolved > 0) layout.addView(bodyText(getString(R.string.result_skipped_unresolved, unresolved), small = true), llWrap().apply { topMargin = dp(4) })
+        if (!restore && failed > 0) layout.addView(bodyText(getString(R.string.result_failed, failed), small = true), llWrap().apply { topMargin = dp(4) })
         // Прозрачность notif_*: что именно отключено (Аддендум C3).
         val notifTitles = notifSteps.split('\n').filter { it.isNotBlank() }.take(NOTIF_LIST_MAX)
-        if (notifTitles.isNotEmpty()) {
+        if (!restore && notifTitles.isNotEmpty()) {
             layout.addView(
                 titleText(getString(R.string.result_notif_title), 14f, bold = true),
                 llWrap().apply { topMargin = dp(10) }
@@ -518,7 +601,7 @@ class OverlayService : Service() {
         // «Уже выключено»: состояние проверено, но менять было нечего — важно отличать
         // от «выключено сейчас» (запрос владельца: точно знать, что отключено).
         val alreadyOffTitles = alreadyOffSteps.split('\n').filter { it.isNotBlank() }.take(NOTIF_LIST_MAX)
-        if (alreadyOffTitles.isNotEmpty()) {
+        if (!restore && alreadyOffTitles.isNotEmpty()) {
             layout.addView(
                 titleText(getString(R.string.result_already_off_title), 14f, bold = true),
                 llWrap().apply { topMargin = dp(10) }
@@ -527,10 +610,12 @@ class OverlayService : Service() {
                 layout.addView(bodyText("• $title", small = true), llWrap().apply { topMargin = dp(2) })
             }
         }
-        layout.addView(bodyText(getString(R.string.result_soft), small = true).apply { setPadding(0, dp(10), 0, 0) }, llWrap())
-        // Ручная памятка: свёрнутый блок «Для максимального результата вручную» (≤7 строк).
-        val manualBlock = buildManualBlock()
-        if (manualBlock != null) layout.addView(manualBlock, llWrap().apply { topMargin = dp(10) })
+        if (!restore) {
+            layout.addView(bodyText(getString(R.string.result_soft), small = true).apply { setPadding(0, dp(10), 0, 0) }, llWrap())
+            // Ручная памятка: свёрнутый блок «Для максимального результата вручную» (≤7 строк).
+            val manualBlock = buildManualBlock()
+            if (manualBlock != null) layout.addView(manualBlock, llWrap().apply { topMargin = dp(10) })
+        }
         val row1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
         val btnParams = { LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
         row1.addView(textBtn(getString(R.string.result_rate)) { hide(); returnToApp(); openRate() }, btnParams())
@@ -652,6 +737,8 @@ class OverlayService : Service() {
                 // Реальная отрисовка: сверяем z-order нашего окна с фоновым приложением.
                 checkZOrder()
                 OverlayController.markVisible(visible)
+                // Таймер обязан идти непрерывно, а не только в момент смены шага.
+                tvProgress?.text = progressLine()
                 if (visible && heartbeatTicks % HEARTBEAT_ALIVE_LOG_EVERY == 0) {
                     val rect = Rect().also { v.getGlobalVisibleRect(it) }
                     AppLog.d(
@@ -961,7 +1048,7 @@ class OverlayService : Service() {
         root = null
         layoutParams = null
         isBlocking = true
-        tvStep = null; tvTitle = null; tvStatus = null; progressBar = null
+        tvStep = null; tvTitle = null; tvStatus = null; progressBar = null; tvProgress = null
         automationPanel = null
         cancelConfirmPanel = null
         OverlayController.markDetached()

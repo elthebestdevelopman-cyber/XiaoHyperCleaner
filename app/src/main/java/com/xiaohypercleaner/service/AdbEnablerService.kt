@@ -543,10 +543,24 @@ class AdbEnablerService : AccessibilityService() {
      * Откат Simple Mode: для каждого stepId запускает тот же маршрут с целевым
      * состоянием из снапшота (`checked_before`). Если состояние не сохранено
      * (старый снапшот) — прежняя логика: инверсия targetChecked.
+     *
+     * [requireOverlay] = true — откат идёт в окне прогресса, как основной прогон:
+     * раннер делает сброс на рабочий стол перед запуском приложения шага и проверяет
+     * целостность оверлея. Без окна MIUI блокировала подъём приложения
+     * (`App not ready … fg=com.xiaohypercleaner`) и шаги отката падали
+     * `foreign_window`/`no_screen_opened` (прогон rmuzrpqgi: 3/16).
+     *
+     * [onStep] вызывается ПЕРЕД запуском шага (для окна прогресса), [onStepDone] —
+     * после вердикта (для итогового экрана отката).
      */
     suspend fun reverseSimpleToggles(
         stepIds: Set<String>,
         checkedBeforeStates: Map<String, Boolean> = emptyMap(),
+        requireOverlay: Boolean = false,
+        /** Пользователь подтвердил отмену отката: остаток шагов пропускается. */
+        shouldStop: () -> Boolean = { false },
+        onStep: (index: Int, total: Int, title: String) -> Unit = { _, _, _ -> },
+        onStepDone: (stepId: String, ok: Boolean) -> Unit = { _, _ -> },
         onProgress: (Float) -> Unit = {}
     ): Boolean {
         if (stepIds.isEmpty()) return true
@@ -556,7 +570,20 @@ class AdbEnablerService : AccessibilityService() {
         val profile = RomProfile.detect(this)
         try {
             list.forEachIndexed { i, id ->
-                val original = SimpleSteps.ALL.firstOrNull { it.id == id } ?: return@forEachIndexed
+                if (shouldStop()) {
+                    // Отмена подтверждена: остаток не трогаем, иначе откат «догонит»
+                    // пользователя и вернёт то, что он остановил.
+                    AppLog.i(TAG, "reverseSimpleToggles: stopped by user at ${i + 1}/${list.size}")
+                    return@forEachIndexed
+                }
+                val original = SimpleSteps.ALL.firstOrNull { it.id == id }
+                if (original == null) {
+                    // Идентификатор без шага в плане: откатывать нечего — честно в итог.
+                    AppLog.w(TAG, "reverseSimpleToggles: step id not in plan, skipped: $id")
+                    onStepDone(id, false)
+                    onProgress((i + 1).toFloat() / list.size)
+                    return@forEachIndexed
+                }
                 val checkedBefore = checkedBeforeStates[id]
                 val reverse = original.copy(
                     targetChecked = checkedBefore ?: !original.targetChecked
@@ -564,23 +591,28 @@ class AdbEnablerService : AccessibilityService() {
                 AppLog.i(
                     TAG,
                     "reverseSimpleToggles: ${original.id} -> targetChecked=${reverse.targetChecked} " +
-                        "source=${if (checkedBefore != null) "checked_before" else "inverted"}"
+                        "source=${if (checkedBefore != null) "checked_before" else "inverted"} " +
+                        "overlay=$requireOverlay"
                 )
+                onStep(i + 1, list.size, original.titleRu)
 
                 // ═══════════════════════════════════════════════════════════════
                 // ИСПРАВЛЕНО (строки 354, 355): Новая сигнатура run()
                 // ═══════════════════════════════════════════════════════════════
                 var stepSuccess = false
-                // Канал отката идёт БЕЗ окна прогресса: гейт оверлея здесь не применим,
-                // иначе каждый шаг отката падал overlay_lost (прогоны rmuebpgnr, rmueihkd3).
-                simpleRunner.run(reverse, profile, requireOverlay = false) { result ->
+                simpleRunner.run(reverse, profile, requireOverlay = requireOverlay) { result ->
                     stepSuccess = result.success
                 }
                 while (SimpleRunner.isRunning) {
                     delay(200)
                 }
 
-                if (stepSuccess) okCount++
+                if (stepSuccess) {
+                    okCount++
+                } else {
+                    AppLog.w(TAG, "reverseSimpleToggles: ${original.id} not restored")
+                }
+                onStepDone(original.id, stepSuccess)
                 onProgress((i + 1).toFloat() / list.size)
             }
         } finally {

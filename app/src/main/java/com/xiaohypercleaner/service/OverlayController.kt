@@ -17,8 +17,15 @@ object OverlayController {
 
     private const val TAG = "OverlayController"
 
+    /** Режим фазы прогресса: обычный прогон оптимизации. */
+    const val MODE_AUTOMATION = 0
+
+    /** Режим фазы прогресса: откат изменений (возврат настроек в исходное состояние). */
+    const val MODE_RESTORE = 1
+
     private var onCancel: (() -> Unit)? = null
     private var onResultClose: (() -> Unit)? = null
+    private var onRestoreCancel: (() -> Unit)? = null
 
     /** Флаг прикреплённости окна. Обновляется из OverlayService. */
     @Volatile
@@ -166,6 +173,24 @@ object OverlayController {
         listener.invoke()
     }
 
+    /**
+     * Отмена в фазе отката. Пробег отката идёт тем же раннером и той же кнопкой
+     * «Отменить», но итог у него другой: не «часть настроек применена», а «часть
+     * изменений не возвращена». Слушатель отдельный, чтобы каналы не путались.
+     */
+    fun setOnRestoreCancel(listener: (() -> Unit)?) {
+        onRestoreCancel = listener
+    }
+
+    fun triggerRestoreCancel() {
+        val listener = onRestoreCancel
+        if (listener == null) {
+            AppLog.w(TAG, "triggerRestoreCancel: no listener registered")
+            return
+        }
+        listener.invoke()
+    }
+
     fun setOnResultClose(listener: (() -> Unit)?) {
         onResultClose = listener
     }
@@ -174,15 +199,18 @@ object OverlayController {
         onResultClose?.invoke()
     }
 
-    fun startAutomation(ctx: Context, total: Int) {
+    /**
+     * Открывает фазу прогресса. [mode] выбирает подпись фазы: прогон оптимизации
+     * или откат изменений — окно, инварианты и таймер у них общие.
+     */
+    fun startAutomation(ctx: Context, total: Int, mode: Int = MODE_AUTOMATION) {
         beginPhase()
         clearPermissionLost()
-        AppLog.i(TAG, "startAutomation: total=$total caller=${callerName()}")
+        AppLog.i(TAG, "startAutomation: total=$total mode=$mode caller=${callerName()}")
         ctx.startService(
-            intent(ctx, OverlayService.ACTION_AUTO_START).putExtra(
-                OverlayService.EXTRA_TOTAL,
-                total
-            )
+            intent(ctx, OverlayService.ACTION_AUTO_START)
+                .putExtra(OverlayService.EXTRA_TOTAL, total)
+                .putExtra(OverlayService.EXTRA_MODE, mode)
         )
     }
 
@@ -229,13 +257,15 @@ object OverlayController {
         /** Шаги, которых нет в лаунчере: «настройка отсутствует в лаунчере». */
         launcherSkipped: Int = 0,
         /** Шаги, которые робот не нашёл сам (не провал и не «нет на устройстве»). */
-        unresolved: Int = 0
+        unresolved: Int = 0,
+        /** [MODE_AUTOMATION] или [MODE_RESTORE]: экран результата для прогона или отката. */
+        mode: Int = MODE_AUTOMATION
     ) {
         endPhase()
         AppLog.i(
             TAG,
             "showResult: $completed/$total, failed=$failed, skipped=$skipped " +
-                "launcher=$launcherSkipped unresolved=$unresolved " +
+                "launcher=$launcherSkipped unresolved=$unresolved mode=$mode " +
                 "notif=${notifSteps.size} alreadyOff=${alreadyOffSteps.size} caller=${callerName()}"
         )
         ctx.startService(
@@ -248,6 +278,7 @@ object OverlayController {
                 .putExtra(OverlayService.EXTRA_ALREADY_OFF_STEPS, alreadyOffSteps.joinToString("\n"))
                 .putExtra(OverlayService.EXTRA_LAUNCHER_SKIPPED, launcherSkipped)
                 .putExtra(OverlayService.EXTRA_UNRESOLVED, unresolved)
+                .putExtra(OverlayService.EXTRA_MODE, mode)
         )
     }
 

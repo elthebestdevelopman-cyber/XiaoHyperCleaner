@@ -266,6 +266,15 @@
     <string name="automation_status_fail">无法完成，继续下一步…</string>
     <string name="automation_status_skip">设置不存在 — 跳过</string>
     <string name="automation_status_unresolved">未找到 — 跳过</string>
+    <string name="automation_percent_time">%1$d%% · %2$s</string>
+    <string name="restore_phase_title">正在恢复设置…</string>
+    <string name="restore_status_step">正在恢复：%s…</string>
+    <string name="restore_cancel">停止恢复</string>
+    <string name="restore_cancel_confirm_title">停止恢复？</string>
+    <string name="restore_cancel_confirm_body">恢复将在当前步骤停止：部分更改不会还原。你可以随时返回。</string>
+    <string name="restore_result_title">恢复完成</string>
+    <string name="restore_result_summary">已恢复 %2$d 项设置中的 %1$d 项</string>
+    <string name="restore_result_failed">未恢复（请手动检查）：%d</string>
     <string name="result_title">完成！猫咪很满意 🧡</string>
     <string name="result_summary">已完成 %1$d / %2$d 步</string>
     <string name="result_skipped">已跳过（设备上不存在）：%d</string>

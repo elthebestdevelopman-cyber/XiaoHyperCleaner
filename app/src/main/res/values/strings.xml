@@ -243,6 +243,15 @@
     <string name="automation_status_fail">Не получилось, пробую дальше…</string>
     <string name="automation_status_skip">Настройки нет — пропускаю</string>
     <string name="automation_status_unresolved">Не нашёл — пропускаю</string>
+    <string name="automation_percent_time">%1$d%% · %2$s</string>
+    <string name="restore_phase_title">Восстанавливаю настройки…</string>
+    <string name="restore_status_step">Возвращаю: %s…</string>
+    <string name="restore_cancel">Прекратить откат</string>
+    <string name="restore_cancel_confirm_title">Прекратить откат?</string>
+    <string name="restore_cancel_confirm_body">Откат остановится на текущем шаге: часть изменений останется невозвращённой. Вернуться можно в любой момент.</string>
+    <string name="restore_result_title">Откат завершён</string>
+    <string name="restore_result_summary">Возвращено %1$d из %2$d настроек</string>
+    <string name="restore_result_failed">Не восстановлено (проверьте вручную): %d</string>
     <string name="result_title">Готово! Котик доволен 🧡</string>
     <string name="result_summary">Выполнено %1$d из %2$d шагов</string>
     <string name="result_skipped">Пропущено (нет на устройстве): %d</string>

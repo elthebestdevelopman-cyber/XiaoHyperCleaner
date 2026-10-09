@@ -265,6 +265,15 @@
     <string name="automation_status_fail">No se pudo, continuando…</string>
     <string name="automation_status_skip">Ajuste no disponible — saltando</string>
     <string name="automation_status_unresolved">No encontrado — saltando</string>
+    <string name="automation_percent_time">%1$d%% · %2$s</string>
+    <string name="restore_phase_title">Restaurando ajustes…</string>
+    <string name="restore_status_step">Restaurando: %s…</string>
+    <string name="restore_cancel">Detener restauración</string>
+    <string name="restore_cancel_confirm_title">¿Detener restauración?</string>
+    <string name="restore_cancel_confirm_body">La restauración se detendrá en el paso actual: algunos cambios no se revertirán. Puedes volver cuando quieras.</string>
+    <string name="restore_result_title">Restauración completada</string>
+    <string name="restore_result_summary">Restaurados %1$d de %2$d ajustes</string>
+    <string name="restore_result_failed">Sin restaurar (comprueba manualmente): %d</string>
     <string name="result_title">¡Listo! El gato está contento 🧡</string>
     <string name="result_summary">Completados %1$d de %2$d pasos</string>
     <string name="result_skipped">Omitidos (no en el dispositivo): %d</string>

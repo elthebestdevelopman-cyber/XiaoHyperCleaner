@@ -236,6 +236,15 @@
     <string name="automation_status_fail">Melanjutkan…</string>
     <string name="automation_status_skip">Setelan tidak ada — melewati</string>
     <string name="automation_status_unresolved">Tidak ditemukan — melewati</string>
+    <string name="automation_percent_time">%1$d%% · %2$s</string>
+    <string name="restore_phase_title">Memulihkan pengaturan…</string>
+    <string name="restore_status_step">Memulihkan: %s…</string>
+    <string name="restore_cancel">Hentikan pemulihan</string>
+    <string name="restore_cancel_confirm_title">Hentikan pemulihan?</string>
+    <string name="restore_cancel_confirm_body">Pemulihan akan berhenti di langkah saat ini: sebagian perubahan tidak dikembalikan. Anda bisa kembali kapan saja.</string>
+    <string name="restore_result_title">Pemulihan selesai</string>
+    <string name="restore_result_summary">%1$d dari %2$d pengaturan dipulihkan</string>
+    <string name="restore_result_failed">Tidak dipulihkan (periksa manual): %d</string>
     <string name="result_title">Selesai! Sistem rapi 🧡</string>
     <string name="result_summary">%1$d dari %2$d langkah selesai</string>
     <string name="result_skipped">Dilewati: %d</string>

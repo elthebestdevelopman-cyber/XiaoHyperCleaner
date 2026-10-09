@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 41 сьютов, 360 тестов (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 42 сьюта, 362 теста (полная таблица ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 17 тестов
 │   ├── OptimizationEngineTest.kt # 15 тестов
@@ -388,7 +388,7 @@ app/src/test/java/com/xiaohypercleaner/          # 41 сьютов, 360 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (360 тестов, 41 сьют)
+### Unit-тесты (362 теста, 42 сьюта)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -437,6 +437,7 @@ app/src/test/java/com/xiaohypercleaner/          # 41 сьютов, 360 тест
 | `LogMaskerTest`               | 15     | Маскировка IP, токенов, путей                      |
 | `TextMatcherTest`             | 10     | Нормализация и нечёткое сравнение текстов          |
 | `UiWaitTest`                  | 6      | Единый UiWait: ранний выход, двойное подтверждение, лимит |
+| `ProgressFormatTest`          | 2      | Шкала фазы: проценты и таймер (границы шага, формат времени) |
 
 ### Ручное тестирование
 
