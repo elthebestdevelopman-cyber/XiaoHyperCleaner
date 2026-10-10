@@ -152,4 +152,39 @@ class SimpleRunnerOverlayGateTest {
         // протекает в соседние тесты (awaitOverlayReadyOrPause ждёт не-solid).
         OverlayController.markDetached()
     }
+
+    /**
+     * Прогон rmv16fbxe: фаза отката пересоздаёт окно прогресса в начале шага, attach живого
+     * экземпляра приходит РАНЬШЕ detach выброшенного — общие флаги сбрасывались, гейт видел
+     * потерю окна при живом окне и каждый шаг отката падал `overlay_lost`
+     * (`reverseSimpleToggles done: 0/20`, heartbeat при этом писал `attached=true`).
+     */
+    @Test
+    fun `detach of a replaced window does not clear the live window`() {
+        val replaced = Any()
+        val live = Any()
+        OverlayController.beginPhase()
+        OverlayController.setRootView(replaced)
+        OverlayController.markAttached(replaced)
+        OverlayController.markVisible(true)
+
+        OverlayController.setRootView(live)
+        OverlayController.markAttached(live)
+        OverlayController.markDetached(replaced)
+
+        assertTrue(
+            "событие выброшенного окна не сбрасывает флаги живого",
+            OverlayController.isOverlaySolid()
+        )
+
+        OverlayController.markDetached(live)
+        assertFalse(
+            "открепилось живое окно — гейт честно видит потерю",
+            OverlayController.isOverlaySolid()
+        )
+
+        OverlayController.setRootView(null)
+        OverlayController.markDetached()
+        OverlayController.endPhase()
+    }
 }

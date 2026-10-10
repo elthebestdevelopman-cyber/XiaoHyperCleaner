@@ -165,7 +165,26 @@ object SemanticCatalog {
          * времени: прогон rmuvlyyor — шаг getapps уходил в not_applicable, пока
          * магазин ещё показывал сплэш.
          */
-        val entryReadyIds: List<String> = emptyList()
+        val entryReadyIds: List<String> = emptyList(),
+        /** Прогрев внешнего экрана перед поиском тумблера (см. [WarmUp]). */
+        val warmUp: WarmUp? = null
+    )
+
+    /**
+     * Прогрев внешнего экрана перед поиском тумблера. Единственный случай сейчас — Лента
+     * виджетов (App Vault): на свежем устройстве карточка-цель («Рекомендации приложений»)
+     * появляется только после первого открытия Ленты, и без прогрева шаг уходит в честный,
+     * но бесполезный `low_confidence` (прогон rmv16fbxe: строка отсутствовала, через
+     * 40 минут ручной проверки — на месте). Объявляется данными варианта, а не веткой
+     * под прошивку.
+     */
+    data class WarmUp(
+        /** Способ активации: сейчас только `home_feed_swipe` (свайп на рабочем столе). */
+        val kind: String,
+        /** Выдержка на догрузку содержимого после появления экрана, мс. */
+        val settleMs: Long = 2500L,
+        /** resource-id-подстроки, по которым экран считается открывшимся. */
+        val confirmIds: List<String> = emptyList()
     )
 
     /**
@@ -893,7 +912,8 @@ object SemanticCatalog {
                     folderNames = parseListMap(o.optJSONObject("folderNames")),
                     fallbackAction = o.optString("fallbackAction").takeIf { it.isNotEmpty() },
                     route = parseRoute(o.optJSONArray("route")),
-                    entry = o.optString("entry").takeIf { it.isNotEmpty() }
+                    entry = o.optString("entry").takeIf { it.isNotEmpty() },
+                    warmUp = parseWarmUp(o.optJSONObject("warmUp"))
                 )
             )
         }
@@ -909,6 +929,21 @@ object SemanticCatalog {
         val fromVariant = selection(id)?.variant?.route.orEmpty()
         if (fromVariant.isNotEmpty()) return fromVariant
         return step(id)?.route.orEmpty()
+    }
+
+    /**
+     * Прогрев внешнего экрана у активного варианта шага (см. [WarmUp]). null — прогрева нет.
+     */
+    fun warmUp(id: String): WarmUp? = selection(id)?.variant?.warmUp
+
+    private fun parseWarmUp(o: JSONObject?): WarmUp? {
+        o ?: return null
+        val kind = o.optString("kind").takeIf { it.isNotEmpty() } ?: return null
+        return WarmUp(
+            kind = kind,
+            settleMs = o.optLong("settleMs", 2500L),
+            confirmIds = parseStringArray(o.optJSONArray("confirmIds"))
+        )
     }
 
     private fun parseRoute(arr: JSONArray?): List<RouteItem> {

@@ -77,6 +77,37 @@ class SimpleRunner(private val service: AdbEnablerService) {
         private const val APP_VERY_LONG_PATH_TIMEOUT_MS = 32_000L
         /** Цена одного пункта маршрута (действие + подтверждение) в бюджете шага. */
         private const val ROUTE_ITEM_BUDGET_MS = 2_000L
+
+        /**
+         * Цена прогрева внешнего экрана (Лента виджетов): открыть, дождаться контента,
+         * закрыть + повтор маршрута. Бюджет шага получает эту надбавку, если прогрев
+         * объявлен каталогом, — иначе повтор не влезает и шаг падает по timeout.
+         */
+        private const val WARMUP_BUDGET_MS = 8_000L
+
+        /** Ожидание появления Ленты виджетов после свайпа рабочего стола. */
+        private const val WARMUP_FEED_WAIT_MS = 3_000L
+
+        /** Потолок выдержки на догрузку карточек (значение каталога может быть меньше). */
+        private const val WARMUP_SETTLE_MAX_MS = 4_000L
+
+        /** Единственный реализованный способ прогрева: свайп рабочего стола к ленте. */
+        private const val WARMUP_KIND_HOME_FEED_SWIPE = "home_feed_swipe"
+
+        /**
+         * resource-id-подстроки, по которым лента виджетов считается открытой (карточки
+         * ленты приходят из `com.mi.android.globalminusscreen`, окно — лаунчера). Значения
+         * каталога (`warmUp.confirmIds`) приоритетнее: они описывают экран варианта.
+         */
+        private val APP_VAULT_ID_HINTS = listOf("globalminusscreen")
+
+        /**
+         * Причины, при которых после прогрева маршрут повторяется один раз: экран маршрута
+         * подтверждён, а строки-цели на нём нет — карточки Ленты на свежем устройстве ещё
+         * не созданы (прогон rmv16fbxe: «Рекомендации приложений» отсутствовала, ручная
+         * проверка через 40 минут — строка на месте).
+         */
+        private val WARMUP_REASONS = setOf("low_confidence", "switch_not_found")
         private const val HYPEROS_MULTIPLIER = 1.3f
         private const val MSA_TIMEOUT_MS = 40_000L
         private const val SECURITY_CLEANER_TIMEOUT_MS = 30_000L
@@ -360,6 +391,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         private const val WAIT_DECLINE_DIALOG = "decline_dialog"
         private const val WAIT_REVOKE_SETTLE = "revoke_settle"
         private const val WAIT_UI_SETTLE = "ui_settle"
+        private const val WAIT_FEED_APPEAR = "feed_appear"
 
         /** Ожидание исчезновения экрана-опроса после BACK/отправки (WebView-переход). */
         private const val FEEDBACK_SURVEY_WAIT_MS = 3_000L
@@ -618,6 +650,25 @@ class SimpleRunner(private val service: AdbEnablerService) {
     internal fun claimForeignRelaunch(stepId: String): Boolean {
         if (foreignRelaunchStepId == stepId) return false
         foreignRelaunchStepId = stepId
+        return true
+    }
+
+    /**
+     * Шаг, для которого прогрев внешнего экрана (Лента виджетов) уже выполнялся: прогрев —
+     * один раз на шаг, иначе повтор цикла жжёт бюджет и дёргает рабочий стол. Обнуляется
+     * новым прогоном ([resetWarmUpBudget]).
+     */
+    private var warmUpClaimStepId: String? = null
+
+    /** Новый прогон — новый бюджет прогрева. */
+    internal fun resetWarmUpBudget() {
+        warmUpClaimStepId = null
+    }
+
+    /** `true` — прогрев на этом шаге ещё не делался (бюджет выдан и потрачен). */
+    internal fun claimWarmUp(stepId: String): Boolean {
+        if (warmUpClaimStepId == stepId) return false
+        warmUpClaimStepId = stepId
         return true
     }
 
@@ -892,8 +943,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // проход целиком (прогон rmuyl4opt: timeout на 3-м пункте). Это именно учёт длины,
         // не поднятие потолка: верхняя граница остаётся прежней.
         val routeBonus = SemanticCatalog.route(step.id).size * ROUTE_ITEM_BUDGET_MS
+        // Объявленный каталогом прогрев внешнего экрана оплачивается отдельной надбавкой:
+        // без неё повтор маршрута не влезает в бюджет и шаг падает по timeout.
+        val warmUpBonus = if (SemanticCatalog.warmUp(step.id) != null) WARMUP_BUDGET_MS else 0L
         val timeout = if (profile.hyperOsHint) (base * HYPEROS_MULTIPLIER).toLong() else base
-        return (timeout + routeBonus).coerceIn(12_000L, 45_000L)
+        return (timeout + routeBonus + warmUpBonus).coerceIn(12_000L, 45_000L)
     }
 
     /**
@@ -993,7 +1047,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
             routeScript.forEach { item -> item.confirmPackage.forEach { entryPackages.add(it) } }
             if (executeRouteScript(step, routeScript)) {
                 runPreMainExtras(step)
-                return findAndToggleSwitch(step)
+                val routeResult = findAndToggleSwitch(step)
+                // Экран маршрута подтверждён, а строки-цели на нём нет: карточка-цель может
+                // создаваться только при первом открытии внешнего экрана (Лента виджетов) —
+                // прогреваем и повторяем маршрут один раз на шаг (см. [warmUpRetry]).
+                if (!routeResult.success && routeResult.reason in WARMUP_REASONS) {
+                    warmUpRetry(step, routeScript)?.let { return it }
+                }
+                return routeResult
             }
             AppLog.w(TAG, "route ${step.id} failed — fallback to auto-nav")
             StepDiagnostics.note(step.id, "ROUTE", "fallback_to_auto_nav")
@@ -1490,6 +1551,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
         // Фолбэк варианта (Проводник: основной путь через меню не найден → CLEAR_DATA_DECLINE).
         if (!result.success && result.reason in FALLBACK_REASONS) {
+            // Прогрев объявлен каталогом, а маршрут/авто-навигация не нашли строку-цель:
+            // один прогрев + повтор ДО фолбэк-действия варианта (оно деструктивно).
+            warmUpRetry(step, routeScript)?.let { return it }
             fallbackAfterFailure(step)?.let { fallback ->
                 canResumeSettings = false
                 return fallback
@@ -2069,12 +2133,98 @@ class SimpleRunner(private val service: AdbEnablerService) {
             if (ok) handleConsentWalls(step)
             ok
         } catch (e: Exception) {
-            AppLog.w(TAG, "re-entry failed for {step.id}: {e.message}")
+            AppLog.w(TAG, "re-entry failed for ${step.id}: ${e.message}")
             false
         }
     }
 
-    /** Ожидание узла готовности по resource-id (опрос с ранним выходом). */
+/**
+     * Прогрев внешнего экрана с повтором маршрута: выполняется ОДИН раз на шаг и только
+     * если прогрев объявлен каталогом варианта (см. [SemanticCatalog.WarmUp]).
+     *
+     * Возвращает результат повтора — вызывающий обязан вернуть его как вердикт шага
+     * (честный, даже если строка-цель так и не нашлась); null — прогрева не было
+     * (не объявлен, бюджет шага исчерпан, отмена, лента не открылась, маршрут после
+     * прогрева не подтвердился): тогда поведение шага остаётся прежним.
+     */
+    private suspend fun warmUpRetry(
+        step: SimpleSteps.Step,
+        routeScript: List<SemanticCatalog.RouteItem>
+    ): Result? {
+        val warmUp = SemanticCatalog.warmUp(step.id) ?: return null
+        if (routeScript.isEmpty()) return null
+        if (!claimWarmUp(step.id)) return null
+        val budget = remainingBudgetMs()
+        if (budget < WARMUP_BUDGET_MS / 2) {
+            AppLog.w(TAG, "warmUp: skipped for ${step.id} — budget ${budget}ms")
+            StepDiagnostics.note(step.id, "WARMUP", "skipped_no_budget left=$budget")
+            return null
+        }
+        StepDiagnostics.note(step.id, "WARMUP", "start kind=${warmUp.kind}")
+        if (!performWarmUp(step, warmUp)) {
+            StepDiagnostics.note(step.id, "WARMUP", "failed kind=${warmUp.kind}")
+            return null
+        }
+        if (!executeRouteScript(step, routeScript)) {
+            StepDiagnostics.note(step.id, "WARMUP", "route_unconfirmed_after_warmup")
+            return null
+        }
+        runPreMainExtras(step)
+        val retry = findAndToggleSwitch(step)
+        StepDiagnostics.note(step.id, "WARMUP", "retry ok=${retry.success} reason=${retry.reason}")
+        AppLog.i(TAG, "warmUp: retry for ${step.id} -> success=${retry.success} reason=${retry.reason}")
+        return retry
+    }
+
+    /**
+     * Открывает и закрывает внешний экран-ленту: рабочий стол → горизонтальный свайп
+     * (лента живёт слева от первой страницы) → ожидание появления по resource-id →
+     * выдержка на догрузку карточек → возврат на рабочий стол. Каждый жест — под гейтом
+     * целостности оверлея; отмена прогона прерывает прогрев.
+     */
+    private suspend fun performWarmUp(
+        step: SimpleSteps.Step,
+        warmUp: SemanticCatalog.WarmUp
+    ): Boolean {
+        if (warmUp.kind != WARMUP_KIND_HOME_FEED_SWIPE) {
+            // Каталог объявил неизвестный способ: «как умеем» прогрело бы не тот экран.
+            AppLog.w(TAG, "warmUp: unknown kind '${warmUp.kind}' for ${step.id}")
+            StepDiagnostics.note(step.id, "WARMUP", "unknown_kind kind=${warmUp.kind}")
+            return false
+        }
+        if (cancelled) return false
+        if (!awaitOverlayReadyOrPause()) return false
+        resetToHome()
+        if (cancelled) return false
+        if (!awaitOverlayReadyOrPause()) return false
+        if (!swipeHomePage(forward = false)) {
+            AppLog.w(TAG, "warmUp: swipe failed kind=${warmUp.kind} step=${step.id}")
+            return false
+        }
+        val ids = warmUp.confirmIds.ifEmpty { APP_VAULT_ID_HINTS }
+        val appeared = UiWait.until(
+            timeoutMs = WARMUP_FEED_WAIT_MS,
+            pollMs = WAIT_POLL_FAST_MS,
+            confirmations = WAIT_CONFIRM_READS,
+            isCancelled = { cancelled }
+        ) { isAppVaultVisible(ids) }.hit
+        StepDiagnostics.note(
+            step.id,
+            "WARMUP",
+            "feed_appear hit=$appeared ids=${ids.joinToString("|")}"
+        )
+        // Контенту карточек нужно время: без выдержки список отдаётся без строки-цели.
+        if (appeared) delay(warmUp.settleMs.coerceIn(0L, WARMUP_SETTLE_MAX_MS))
+        if (cancelled) return false
+        if (!awaitOverlayReadyOrPause()) return false
+        swipeHomePage(forward = true)
+        resetToHome()
+        AppLog.i(TAG, "warmUp: ${warmUp.kind} done appeared=$appeared step=${step.id}")
+        return appeared
+    }
+    /**
+     * Ожидание узла готовности по resource-id (опрос с ранним выходом).
+     */
     private suspend fun awaitEntryReadyId(
         stepId: String,
         ids: List<String>,
@@ -5778,10 +5928,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * `com.mi.android.globalminusscreen`, хотя окно принадлежит лаунчеру — поэтому
      * признак ищется по resource-id в дереве, а не по активному пакету.
      */
-    private fun isAppVaultVisible(): Boolean {
+    private fun isAppVaultVisible(ids: List<String> = APP_VAULT_ID_HINTS): Boolean {
         val root = service.rootInActiveWindow ?: return false
         val nodes = NodeTree.findAllInTree(root, predicate = { node ->
-            node.viewIdResourceName?.contains("globalminusscreen") == true
+            val id = node.viewIdResourceName
+            id != null && ids.any { id.contains(it) }
         })
         val found = nodes.isNotEmpty()
         nodes.forEach { recycleNode(it) }

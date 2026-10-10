@@ -349,6 +349,8 @@ class AdbEnablerService : AccessibilityService() {
                 StepDiagnostics.beginRun()
                 // Новый прогон — новый бюджет возврата в приложение шага (P4).
                 simpleRunner.resetForeignRelaunchBudget()
+                // Новый прогон — новый бюджет прогрева внешнего экрана (Лента виджетов).
+                simpleRunner.resetWarmUpBudget()
             }
 
             val profile = RomProfile.detect(this)

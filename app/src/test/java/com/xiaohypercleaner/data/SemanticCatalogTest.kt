@@ -4,6 +4,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -797,5 +798,40 @@ class SemanticCatalogTest {
         assertTrue(SemanticCatalog.feedbackDialogMarkers("msa").isEmpty())
         assertTrue(SemanticCatalog.feedbackRadioTexts("msa").isEmpty())
         assertTrue(SemanticCatalog.feedbackSubmitTexts("msa").isEmpty())
+    }
+
+    /**
+     * Прогрев Ленты (прогон rmv16fbxe, idx 20): маршрут дошёл до списка карточек
+     * («Уже добавлено … Дополнительные инструменты»), строки-цели «Рекомендации приложений»
+     * на свежем устройстве там ещё нет — шаг уходил в честный, но бесполезный
+     * `low_confidence` (ручная проверка через 40 минут — строка на месте). Прогрев объявлен
+     * данными варианта: без этой записи код прогрева мёртв, и шаг снова падает зря.
+     */
+    @Test
+    fun `appvault services declares the feed warm-up`() {
+        SemanticCatalog.selectVariant(
+            RomProfile(
+                region = RomRegion.GLOBAL,
+                miuiVersion = "V130",
+                hyperOsHint = false,
+                isTablet = false,
+                family = RomFamily.MIUI,
+                uiVersion = "13"
+            )
+        )
+
+        val warmUp = SemanticCatalog.warmUp("appvault_services")
+
+        assertNotNull("прогрев Ленты объявлен вариантом miui12_14", warmUp)
+        assertEquals("реализованный способ прогрева", "home_feed_swipe", warmUp!!.kind)
+        assertTrue(
+            "детект открытия Ленты — по resource-id её карточек: ${warmUp.confirmIds}",
+            warmUp.confirmIds.any { it.contains("globalminusscreen") }
+        )
+        assertEquals("выдержка на догрузку карточек — дефолт каталога", 2500L, warmUp.settleMs)
+        assertNull(
+            "соседний шаг прогрева не объявляет",
+            SemanticCatalog.warmUp("appvault_about")
+        )
     }
 }

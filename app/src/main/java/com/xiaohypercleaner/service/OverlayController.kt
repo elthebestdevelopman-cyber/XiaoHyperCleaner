@@ -71,8 +71,36 @@ object OverlayController {
         AppLog.i(TAG, "endPhase: phaseRunning=false caller=${callerName()}")
     }
 
+    /**
+     * Окно, чьи attach/detach-события книга учёта считает текущими. В начале фазы окно
+     * прогресса пересоздаётся (onStep приходит раньше attach): detach выброшенного
+     * экземпляра приходит ПОЗЖЕ attach живого и сбрасывает общие флаги. Гейт целостности
+     * объявлял окно потерянным при живом окне, и КАЖДЫЙ шаг отката падал `overlay_lost`
+     * (прогон rmv16fbxe: `reverseSimpleToggles done: 0/20`, heartbeat при этом писал
+     * `attached=true visible=true` — он смотрит на view, а не на эти флаги).
+     */
+    @Volatile
+    private var rootView: Any? = null
+
+    /** OverlayService регистрирует текущий корень фазы (null — окна нет). */
+    fun setRootView(view: Any?) {
+        rootView = view
+    }
+
+    /**
+     * Живая проверка окна от OverlayService: текущий экземпляр прикреплён и видим.
+     * Флаги [isAttached]/[isVisible] остаются вторым источником — их читают тесты и
+     * канал без сервиса (окно показывает MainActivity).
+     */
+    @Volatile
+    private var solidChecker: (() -> Boolean)? = null
+
+    fun setSolidChecker(checker: (() -> Boolean)?) {
+        solidChecker = checker
+    }
+
     /** Оверлей на месте: прикреплён + видим. */
-    fun isOverlaySolid(): Boolean = isAttached && isVisible
+    fun isOverlaySolid(): Boolean = solidChecker?.invoke() ?: (isAttached && isVisible)
 
     /**
      * Разрешение «Поверх других окон» пропало во время прогона и не восстановилось:
@@ -104,14 +132,20 @@ object OverlayController {
     fun needsAutomationRecovery(canDrawOverlays: Boolean): Boolean =
         phaseRunning && !isAttached && canDrawOverlays
 
-    /** Вызывается OverlayService при добавлении окна. */
-    fun markAttached() {
+    /**
+     * Вызывается OverlayService при добавлении окна. [view] — источник события: события
+     * выброшенных экземпляров окна игнорируются, иначе флаги «живут» отдельно от окна
+     * (см. [rootView]). Вызов без аргумента — безусловный (скрытие окна, onDestroy).
+     */
+    fun markAttached(view: Any? = null) {
+        if (view != null && view !== rootView) return
         isAttached = true
         AppLog.i(TAG, "overlay: attached ts=${System.currentTimeMillis()}")
     }
 
-    /** Вызывается OverlayService при удалении окна. */
-    fun markDetached() {
+    /** Вызывается OverlayService при удалении окна (см. [markAttached]). */
+    fun markDetached(view: Any? = null) {
+        if (view != null && view !== rootView) return
         isAttached = false
         isVisible = false
         AppLog.i(TAG, "overlay: detached ts=${System.currentTimeMillis()}")

@@ -2924,6 +2924,10 @@
           "itemTexts": {
             "ru": ["Рекомендации приложений"],
             "en": ["App recommendations"]
+          },
+          "warmUp": {
+            "kind": "home_feed_swipe",
+            "confirmIds": ["globalminusscreen"]
           }
         },
         {

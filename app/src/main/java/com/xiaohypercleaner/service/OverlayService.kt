@@ -85,6 +85,17 @@ class OverlayService : Service() {
          * updateViewLayout такое состояние не лечит, помогает только re-add.
          */
         private const val ZERO_RECT_READD_AFTER = 3
+
+        /**
+         * Пауза после показа окна автоматизации, в течение которой восстановление окна
+         * НЕ запускается: attach приходит асинхронно, а onStep зовёт updateAutomation/
+         * updateStatus сразу после startAutomation. Без паузы recovery видел
+         * `root!=null && !isAttachedToWindow` и пересоздавал окно повторно — в фазе отката
+         * окно создавалось трижды, detach-события выброшенных экземпляров сбрасывали
+         * флаги контроллера, и гейт объявлял окно потерянным при живом окне
+         * (прогон rmv16fbxe: `reverseSimpleToggles done: 0/20`).
+         */
+        private const val RECOVERY_GRACE_MS = 800L
     }
 
     enum class PointerMode { TOP_RIGHT, BOTTOM_LIST, SWITCH_RIGHT, LIST_ITEM_CENTER, GENERIC_BOTTOM }
@@ -134,6 +145,11 @@ class OverlayService : Service() {
     private var automationStep = 0
     private var automationTitle = ""
     private var automationStatus = ""
+
+    /** Момент последнего показа окна автоматизации: окно прикрепляется асинхронно,
+     *  и в течение [RECOVERY_GRACE_MS] «root есть, но ещё не attached» — это норма,
+     *  а не потеря окна (см. комментарий константы). */
+    private var automationShownAtMs = 0L
 
     /** Корневое окно оверлея: логирует все смены attach/detach/visibility. */
     private inner class OverlayRootView(context: android.content.Context) : FrameLayout(context) {
@@ -205,6 +221,12 @@ class OverlayService : Service() {
         if (!OverlayPermissionProbe.isGranted(this)) {
             AppLog.w(TAG, "onCreate: overlay permission missing (${OverlayPermissionProbe.describe(this)})")
             OverlayController.markPermissionLost()
+        }
+        // Живая проверка окна для гейта целостности раннера: флаги контроллера — второй
+        // источник, истина — текущий экземпляр окна фазы (см. OverlayController.rootView).
+        OverlayController.setSolidChecker {
+            val v = root
+            v != null && v.isAttachedToWindow && v.windowVisibility == View.VISIBLE
         }
     }
 
@@ -315,6 +337,8 @@ class OverlayService : Service() {
         automationTotal = total
         automationMode = mode
         automationStartedAt = System.currentTimeMillis()
+        // Окно прикрепится асинхронно: до [RECOVERY_GRACE_MS] recovery не пересоздаёт его.
+        automationShownAtMs = System.currentTimeMillis()
         isBlocking = true
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -521,6 +545,9 @@ class OverlayService : Service() {
      */
     private fun recoverAutomationIfMissing(): Boolean {
         if (!OverlayController.needsAutomationRecovery(Settings.canDrawOverlays(this))) return false
+        // Свежепоказанное окно ещё не прикрепилось (attach асинхронный): пересоздание в этот
+        // момент плодит второе-третье окно и рассинхронизирует флаги контроллера.
+        if (System.currentTimeMillis() - automationShownAtMs < RECOVERY_GRACE_MS) return false
         val v = root
         if (v != null && v.isAttachedToWindow) return false
         AppLog.w(TAG, "overlay: recreating automation window (phase running, root=${v != null})")
@@ -744,6 +771,8 @@ class OverlayService : Service() {
                     AppLog.d(
                         TAG,
                         "heartbeat alive attached=$attached visible=$visible " +
+                            "controller=${OverlayController.isAttached}/${OverlayController.isVisible} " +
+                            "solid=${OverlayController.isOverlaySolid()} " +
                             "rect=${rect.width()}x${rect.height()} tick=$heartbeatTicks"
                     )
                 }
@@ -893,6 +922,9 @@ class OverlayService : Service() {
         expectingDetach = false
         geometryMismatchLogged = false
         zOrderBelowLogged = false
+        // Книга учёта attach/detach ведётся по КОНКРЕТНОМУ экземпляру окна: события
+        // выброшенных окон (пересоздание в начале фазы) не должны сбрасывать флаги.
+        OverlayController.setRootView(v)
 
         AppLog.i(
             TAG,
@@ -904,14 +936,17 @@ class OverlayService : Service() {
         // Логируем все смены attach/detach
         v.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(view: View) {
-                OverlayController.markAttached()
+                OverlayController.markAttached(view)
                 OverlayController.markVisible(view.windowVisibility == View.VISIBLE)
                 AppLog.i(TAG, "overlay: viewAttachedToWindow ts=${System.currentTimeMillis()}")
             }
             override fun onViewDetachedFromWindow(view: View) {
-                OverlayController.markDetached()
+                OverlayController.markDetached(view)
                 AppLog.i(TAG, "overlay: viewDetachedFromWindow ts=${System.currentTimeMillis()}")
                 if (expectingDetach) return
+                // Открепился НЕ текущий экземпляр (его заменили при пересоздании окна) —
+                // всплытия сторожа не требуется: живое окно осталось.
+                if (root !== view) return
                 // Вне защищённой фазы (например, DONE после showResult) re-add не нужен.
                 if (!OverlayController.phaseRunning) {
                     AppLog.i(TAG, "overlay: detach ignored (phase not running, no re-add)")
@@ -1051,6 +1086,7 @@ class OverlayService : Service() {
         tvStep = null; tvTitle = null; tvStatus = null; progressBar = null; tvProgress = null
         automationPanel = null
         cancelConfirmPanel = null
+        OverlayController.setRootView(null)
         OverlayController.markDetached()
         AppLog.i(TAG, "overlay hidden")
     }
@@ -1074,6 +1110,8 @@ class OverlayService : Service() {
         root = null
         layoutParams = null
         isBlocking = true
+        OverlayController.setRootView(null)
+        OverlayController.setSolidChecker(null)
         OverlayController.markDetached()
         super.onDestroy()
         AppLog.i(TAG, "onDestroy")

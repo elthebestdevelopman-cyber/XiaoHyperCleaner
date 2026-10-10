@@ -499,6 +499,23 @@ class SimpleRunnerRouteTest {
             .dispatchGesture(any(), any(), any())
     }
 
+    @Test
+    fun `warm-up budget is spent once per step and reset by a new run`() {
+        // Прогрев Ленты (appvault_services, прогон rmv16fbxe) — самый дорогой повтор шага:
+        // открыть ленту, дождаться карточек, закрыть, повторить маршрут. Второй прогрев
+        // внутри того же шага жёг бы бюджет шага, а новый прогон обязан получить бюджет заново.
+        assertTrue("первый прогрев шага разрешён", runner.claimWarmUp("appvault_services"))
+        assertFalse(
+            "повторный прогрев на том же шаге не выдаётся",
+            runner.claimWarmUp("appvault_services")
+        )
+        assertTrue("у другого шага свой бюджет", runner.claimWarmUp("appvault_about"))
+
+        runner.resetWarmUpBudget()
+
+        assertTrue("новый прогон выдаёт бюджет заново", runner.claimWarmUp("appvault_services"))
+    }
+
     /** Границы узла: `getBoundsInScreen` заполняет переданный Rect. */
     private fun bounds(n: AccessibilityNodeInfo, l: Int, t: Int, r: Int, b: Int) {
         Mockito.`when`(n.getBoundsInScreen(Mockito.any(android.graphics.Rect::class.java)))
