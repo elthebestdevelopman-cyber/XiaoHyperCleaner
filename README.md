@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 42 сьюта, 362 теста (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 42 сьюта, 365 тестов (полная таблица ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 17 тестов
 │   ├── OptimizationEngineTest.kt # 15 тестов
@@ -388,7 +388,7 @@ app/src/test/java/com/xiaohypercleaner/          # 42 сьюта, 362 теста
 
 ## 🧪 Тестирование
 
-### Unit-тесты (362 теста, 42 сьюта)
+### Unit-тесты (365 тестов, 42 сьюта)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -400,7 +400,7 @@ app/src/test/java/com/xiaohypercleaner/          # 42 сьюта, 362 теста
 | `RestoreSnapshotTest`         | 5      | Снапшот оригиналов для отката                      |
 | `AdbPortResolverTest`         | 5      | mDNS discovery, mergePorts                         |
 | `AdaptiveCatalogTest`         | 17     | Вариантный каталог, мердж текстов                  |
-| `SemanticCatalogTest`         | 30     | Семантика шагов, пакеты-цели, политика диалогов    |
+| `SemanticCatalogTest`         | 31     | Семантика шагов, пакеты-цели, политика диалогов    |
 | `SemanticVariantTest`         | 9      | Выбор вариантов по версии ОС (MIUI 13 / HyperOS 2) |
 | `SemanticGateTest`            | 6      | Гейт уверенности                                   |
 | `PlanBuilderTest`             | 9      | Префильтр плана + красный список                   |
@@ -422,8 +422,8 @@ app/src/test/java/com/xiaohypercleaner/          # 42 сьюта, 362 теста
 | `SimpleRunnerApplicabilityTest` | 12   | Неприменимые шаги, вход notif_*, поздняя проверка состояния |
 | `SimpleRunnerAppEntryTest`    | 4      | Готовность экрана приложения перед бурением        |
 | `SimpleRunnerMuteTest`        | 4      | Громкость медиа: save→mute→restore, снапшот fresh-device |
-| `SimpleRunnerOverlayGateTest` | 6      | Гейт целостности оверлея, сторож жестов ±500 мс    |
-| `SimpleRunnerRouteTest`       | 20     | Маршрут-подсказка: подтверждение экрана пакетом и маркерами |
+| `SimpleRunnerOverlayGateTest` | 7      | Гейт целостности оверлея, сторож жестов ±500 мс    |
+| `SimpleRunnerRouteTest`       | 21     | Маршрут-подсказка: подтверждение экрана пакетом и маркерами |
 | `SimpleRunnerVerifyTest`      | 9      | Честный вердикт при исчезнувшей строке, открытом диалоге и опросе карусели |
 | `ReverseRollbackTest`         | 1      | Ключ снапшота доп. целей: разбор по `#extra:`, строка ищется по подписи |
 | `SimpleModeControllerOverlayTest` | 2  | Потеря разрешения оверлея останавливает прогон одним итогом |

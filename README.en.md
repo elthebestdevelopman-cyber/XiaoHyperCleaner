@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 42 suites, 362 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 42 suites, 365 tests (full table below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt    # 17 tests
 │   ├── OptimizationEngineTest.kt # 15 tests
@@ -370,7 +370,7 @@ app/src/test/java/com/xiaohypercleaner/          # 42 suites, 362 tests (full ta
 
 ## 🧪 Testing
 
-### Unit Tests (362 tests, 42 suites)
+### Unit Tests (365 tests, 42 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -382,7 +382,7 @@ app/src/test/java/com/xiaohypercleaner/          # 42 suites, 362 tests (full ta
 | `RestoreSnapshotTest`         | 5     | Rollback snapshot of original values               |
 | `AdbPortResolverTest`         | 5     | mDNS discovery, mergePorts                         |
 | `AdaptiveCatalogTest`         | 17    | Variant catalog, text merging                      |
-| `SemanticCatalogTest`         | 30    | Step semantics, packages, dialog policy            |
+| `SemanticCatalogTest`         | 31    | Step semantics, packages, dialog policy            |
 | `SemanticVariantTest`         | 9     | OS variant selection (MIUI 13 / HyperOS 2)         |
 | `SemanticGateTest`            | 6     | Confidence gate                                    |
 | `PlanBuilderTest`             | 9     | Plan pre-filter + red list                         |
@@ -404,8 +404,8 @@ app/src/test/java/com/xiaohypercleaner/          # 42 suites, 362 tests (full ta
 | `SimpleRunnerApplicabilityTest` | 12  | Not applicable steps, notif_* entry, late verify   |
 | `SimpleRunnerAppEntryTest`    | 4     | App screen readiness before drilling              |
 | `SimpleRunnerMuteTest`        | 4     | Media volume: save→mute→restore, fresh-device snapshot |
-| `SimpleRunnerOverlayGateTest` | 6     | Overlay integrity gate, ±500 ms gesture guard      |
-| `SimpleRunnerRouteTest`       | 20    | Route as hint: screen confirmed by package and markers |
+| `SimpleRunnerOverlayGateTest` | 7     | Overlay integrity gate, ±500 ms gesture guard      |
+| `SimpleRunnerRouteTest`       | 21    | Route as hint: screen confirmed by package and markers |
 | `SimpleRunnerVerifyTest`      | 9     | Honest verdict when the row vanished behind a dialog or the carousel survey |
 | `ReverseRollbackTest`         | 1     | Extra target snapshot key: parsed by `#extra:`, row found by its label |
 | `SimpleModeControllerOverlayTest` | 2 | Overlay permission loss stops the run with a single result |
