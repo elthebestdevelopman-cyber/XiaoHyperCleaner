@@ -175,7 +175,7 @@ class ReverseRollbackTest {
     @Test
     fun `extra row is returned to the snapshot value`() {
         assertEquals(
-            ExtraRestoreDecision.Toggle(false),
+            ExtraRestoreDecision.Toggle(false, ReverseExtras.REASON_TOGGLED),
             ReverseExtras.decide(rowFound = true, checkedNow = true, snapshotValue = false)
         )
     }
@@ -183,7 +183,7 @@ class ReverseRollbackTest {
     @Test
     fun `extra row already in snapshot state needs no tap`() {
         assertEquals(
-            ExtraRestoreDecision.AlreadyOriginal,
+            ExtraRestoreDecision.AlreadyOriginal(ReverseExtras.REASON_ALREADY_ORIGINAL),
             ReverseExtras.decide(rowFound = true, checkedNow = true, snapshotValue = true)
         )
     }
@@ -192,7 +192,7 @@ class ReverseRollbackTest {
     fun `row missing from snapshot is left alone`() {
         assertEquals(
             "строку мы не тумбили — возвращать нечего",
-            ExtraRestoreDecision.AlreadyOriginal,
+            ExtraRestoreDecision.AlreadyOriginal(ReverseExtras.REASON_NOT_TOGGLED_BY_US),
             ReverseExtras.decide(rowFound = true, checkedNow = false, snapshotValue = null)
         )
     }
@@ -201,11 +201,17 @@ class ReverseRollbackTest {
     fun `absent row with snapshot entry is unreadable even with main switch off`() {
         assertEquals(
             "цель с beforeMain при выключенном главном тумблере — не «выполнена»",
-            ExtraRestoreDecision.Unreadable,
+            ExtraRestoreDecision.Unreadable(ReverseExtras.REASON_ROW_ABSENT),
             ReverseExtras.decide(rowFound = false, checkedNow = null, snapshotValue = true)
         )
+    }
+
+    @Test
+    fun `unreadable switch state is not a success either`() {
+        // Задел, а не живая ветка: isChecked возвращает Boolean, поэтому checkedNow не бывает
+        // null (см. KDoc ReverseExtras.REASON_STATE_UNREADABLE) — тест фиксирует контракт правила.
         assertEquals(
-            ExtraRestoreDecision.Unreadable,
+            ExtraRestoreDecision.Unreadable(ReverseExtras.REASON_STATE_UNREADABLE),
             ReverseExtras.decide(rowFound = true, checkedNow = null, snapshotValue = true)
         )
     }

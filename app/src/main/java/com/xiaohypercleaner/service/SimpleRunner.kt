@@ -2633,6 +2633,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * результат пишется в лог (`extra target toggled|already_off|absent step=… text='…'`).
      * Исчезнувшая строка не считается сбоем: на повторном прогоне зависимая строка
      * пропадает вместе с главным тумблером.
+     *
+     * В ОТКАТЕ правило другое, и оно ОДНО на всю ветку: [ReverseExtras.decide] решает по
+     * снимку `checked_before` (тумбили ли мы строку, видна ли она сейчас, совпало ли
+     * состояние), а токены лога — `already_original|unreadable|applied|failed … reason=…`.
+     * Копий этих условий в раннере нет: иначе тест гонял бы правила, а не рабочий код.
      */
     private suspend fun toggleExtraRow(
         step: SimpleSteps.Step,
@@ -2643,52 +2648,81 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val root = service.rootInActiveWindow ?: return false
         recycleNode(root)
         // Откат: целевое состояние берём из снапшота (`<stepId>#extra:<подпись>`), а не из
-        // каталога, иначе «возврат» повторял бы включение оптимизации. Ключа нет — строку
-        // мы не тумбили, трогать нечего.
+        // каталога, иначе «возврат» повторял бы включение оптимизации.
         val rev = reverseCtx
         val key = extraToggleKey(step.id, text)
         val snapshotValue = rev?.snapshot?.get(key)
-        if (rev != null && !rev.snapshot.containsKey(key)) {
-            AppLog.i(TAG, "extra target reverse_skip step=${step.id} text='$text' reason=not_toggled_by_us")
-            rev.extras += ReverseExtraResult(text, ReverseOutcome.ALREADY_ORIGINAL, "not_toggled_by_us")
-            recycleNode(root)
-            return true
-        }
-        // В откате цель — значение снапшота: и проверка состояния, и тап идут по нему.
-        val effectiveTarget = snapshotValue?.let { target.copy(targetChecked = it) } ?: target
         // Строку ищем прокруткой: она может стоять на кромке экрана (см. KDoc
         // [findSwitchByTextWithScroll]).
         val switch = findSwitchByTextWithScroll(listOf(text), logLabel = "${step.id}:$text")
-        if (switch == null) {
-            // В откате исчезнувшая строка — не «цель выполнена»: в снапшоте есть запись,
-            // значит строку мы тумбили и обязаны вернуть. Сюда же попадает и случай
-            // выключенного главного тумблера — `mainSwitchIsOff` тут не оправдание.
-            if (rev != null) {
-                val mainOff = mainSwitchIsOff(step)
-                AppLog.w(TAG, "extra target unreadable step=${step.id} text='$text' main_off=$mainOff")
-                StepDiagnostics.note(step.id, "EXTRA", "unreadable text=$text main_off=$mainOff")
-                rev.extras += ReverseExtraResult(text, ReverseOutcome.UNREADABLE, "row_absent")
+        val checkedNow = switch?.let { SwitchFinder.isChecked(it) }
+        // В откате решение принимает [ReverseExtras.decide]; ветки ниже только маппят
+        // исход на действие. `mainSwitchIsOff` здесь читается исключительно ради поля
+        // main_off= в логе — в решающей позиции ветки отката его нет.
+        val effectiveTarget: SemanticCatalog.ExtraTarget
+        if (rev != null) {
+            when (val decision = ReverseExtras.decide(switch != null, checkedNow, snapshotValue)) {
+                is ExtraRestoreDecision.AlreadyOriginal -> {
+                    AppLog.i(
+                        TAG,
+                        "extra target already_original step=${step.id} text='$text' " +
+                            "reason=${decision.reason}"
+                    )
+                    StepDiagnostics.note(
+                        step.id, "EXTRA", "already_original text=$text reason=${decision.reason}"
+                    )
+                    rev.extras += ReverseExtraResult(
+                        text, ReverseOutcome.ALREADY_ORIGINAL, decision.reason
+                    )
+                    recycleNode(switch); recycleNode(root)
+                    return true
+                }
+
+                is ExtraRestoreDecision.Unreadable -> {
+                    val mainOff = mainSwitchIsOff(step)
+                    AppLog.w(
+                        TAG,
+                        "extra target unreadable step=${step.id} text='$text' " +
+                            "reason=${decision.reason} main_off=$mainOff"
+                    )
+                    StepDiagnostics.note(
+                        step.id, "EXTRA",
+                        "unreadable text=$text reason=${decision.reason} main_off=$mainOff"
+                    )
+                    rev.extras += ReverseExtraResult(
+                        text, ReverseOutcome.UNREADABLE, decision.reason
+                    )
+                    recycleNode(root)
+                    return false
+                }
+
+                is ExtraRestoreDecision.Toggle ->
+                    effectiveTarget = target.copy(targetChecked = decision.target)
+            }
+        } else {
+            effectiveTarget = target
+            if (switch == null) {
+                // «Строки нет» ≠ «цель выполнена»: браузерный шаг отчитывался `toggled`,
+                // когда прокрутка не нашла тумблер, а он остался включённым (прогон
+                // rmuod5cmm). Законное исчезновение — только при уже выключенном главном
+                // тумблере: тогда зависимая строка пропадает вместе с функцией.
+                if (mainSwitchIsOff(step)) {
+                    AppLog.i(TAG, "extra target absent_main_off step=${step.id} text='$text'")
+                    StepDiagnostics.note(step.id, "EXTRA", "absent text=$text main_off=true")
+                    return true
+                }
+                if (target.optional) {
+                    AppLog.i(TAG, "extra target optional_absent step=${step.id} text='$text'")
+                    StepDiagnostics.note(step.id, "EXTRA", "absent_optional text=$text")
+                    return true
+                }
+                AppLog.w(TAG, "extra target absent step=${step.id} text='$text' main_off=false")
+                StepDiagnostics.note(step.id, "EXTRA", "absent text=$text main_off=false")
                 return false
             }
-            // «Строки нет» ≠ «цель выполнена»: браузерный шаг отчитывался `toggled`,
-            // когда прокрутка не нашла тумблер, а он остался включённым (прогон
-            // rmuod5cmm). Законное исчезновение — только при уже выключенном главном
-            // тумблере: тогда зависимая строка пропадает вместе с функцией.
-            if (mainSwitchIsOff(step)) {
-                AppLog.i(TAG, "extra target absent_main_off step=${step.id} text='$text'")
-                StepDiagnostics.note(step.id, "EXTRA", "absent text=$text main_off=true")
-                return true
-            }
-            if (target.optional) {
-                AppLog.i(TAG, "extra target optional_absent step=${step.id} text='$text'")
-                StepDiagnostics.note(step.id, "EXTRA", "absent_optional text=$text")
-                return true
-            }
-            AppLog.w(TAG, "extra target absent step=${step.id} text='$text' main_off=false")
-            StepDiagnostics.note(step.id, "EXTRA", "absent text=$text main_off=false")
-            return false
         }
-        val checked = SwitchFinder.isChecked(switch)
+        val node = switch ?: return false
+        val checked = checkedNow ?: return false
         // Цель может требовать включения, поэтому целевое состояние берём у цели,
         // а не у шага (в откате цель подменена значением снапшота).
         val needed = checked != effectiveTarget.targetChecked
@@ -2699,16 +2733,26 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // не пишется вовсе: иначе возврат перезаписывает значение, по которому возвращает.
         if (needed && rev == null) recordCheckedBefore(key, checked)
         if (!needed) {
-            recycleNode(switch); recycleNode(root)
+            // В откате недостижимо: [ReverseExtras.decide] уже вернул AlreadyOriginal.
+            recycleNode(node); recycleNode(root)
             AppLog.i(TAG, "extra target already_off step=${step.id} text='$text'")
-            rev?.extras?.add(ReverseExtraResult(text, ReverseOutcome.ALREADY_ORIGINAL, "already_off"))
             return true
         }
-        val tapped = tapNode(switch)
-        recycleNode(switch); recycleNode(root)
+        val tapped = tapNode(node)
+        recycleNode(node); recycleNode(root)
         if (!tapped) {
-            AppLog.w(TAG, "extra target tap failed step=${step.id} text='$text'")
-            rev?.extras?.add(ReverseExtraResult(text, ReverseOutcome.FAILED, "tap_failed"))
+            if (rev != null) {
+                AppLog.w(
+                    TAG,
+                    "extra target failed step=${step.id} text='$text' " +
+                        "reason=${ReverseExtras.REASON_TAP_FAILED}"
+                )
+                rev.extras += ReverseExtraResult(
+                    text, ReverseOutcome.FAILED, ReverseExtras.REASON_TAP_FAILED
+                )
+            } else {
+                AppLog.w(TAG, "extra target tap failed step=${step.id} text='$text'")
+            }
             return false
         }
         // Ранний выход: диалог цели появился ЛИБО состояние уже достигнуто —
@@ -2725,8 +2769,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // отменила бы саму цель, поэтому confirmTexts цели отключает decline-путь.
         if (target.confirmTexts.isNotEmpty()) {
             if (tapConfirmIfNeeded(step, target.confirmTexts) == ConfirmOutcome.FAILED) {
-                AppLog.w(TAG, "extra target confirm failed step=${step.id} text='$text'")
-                rev?.extras?.add(ReverseExtraResult(text, ReverseOutcome.FAILED, "confirm_failed"))
+                if (rev != null) {
+                    AppLog.w(
+                        TAG,
+                        "extra target failed step=${step.id} text='$text' " +
+                            "reason=${ReverseExtras.REASON_CONFIRM_FAILED}"
+                    )
+                    rev.extras += ReverseExtraResult(
+                        text, ReverseOutcome.FAILED, ReverseExtras.REASON_CONFIRM_FAILED
+                    )
+                } else {
+                    AppLog.w(TAG, "extra target confirm failed step=${step.id} text='$text'")
+                }
                 return false
             }
         } else if (target.drillPath.isNotEmpty()) {
@@ -2742,12 +2796,32 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Без подтверждения фактического состояния цель «выполнено» не объявляет.
         // В откате состояние проверяется против значения снапшота (effectiveTarget).
         if (!verifyExtraTargetState(effectiveTarget, listOf(text))) {
-            AppLog.w(TAG, "extra target not verified step=${step.id} text='$text'")
-            rev?.extras?.add(ReverseExtraResult(text, ReverseOutcome.FAILED, "not_verified"))
+            if (rev != null) {
+                AppLog.w(
+                    TAG,
+                    "extra target failed step=${step.id} text='$text' " +
+                        "reason=${ReverseExtras.REASON_NOT_VERIFIED}"
+                )
+                rev.extras += ReverseExtraResult(
+                    text, ReverseOutcome.FAILED, ReverseExtras.REASON_NOT_VERIFIED
+                )
+            } else {
+                AppLog.w(TAG, "extra target not verified step=${step.id} text='$text'")
+            }
             return false
         }
-        AppLog.i(TAG, "extra target toggled step=${step.id} text='$text'")
-        rev?.extras?.add(ReverseExtraResult(text, ReverseOutcome.APPLIED, null))
+        if (rev != null) {
+            AppLog.i(
+                TAG,
+                "extra target applied step=${step.id} text='$text' " +
+                    "reason=${ReverseExtras.REASON_TOGGLED}"
+            )
+            rev.extras += ReverseExtraResult(
+                text, ReverseOutcome.APPLIED, ReverseExtras.REASON_TOGGLED
+            )
+        } else {
+            AppLog.i(TAG, "extra target toggled step=${step.id} text='$text'")
+        }
         return true
     }
 

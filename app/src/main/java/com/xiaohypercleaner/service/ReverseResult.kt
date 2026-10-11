@@ -64,16 +64,23 @@ class ReverseContext(
     var relaunchUsed: Boolean = false
 }
 
-/** Решение по одной строке-цели в откате. */
+/**
+ * Решение по одной строке-цели в откате. Причина ([reason]) живёт ВНУТРИ решения:
+ * production берёт её в лог и в [ReverseExtraResult.note], второго `when` по тем же
+ * случаям нигде нет — правило не копируется, а возвращается вместе с исходом.
+ */
 sealed interface ExtraRestoreDecision {
+    /** Токен причины для лога и отчёта (поле `reason=…`). */
+    val reason: String
+
     /** Тумблить не нужно: строка уже в исходном состоянии (или мы её не тумбили). */
-    data object AlreadyOriginal : ExtraRestoreDecision
+    data class AlreadyOriginal(override val reason: String) : ExtraRestoreDecision
 
     /** Строку надо привести к [target]. */
-    data class Toggle(val target: Boolean) : ExtraRestoreDecision
+    data class Toggle(val target: Boolean, override val reason: String) : ExtraRestoreDecision
 
     /** Возврат невозможен: строка исчезла или её состояние не читается. */
-    data object Unreadable : ExtraRestoreDecision
+    data class Unreadable(override val reason: String) : ExtraRestoreDecision
 }
 
 /**
@@ -82,18 +89,44 @@ sealed interface ExtraRestoreDecision {
  */
 object ReverseExtras {
 
+    // Причины исходов: единственный источник токенов `reason=` в логе и
+    // ReverseExtraResult.note — дублировать эти строки в раннере нельзя.
+    const val REASON_NOT_TOGGLED_BY_US = "not_toggled_by_us"
+    const val REASON_ALREADY_ORIGINAL = "already_original"
+    const val REASON_ROW_ABSENT = "row_absent"
+
+    /**
+     * Пока НЕДОСТИЖИМА в production: [SwitchFinder.isChecked] возвращает `Boolean`, поэтому
+     * `checkedNow` не бывает `null` и «строки нет» с «состояние не прочитано» для вызывающего
+     * кода неразличимы. Оставлена как задел на трёхзначное чтение состояния
+     * (есть / нет / неизвестно) — ветку не считать живой на приёмке.
+     */
+    const val REASON_STATE_UNREADABLE = "state_unreadable"
+    const val REASON_TOGGLED = "toggled"
+    const val REASON_TAP_FAILED = "tap_failed"
+    const val REASON_CONFIRM_FAILED = "confirm_failed"
+    const val REASON_NOT_VERIFIED = "not_verified"
+
     /**
      * [rowFound] — строка-цель найдена на экране; [checkedNow] — её фактическое состояние;
      * [snapshotValue] — значение из снапшота (`null` = ключа нет).
      *
-     * Ключа нет — строку мы не тумбили, возвращать нечего ([AlreadyOriginal]).
-     * Ключ есть, а строки нет (в том числе потому, что главный тумблер уже выключен) —
-     * это исчезнувшая цель, а не «цель выполнена»: [Unreadable].
+     * Ключа нет — строку мы не тумбили, возвращать нечего
+     * ([ExtraRestoreDecision.AlreadyOriginal]). Ключ есть, а строки нет (в том числе потому,
+     * что главный тумблер уже выключен) — это исчезнувшая цель, а не «цель выполнена»:
+     * [ExtraRestoreDecision.Unreadable].
      */
-    fun decide(rowFound: Boolean, checkedNow: Boolean?, snapshotValue: Boolean?): ExtraRestoreDecision = when {
-        snapshotValue == null -> ExtraRestoreDecision.AlreadyOriginal
-        !rowFound || checkedNow == null -> ExtraRestoreDecision.Unreadable
-        checkedNow == snapshotValue -> ExtraRestoreDecision.AlreadyOriginal
-        else -> ExtraRestoreDecision.Toggle(checkNotNull(snapshotValue))
+    fun decide(
+        rowFound: Boolean,
+        checkedNow: Boolean?,
+        snapshotValue: Boolean?
+    ): ExtraRestoreDecision = when {
+        snapshotValue == null ->
+            ExtraRestoreDecision.AlreadyOriginal(REASON_NOT_TOGGLED_BY_US)
+        !rowFound -> ExtraRestoreDecision.Unreadable(REASON_ROW_ABSENT)
+        checkedNow == null -> ExtraRestoreDecision.Unreadable(REASON_STATE_UNREADABLE)
+        checkedNow == snapshotValue ->
+            ExtraRestoreDecision.AlreadyOriginal(REASON_ALREADY_ORIGINAL)
+        else -> ExtraRestoreDecision.Toggle(checkNotNull(snapshotValue), REASON_TOGGLED)
     }
 }
