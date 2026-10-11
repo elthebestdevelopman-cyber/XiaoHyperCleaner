@@ -313,24 +313,24 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 42 сьюта, 365 тестов (полная таблица ниже)
+app/src/test/java/com/xiaohypercleaner/          # 42 сьюта, 365 тестов (дерево тестов ниже)
 ├── data/
-│   ├── AdaptiveCatalogTest.kt    # 17 тестов
-│   ├── OptimizationEngineTest.kt # 15 тестов
-│   ├── AdbPortResolverTest.kt    # 5 тестов
-│   ├── DirectIntentNavigatorTest.kt # 8 тестов (точка входа шага, цепочки интентов)
-│   ├── RomProfileTest.kt         # 5 тестов
-│   └── SimpleStepsTest.kt        # 8 тестов
+│   ├── AdaptiveCatalogTest.kt
+│   ├── OptimizationEngineTest.kt
+│   ├── AdbPortResolverTest.kt
+│   ├── DirectIntentNavigatorTest.kt  # точка входа шага, цепочки интентов
+│   ├── RomProfileTest.kt
+│   └── SimpleStepsTest.kt
 ├── service/
-│   ├── SimpleRunnerDrillTest.kt  # 12 тестов (проверка уровней бурения)
-│   ├── SimpleRunnerApplicabilityTest.kt # 12 тестов (неприменимые шаги, вход notif_*, поздняя проверка)
-│   ├── SimpleRunnerAppEntryTest.kt # 4 теста (готовность экрана приложения)
-│   └── SimpleRunnerClearDataTest.kt # 2 теста
+│   ├── SimpleRunnerDrillTest.kt  # проверка уровней бурения
+│   ├── SimpleRunnerApplicabilityTest.kt  # неприменимые шаги, вход notif_*, поздняя проверка
+│   ├── SimpleRunnerAppEntryTest.kt  # готовность экрана приложения
+│   └── SimpleRunnerClearDataTest.kt
 ├── ui/
-│   └── MainViewModelTest.kt      # 9 тестов (Robolectric)
+│   └── MainViewModelTest.kt  # Robolectric
 └── util/
-    ├── LogMaskerTest.kt          # 15 тестов
-    └── TextMatcherTest.kt        # 10 тестов
+    ├── LogMaskerTest.kt
+    └── TextMatcherTest.kt
 ```
 
 ---

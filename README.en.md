@@ -295,24 +295,24 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 42 suites, 365 tests (full table below)
+app/src/test/java/com/xiaohypercleaner/          # 42 suites, 365 tests (test tree below)
 ├── data/
-│   ├── AdaptiveCatalogTest.kt    # 17 tests
-│   ├── OptimizationEngineTest.kt # 15 tests
-│   ├── AdbPortResolverTest.kt    # 5 tests
-│   ├── DirectIntentNavigatorTest.kt # 8 tests (step entry point, intent chains)
-│   ├── RomProfileTest.kt         # 5 tests
-│   └── SimpleStepsTest.kt        # 8 tests
+│   ├── AdaptiveCatalogTest.kt
+│   ├── OptimizationEngineTest.kt
+│   ├── AdbPortResolverTest.kt
+│   ├── DirectIntentNavigatorTest.kt  # step entry point, intent chains
+│   ├── RomProfileTest.kt
+│   └── SimpleStepsTest.kt
 ├── service/
-│   ├── SimpleRunnerDrillTest.kt  # 12 tests (drill level verification)
-│   ├── SimpleRunnerApplicabilityTest.kt # 12 tests (not applicable steps, notif_* entry)
-│   ├── SimpleRunnerAppEntryTest.kt # 4 tests (app screen readiness)
-│   └── SimpleRunnerClearDataTest.kt # 2 tests
+│   ├── SimpleRunnerDrillTest.kt  # drill level verification
+│   ├── SimpleRunnerApplicabilityTest.kt  # not applicable steps, notif_* entry
+│   ├── SimpleRunnerAppEntryTest.kt  # app screen readiness
+│   └── SimpleRunnerClearDataTest.kt
 ├── ui/
-│   └── MainViewModelTest.kt      # 9 tests (Robolectric)
+│   └── MainViewModelTest.kt  # Robolectric
 └── util/
-    ├── LogMaskerTest.kt          # 15 tests
-    └── TextMatcherTest.kt        # 10 tests
+    ├── LogMaskerTest.kt
+    └── TextMatcherTest.kt
 ```
 
 ---
