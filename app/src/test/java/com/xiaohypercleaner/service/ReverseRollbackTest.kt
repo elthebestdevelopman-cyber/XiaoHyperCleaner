@@ -1,36 +1,212 @@
 package com.xiaohypercleaner.service
 
+import com.xiaohypercleaner.data.SimpleSteps
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Полнота отката (R1).
+ * Откат Simple Mode: честный третий исход и возврат значений из снапшота.
  *
- * Прогон rmuyl4opt: снапшот хранил только главный тумблер, поэтому откат карусели
- * возвращал одну строку из пяти, а зависимые подстроки оставались выключенными.
- * Тест фиксирует контракт ключа доп. цели: разбор на стороне отката идёт по маркеру
- * `#extra:`, а вторая часть ключа — ПОДПИСЬ строки (по ней откат её и находит).
+ * Прогон rmv2kgdf3: откат `ux_program#extra:…` не нашёл значения в снапшоте, подставил
+ * инверсию `targetChecked` и отчитался `success` — дефект был невидим. Тест падает именно
+ * на подмене значения: фейковый раннер НЕ должен получить `!original.targetChecked`, а
+ * шаг без значения снапшота не должен запускаться вовсе.
+ *
+ * Тест идёт через потребляющий слой — цикл, которым пользуется
+ * [AdbEnablerService.reverseSimpleToggles], а не через разбор ключа.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], manifest = Config.NONE)
 class ReverseRollbackTest {
 
-    private val runner = SimpleRunner(Mockito.mock(AdbEnablerService::class.java))
+    private fun step(id: String, targetChecked: Boolean) = SimpleSteps.Step(
+        id = id,
+        titleRu = "Шаг $id",
+        titleEn = "Step $id",
+        descRu = "",
+        descEn = "",
+        intents = emptyList(),
+        searchTexts = emptyList(),
+        targetChecked = targetChecked,
+        manualHintRu = "",
+        manualHintEn = ""
+    )
+
+    /** Прогон отката с записью того, что ушло в раннер и что вернулось потребителю. */
+    private class Harness(
+        private val steps: List<SimpleSteps.Step>,
+        private val report: (SimpleSteps.Step) -> StepRunReport
+    ) {
+        val runCalls = mutableListOf<SimpleSteps.Step>()
+        val titles = mutableListOf<String>()
+        val results = mutableListOf<ReverseStepResult>()
+        val done = mutableListOf<Pair<String, Boolean>>()
+        val progress = mutableListOf<Float>()
+
+        private val runner = ReverseToggleRunner(
+            findStep = { id -> steps.firstOrNull { it.id == id } },
+            runStep = { s, overlay ->
+                if (!overlay) throw AssertionError("откат обязан идти в окне прогресса")
+                runCalls += s
+                report(s)
+            },
+            log = {}
+        )
+
+        fun run(snapshot: Map<String, Boolean>): Boolean = runBlocking {
+            runner.run(
+                stepIds = LinkedHashSet(steps.map { it.id }),
+                checkedBeforeStates = snapshot,
+                requireOverlay = true,
+                shouldStop = { false },
+                onStep = { _, _, title -> titles += title },
+                onStepDone = { id, ok -> done += id to ok },
+                onStepResult = { results += it },
+                onProgress = { progress += it }
+            )
+        }
+    }
 
     @Test
-    fun `extra target key keeps step id and row label`() {
-        val key = runner.extraToggleKey("carousel", "Реклама на Экране блокировки")
+    fun `step without checked_before is unreadable and inversion is never substituted`() {
+        val h = Harness(listOf(step("ux_program", targetChecked = false))) {
+            StepRunReport(SimpleRunner.Result(true, "toggled"))
+        }
 
-        assertEquals("carousel#extra:Реклама на Экране блокировки", key)
-        assertEquals("откат разбирает ключ по маркеру", "carousel", key.substringBefore(SimpleRunner.EXTRA_KEY_MARKER))
+        val ok = h.run(emptyMap())
+
+        assertFalse("шаг без значения снапшота не считается восстановленным", ok)
+        assertTrue("раннер не должен получить подставленную инверсию", h.runCalls.isEmpty())
+        assertTrue("заголовок невыполняемого шага в UI не отправляется", h.titles.isEmpty())
+        assertEquals(listOf("ux_program" to false), h.done)
+        assertEquals(listOf(ReverseOutcome.UNREADABLE), h.results.map { it.outcome })
+        assertEquals("no_checked_before", h.results[0].reason)
+        assertEquals("прогресс обязан двигаться и на этом исходе", listOf(1f), h.progress)
+    }
+
+    @Test
+    fun `unreadable step does not stop the rollback`() {
+        val h = Harness(listOf(step("a", targetChecked = false), step("b", targetChecked = false))) {
+            StepRunReport(SimpleRunner.Result(true, "toggled"))
+        }
+
+        val ok = h.run(mapOf("b" to true))
+
+        assertTrue(ok)
+        assertEquals(listOf("b"), h.runCalls.map { it.id })
         assertEquals(
-            "вторая часть ключа — подпись строки",
-            "Реклама на Экране блокировки",
-            key.substringAfter(SimpleRunner.EXTRA_KEY_MARKER)
+            listOf(ReverseOutcome.UNREADABLE, ReverseOutcome.APPLIED),
+            h.results.map { it.outcome }
+        )
+        assertEquals(listOf(0.5f, 1f), h.progress)
+    }
+
+    @Test
+    fun `checked_before goes to the runner as the target state`() {
+        val h = Harness(listOf(step("carousel", targetChecked = false))) {
+            StepRunReport(SimpleRunner.Result(true, "toggled"))
+        }
+
+        h.run(mapOf("carousel" to true))
+
+        assertEquals(1, h.runCalls.size)
+        assertTrue("возврат идёт к значению снапшота, а не к инверсии target", h.runCalls[0].targetChecked)
+        assertEquals(listOf("Шаг carousel"), h.titles)
+        assertEquals(ReverseOutcome.APPLIED, h.results[0].outcome)
+        assertTrue(h.done[0].second)
+    }
+
+    @Test
+    fun `step already in original state is already_original`() {
+        val h = Harness(listOf(step("themes", targetChecked = false))) {
+            StepRunReport(SimpleRunner.Result(true, "already_off"))
+        }
+
+        val ok = h.run(mapOf("themes" to false))
+
+        assertTrue("уже исходное состояние — восстановлено", ok)
+        assertEquals(ReverseOutcome.ALREADY_ORIGINAL, h.results[0].outcome)
+        assertTrue(h.results[0].ok)
+    }
+
+    @Test
+    fun `failed step is not reported as restored`() {
+        val h = Harness(listOf(step("shareme", targetChecked = false))) {
+            StepRunReport(SimpleRunner.Result(false, "verify_failed"))
+        }
+
+        val ok = h.run(mapOf("shareme" to true))
+
+        assertFalse(ok)
+        assertEquals(ReverseOutcome.FAILED, h.results[0].outcome)
+        assertFalse(h.results[0].ok)
+    }
+
+    @Test
+    fun `relaunch flag and extra outcomes reach the report`() {
+        val h = Harness(listOf(step("browser_sys", targetChecked = false))) {
+            StepRunReport(
+                result = SimpleRunner.Result(true, "toggled"),
+                relaunchUsed = true,
+                extras = listOf(
+                    ReverseExtraResult("Персонализация услуг", ReverseOutcome.APPLIED),
+                    ReverseExtraResult(
+                        "Персонализация контент-услуг",
+                        ReverseOutcome.UNREADABLE,
+                        "row_absent"
+                    )
+                )
+            )
+        }
+
+        h.run(mapOf("browser_sys" to true))
+
+        assertTrue(h.results[0].relaunchUsed)
+        assertEquals(2, h.results[0].extras.size)
+        assertEquals(ReverseOutcome.UNREADABLE, h.results[0].extras[1].outcome)
+    }
+
+    @Test
+    fun `extra row is returned to the snapshot value`() {
+        assertEquals(
+            ExtraRestoreDecision.Toggle(false),
+            ReverseExtras.decide(rowFound = true, checkedNow = true, snapshotValue = false)
+        )
+    }
+
+    @Test
+    fun `extra row already in snapshot state needs no tap`() {
+        assertEquals(
+            ExtraRestoreDecision.AlreadyOriginal,
+            ReverseExtras.decide(rowFound = true, checkedNow = true, snapshotValue = true)
+        )
+    }
+
+    @Test
+    fun `row missing from snapshot is left alone`() {
+        assertEquals(
+            "строку мы не тумбили — возвращать нечего",
+            ExtraRestoreDecision.AlreadyOriginal,
+            ReverseExtras.decide(rowFound = true, checkedNow = false, snapshotValue = null)
+        )
+    }
+
+    @Test
+    fun `absent row with snapshot entry is unreadable even with main switch off`() {
+        assertEquals(
+            "цель с beforeMain при выключенном главном тумблере — не «выполнена»",
+            ExtraRestoreDecision.Unreadable,
+            ReverseExtras.decide(rowFound = false, checkedNow = null, snapshotValue = true)
+        )
+        assertEquals(
+            ExtraRestoreDecision.Unreadable,
+            ReverseExtras.decide(rowFound = true, checkedNow = null, snapshotValue = true)
         )
     }
 }

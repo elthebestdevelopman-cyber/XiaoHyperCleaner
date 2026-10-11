@@ -836,6 +836,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
     internal fun needsHomeBeforeAppLaunch(): Boolean = overlayGateRequired
 
     /**
+     * Контекст отката текущего шага: не-null означает «идёт возврат к исходным
+     * состояниям». Доп. цели берут целевое состояние из снапшота, а не из каталога,
+     * и в этом режиме снапшот НЕ перезаписывается (см. [ReverseExtras]).
+     */
+    private var reverseCtx: ReverseContext? = null
+
+    /**
      * [requireOverlay] = false запускает шаг вне Простого режима (канал отката):
      * навигация выполняется без проверки окна прогресса и без ухода на рабочий стол.
      */
@@ -843,10 +850,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
         step: SimpleSteps.Step,
         profile: RomProfile,
         requireOverlay: Boolean = true,
+        /** Не-null — шаг выполняется как откат: целевые состояния берутся из снимка. */
+        reverse: ReverseContext? = null,
         callback: (Result) -> Unit
     ) {
         cancel()
         cancelled = false
+        reverseCtx = reverse
         overlayGateRequired = requireOverlay
         isRunning = true
         currentStepId = step.id
@@ -918,6 +928,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 stepDeadlineMs = 0L
                 isRunning = false
                 currentStepId = null
+                reverseCtx = null
             }
             callback(result)
         }
@@ -2631,10 +2642,34 @@ class SimpleRunner(private val service: AdbEnablerService) {
         handleConsentWalls(step)
         val root = service.rootInActiveWindow ?: return false
         recycleNode(root)
+        // Откат: целевое состояние берём из снапшота (`<stepId>#extra:<подпись>`), а не из
+        // каталога, иначе «возврат» повторял бы включение оптимизации. Ключа нет — строку
+        // мы не тумбили, трогать нечего.
+        val rev = reverseCtx
+        val key = extraToggleKey(step.id, text)
+        val snapshotValue = rev?.snapshot?.get(key)
+        if (rev != null && !rev.snapshot.containsKey(key)) {
+            AppLog.i(TAG, "extra target reverse_skip step=${step.id} text='$text' reason=not_toggled_by_us")
+            rev.extras += ReverseExtraResult(text, ReverseOutcome.ALREADY_ORIGINAL, "not_toggled_by_us")
+            recycleNode(root)
+            return true
+        }
+        // В откате цель — значение снапшота: и проверка состояния, и тап идут по нему.
+        val effectiveTarget = snapshotValue?.let { target.copy(targetChecked = it) } ?: target
         // Строку ищем прокруткой: она может стоять на кромке экрана (см. KDoc
         // [findSwitchByTextWithScroll]).
         val switch = findSwitchByTextWithScroll(listOf(text), logLabel = "${step.id}:$text")
         if (switch == null) {
+            // В откате исчезнувшая строка — не «цель выполнена»: в снапшоте есть запись,
+            // значит строку мы тумбили и обязаны вернуть. Сюда же попадает и случай
+            // выключенного главного тумблера — `mainSwitchIsOff` тут не оправдание.
+            if (rev != null) {
+                val mainOff = mainSwitchIsOff(step)
+                AppLog.w(TAG, "extra target unreadable step=${step.id} text='$text' main_off=$mainOff")
+                StepDiagnostics.note(step.id, "EXTRA", "unreadable text=$text main_off=$mainOff")
+                rev.extras += ReverseExtraResult(text, ReverseOutcome.UNREADABLE, "row_absent")
+                return false
+            }
             // «Строки нет» ≠ «цель выполнена»: браузерный шаг отчитывался `toggled`,
             // когда прокрутка не нашла тумблер, а он остался включённым (прогон
             // rmuod5cmm). Законное исчезновение — только при уже выключенном главном
@@ -2655,22 +2690,25 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
         val checked = SwitchFinder.isChecked(switch)
         // Цель может требовать включения, поэтому целевое состояние берём у цели,
-        // а не у шага.
-        val needed = checked != target.targetChecked
+        // а не у шага (в откате цель подменена значением снапшота).
+        val needed = checked != effectiveTarget.targetChecked
         // R1: снапшот фактического состояния КАЖДОЙ тумбленной строки-цели. Без него
         // откат не знает, возвращать ли зависимую строку (карусель гасит четыре
         // подстроки, а снимок хранил только главный тумблер). Строка, уже стоящая в
-        // целевом состоянии, не пишется: откат её и не трогает.
-        if (needed) recordCheckedBefore(extraToggleKey(step.id, text), checked)
+        // целевом состоянии, не пишется: откат её и не трогает. В САМОМ откате снапшот
+        // не пишется вовсе: иначе возврат перезаписывает значение, по которому возвращает.
+        if (needed && rev == null) recordCheckedBefore(key, checked)
         if (!needed) {
             recycleNode(switch); recycleNode(root)
             AppLog.i(TAG, "extra target already_off step=${step.id} text='$text'")
+            rev?.extras?.add(ReverseExtraResult(text, ReverseOutcome.ALREADY_ORIGINAL, "already_off"))
             return true
         }
         val tapped = tapNode(switch)
         recycleNode(switch); recycleNode(root)
         if (!tapped) {
             AppLog.w(TAG, "extra target tap failed step=${step.id} text='$text'")
+            rev?.extras?.add(ReverseExtraResult(text, ReverseOutcome.FAILED, "tap_failed"))
             return false
         }
         // Ранний выход: диалог цели появился ЛИБО состояние уже достигнуто —
@@ -2680,7 +2718,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             reason = WAIT_DIALOG_APPEAR,
             timeoutMs = CONFIRM_RETRY_MS,
             pollMs = WAIT_POLL_FAST_MS
-        ) { extraTargetDialogOrState(target, listOf(text)) }
+        ) { extraTargetDialogOrState(effectiveTarget, listOf(text)) }
         // У цели бывает свой диалог: отказ («Отмена» на «Добавить в выбранные фото?»)
         // ИЛИ подтверждение («Выключить карусель экрана блокировки?» → «Подтвердить»,
         // дамп car_dlg2.xml). Взаимоисключающе: на диалоге подтверждения «Отмена»
@@ -2688,6 +2726,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         if (target.confirmTexts.isNotEmpty()) {
             if (tapConfirmIfNeeded(step, target.confirmTexts) == ConfirmOutcome.FAILED) {
                 AppLog.w(TAG, "extra target confirm failed step=${step.id} text='$text'")
+                rev?.extras?.add(ReverseExtraResult(text, ReverseOutcome.FAILED, "confirm_failed"))
                 return false
             }
         } else if (target.drillPath.isNotEmpty()) {
@@ -2701,11 +2740,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
             tapToggleDeclineIfNeeded(step)
         }
         // Без подтверждения фактического состояния цель «выполнено» не объявляет.
-        if (!verifyExtraTargetState(target, listOf(text))) {
+        // В откате состояние проверяется против значения снапшота (effectiveTarget).
+        if (!verifyExtraTargetState(effectiveTarget, listOf(text))) {
             AppLog.w(TAG, "extra target not verified step=${step.id} text='$text'")
+            rev?.extras?.add(ReverseExtraResult(text, ReverseOutcome.FAILED, "not_verified"))
             return false
         }
         AppLog.i(TAG, "extra target toggled step=${step.id} text='$text'")
+        rev?.extras?.add(ReverseExtraResult(text, ReverseOutcome.APPLIED, null))
         return true
     }
 
@@ -2736,6 +2778,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             try {
                 val before = currentScreenText()
                 service.startActivity(intent)
+                reverseCtx?.relaunchUsed = true
                 // Опрос вместо фиксированных 1600 мс: возврат на целевой экран виден сразу.
                 waitFor(
                     stepId = currentStepId ?: "relaunch",
@@ -5708,7 +5751,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
             "route relaunch: component='${item.intent}' ok=$byComponent " +
                 "action='$action' ok=$byAction"
         )
-        return byComponent || byAction
+        val relaunched = byComponent || byAction
+        // Отчёт отката различает «вернул сразу» и «вернул после повторного запуска».
+        if (relaunched) reverseCtx?.relaunchUsed = true
+        return relaunched
     }
 
     /**

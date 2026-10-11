@@ -11,8 +11,9 @@ import org.robolectric.annotation.Config
 /**
  * Снапшот отката: `checked_before` простых тумблеров и обратная совместимость.
  *
- * Старые снапшоты (без поля `simpleToggleStates`) обязаны читаться: откат
- * в этом случае работает по прежней логике (инверсия targetChecked).
+ * Старые снапшоты (без поля `simpleToggleStates`) обязаны читаться, но откат по ним
+ * больше не выдумывает состояние: значения нет — шаг получает третий исход
+ * `unreadable` (список невосстановленных), пока пользователь не сделает новый прогон.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], manifest = Config.NONE)
@@ -42,7 +43,7 @@ class RestoreSnapshotTest {
         val restored = RestoreSnapshot.fromJson(legacy)
 
         assertEquals("должны читаться настройки старого формата", "0", restored?.settings?.get("secure limit_ad_tracking"))
-        assertTrue("миграция: откат по инверсии target", restored?.simpleToggleStates?.isEmpty() == true)
+        assertTrue("миграция: снапшот без значений не даёт подставить инверсию target", restored?.simpleToggleStates?.isEmpty() == true)
     }
 
     @Test

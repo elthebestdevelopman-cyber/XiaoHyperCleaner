@@ -543,8 +543,13 @@ class AdbEnablerService : AccessibilityService() {
 
     /**
      * Откат Simple Mode: для каждого stepId запускает тот же маршрут с целевым
-     * состоянием из снапшота (`checked_before`). Если состояние не сохранено
-     * (старый снапшот) — прежняя логика: инверсия targetChecked.
+     * состоянием из снапшота (`checked_before`).
+     *
+     * Значения в снапшоте нет (старый снапшот) — третий исход `unreadable`: шаг НЕ
+     * запускается, инверсия targetChecked не подставляется, шаг попадает в список
+     * невосстановленных ([ReverseStepResult.outcome]). Исходы (applied / already_original /
+     * unreadable, признак relaunch, исходы доп. целей) собираются в [ReverseStepResult]
+     * через [onStepResult] — из них строится отчёт отката.
      *
      * [requireOverlay] = true — откат идёт в окне прогресса, как основной прогон:
      * раннер делает сброс на рабочий стол перед запуском приложения шага и проверяет
@@ -563,65 +568,57 @@ class AdbEnablerService : AccessibilityService() {
         shouldStop: () -> Boolean = { false },
         onStep: (index: Int, total: Int, title: String) -> Unit = { _, _, _ -> },
         onStepDone: (stepId: String, ok: Boolean) -> Unit = { _, _ -> },
+        /** Разбор исхода шага: applied / already_original / unreadable (+ relaunch, доп. цели). */
+        onStepResult: (ReverseStepResult) -> Unit = {},
         onProgress: (Float) -> Unit = {}
     ): Boolean {
         if (stepIds.isEmpty()) return true
+        reverseSnapshot = checkedBeforeStates
         acquireWakeLock()
-        var okCount = 0
-        val list = stepIds.toList()
-        val profile = RomProfile.detect(this)
         try {
-            list.forEachIndexed { i, id ->
-                if (shouldStop()) {
-                    // Отмена подтверждена: остаток не трогаем, иначе откат «догонит»
-                    // пользователя и вернёт то, что он остановил.
-                    AppLog.i(TAG, "reverseSimpleToggles: stopped by user at ${i + 1}/${list.size}")
-                    return@forEachIndexed
-                }
-                val original = SimpleSteps.ALL.firstOrNull { it.id == id }
-                if (original == null) {
-                    // Идентификатор без шага в плане: откатывать нечего — честно в итог.
-                    AppLog.w(TAG, "reverseSimpleToggles: step id not in plan, skipped: $id")
-                    onStepDone(id, false)
-                    onProgress((i + 1).toFloat() / list.size)
-                    return@forEachIndexed
-                }
-                val checkedBefore = checkedBeforeStates[id]
-                val reverse = original.copy(
-                    targetChecked = checkedBefore ?: !original.targetChecked
-                )
-                AppLog.i(
-                    TAG,
-                    "reverseSimpleToggles: ${original.id} -> targetChecked=${reverse.targetChecked} " +
-                        "source=${if (checkedBefore != null) "checked_before" else "inverted"} " +
-                        "overlay=$requireOverlay"
-                )
-                onStep(i + 1, list.size, original.titleRu)
-
-                // ═══════════════════════════════════════════════════════════════
-                // ИСПРАВЛЕНО (строки 354, 355): Новая сигнатура run()
-                // ═══════════════════════════════════════════════════════════════
-                var stepSuccess = false
-                simpleRunner.run(reverse, profile, requireOverlay = requireOverlay) { result ->
-                    stepSuccess = result.success
-                }
-                while (SimpleRunner.isRunning) {
-                    delay(200)
-                }
-
-                if (stepSuccess) {
-                    okCount++
-                } else {
-                    AppLog.w(TAG, "reverseSimpleToggles: ${original.id} not restored")
-                }
-                onStepDone(original.id, stepSuccess)
-                onProgress((i + 1).toFloat() / list.size)
-            }
+            return reverseRunner.run(
+                stepIds = stepIds,
+                checkedBeforeStates = checkedBeforeStates,
+                requireOverlay = requireOverlay,
+                shouldStop = shouldStop,
+                onStep = onStep,
+                onStepDone = onStepDone,
+                onStepResult = onStepResult,
+                onProgress = onProgress
+            )
         } finally {
             releaseWakeLock()
         }
-        AppLog.i(TAG, "reverseSimpleToggles done: $okCount/${list.size}")
-        return okCount > 0
+    }
+
+    /** Снимок `checked_before` текущего отката: по нему раннер берёт состояние доп. целей. */
+    private var reverseSnapshot: Map<String, Boolean> = emptyMap()
+
+    /** Ром-профиль отката: маршруты те же, что в прогоне, — определяем один раз за откат. */
+    private val reverseRomProfile: RomProfile by lazy { RomProfile.detect(this) }
+
+    private val reverseRunner: ReverseToggleRunner by lazy {
+        ReverseToggleRunner(
+            findStep = { id -> SimpleSteps.ALL.firstOrNull { it.id == id } },
+            runStep = { step, requireOverlay -> runStepForReverse(step, requireOverlay) },
+            log = { AppLog.i(TAG, it) }
+        )
+    }
+
+    /** Один шаг отката: раннер с контекстом отката + ожидание завершения, как в прогоне. */
+    private suspend fun runStepForReverse(
+        step: SimpleSteps.Step,
+        requireOverlay: Boolean
+    ): StepRunReport {
+        val ctx = ReverseContext(reverseSnapshot)
+        var result = SimpleRunner.Result(false, "not_run")
+        simpleRunner.run(step, reverseRomProfile, requireOverlay = requireOverlay, reverse = ctx) {
+            result = it
+        }
+        while (SimpleRunner.isRunning) {
+            delay(200)
+        }
+        return StepRunReport(result, ctx.relaunchUsed, ctx.extras.toList())
     }
 
     fun cancelRunner() {

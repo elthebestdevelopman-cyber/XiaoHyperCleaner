@@ -11,6 +11,8 @@ import com.xiaohypercleaner.data.RootExecutor
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.ChainFlags
 import com.xiaohypercleaner.service.OverlayController
+import com.xiaohypercleaner.service.ReverseOutcome
+import com.xiaohypercleaner.service.ReverseStepResult
 import com.xiaohypercleaner.ui.MainUiState
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OverlayPermissionProbe
@@ -447,6 +449,10 @@ class ProFlowController(
                                 OverlayController.MODE_RESTORE
                             )
                         }
+                        // Исходы шагов отката (applied / already_original / unreadable, признак
+                        // relaunch) — задел отчёта отката: сводка идёт в лог, экран результата
+                        // собирается отдельной задачей 1.2 из этого же списка.
+                        val reverseOutcomes = mutableListOf<ReverseStepResult>()
                         simpleOk = svc.reverseSimpleToggles(
                             stepIds = simpleSteps,
                             checkedBeforeStates = checkedBeforeStates,
@@ -465,7 +471,23 @@ class ProFlowController(
                                 }
                             },
                             onStepDone = { _, ok -> if (ok) restoreRestored++ },
+                            onStepResult = { r ->
+                                reverseOutcomes += r
+                                if (r.outcome == ReverseOutcome.UNREADABLE) {
+                                    AppLog.w(
+                                        TAG,
+                                        "restoreOptimization: ${r.stepId} not restored — " +
+                                            "unreadable (${r.reason ?: "no_value"})"
+                                    )
+                                }
+                            },
                             onProgress = { p -> update { it.copy(progress = p) } }
+                        )
+                        AppLog.i(
+                            TAG,
+                            "restoreOptimization: reverse outcomes " +
+                                reverseOutcomes.groupingBy { it.outcome }.eachCount() +
+                                ", relaunchUsed=" + reverseOutcomes.count { it.relaunchUsed }
                         )
                     } else {
                         AppLog.w(TAG, "restoreOptimization: accessibility offline, skip simple reverse")
