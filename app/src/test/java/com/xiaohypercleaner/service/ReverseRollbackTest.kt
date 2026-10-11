@@ -207,6 +207,22 @@ class ReverseRollbackTest {
     }
 
     @Test
+    fun `reverse order flips the group but keeps the phases`() {
+        val targets = listOf("row-a", "row-b", "row-c")
+
+        assertEquals(
+            "форвард: порядок каталога",
+            targets,
+            ReverseExtras.orderFor(targets, reverse = false)
+        )
+        assertEquals(
+            "откат: обратный порядок применения внутри группы",
+            listOf("row-c", "row-b", "row-a"),
+            ReverseExtras.orderFor(targets, reverse = true)
+        )
+    }
+
+    @Test
     fun `unreadable switch state is not a success either`() {
         // Задел, а не живая ветка: isChecked возвращает Boolean, поэтому checkedNow не бывает
         // null (см. KDoc ReverseExtras.REASON_STATE_UNREADABLE) — тест фиксирует контракт правила.

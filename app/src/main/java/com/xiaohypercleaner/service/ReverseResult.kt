@@ -129,4 +129,16 @@ object ReverseExtras {
             ExtraRestoreDecision.AlreadyOriginal(REASON_ALREADY_ORIGINAL)
         else -> ExtraRestoreDecision.Toggle(checkNotNull(snapshotValue), REASON_TOGGLED)
     }
+
+    /**
+     * Порядок целей в откате: фазы те же, что в форварде (beforeMain -> главный -> afterMain),
+     * внутри группы — ОБРАТНЫЙ порядок применения.
+     *
+     * «Главный первым» для beforeMain-группы запрещён: её строки исчезают вместе с главным
+     * тумблером, и порядок main-first дал бы ровно тот `unreadable`, который откат обязан
+     * исключать (в каталоге шесть таких строк). Правило одно на все группы — копий `if (rev
+     * != null) reversed()` по файлам не заводим.
+     */
+    fun <T> orderFor(targets: List<T>, reverse: Boolean): List<T> =
+        if (reverse) targets.reversed() else targets
 }

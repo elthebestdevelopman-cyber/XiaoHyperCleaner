@@ -857,6 +857,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
         cancel()
         cancelled = false
         reverseCtx = reverse
+        // Экран-старт отката: предыдущий шаг мог оставить своё приложение, и маршрут
+        // следующего шага не подтверждался. Пишем фактический старт, чтобы приёмка видела
+        // точку старта, а не догадывалась о ней.
+        if (reverse != null) {
+            val startRoot = service.rootInActiveWindow
+            AppLog.i(TAG, "reverse start step=${step.id} screen=${startRoot?.packageName?.toString() ?: "?"}")
+            recycleNode(startRoot)
+        }
         overlayGateRequired = requireOverlay
         isRunning = true
         currentStepId = step.id
@@ -3270,7 +3278,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
             // Дополнительные строки варианта НЕ зависят от главного тумблера: у Mi Music
             // главный («Показывать рекламу») часто уже выключен, а «Персональные
             // рекомендации» — нет; прежний ранний return оставлял их включёнными.
-            runExtraTargets(step, SemanticCatalog.extraTargetsAfterMain(step.id))
+            runExtraTargets(
+                            step,
+                            ReverseExtras.orderFor(
+                                SemanticCatalog.extraTargetsAfterMain(step.id),
+                                reverseCtx != null
+                            )
+                        )
             return Result(true, if (step.targetChecked) "already_done" else "already_off")
         }
 
@@ -3373,7 +3387,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         // Вариант каталога может требовать второй экран (Браузер: «Показывать рекламу»
         // → назад → «Персональные рекомендации»).
-        runExtraTargets(step, SemanticCatalog.extraTargetsAfterMain(step.id))
+        runExtraTargets(
+                            step,
+                            ReverseExtras.orderFor(
+                                SemanticCatalog.extraTargetsAfterMain(step.id),
+                                reverseCtx != null
+                            )
+                        )
 
         // Диалоги-заглушки после тумблера (Карусель: «Нет, спасибо»).
         handleConsentWalls(step)
@@ -3551,6 +3571,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
         step: SimpleSteps.Step,
         targets: List<SemanticCatalog.ExtraTarget>
     ) {
+        // Порядок группы виден в логе: приёмка сверяет его с правилом «в откате порядок внутри
+        // группы обратный, фазы как в форварде» (beforeMain -> главный -> afterMain).
+        AppLog.i(
+            TAG,
+            "extra group step=${step.id} reverse=${reverseCtx != null} count=${targets.size} " +
+                "order=" + targets.joinToString(",") { it.itemTexts.firstOrNull() ?: "?" }
+        )
         for (target in targets) {
             if (cancelled) return
             if (!executeExtraTarget(step, target)) {
@@ -5788,6 +5815,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
         step: SimpleSteps.Step,
         item: SemanticCatalog.RouteItem
     ): Boolean {
+        // Откат стартует с экрана, оставленного предыдущим шагом (5 из 6 `confirm_miss`):
+        // первому пункту маршрута даём ПОЛНОЕ окно подтверждения, а не короткий `waitMs`
+        // пункта — иначе окно проваливается раньше, чем MIUI вернёт приложение на нужный
+        // экран. Форвард не трогаем: короткое окно проверено прогонами (решение 1.1-A1).
+        if (reverseCtx != null && awaitRouteScreen(step, item, ROUTE_SCREEN_RETRY_WAIT_MS)) {
+            AppLog.i(TAG, "route ${step.id}: screen confirmed in reverse window")
+            return true
+        }
         if (awaitRouteScreen(step, item)) return true
         // Экран мог быть просто перекрыт стеной/промо (а не сбоем интента): закрываем
         // стену и даём ещё одно полное окно подтверждения БЕЗ relaunch — перезапуск
@@ -5839,7 +5874,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * карусель выключила 1 тумблер из 5 и отчиталась OK).
      */
     private suspend fun runPreMainExtras(step: SimpleSteps.Step) {
-        val preTargets = SemanticCatalog.extraTargetsBeforeMain(step.id)
+        // Откат снимает изменения в обратном порядке применения; фазы те же (зависимые строки
+        // возвращаем, пока они видны — главный тумблер ещё не тронут).
+        val preTargets = ReverseExtras.orderFor(
+            SemanticCatalog.extraTargetsBeforeMain(step.id),
+            reverseCtx != null
+        )
         if (preTargets.isEmpty()) return
         val markers = SemanticCatalog.screenMarkers(step.id)
         // Экран читаем ЗДЕСЬ (живой), а не из снимка до route: на входе в шаг активным
