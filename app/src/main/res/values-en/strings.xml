@@ -264,7 +264,14 @@
     <string name="restore_cancel_confirm_body">Restore will stop at the current step: some changes will stay unreverted. You can come back any time.</string>
     <string name="restore_result_title">Restore finished</string>
     <string name="restore_result_summary">Restored %1$d of %2$d settings</string>
-    <string name="restore_result_failed">Not restored (check manually): %d</string>
+<string name="restore_outcome_applied">Restored: %1$d</string>
+<string name="restore_outcome_already_original">Already in the original state: %1$d</string>
+<string name="restore_outcome_unreadable">No saved value: %1$d</string>
+<string name="restore_outcome_failed">Not confirmed: %1$d</string>
+<string name="restore_result_unreadable_list">No saved value: %s</string>
+<string name="restore_result_failed_list">Not confirmed: %s</string>
+<string name="restore_result_unreadable_hint">These settings were changed before the app started saving original values. Repeating the rollback will not help: run the optimisation again, then the rollback restores them from a fresh snapshot.</string>
+<string name="restore_result_failed_hint">These settings come back on the next rollback attempt: their original values are already in the snapshot.</string>
     <string name="result_title">Done! The cat is pleased 🧡</string>
     <string name="result_summary">Completed %1$d of %2$d steps</string>
     <string name="result_skipped">Skipped (not on device): %d</string>

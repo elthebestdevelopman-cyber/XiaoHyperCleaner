@@ -274,7 +274,14 @@
     <string name="restore_cancel_confirm_body">恢复将在当前步骤停止：部分更改不会还原。你可以随时返回。</string>
     <string name="restore_result_title">恢复完成</string>
     <string name="restore_result_summary">已恢复 %2$d 项设置中的 %1$d 项</string>
-    <string name="restore_result_failed">未恢复（请手动检查）：%d</string>
+<string name="restore_outcome_applied">已恢复：%1$d</string>
+<string name="restore_outcome_already_original">已处于原始状态：%1$d</string>
+<string name="restore_outcome_unreadable">没有保存的值：%1$d</string>
+<string name="restore_outcome_failed">未确认：%1$d</string>
+<string name="restore_result_unreadable_list">没有保存的值：%s</string>
+<string name="restore_result_failed_list">未确认：%s</string>
+<string name="restore_result_unreadable_hint">这些设置在应用开始保存原始值之前就被修改了。再次回滚不会有用：请重新完整运行一次优化，之后回滚会从新的快照中恢复它们。</string>
+<string name="restore_result_failed_hint">这些设置会在下次回滚时恢复：它们的原始值已在快照中。</string>
     <string name="result_title">完成！猫咪很满意 🧡</string>
     <string name="result_summary">已完成 %1$d / %2$d 步</string>
     <string name="result_skipped">已跳过（设备上不存在）：%d</string>

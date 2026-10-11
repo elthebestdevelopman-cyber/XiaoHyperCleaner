@@ -267,7 +267,8 @@ docs в коммит не входят)
   testDebugUnitTest зелёные до завершения; не передавай мне ошибки компиляции
   или ресурсов.
 - Статические проверки по типу изменения: строки — паритет ключей во всех 7
-  values*/strings.xml; зависимость — синхрон libs.versions.toml и
+  values*/strings.xml — паритет TRANSLATABLE-ключей (ключи с translatable="false" вне
+  паритета: символы вроде «←», «⋮», «👆 »); зависимость — синхрон libs.versions.toml и
   build.gradle.kts; reflection/serialization — proguard-rules.pro; изменённая
   сигнатура — все вызовы обновлены; коммит, меняющий тесты — порядок «код → гейт
   → известная дельта → правка README.md/README.en.md/handoff_active.md → коммит»

@@ -541,14 +541,7 @@ class SimpleModeController(
     }
 
     /** Локализованное имя notif_*-шага для экрана результатов. */
-    private fun stepTitle(id: String): String {
-        val legacy = SimpleSteps.ALL.firstOrNull { it.id == id }
-        val fallback = when (Locale.getDefault().language) {
-            "ru" -> legacy?.titleRu ?: id
-            else -> legacy?.titleEn ?: legacy?.titleRu ?: id
-        }
-        return SemanticCatalog.title(id, fallback)
-    }
+    private fun stepTitle(id: String): String = localizedStepTitle(id)
 
     // ═══════════════════════════════════════════════════════════════
     // Fallback
@@ -931,4 +924,16 @@ class SimpleModeController(
         state = SimpleModeState()
         onStateChanged(state)
     }
+}
+/**
+ * Локализованное имя шага: семантический каталог → legacy-заголовок → идентификатор.
+ * Одна реализация на прогресс прогона и отчёт отката (списки невосстановленных).
+ */
+internal fun localizedStepTitle(id: String): String {
+    val legacy = SimpleSteps.ALL.firstOrNull { it.id == id }
+    val fallback = when (Locale.getDefault().language) {
+        "ru" -> legacy?.titleRu ?: id
+        else -> legacy?.titleEn ?: legacy?.titleRu ?: id
+    }
+    return SemanticCatalog.title(id, fallback)
 }

@@ -244,7 +244,14 @@
     <string name="restore_cancel_confirm_body">Pemulihan akan berhenti di langkah saat ini: sebagian perubahan tidak dikembalikan. Anda bisa kembali kapan saja.</string>
     <string name="restore_result_title">Pemulihan selesai</string>
     <string name="restore_result_summary">%1$d dari %2$d pengaturan dipulihkan</string>
-    <string name="restore_result_failed">Tidak dipulihkan (periksa manual): %d</string>
+<string name="restore_outcome_applied">Dipulihkan: %1$d</string>
+<string name="restore_outcome_already_original">Sudah dalam keadaan asli: %1$d</string>
+<string name="restore_outcome_unreadable">Tidak ada nilai tersimpan: %1$d</string>
+<string name="restore_outcome_failed">Tidak terkonfirmasi: %1$d</string>
+<string name="restore_result_unreadable_list">Tidak ada nilai tersimpan: %s</string>
+<string name="restore_result_failed_list">Tidak terkonfirmasi: %s</string>
+<string name="restore_result_unreadable_hint">Pengaturan ini diubah sebelum aplikasi mulai menyimpan nilai asli. Mengulangi rollback tidak akan membantu: jalankan optimasi lagi, lalu rollback akan memulihkannya dari snapshot baru.</string>
+<string name="restore_result_failed_hint">Pengaturan ini kembali pada percobaan rollback berikutnya: nilai aslinya sudah ada di snapshot.</string>
     <string name="result_title">Selesai! Sistem rapi 🧡</string>
     <string name="result_summary">%1$d dari %2$d langkah selesai</string>
     <string name="result_skipped">Dilewati: %d</string>

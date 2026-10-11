@@ -251,7 +251,14 @@
     <string name="restore_cancel_confirm_body">Откат остановится на текущем шаге: часть изменений останется невозвращённой. Вернуться можно в любой момент.</string>
     <string name="restore_result_title">Откат завершён</string>
     <string name="restore_result_summary">Возвращено %1$d из %2$d настроек</string>
-    <string name="restore_result_failed">Не восстановлено (проверьте вручную): %d</string>
+<string name="restore_outcome_applied">Возвращено: %1$d</string>
+<string name="restore_outcome_already_original">Уже в исходном состоянии: %1$d</string>
+<string name="restore_outcome_unreadable">Нет сохранённого значения: %1$d</string>
+<string name="restore_outcome_failed">Не подтвердилось: %1$d</string>
+<string name="restore_result_unreadable_list">Без сохранённого значения: %s</string>
+<string name="restore_result_failed_list">Не подтвердилось: %s</string>
+<string name="restore_result_unreadable_hint">Эти настройки менялись до того, как приложение начало сохранять исходные значения. Повторный откат не поможет: сделайте новый полный прогон оптимизации, и откат вернёт их из свежего снапшота.</string>
+<string name="restore_result_failed_hint">Эти настройки вернутся при повторной попытке отката: их исходные значения уже есть в снапшоте.</string>
     <string name="result_title">Готово! Котик доволен 🧡</string>
     <string name="result_summary">Выполнено %1$d из %2$d шагов</string>
     <string name="result_skipped">Пропущено (нет на устройстве): %d</string>

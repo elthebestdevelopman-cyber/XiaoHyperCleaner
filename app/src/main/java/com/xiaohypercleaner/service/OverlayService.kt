@@ -68,6 +68,12 @@ class OverlayService : Service() {
         const val EXTRA_UNRESOLVED = "unresolved"
         const val EXTRA_NOTIF_STEPS = "notif_steps"
         const val EXTRA_ALREADY_OFF_STEPS = "already_off_steps"
+        const val EXTRA_RESTORE_APPLIED = "restore_applied"
+        const val EXTRA_RESTORE_ALREADY_ORIGINAL = "restore_already_original"
+        const val EXTRA_RESTORE_UNREADABLE = "restore_unreadable"
+        const val EXTRA_RESTORE_FAILED = "restore_failed"
+        const val EXTRA_RESTORE_UNREADABLE_STEPS = "restore_unreadable_steps"
+        const val EXTRA_RESTORE_FAILED_STEPS = "restore_failed_steps"
         private const val HEARTBEAT_INTERVAL_MS = 500L
 
         /** Каждый N-й удар heartbeat пишет alive-строку в лог (2 с при 500 мс). */
@@ -78,6 +84,9 @@ class OverlayService : Service() {
 
         /** Потолок строк ручной памятки на экране результатов. */
         private const val MANUAL_LIST_MAX = 7
+
+        /** Потолок строк в перечнях невосстановленных настроек на экране отката. */
+        private const val RESTORE_LIST_MAX = 8
 
         /**
          * Сколько подряд ударов heartbeat с zero-rect терпим, прежде чем пересоздать окно.
@@ -284,7 +293,13 @@ class OverlayService : Service() {
                 intent.getStringExtra(EXTRA_ALREADY_OFF_STEPS).orEmpty(),
                 intent.getIntExtra(EXTRA_LAUNCHER_SKIPPED, 0),
                 intent.getIntExtra(EXTRA_UNRESOLVED, 0),
-                intent.getIntExtra(EXTRA_MODE, OverlayController.MODE_AUTOMATION)
+                intent.getIntExtra(EXTRA_MODE, OverlayController.MODE_AUTOMATION),
+                intent.getIntExtra(EXTRA_RESTORE_APPLIED, 0),
+                intent.getIntExtra(EXTRA_RESTORE_ALREADY_ORIGINAL, 0),
+                intent.getIntExtra(EXTRA_RESTORE_UNREADABLE, 0),
+                intent.getIntExtra(EXTRA_RESTORE_FAILED, 0),
+                intent.getStringExtra(EXTRA_RESTORE_UNREADABLE_STEPS).orEmpty(),
+                intent.getStringExtra(EXTRA_RESTORE_FAILED_STEPS).orEmpty()
             )
         }
         // Сервис мог быть убит MIUI и пересоздан этим startService: окна нет, а фаза идёт.
@@ -570,7 +585,13 @@ class OverlayService : Service() {
         alreadyOffSteps: String,
         launcherSkipped: Int,
         unresolved: Int,
-        mode: Int = OverlayController.MODE_AUTOMATION
+        mode: Int = OverlayController.MODE_AUTOMATION,
+        restoreApplied: Int = 0,
+        restoreAlreadyOriginal: Int = 0,
+        restoreUnreadable: Int = 0,
+        restoreFailed: Int = 0,
+        restoreUnreadableSteps: String = "",
+        restoreFailedSteps: String = ""
     ) {
         stopHeartbeat()
         hide()
@@ -601,12 +622,57 @@ class OverlayService : Service() {
             ),
             llWrap().apply { topMargin = dp(6) }
         )
-        // «Провал» отката — невозвращённые настройки, а не «защищено системой».
-        if (restore && failed > 0) {
-            layout.addView(
-                bodyText(getString(R.string.restore_result_failed, failed), small = true),
-                llWrap().apply { topMargin = dp(4) }
-            )
+        // Отчёт отката: четыре состояния показываем ВСЕГДА, включая нули — «не подтвердилось»
+        // и «нет сохранённого значения» не должны сливаться в одну беду (разные причины,
+        // разные действия пользователя).
+        if (restore) {
+            listOf(
+                R.string.restore_outcome_applied to restoreApplied,
+                R.string.restore_outcome_already_original to restoreAlreadyOriginal,
+                R.string.restore_outcome_unreadable to restoreUnreadable,
+                R.string.restore_outcome_failed to restoreFailed
+            ).forEach { (res, value) ->
+                layout.addView(
+                    bodyText(getString(res, value), small = true),
+                    llWrap().apply { topMargin = dp(2) }
+                )
+            }
+            // Перечни невосстановленных: «нет сохранённого значения» лечится НОВЫМ полным
+            // прогоном оптимизации, «не подтвердилось» — повторной попыткой отката. Без
+            // разделения пользователь жмёт «Откатить» второй раз и видит тот же список.
+            val unreadableTitles =
+                restoreUnreadableSteps.split('\n').filter { it.isNotBlank() }.take(RESTORE_LIST_MAX)
+            if (unreadableTitles.isNotEmpty()) {
+                layout.addView(
+                    bodyText(
+                        getString(
+                            R.string.restore_result_unreadable_list,
+                            unreadableTitles.joinToString(", ")
+                        ),
+                        small = true
+                    ),
+                    llWrap().apply { topMargin = dp(6) }
+                )
+                layout.addView(
+                    bodyText(getString(R.string.restore_result_unreadable_hint), small = true),
+                    llWrap().apply { topMargin = dp(2) }
+                )
+            }
+            val failedTitles =
+                restoreFailedSteps.split('\n').filter { it.isNotBlank() }.take(RESTORE_LIST_MAX)
+            if (failedTitles.isNotEmpty()) {
+                layout.addView(
+                    bodyText(
+                        getString(R.string.restore_result_failed_list, failedTitles.joinToString(", ")),
+                        small = true
+                    ),
+                    llWrap().apply { topMargin = dp(6) }
+                )
+                layout.addView(
+                    bodyText(getString(R.string.restore_result_failed_hint), small = true),
+                    llWrap().apply { topMargin = dp(2) }
+                )
+            }
         }
         if (!restore && skipped > 0) layout.addView(bodyText(getString(R.string.result_skipped, skipped), small = true), llWrap().apply { topMargin = dp(4) })
         // Честный отчёт: «нет настройки в лаунчере» и «робот не нашёл» — разные строки,

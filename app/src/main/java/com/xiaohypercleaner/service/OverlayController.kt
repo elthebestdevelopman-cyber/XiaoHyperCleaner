@@ -293,14 +293,27 @@ object OverlayController {
         /** Шаги, которые робот не нашёл сам (не провал и не «нет на устройстве»). */
         unresolved: Int = 0,
         /** [MODE_AUTOMATION] или [MODE_RESTORE]: экран результата для прогона или отката. */
-        mode: Int = MODE_AUTOMATION
+        mode: Int = MODE_AUTOMATION,
+        /** Отчёт отката: четыре состояния — applied / already_original / unreadable / failed. */
+        restoreApplied: Int = 0,
+        restoreAlreadyOriginal: Int = 0,
+        restoreUnreadable: Int = 0,
+        /** Шаги, где состояние не подтвердилось (отдельно от «нет значения»). */
+        restoreFailed: Int = 0,
+        /** Шаги без сохранённого значения: откат их не выдумывает, нужен новый прогон. */
+        restoreUnreadableSteps: List<String> = emptyList(),
+        /** Шаги, где состояние не подтвердилось: лечится повторной попыткой отката. */
+        restoreFailedSteps: List<String> = emptyList()
     ) {
         endPhase()
         AppLog.i(
             TAG,
             "showResult: $completed/$total, failed=$failed, skipped=$skipped " +
                 "launcher=$launcherSkipped unresolved=$unresolved mode=$mode " +
-                "notif=${notifSteps.size} alreadyOff=${alreadyOffSteps.size} caller=${callerName()}"
+                "notif=${notifSteps.size} alreadyOff=${alreadyOffSteps.size} " +
+                "applied=$restoreApplied alreadyOriginal=$restoreAlreadyOriginal " +
+                "unreadable=$restoreUnreadable failedSteps=${restoreFailedSteps.size} " +
+                "caller=${callerName()}"
         )
         ctx.startService(
             intent(ctx, OverlayService.ACTION_RESULT)
@@ -313,6 +326,15 @@ object OverlayController {
                 .putExtra(OverlayService.EXTRA_LAUNCHER_SKIPPED, launcherSkipped)
                 .putExtra(OverlayService.EXTRA_UNRESOLVED, unresolved)
                 .putExtra(OverlayService.EXTRA_MODE, mode)
+                .putExtra(OverlayService.EXTRA_RESTORE_APPLIED, restoreApplied)
+                .putExtra(OverlayService.EXTRA_RESTORE_ALREADY_ORIGINAL, restoreAlreadyOriginal)
+                .putExtra(OverlayService.EXTRA_RESTORE_UNREADABLE, restoreUnreadable)
+                .putExtra(OverlayService.EXTRA_RESTORE_FAILED, restoreFailed)
+                .putExtra(
+                    OverlayService.EXTRA_RESTORE_UNREADABLE_STEPS,
+                    restoreUnreadableSteps.joinToString("\n")
+                )
+                .putExtra(OverlayService.EXTRA_RESTORE_FAILED_STEPS, restoreFailedSteps.joinToString("\n"))
         )
     }
 

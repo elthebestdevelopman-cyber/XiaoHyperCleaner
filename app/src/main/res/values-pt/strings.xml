@@ -244,7 +244,14 @@
     <string name="restore_cancel_confirm_body">A restauração vai parar no passo atual: algumas alterações não serão revertidas. Você pode voltar quando quiser.</string>
     <string name="restore_result_title">Restauração concluída</string>
     <string name="restore_result_summary">%1$d de %2$d configurações restauradas</string>
-    <string name="restore_result_failed">Não restaurado (verifique manualmente): %d</string>
+<string name="restore_outcome_applied">Restaurado: %1$d</string>
+<string name="restore_outcome_already_original">Já estava no estado original: %1$d</string>
+<string name="restore_outcome_unreadable">Sem valor guardado: %1$d</string>
+<string name="restore_outcome_failed">Não confirmado: %1$d</string>
+<string name="restore_result_unreadable_list">Sem valor guardado: %s</string>
+<string name="restore_result_failed_list">Não confirmado: %s</string>
+<string name="restore_result_unreadable_hint">Estas configurações foram alteradas antes de a aplicação começar a guardar os valores originais. Repetir o rollback não vai ajudar: faça uma nova execução da otimização e o rollback vai restaurá-las a partir de um snapshot novo.</string>
+<string name="restore_result_failed_hint">Estas configurações voltam na próxima tentativa de rollback: os valores originais já estão no snapshot.</string>
     <string name="result_title">Concluído! Tudo limpo 🧡</string>
     <string name="result_summary">Concluídos %1$d de %2$d passos</string>
     <string name="result_skipped">Ignorados: %d</string>

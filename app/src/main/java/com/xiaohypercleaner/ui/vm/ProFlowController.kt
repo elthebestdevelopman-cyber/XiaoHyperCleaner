@@ -8,6 +8,7 @@ import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationEngine
 import com.xiaohypercleaner.data.PreferencesManager
 import com.xiaohypercleaner.data.RootExecutor
+import com.xiaohypercleaner.data.localizedStepTitle
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.ChainFlags
 import com.xiaohypercleaner.service.OverlayController
@@ -404,6 +405,14 @@ class ProFlowController(
             var restoreTotal = 0
             var restoreRestored = 0
             var restoreCanceled = false
+            // Отчёт отката: четыре состояния (applied / already_original / unreadable / failed)
+            // и перечни невосстановленных шагов — их собирает onStepResult ниже.
+            var restoreApplied = 0
+            var restoreAlreadyOriginal = 0
+            var restoreUnreadable = 0
+            var restoreFailed = 0
+            var restoreUnreadableSteps: List<String> = emptyList()
+            var restoreFailedSteps: List<String> = emptyList()
             try {
                 update { it.copy(isWorking = true, progress = 0f) }
                 val deps: AppDependencies = XiaoHyperApp.testDeps ?: (app as XiaoHyperApp).deps
@@ -483,12 +492,22 @@ class ProFlowController(
                             },
                             onProgress = { p -> update { it.copy(progress = p) } }
                         )
+                        val outcomes = reverseOutcomes.groupingBy { it.outcome }.eachCount()
                         AppLog.i(
                             TAG,
-                            "restoreOptimization: reverse outcomes " +
-                                reverseOutcomes.groupingBy { it.outcome }.eachCount() +
+                            "restoreOptimization: reverse outcomes $outcomes" +
                                 ", relaunchUsed=" + reverseOutcomes.count { it.relaunchUsed }
                         )
+                        restoreApplied = outcomes[ReverseOutcome.APPLIED] ?: 0
+                        restoreAlreadyOriginal = outcomes[ReverseOutcome.ALREADY_ORIGINAL] ?: 0
+                        restoreUnreadable = outcomes[ReverseOutcome.UNREADABLE] ?: 0
+                        restoreFailed = outcomes[ReverseOutcome.FAILED] ?: 0
+                        restoreUnreadableSteps = reverseOutcomes
+                            .filter { it.outcome == ReverseOutcome.UNREADABLE }
+                            .map { localizedStepTitle(it.stepId) }
+                        restoreFailedSteps = reverseOutcomes
+                            .filter { it.outcome == ReverseOutcome.FAILED }
+                            .map { localizedStepTitle(it.stepId) }
                     } else {
                         AppLog.w(TAG, "restoreOptimization: accessibility offline, skip simple reverse")
                         simpleOk = false
@@ -534,7 +553,12 @@ class ProFlowController(
                         alreadyOffSteps = emptyList(),
                         launcherSkipped = 0,
                         unresolved = 0,
-                        mode = OverlayController.MODE_RESTORE
+                        mode = OverlayController.MODE_RESTORE,
+                        restoreApplied = restoreApplied,
+                        restoreAlreadyOriginal = restoreAlreadyOriginal,
+                        restoreUnreadable = restoreUnreadable,
+                        restoreUnreadableSteps = restoreUnreadableSteps,
+                        restoreFailedSteps = restoreFailedSteps
                     )
                 }
 

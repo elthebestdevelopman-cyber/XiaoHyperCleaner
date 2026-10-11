@@ -244,7 +244,14 @@
     <string name="restore_cancel_confirm_body">रिस्टोर मौजूदा चरण पर रुक जाएगा: कुछ बदलाव वापस नहीं होंगे। आप कभी भी लौट सकते हैं।</string>
     <string name="restore_result_title">रिस्टोर पूरा हुआ</string>
     <string name="restore_result_summary">%2$d में से %1$d सेटिंग्स बहाल हुईं</string>
-    <string name="restore_result_failed">बहाल नहीं हुईं (मैन्युअल जाँच करें): %d</string>
+<string name="restore_outcome_applied">बहाल किया गया: %1$d</string>
+<string name="restore_outcome_already_original">पहले से मूल स्थिति में: %1$d</string>
+<string name="restore_outcome_unreadable">कोई सहेजा गया मान नहीं: %1$d</string>
+<string name="restore_outcome_failed">पुष्टि नहीं हुई: %1$d</string>
+<string name="restore_result_unreadable_list">कोई सहेजा गया मान नहीं: %s</string>
+<string name="restore_result_failed_list">पुष्टि नहीं हुई: %s</string>
+<string name="restore_result_unreadable_hint">ये सेटिंग्स ऐप के मूल मान सहेजने से पहले बदली गई थीं। दोबारा रोलबैक करने से मदद नहीं मिलेगी: ऑप्टिमाइज़ेशन दोबारा चलाएँ, फिर रोलबैक इन्हें नए स्नैपशॉट से बहाल करेगा।</string>
+<string name="restore_result_failed_hint">ये सेटिंग्स अगली रोलबैक कोशिश में बहाल हो जाएँगी: इनके मूल मान स्नैपशॉट में मौजूद हैं।</string>
     <string name="result_title">पूर्ण! सब व्यवस्थित है 🧡</string>
     <string name="result_summary">%1$d / %2$d कदम पूर्ण</string>
     <string name="result_skipped">छोड़ा गया: %d</string>

@@ -273,7 +273,14 @@
     <string name="restore_cancel_confirm_body">La restauración se detendrá en el paso actual: algunos cambios no se revertirán. Puedes volver cuando quieras.</string>
     <string name="restore_result_title">Restauración completada</string>
     <string name="restore_result_summary">Restaurados %1$d de %2$d ajustes</string>
-    <string name="restore_result_failed">Sin restaurar (comprueba manualmente): %d</string>
+<string name="restore_outcome_applied">Restaurado: %1$d</string>
+<string name="restore_outcome_already_original">Ya estaba en el estado original: %1$d</string>
+<string name="restore_outcome_unreadable">Sin valor guardado: %1$d</string>
+<string name="restore_outcome_failed">Sin confirmar: %1$d</string>
+<string name="restore_result_unreadable_list">Sin valor guardado: %s</string>
+<string name="restore_result_failed_list">Sin confirmar: %s</string>
+<string name="restore_result_unreadable_hint">Estos ajustes se cambiaron antes de que la aplicación empezara a guardar los valores originales. Repetir el rollback no ayudará: ejecuta de nuevo la optimización y el rollback los restaurará desde un snapshot nuevo.</string>
+<string name="restore_result_failed_hint">Estos ajustes se recuperan en el siguiente intento de rollback: sus valores originales ya están en el snapshot.</string>
     <string name="result_title">¡Listo! El gato está contento 🧡</string>
     <string name="result_summary">Completados %1$d de %2$d pasos</string>
     <string name="result_skipped">Omitidos (no en el dispositivo): %d</string>
