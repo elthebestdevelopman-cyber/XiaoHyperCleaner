@@ -30,6 +30,11 @@ class StringsLocaleParityTest {
     fun `translatable keys are the same in all seven locale catalogues`() {
         val base = translatableKeys(resFile("values/strings.xml"))
         assertTrue("базовый values/strings.xml пуст — сломан разбор, а не локали", base.isNotEmpty())
+        assertTrue(
+            "разбор вернул ${base.size} ключей, а в values/ их не меньше $MIN_EXPECTED_KEYS — " +
+                "регексп сломан, и симметричная разность ниже ничего не значит",
+            base.size >= MIN_EXPECTED_KEYS
+        )
 
         val problems = locales.drop(1).mapNotNull { locale ->
             val keys = translatableKeys(resFile("$locale/strings.xml"))
@@ -70,10 +75,13 @@ class StringsLocaleParityTest {
     }
 
     private fun translatableKeys(file: File): Set<String> =
-        Regex("<string\\s+name=\"([^\"]+)\"([^>]*)>")
+        Regex("<string\\s+([^>]*)>")
             .findAll(file.readText(Charsets.UTF_8))
-            .filter { !it.groupValues[2].contains("translatable=\"false\"") }
             .map { it.groupValues[1] }
+            // Флаг ищем в ПОЛНОМ теге, а не в хвосте после name: иначе перестановка атрибутов
+            // (translatable перед name) молча вернёт символы «←», «⋮», «👆 » в паритет.
+            .filterNot { attrs -> attrs.contains(TRANSLATABLE_FALSE) }
+            .mapNotNull { attrs -> NAME.find(attrs)?.groupValues?.get(1) }
             .toSet()
 
     private fun resFile(rel: String): File {
@@ -84,5 +92,12 @@ class StringsLocaleParityTest {
             dir = dir.parentFile
         }
         throw AssertionError("не найден res-файл $rel от ${System.getProperty("user.dir")}")
+    }
+private companion object {
+        /** Ниже этого числа ключей разбор сломан: паритет зеленел бы вакуумно. */
+        const val MIN_EXPECTED_KEYS = 200
+
+        const val TRANSLATABLE_FALSE = "translatable=\"false\""
+        val NAME = Regex("name=\"([^\"]+)\"")
     }
 }
