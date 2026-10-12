@@ -231,4 +231,35 @@ class ReverseRollbackTest {
             ReverseExtras.decide(rowFound = true, checkedNow = null, snapshotValue = true)
         )
     }
+
+    @Test
+    fun `reverse drill step must reach its own screen before drilling`() {
+        // Форвард не меняется: решение — бурить с текущего экрана, предикат не вызывается.
+        var forwardReads = 0
+        assertEquals(
+            ReverseEntryAction.CONTINUE_DRILL,
+            ReverseExtras.entryAction(
+                reverse = false,
+                onStepScreen = { forwardReads++; false },
+                retried = false
+            )
+        )
+        assertEquals("форвард не платит за чтение экрана", 0, forwardReads)
+
+        assertEquals(
+            "откат: шаг на своём экране — бурим",
+            ReverseEntryAction.CONTINUE_DRILL,
+            ReverseExtras.entryAction(reverse = true, onStepScreen = { true }, retried = false)
+        )
+        assertEquals(
+            "откат: чужой экран — повторный вход, а не бурение чужого окна",
+            ReverseEntryAction.RETRY_ENTRY,
+            ReverseExtras.entryAction(reverse = true, onStepScreen = { false }, retried = false)
+        )
+        assertEquals(
+            "откат: повторный вход не помог — честный провал вместо low_confidence",
+            ReverseEntryAction.FAIL_SCREEN_NOT_REACHED,
+            ReverseExtras.entryAction(reverse = true, onStepScreen = { false }, retried = true)
+        )
+    }
 }

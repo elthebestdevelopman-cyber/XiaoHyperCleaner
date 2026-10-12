@@ -451,6 +451,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
          */
         internal const val SWITCH_DISABLED_BY_ROM = "switch_disabled"
 
+    /** Откат: повторный вход не привёл drill-шаг на его экран — бурить чужой экран нельзя. */
+    internal const val REVERSE_SCREEN_NOT_REACHED = "screen_not_reached"
+
         /** У установщика нет экспортированных активностей настроек на этой прошивке. */
         internal const val INSTALLER_SETTINGS_ABSENT = "installer_settings_not_found"
 
@@ -1360,6 +1363,36 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 )
                 canResumeSettings = false
                 resetSettingsToRoot()
+            }
+        }
+        // Откат: предыдущий шаг мог оставить своё окно, а drill-шаг с пустым legacy
+        // launchPackage попадает в ветку «settings-шаг» и бурит ЧУЖОЙ экран (прогон
+        // rmv5fd8wl: carousel стартовал с com.google.android.gms, бурил Настройки и отдал
+        // low_confidence). Intent-шаги закрывает обратное окно подтверждения маршрута,
+        // drill-шаги — нет: в канале отката шаг обязан попасть на свой экран ДО бурения.
+        if (mergedDrillPath.isNotEmpty()) {
+            var reentered = false
+            while (true) {
+                when (
+                    ReverseExtras.entryAction(
+                        reverse = reverseCtx != null,
+                        onStepScreen = { onTargetScreen(step) || isForegroundStepPackage(step) },
+                        retried = reentered
+                    )
+                ) {
+                    ReverseEntryAction.CONTINUE_DRILL -> break
+                    ReverseEntryAction.RETRY_ENTRY -> {
+                        AppLog.w(TAG, "reverse entry: ${step.id} not on step screen — re-enter")
+                        StepDiagnostics.note(step.id, "DRILL", "reverse_reentry")
+                        retryEnterStep(step)
+                        reentered = true
+                    }
+                    ReverseEntryAction.FAIL_SCREEN_NOT_REACHED -> {
+                        AppLog.w(TAG, "reverse entry: ${step.id} screen not reached after re-entry")
+                        StepDiagnostics.note(step.id, "DRILL", "screen_not_reached")
+                        return Result(false, REVERSE_SCREEN_NOT_REACHED)
+                    }
+                }
             }
         }
         // Resume: если интент уже открыл нужный экран, начинаем с текущего уровня

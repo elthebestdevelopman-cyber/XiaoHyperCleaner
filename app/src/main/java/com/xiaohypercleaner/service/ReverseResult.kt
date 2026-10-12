@@ -83,6 +83,18 @@ sealed interface ExtraRestoreDecision {
     data class Unreadable(override val reason: String) : ExtraRestoreDecision
 }
 
+/** Действие канала отката перед бурением drill-шага (см. [ReverseExtras.entryAction]). */
+enum class ReverseEntryAction {
+    /** Шаг на своём экране (или это форвард) — бурим как обычно. */
+    CONTINUE_DRILL,
+
+    /** Шаг не на своём экране: повторный вход в приложение шага (образец `retryEnterStep`). */
+    RETRY_ENTRY,
+
+    /** Повторный вход не привёл шаг на его экран: честный провал вместо `low_confidence`. */
+    FAIL_SCREEN_NOT_REACHED
+}
+
 /**
  * Правила возврата строк-целей в откате, вынесенные из [SimpleRunner.toggleExtraRow]
  * как чистые решения: тест обязан падать на подмене значения, а не на формате ключа.
@@ -141,4 +153,23 @@ object ReverseExtras {
      */
     fun <T> orderFor(targets: List<T>, reverse: Boolean): List<T> =
         if (reverse) targets.reversed() else targets
+    /**
+     * Вход drill-шага в откате: предыдущий шаг мог оставить своё окно, и бурение с чужого
+     * экрана даёт `low_confidence` вместо честного провала (прогон rmv5fd8wl: `carousel`
+     * стартовал с `com.google.android.gms` и бурил Настройки).
+     *
+     * [onStepScreen] — ленивый предикат: в форварде он НЕ вызывается (правило возвращает
+     * [ReverseEntryAction.CONTINUE_DRILL] первым же условием), поэтому стоимость чтений окна
+     * платит только канал отката. Форвардное поведение не меняется.
+     */
+    fun entryAction(
+        reverse: Boolean,
+        onStepScreen: () -> Boolean,
+        retried: Boolean
+    ): ReverseEntryAction = when {
+        !reverse -> ReverseEntryAction.CONTINUE_DRILL
+        onStepScreen() -> ReverseEntryAction.CONTINUE_DRILL
+        !retried -> ReverseEntryAction.RETRY_ENTRY
+        else -> ReverseEntryAction.FAIL_SCREEN_NOT_REACHED
+    }
 }
