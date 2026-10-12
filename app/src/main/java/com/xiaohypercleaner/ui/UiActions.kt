@@ -268,13 +268,26 @@ private fun shareLogAsText(context: Context, file: File) {
 }
 
 /**
- * Пакует диагностические файлы (getExternalFilesDir(diag)) в zip.
- * Возвращает архив либо null, если файлов нет или упаковка не удалась.
+ * Разрешено ли паковать файл diag-каталога в shareLog.
+ *
+ * Allowlist (И префикс, И расширение), а не «всё, кроме X»: снимок упавшего экрана —
+ * диагностика, а crawl_report_*.json несёт сырые подписи чужих окон и обязан оставаться
+ * локальным (.clinerules, «Краул окон»). Новый тип файла по умолчанию остаётся локальным:
+ * правило не надо помнить — оно закрыто этим списком и тестом.
  */
-private fun packageDiagnosticsZip(context: Context): File? {
+internal fun isShareableDiagFile(name: String): Boolean =
+    (name.startsWith("diagnostic_snapshot_") && name.endsWith(".json")) ||
+        (name.startsWith("screenshot_") && name.endsWith(".png"))
+
+/**
+ * Пакует РАЗРЕШЁННЫЕ диагностические файлы (getExternalFilesDir(diag)) в zip.
+ * Возвращает архив либо null, если разрешённых файлов нет или упаковка не удалась.
+ */
+internal fun packageDiagnosticsZip(context: Context): File? {
     val srcDir: File = context.getExternalFilesDir("diag") ?: return null
-    val files: List<File>? = srcDir.listFiles()?.filter { it.isFile }?.sortedBy { it.name }
-    if (files.isNullOrEmpty()) return null
+    val all: List<File> = srcDir.listFiles()?.filter { it.isFile } ?: emptyList()
+    val files: List<File> = all.filter { isShareableDiagFile(it.name) }.sortedBy { it.name }
+    if (files.isEmpty()) return null
 
     val zipDir: File = File(context.cacheDir, "diag").apply { if (!exists()) mkdirs() }
     val zipFile: File = File(zipDir, "xhc_diagnostics_${System.currentTimeMillis()}.zip")
@@ -294,7 +307,13 @@ private fun packageDiagnosticsZip(context: Context): File? {
             ?.sortedBy { it.lastModified() }
             ?.dropLast(3)
             ?.forEach { it.delete() }
-        AppLog.i(TAG, "shareLog: diag zip собран: ${zipFile.name}, файлов=${files.size}")
+        // Лог считает ВОШЕДШЕЕ, а не содержимое каталога: иначе «файлов=N» врало бы о том,
+        // что реально уехало в пак.
+        AppLog.i(
+            TAG,
+            "shareLog: diag zip собран: ${zipFile.name}, файлов=${files.size} " +
+                "skipped=${all.size - files.size}"
+        )
         zipFile
     } catch (e: Exception) {
         AppLog.w(TAG, "packageDiagnosticsZip failed: ${e.message}")
