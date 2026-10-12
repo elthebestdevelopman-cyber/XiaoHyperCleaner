@@ -64,6 +64,15 @@ sealed interface PreferenceKey {
         override val name = "notif_transparency"
     }
 
+    /**
+     * Ловец окна установки: снимает «Получать рекомендации» на экране настроек
+     * установщика, пока живо окно установки. Дефолт ON — решение владельца:
+     * галочка возвращается после обновления системы, механизм нужен постоянный.
+     */
+    data object InstallerWatcherEnabled : PreferenceKey {
+        override val name = "installer_watcher_enabled"
+    }
+
     data object HasSeenDnsWarning : PreferenceKey {
         override val name = "has_seen_dns_warning"
     }
@@ -201,6 +210,20 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
         notifTransparency.first()
     }.getOrElse { e ->
         AppLog.w(TAG, "getNotifTransparency failed: ${e.message}")
+        true
+    }
+
+    /** Ловец окна установки (дефолт ON): снятие «Получать рекомендации» при установке. */
+    val installerWatcherEnabled: Flow<Boolean> =
+        readBool(PreferenceKey.InstallerWatcherEnabled, true)
+
+    suspend fun setInstallerWatcherEnabled(enabled: Boolean) =
+        writeBool(PreferenceKey.InstallerWatcherEnabled, enabled)
+
+    suspend fun getInstallerWatcherEnabled(): Boolean = runCatching {
+        installerWatcherEnabled.first()
+    }.getOrElse { e ->
+        AppLog.w(TAG, "getInstallerWatcherEnabled failed: ${e.message}")
         true
     }
 

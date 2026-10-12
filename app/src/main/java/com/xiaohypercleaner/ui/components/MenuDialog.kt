@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.xiaohypercleaner.BuildConfig
 import com.xiaohypercleaner.R
+import com.xiaohypercleaner.service.InstallerWatcherStatus
 import com.xiaohypercleaner.ui.WindowScanStatus
 import com.xiaohypercleaner.util.AppLog
 
@@ -71,10 +72,15 @@ fun MenuDialog(
     onPrivacyPolicyClick: () -> Unit,
     /** R2.1: скан окон с переключателями (read-only, без оверлея). */
     onWindowScan: () -> Unit,
+    /** Ловец установщика: снятие «Получать рекомендации» при установке (дефолт ON). */
+    onInstallerWatcherChange: (Boolean) -> Unit,
     isNotifTransparency: Boolean = true,
+    isInstallerWatcher: Boolean = true,
     diagLevelFull: Boolean = false,
     /** Статус скана: текст собирается здесь из строк resources (хардкода нет). */
-    windowScan: WindowScanStatus = WindowScanStatus()
+    windowScan: WindowScanStatus = WindowScanStatus(),
+    /** Итог ловца установщика: Idle — молчание. */
+    installerWatcher: InstallerWatcherStatus = InstallerWatcherStatus.Idle
 ) {
     AppLog.d(TAG, "MenuDialog shown")
 
@@ -155,6 +161,32 @@ fun MenuDialog(
                 }
                 Spacer(Modifier.height(8.dp))
 
+                // Ловец установщика: работает только в контексте установки приложения.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            stringResource(R.string.menu_installer_watcher),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            stringResource(R.string.menu_installer_watcher_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = isInstallerWatcher,
+                        onCheckedChange = { checked: Boolean ->
+                            AppLog.i(TAG, "Installer watcher toggled: $checked")
+                            onInstallerWatcherChange(checked)
+                        }
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+
                 // ═══════════════════════════════════════════════════════════════
                 // Действия
                 // ═══════════════════════════════════════════════════════════════
@@ -192,6 +224,27 @@ fun MenuDialog(
                         ),
                         style = MaterialTheme.typography.bodySmall
                     )
+                }
+
+                // Статус ловца установщика: Idle — молчание, текстов не показываем.
+                when (installerWatcher) {
+                    InstallerWatcherStatus.Running -> Text(
+                        stringResource(R.string.watcher_status_running),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
+                    InstallerWatcherStatus.RecommendationsOff -> Text(
+                        stringResource(R.string.watcher_status_off),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    InstallerWatcherStatus.Skipped -> Text(
+                        stringResource(R.string.watcher_status_skipped),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
+                    InstallerWatcherStatus.Idle -> Unit
                 }
 
                 TextButton(

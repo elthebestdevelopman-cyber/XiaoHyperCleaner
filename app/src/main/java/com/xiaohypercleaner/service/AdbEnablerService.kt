@@ -12,6 +12,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import com.xiaohypercleaner.R
+import com.xiaohypercleaner.data.PreferencesManager
 import com.xiaohypercleaner.data.RomProfile
 import com.xiaohypercleaner.data.SimplePlan
 import com.xiaohypercleaner.data.SimpleSteps
@@ -165,6 +166,30 @@ class AdbEnablerService : AccessibilityService() {
 
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val simpleRunner: SimpleRunner by lazy { SimpleRunner(this) }
+
+    /**
+     * Ловец окна установки: пока живо окно установщика, открывает экран настроек
+     * шестерёнкой и снимает «Получать рекомендации». Штатный шаг до этого экрана не
+     * доходит — `SettingsActivity` не экспортируется и живёт только в контексте установки.
+     */
+    private val installerWatcher: InstallerWatcher by lazy {
+        InstallerWatcher(
+            service = this,
+            scope = scope,
+            installerPackages = {
+                SimpleSteps.ALL.firstOrNull { it.id == InstallerWatcherLogic.STEP_ID }
+                    ?.let { simpleRunner.candidatePackages(it) }
+                    .orEmpty()
+            },
+            enabled = { installerWatcherEnabled }
+        )
+    }
+
+    /** Пользовательский флаг ловца (default ON); значение ведёт коллектор prefs. */
+    @Volatile
+    private var installerWatcherEnabled: Boolean = true
+
+    private val watcherPrefs: PreferencesManager by lazy { PreferencesManager(this) }
     private val stepMutex = Mutex()
     private var stepJob: Job? = null
 
@@ -230,6 +255,8 @@ class AdbEnablerService : AccessibilityService() {
                 "root=${rootInActiveWindow != null}"
         )
         ChainFlags.waitingAccessibilityReturn = true
+        // Ловец установщика: пользовательский флаг (default ON) — читаем и следим.
+        scope.launch { watcherPrefs.installerWatcherEnabled.collect { installerWatcherEnabled = it } }
     }
 
     /**
@@ -639,6 +666,9 @@ class AdbEnablerService : AccessibilityService() {
         val currentTime: Long = System.currentTimeMillis()
         if (currentTime - lastActionTime < EVENT_THROTTLE_MS) return
         lastActionTime = currentTime
+
+        // Ловец окна установки: свой гейт фазы (окно прогресса/откат идут без шага).
+        installerWatcher.onEvent(event)
 
         if (SimpleRunner.isRunning) {
             handleStepTimeExceptions()

@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 44 suites, 384 tests (test tree below)
+app/src/test/java/com/xiaohypercleaner/          # 45 suites, 395 tests (test tree below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt
 │   ├── OptimizationEngineTest.kt
@@ -308,6 +308,7 @@ app/src/test/java/com/xiaohypercleaner/          # 44 suites, 384 tests (test tr
 │   ├── SimpleRunnerApplicabilityTest.kt  # not applicable steps, notif_* entry
 │   ├── SimpleRunnerAppEntryTest.kt  # app screen readiness
 │   └── SimpleRunnerClearDataTest.kt
+│   └── InstallerWatcherTest.kt  # installer watcher: phase gate, post-install, cooldown
 ├── ui/
 │   └── MainViewModelTest.kt  # Robolectric
 └── util/
@@ -370,7 +371,7 @@ app/src/test/java/com/xiaohypercleaner/          # 44 suites, 384 tests (test tr
 
 ## 🧪 Testing
 
-### Unit Tests (384 tests, 44 suites)
+### Unit Tests (395 tests, 45 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -382,7 +383,7 @@ app/src/test/java/com/xiaohypercleaner/          # 44 suites, 384 tests (test tr
 | `RestoreSnapshotTest`         | 5     | Rollback snapshot of original values               |
 | `AdbPortResolverTest`         | 5     | mDNS discovery, mergePorts                         |
 | `AdaptiveCatalogTest`         | 17    | Variant catalog, text merging                      |
-| `SemanticCatalogTest`         | 31    | Step semantics, packages, dialog policy            |
+| `SemanticCatalogTest`         | 32    | Step semantics, packages, dialog policy            |
 | `SemanticVariantTest`         | 9     | OS variant selection (MIUI 13 / HyperOS 2)         |
 | `SemanticGateTest`            | 6     | Confidence gate                                    |
 | `PlanBuilderTest`             | 9     | Plan pre-filter + red list                         |
@@ -411,7 +412,8 @@ app/src/test/java/com/xiaohypercleaner/          # 44 suites, 384 tests (test tr
 | `SimpleModeControllerOverlayTest` | 2 | Overlay permission loss stops the run with a single result |
 | `OverlayPermissionProbeTest`  | 3     | Overlay permission via two sources (Settings + app-op) |
 | `ScanOrchestratorTest`        | 4     | Navigation planning, cache                         |
-| `ScreenCrawlerTest`           | 6     | Screen crawler (diagnostics)                       |
+| `ScreenCrawlerTest`           | 9     | Screen crawler (diagnostics), installer entry without semantics |
+| `InstallerWatcherTest`        | 9     | Installer watcher: phase gate, post-install, per-app cooldown |
 | `ActivityScannerTest`         | 8     | Package/activity visibility                        |
 | `RomProfileTest`              | 5     | ROM profile: region, family, version               |
 | `SimpleStepsTest`             | 8     | Simple mode step map, extra toggles                |

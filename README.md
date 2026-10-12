@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 44 сьюта, 384 теста (дерево тестов ниже)
+app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 395 тестов (дерево тестов ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt
 │   ├── OptimizationEngineTest.kt
@@ -326,6 +326,7 @@ app/src/test/java/com/xiaohypercleaner/          # 44 сьюта, 384 теста
 │   ├── SimpleRunnerApplicabilityTest.kt  # неприменимые шаги, вход notif_*, поздняя проверка
 │   ├── SimpleRunnerAppEntryTest.kt  # готовность экрана приложения
 │   └── SimpleRunnerClearDataTest.kt
+│   └── InstallerWatcherTest.kt  # ловец установщика: гейт фазы, post-install, кулдаун
 ├── ui/
 │   └── MainViewModelTest.kt  # Robolectric
 └── util/
@@ -388,7 +389,7 @@ app/src/test/java/com/xiaohypercleaner/          # 44 сьюта, 384 теста
 
 ## 🧪 Тестирование
 
-### Unit-тесты (384 теста, 44 сьюта)
+### Unit-тесты (395 тестов, 45 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -400,7 +401,7 @@ app/src/test/java/com/xiaohypercleaner/          # 44 сьюта, 384 теста
 | `RestoreSnapshotTest`         | 5      | Снапшот оригиналов для отката                      |
 | `AdbPortResolverTest`         | 5      | mDNS discovery, mergePorts                         |
 | `AdaptiveCatalogTest`         | 17     | Вариантный каталог, мердж текстов                  |
-| `SemanticCatalogTest`         | 31     | Семантика шагов, пакеты-цели, политика диалогов    |
+| `SemanticCatalogTest`         | 32     | Семантика шагов, пакеты-цели, политика диалогов    |
 | `SemanticVariantTest`         | 9      | Выбор вариантов по версии ОС (MIUI 13 / HyperOS 2) |
 | `SemanticGateTest`            | 6      | Гейт уверенности                                   |
 | `PlanBuilderTest`             | 9      | Префильтр плана + красный список                   |
@@ -429,7 +430,8 @@ app/src/test/java/com/xiaohypercleaner/          # 44 сьюта, 384 теста
 | `SimpleModeControllerOverlayTest` | 2  | Потеря разрешения оверлея останавливает прогон одним итогом |
 | `OverlayPermissionProbeTest`  | 3      | Разрешение оверлея по двум источникам (Settings + app-op) |
 | `ScanOrchestratorTest`        | 4      | Планирование навигации, кэш                        |
-| `ScreenCrawlerTest`           | 6      | Сканер экранов (диагностика)                       |
+| `ScreenCrawlerTest`           | 9      | Сканер экранов (диагностика), вход установщика без семантики |
+| `InstallerWatcherTest`        | 9      | Ловец установщика: гейт фазы, post-install, кулдаун по приложению |
 | `ActivityScannerTest`         | 8      | Видимость пакетов и активностей                    |
 | `RomProfileTest`              | 5      | Профиль ROM: регион, family, версия                |
 | `SimpleStepsTest`             | 8      | Карта шагов Простого режима, доп. тумблеры          |

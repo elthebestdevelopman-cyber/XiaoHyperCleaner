@@ -792,6 +792,12 @@ private fun MainDialogsHost(
                 AppLog.i(MainActivity.TAG, "menu: window scan clicked")
                 vm.startWindowScan()
             },
+            onInstallerWatcherChange = { enabled ->
+                AppLog.i(MainActivity.TAG, "menu: installer watcher toggled to $enabled")
+                vm.toggleInstallerWatcher(enabled)
+            },
+            isInstallerWatcher = state.installerWatcherEnabled,
+            installerWatcher = state.installerWatcher,
             windowScan = state.windowScan
         )
     }

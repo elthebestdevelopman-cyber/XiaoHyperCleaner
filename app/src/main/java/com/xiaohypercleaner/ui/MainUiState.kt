@@ -5,6 +5,7 @@ import com.xiaohypercleaner.data.PermissionSubPhase
 import com.xiaohypercleaner.data.ShizukuExecutor
 import com.xiaohypercleaner.data.SimpleModePhase
 import com.xiaohypercleaner.data.SimpleStepState
+import com.xiaohypercleaner.service.InstallerWatcherStatus
 
 /**
  * Всё состояние главного экрана.
@@ -57,6 +58,12 @@ data class MainUiState(
 
     /** Итог скана окон (R2.1). Текст собирается в UI из строк resources. */
     val windowScan: WindowScanStatus = WindowScanStatus(),
+
+    /** Ловец установщика включён (меню; дефолт ON — решение владельца). */
+    val installerWatcherEnabled: Boolean = true,
+
+    /** Итог ловца в контексте установки: Idle — молчание, текстов не показываем. */
+    val installerWatcher: InstallerWatcherStatus = InstallerWatcherStatus.Idle,
 
     // ═══════════════════════════════════════════════════════════════
     // Разрешения

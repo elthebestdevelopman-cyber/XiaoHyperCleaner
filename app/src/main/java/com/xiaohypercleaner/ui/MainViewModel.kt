@@ -20,6 +20,8 @@ import com.xiaohypercleaner.data.SimpleModeController
 import com.xiaohypercleaner.data.SimpleModePhase
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.ChainFlags
+import com.xiaohypercleaner.service.InstallerWatcherState
+import com.xiaohypercleaner.service.InstallerWatcherStatus
 import com.xiaohypercleaner.service.OverlayController
 import com.xiaohypercleaner.service.SimpleRunner
 import com.xiaohypercleaner.service.SimpleStepBridge
@@ -178,6 +180,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 AppLog.i(TAG, "notifTransparency changed to $enabled")
                 update { it.copy(notifTransparency = enabled) }
                 simpleController.setNotifTransparency(enabled)
+            }
+        }
+
+        // Ловец установщика: флаг (default ON) и статус последнего срабатывания в UI.
+        viewModelScope.launch {
+            prefs.installerWatcherEnabled.collect { enabled ->
+                AppLog.i(TAG, "installerWatcherEnabled changed to $enabled")
+                update { it.copy(installerWatcherEnabled = enabled) }
+            }
+        }
+        viewModelScope.launch {
+            InstallerWatcherState.status.collect { status ->
+                update { it.copy(installerWatcher = status) }
             }
         }
 
@@ -803,6 +818,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         update { it.copy(notifTransparency = enabled) }
         simpleController.setNotifTransparency(enabled)
         viewModelScope.launch { prefs.setNotifTransparency(enabled) }
+    }
+
+    /**
+     * Ловец окна установки: снятие «Получать рекомендации» на экране настроек
+     * установщика, пока живо окно установки (дефолт ON — решение владельца).
+     */
+    fun toggleInstallerWatcher(enabled: Boolean) {
+        AppLog.i(TAG, "toggleInstallerWatcher: $enabled")
+        update { it.copy(installerWatcherEnabled = enabled) }
+        viewModelScope.launch { prefs.setInstallerWatcherEnabled(enabled) }
     }
 
     /**
