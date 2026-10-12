@@ -365,6 +365,19 @@ class SemanticCatalogTest {
         }
     }
 @Test
+    fun `legacy installer packages cover every package the catalog declares`() {
+        // Legacy-список шага и семантическая ось — два владельца одного факта; расхождение
+        // уже давало регресс (прогон rmuiiy2an: installer_settings_not_found). Требование —
+        // включение, а не равенство: legacy вправе объявить дополнительные пакеты.
+        assertEquals(
+            "semantic-пакеты, которых нет в SimpleSteps.installerPackages",
+            emptyList<String>(),
+            SemanticCatalog.requiredPackages("installer_recommendations")
+                .filterNot { SimpleSteps.installerPackages.contains(it) }
+        )
+    }
+
+@Test
     fun `shareme screen with ad personalization passes the gate`() {
         // Дамп прогона rmuecq65x: экран «Справка и обратная связь» с тумблером
         // «Персонализация рекламы» — прежние keywords/маркеры экран не пропускали

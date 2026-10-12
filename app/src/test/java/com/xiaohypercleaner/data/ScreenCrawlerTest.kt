@@ -1,6 +1,7 @@
 package com.xiaohypercleaner.data
 
 import android.accessibilityservice.AccessibilityService
+import android.content.pm.PackageInfo
 import android.provider.Settings
 import android.content.Intent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -13,6 +14,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 
 /**
@@ -184,5 +187,26 @@ class ScreenCrawlerTest {
             listOf("получать рекомендации", "recommendations"),
             restored?.unmatchedLexicon
         )
+    }
+
+    @Test
+    fun `installer entry survives when only the legacy package list knows the package`() {
+        // Путь краулера — единственное место, где legacy-список шага читается БЕЗ
+        // семантической оси (`AdaptiveCatalog.packagesForStep(defaults=requiredPackages)`).
+        // Пакет установщика с экраном настроек — com.miui.global.packageinstaller.
+        val context = RuntimeEnvironment.getApplication()
+        Shadows.shadowOf(context.packageManager).installPackage(
+            PackageInfo().apply { packageName = "com.miui.global.packageinstaller" }
+        )
+
+        val entries = runBlocking { ScreenCrawler.entryPoints(context) }
+        val installer = entries.firstOrNull { it.label == "installer_recommendations" }
+
+        assertNotNull(
+            "вход установщика обязан остаться: если пакета нет в legacy-списке, " +
+                "entryPoints молча теряет точку обхода",
+            installer
+        )
+        assertEquals("com.miui.global.packageinstaller", installer!!.packageName)
     }
 }

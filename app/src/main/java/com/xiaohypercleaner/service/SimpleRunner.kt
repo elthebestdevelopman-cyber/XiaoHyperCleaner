@@ -6496,8 +6496,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
     /** Установлен/виден ли пакет: getPackageInfo + видимость через launcher-интент. */
     private fun isInstalled(pkg: String): Boolean = ActivityScanner.isPackageVisible(service, pkg)
 
-    /** Пакеты-кандидаты шага: семантика каталога + legacy requiredPackages. */
-    private fun candidatePackages(step: SimpleSteps.Step): List<String> =
+    /**
+     * Пакеты-кандидаты шага: семантика каталога ([SemanticCatalog.requiredPackages]) + legacy
+     * `requiredPackages`. internal — чтобы ловец установщика шёл ТЕМ ЖЕ путём, что шаг: своей
+     * константы у него нет, и семантическая ось не разъедется с кодом при правке каталога.
+     */
+    internal fun candidatePackages(step: SimpleSteps.Step): List<String> =
         (SemanticCatalog.requiredPackages(step.id) + step.requiredPackages).distinct()
 
 

@@ -122,6 +122,22 @@ object SimpleSteps {
         "我的", "个人中心", "Perfil", "Mi perfil", "profile_tab"
     )
 
+    /**
+     * Пакеты установщика приложений в порядке семантической оси
+     * (`semantic_steps.json` → `installer_recommendations.requiredPackages`).
+     *
+     * Одна точка правды для шага `installer_recommendations`: legacy-список отставал
+     * от семантики, а на POCO/MIUI 13 global экран настроек установщика живёт в
+     * `com.miui.global.packageinstaller`. Без него терялся вход у единственного
+     * потребителя, который читает legacy без семантики, — `ScreenCrawler.entryPoints`.
+     */
+    internal val installerPackages: List<String> = listOf(
+        "com.miui.global.packageinstaller",
+        "com.miui.packageinstaller",
+        "com.google.android.packageinstaller",
+        "com.android.packageinstaller"
+    )
+
     // ═════════════════════════════════════════════════════════════════
     // 26 шагов автоматизации (с поддержкой всех регионов)
     // ═════════════════════════════════════════════════════════════════
@@ -997,11 +1013,7 @@ object SimpleSteps {
             manualHintEn = "When installing an app (from a store or an APK file) open the scan window → gear at " +
                 "the top right → \"Advanced settings\" section → turn off \"Receive recommendations\" " +
                 "(on by default; the window exists only during an install).",
-            requiredPackages = listOf(
-                "com.miui.packageinstaller",
-                "com.google.android.packageinstaller",
-                "com.android.packageinstaller"
-            ),
+            requiredPackages = installerPackages,
             actionType = ActionType.INSTALLER_SETTINGS_TOGGLE,
             targetChecked = false
         )
