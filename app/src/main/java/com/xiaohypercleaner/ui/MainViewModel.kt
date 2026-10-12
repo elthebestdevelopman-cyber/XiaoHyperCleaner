@@ -14,12 +14,14 @@ import com.xiaohypercleaner.data.PermissionFlowManager
 import com.xiaohypercleaner.data.PermissionSubPhase
 import com.xiaohypercleaner.data.RestrictedLocation
 import com.xiaohypercleaner.data.RomProfile
+import com.xiaohypercleaner.data.ScreenCrawler
 import com.xiaohypercleaner.data.ShizukuExecutor
 import com.xiaohypercleaner.data.SimpleModeController
 import com.xiaohypercleaner.data.SimpleModePhase
 import com.xiaohypercleaner.service.AdbEnablerService
 import com.xiaohypercleaner.service.ChainFlags
 import com.xiaohypercleaner.service.OverlayController
+import com.xiaohypercleaner.service.SimpleRunner
 import com.xiaohypercleaner.service.SimpleStepBridge
 import com.xiaohypercleaner.ui.vm.ProFlowController
 import com.xiaohypercleaner.ui.vm.ShizukuUiController
@@ -27,6 +29,7 @@ import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.DiagnosticSnapshotManager
 import com.xiaohypercleaner.util.OptimizationNotifier
 import com.xiaohypercleaner.util.ShizukuHelper
+import java.io.File
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,6 +63,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         /** Скрытый вход в FULL-диагностику: тапов по версии в меню. */
         private const val VERSION_TAPS_FOR_FULL = 7
         private const val VERSION_TAP_WINDOW_MS = 7000L
+
+        /** Скан не выполнялся: accessibility-сервис недоступен. */
+        private const val REASON_SCAN_NO_SERVICE = "no_service"
     }
 
     private val app: XiaoHyperApp = application as XiaoHyperApp
@@ -311,6 +317,94 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         proFlow.handleRefresh(acc, overlay, prevState)
+    }
+
+    /**
+     * R2.1: скан окон с переключателями — read-only обход БЕЗ оверлея.
+     *
+     * Гейт: скан не идёт во время фазы прогона/отката (у фазы защита есть, у скана нет).
+     * Проверяется перед стартом и в цикле обхода ([ScreenCrawler.crawl]); молчаливого
+     * выхода нет — статус со причиной уходит в [MainUiState.windowScan]. Отчёт сохраняется
+     * в DataStore и локальным файлом в diag-каталоге: в pack shareLog он не входит
+     * (в пак идёт только файл лога — .clinerules, «Краул окон»).
+     */
+    fun startWindowScan() {
+        if (_state.value.windowScan.running) {
+            AppLog.i(TAG, "window scan: already running")
+            return
+        }
+        val phaseRunning = { OverlayController.phaseRunning || SimpleRunner.isRunning }
+        if (phaseRunning()) {
+            AppLog.w(TAG, "window scan: skipped, phase in progress")
+            update {
+                it.copy(
+                    windowScan = WindowScanStatus(skippedReason = ScreenCrawler.REASON_PHASE_RUNNING)
+                )
+            }
+            return
+        }
+        val service = AdbEnablerService.instance
+        if (service == null) {
+            AppLog.w(TAG, "window scan: skipped, accessibility service offline")
+            update { it.copy(windowScan = WindowScanStatus(skippedReason = REASON_SCAN_NO_SERVICE)) }
+            return
+        }
+        AppLog.i(TAG, "window scan: started")
+        update { it.copy(windowScan = WindowScanStatus(running = true)) }
+        viewModelScope.launch {
+            val entries = runCatching { ScreenCrawler.entryPoints(app) }
+                .onFailure { AppLog.w(TAG, "window scan: entry points failed: ${it.message}") }
+                .getOrDefault(emptyList())
+            when (val result = ScreenCrawler.crawl(service, entries, isPhaseRunning = phaseRunning)) {
+                is ScreenCrawler.CrawlResult.Done -> {
+                    val json = result.report.toJson()
+                    runCatching { prefs.saveCrawlReport(json) }
+                        .onFailure { AppLog.w(TAG, "window scan: datastore save failed: ${it.message}") }
+                    writeCrawlReportFile(json)
+                    AppLog.i(
+                        TAG,
+                        "window scan: done screens=${result.report.screens.size} " +
+                            "candidates=${result.report.candidateCount} " +
+                            "lexicon_unmatched=${result.report.unmatchedLexicon.size}"
+                    )
+                    update {
+                        it.copy(
+                            windowScan = WindowScanStatus(
+                                done = true,
+                                screens = result.report.screens.size,
+                                candidates = result.report.candidateCount
+                            )
+                        )
+                    }
+                }
+
+                is ScreenCrawler.CrawlResult.Skipped -> {
+                    AppLog.w(
+                        TAG,
+                        "window scan: skipped reason=${result.reason} screens=${result.screensDone}"
+                    )
+                    update {
+                        it.copy(
+                            windowScan = WindowScanStatus(
+                                skippedReason = result.reason,
+                                aborted = result.reason == ScreenCrawler.REASON_PHASE_STARTED
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /** Локальный файл отчёта (diag-каталог приложения): в pack shareLog не входит. */
+    private fun writeCrawlReportFile(json: String) {
+        runCatching {
+            val dir = app.getExternalFilesDir("diag") ?: File(app.filesDir, "diag")
+            dir.mkdirs()
+            val name = "crawl_report_${System.currentTimeMillis()}.json"
+            File(dir, name).writeText(json)
+            AppLog.i(TAG, "window scan: report saved locally ($name)")
+        }.onFailure { AppLog.w(TAG, "window scan: local save failed: ${it.message}") }
     }
 
     fun checkRestrictedSettingsOnResume() {

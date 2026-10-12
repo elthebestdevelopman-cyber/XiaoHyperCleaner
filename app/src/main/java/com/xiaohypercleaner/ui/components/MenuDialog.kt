@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.xiaohypercleaner.BuildConfig
 import com.xiaohypercleaner.R
+import com.xiaohypercleaner.ui.WindowScanStatus
 import com.xiaohypercleaner.util.AppLog
 
 private const val TAG = "MenuDialog"
@@ -68,8 +69,12 @@ fun MenuDialog(
     onSupportPage: () -> Unit,
     onShareLog: () -> Unit,
     onPrivacyPolicyClick: () -> Unit,
+    /** R2.1: скан окон с переключателями (read-only, без оверлея). */
+    onWindowScan: () -> Unit,
     isNotifTransparency: Boolean = true,
-    diagLevelFull: Boolean = false
+    diagLevelFull: Boolean = false,
+    /** Статус скана: текст собирается здесь из строк resources (хардкода нет). */
+    windowScan: WindowScanStatus = WindowScanStatus()
 ) {
     AppLog.d(TAG, "MenuDialog shown")
 
@@ -153,6 +158,41 @@ fun MenuDialog(
                 // ═══════════════════════════════════════════════════════════════
                 // Действия
                 // ═══════════════════════════════════════════════════════════════
+
+                TextButton(
+                    onClick = {
+                        AppLog.i(TAG, "Window scan clicked")
+                        onWindowScan()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.menu_window_scan))
+                }
+
+                // Статус скана: отдельный текст для «не начинался», «прерван фазой» и «готово».
+                if (windowScan.running) {
+                    Text(
+                        stringResource(R.string.scan_status_running),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                } else if (windowScan.skippedReason != null) {
+                    Text(
+                        stringResource(
+                            if (windowScan.aborted) R.string.scan_status_aborted
+                            else R.string.scan_status_skipped
+                        ),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                } else if (windowScan.done) {
+                    Text(
+                        stringResource(
+                            R.string.scan_status_done,
+                            windowScan.screens,
+                            windowScan.candidates
+                        ),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
 
                 TextButton(
                     onClick = {

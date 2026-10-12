@@ -18,6 +18,23 @@ import com.xiaohypercleaner.data.SimpleStepState
  * - Simple Mode (phase, step, done)
  * - Pro Mode (final dialog, report)
  */
+
+/**
+ * Состояние скана окон (R2.1): read-only обход, тумблеры не нажимаются.
+ *
+ * [skippedReason] заполняется, когда обход не выполнялся: идёт фаза прогона/отката
+ * ([ScreenCrawler.REASON_PHASE_RUNNING]) либо фаза началась в середине обхода
+ * ([ScreenCrawler.REASON_PHASE_STARTED]). Тексты собираются в UI из строк resources.
+ */
+data class WindowScanStatus(
+    val running: Boolean = false,
+    val done: Boolean = false,
+    val screens: Int = 0,
+    val candidates: Int = 0,
+    val skippedReason: String? = null,
+    /** true — обход прерван УЖЕ НАЧАВШЕЙСЯ фазой (отдельный текст от «не начинался»). */
+    val aborted: Boolean = false
+)
 data class MainUiState(
     // ═══════════════════════════════════════════════════════════════
     // Основные флаги
@@ -37,6 +54,9 @@ data class MainUiState(
 
     /** Прогресс выполнения (0.0 - 1.0) */
     val progress: Float = 0f,
+
+    /** Итог скана окон (R2.1). Текст собирается в UI из строк resources. */
+    val windowScan: WindowScanStatus = WindowScanStatus(),
 
     // ═══════════════════════════════════════════════════════════════
     // Разрешения

@@ -259,6 +259,11 @@
 <string name="restore_result_failed_list">Не подтвердилось: %s</string>
 <string name="restore_result_unreadable_hint">Эти настройки менялись до того, как приложение начало сохранять исходные значения. Повторный откат не поможет: сделайте новый полный прогон оптимизации, и откат вернёт их из свежего снапшота.</string>
 <string name="restore_result_failed_hint">Эти настройки вернутся при повторной попытке отката: их исходные значения уже есть в снапшоте.</string>
+<string name="menu_window_scan">Сканировать окна с переключателями</string>
+<string name="scan_status_running">Сканирую экраны…</string>
+<string name="scan_status_done">Скан завершён: экранов %1$d, кандидатов %2$d</string>
+<string name="scan_status_skipped">Скан пропущен: идёт прогон или откат</string>
+<string name="scan_status_aborted">Скан прерван: началась фаза прогона</string>
     <string name="result_title">Готово! Котик доволен 🧡</string>
     <string name="result_summary">Выполнено %1$d из %2$d шагов</string>
     <string name="result_skipped">Пропущено (нет на устройстве): %d</string>

@@ -252,6 +252,11 @@
 <string name="restore_result_failed_list">पुष्टि नहीं हुई: %s</string>
 <string name="restore_result_unreadable_hint">ये सेटिंग्स ऐप के मूल मान सहेजने से पहले बदली गई थीं। दोबारा रोलबैक करने से मदद नहीं मिलेगी: ऑप्टिमाइज़ेशन दोबारा चलाएँ, फिर रोलबैक इन्हें नए स्नैपशॉट से बहाल करेगा।</string>
 <string name="restore_result_failed_hint">ये सेटिंग्स अगली रोलबैक कोशिश में बहाल हो जाएँगी: इनके मूल मान स्नैपशॉट में मौजूद हैं।</string>
+<string name="menu_window_scan">टॉगल वाली विंडो स्कैन करें</string>
+<string name="scan_status_running">स्क्रीन स्कैन की जा रही हैं…</string>
+<string name="scan_status_done">स्कैन पूरा: %1$d स्क्रीन, %2$d उम्मीदवार</string>
+<string name="scan_status_skipped">स्कैन छोड़ा गया: रन या रोलबैक चल रहा है</string>
+<string name="scan_status_aborted">स्कैन बाधित: रन फ़ेज़ शुरू हो गया</string>
     <string name="result_title">पूर्ण! सब व्यवस्थित है 🧡</string>
     <string name="result_summary">%1$d / %2$d कदम पूर्ण</string>
     <string name="result_skipped">छोड़ा गया: %d</string>

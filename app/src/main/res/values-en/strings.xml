@@ -272,6 +272,11 @@
 <string name="restore_result_failed_list">Not confirmed: %s</string>
 <string name="restore_result_unreadable_hint">These settings were changed before the app started saving original values. Repeating the rollback will not help: run the optimisation again, then the rollback restores them from a fresh snapshot.</string>
 <string name="restore_result_failed_hint">These settings come back on the next rollback attempt: their original values are already in the snapshot.</string>
+<string name="menu_window_scan">Scan windows with toggles</string>
+<string name="scan_status_running">Scanning screens…</string>
+<string name="scan_status_done">Scan finished: %1$d screens, %2$d candidates</string>
+<string name="scan_status_skipped">Scan skipped: a run or restore is in progress</string>
+<string name="scan_status_aborted">Scan aborted: a run phase has started</string>
     <string name="result_title">Done! The cat is pleased 🧡</string>
     <string name="result_summary">Completed %1$d of %2$d steps</string>
     <string name="result_skipped">Skipped (not on device): %d</string>

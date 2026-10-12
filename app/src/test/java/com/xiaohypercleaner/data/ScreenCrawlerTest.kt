@@ -1,6 +1,10 @@
 package com.xiaohypercleaner.data
 
+import android.accessibilityservice.AccessibilityService
+import android.provider.Settings
+import android.content.Intent
 import android.view.accessibility.AccessibilityNodeInfo
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -139,5 +143,46 @@ class ScreenCrawlerTest {
     fun `report with unknown schema is rejected`() {
         assertNull(ScreenCrawler.CrawlReport.fromJson("""{"schema":99,"screens":[]}"""))
         assertNull(ScreenCrawler.CrawlReport.fromJson("not a json"))
+    }
+
+    @Test
+    fun `crawl is skipped while a phase is running`() = runBlocking {
+        val service = Mockito.mock(AccessibilityService::class.java)
+        val entries = listOf(
+            ScreenCrawler.CrawlEntry(
+                packageName = "com.android.settings",
+                label = "settings",
+                intent = Intent(Settings.ACTION_SETTINGS)
+            )
+        )
+
+        val result = ScreenCrawler.crawl(service, entries, isPhaseRunning = { true })
+
+        assertTrue("скан обязан уступить фазе", result is ScreenCrawler.CrawlResult.Skipped)
+        assertEquals(
+            ScreenCrawler.REASON_PHASE_RUNNING,
+            (result as ScreenCrawler.CrawlResult.Skipped).reason
+        )
+        Mockito.verify(service, Mockito.never()).startActivity(Mockito.any())
+    }
+
+    @Test
+    fun `report keeps lexicon entries that never matched`() {
+        val report = ScreenCrawler.CrawlReport(
+            timestamp = 1L,
+            osFamily = "MIUI",
+            osUi = "13",
+            incremental = "inc",
+            screens = emptyList(),
+            unmatchedLexicon = listOf("получать рекомендации", "recommendations")
+        )
+
+        val restored = ScreenCrawler.CrawlReport.fromJson(report.toJson())
+
+        assertEquals(
+            "перечень ни разу не совпавших строк обязан пережить round-trip: иначе риск «молча не сработает» теряется",
+            listOf("получать рекомендации", "recommendations"),
+            restored?.unmatchedLexicon
+        )
     }
 }

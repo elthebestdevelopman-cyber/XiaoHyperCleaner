@@ -252,6 +252,11 @@
 <string name="restore_result_failed_list">Não confirmado: %s</string>
 <string name="restore_result_unreadable_hint">Estas configurações foram alteradas antes de a aplicação começar a guardar os valores originais. Repetir o rollback não vai ajudar: faça uma nova execução da otimização e o rollback vai restaurá-las a partir de um snapshot novo.</string>
 <string name="restore_result_failed_hint">Estas configurações voltam na próxima tentativa de rollback: os valores originais já estão no snapshot.</string>
+<string name="menu_window_scan">Digitalizar janelas com interruptores</string>
+<string name="scan_status_running">Digitalizando telas…</string>
+<string name="scan_status_done">Digitalização concluída: %1$d telas, %2$d candidatos</string>
+<string name="scan_status_skipped">Digitalização ignorada: há uma execução ou restauração em curso</string>
+<string name="scan_status_aborted">Digitalização interrompida: começou uma fase de execução</string>
     <string name="result_title">Concluído! Tudo limpo 🧡</string>
     <string name="result_summary">Concluídos %1$d de %2$d passos</string>
     <string name="result_skipped">Ignorados: %d</string>

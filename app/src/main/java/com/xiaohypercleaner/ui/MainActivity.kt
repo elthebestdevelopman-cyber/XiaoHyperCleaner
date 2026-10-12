@@ -787,7 +787,12 @@ private fun MainDialogsHost(
             onPrivacyPolicyClick = {
                 AppLog.i(MainActivity.TAG, "menu: privacy policy clicked")
                 openUrl(context, privacyUrl)
-            }
+            },
+            onWindowScan = {
+                AppLog.i(MainActivity.TAG, "menu: window scan clicked")
+                vm.startWindowScan()
+            },
+            windowScan = state.windowScan
         )
     }
 }

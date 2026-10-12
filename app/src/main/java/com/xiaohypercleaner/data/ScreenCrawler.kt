@@ -32,6 +32,10 @@ object ScreenCrawler {
     private const val MAX_SCREENS = 30
     private const val SCREEN_SETTLE_MS = 1500L
 
+    /** Причины пропуска обхода — честный статус в UI вместо молчаливого выхода. */
+    const val REASON_PHASE_RUNNING = "phase_running"
+    const val REASON_PHASE_STARTED = "phase_started"
+
     /**
      * Лексикон кандидатов. Машинное поле: точные строки UI устройства (7 локалей),
      * по нему строка-настройка признаётся рекомендательной.
@@ -104,7 +108,13 @@ object ScreenCrawler {
         val osFamily: String,
         val osUi: String,
         val incremental: String,
-        val screens: List<ScreenSnapshot>
+        val screens: List<ScreenSnapshot>,
+        /**
+         * Строки лексикона, которые за обход не совпали НИ РАЗУ. Перечень живёт только здесь
+         * (локальный отчёт в diag-каталоге): в SCAN-лог идёт лишь счётчик — иначе лог снова
+         * понесёт сырые подписи. Это прибор против «строка молча не срабатывает».
+         */
+        val unmatchedLexicon: List<String> = emptyList(),
     ) {
         val candidateCount: Int get() = screens.sumOf { it.candidates.size }
 
@@ -136,6 +146,9 @@ object ScreenCrawler {
                 arr.put(s)
             }
             root.put("screens", arr)
+            val unmatched = JSONArray()
+            unmatchedLexicon.forEach { unmatched.put(it) }
+            root.put("unmatchedLexicon", unmatched)
             return root.toString()
         }
 
@@ -178,12 +191,17 @@ object ScreenCrawler {
                         )
                     }
                 }
+                val unmatched = ArrayList<String>()
+                root.optJSONArray("unmatchedLexicon")?.let { arr ->
+                    for (i in 0 until arr.length()) arr.optString(i)?.takeIf { it.isNotBlank() }?.let { unmatched.add(it) }
+                }
                 CrawlReport(
                     timestamp = root.optLong("timestamp", 0L),
                     osFamily = root.optString("osFamily"),
                     osUi = root.optString("osUi"),
                     incremental = root.optString("incremental"),
-                    screens = screens
+                    screens = screens,
+                    unmatchedLexicon = unmatched
                 )
             } catch (e: Exception) {
                 AppLog.w(TAG, "crawl report parse failed: ${e.message}")
@@ -336,17 +354,41 @@ object ScreenCrawler {
             .take(MAX_SCREENS)
     }
 
+    /** Итог обхода: отчёт либо честная причина, по которой обход НЕ выполнялся. */
+    sealed interface CrawlResult {
+        data class Done(val report: CrawlReport) : CrawlResult
+
+        /**
+         * Обход не выполнялся или прерван: идёт фаза прогона/отката. У фазы защита есть
+         * (оверлей), у скана своей нет — поэтому скан уступает, а не портит её логи.
+         */
+        data class Skipped(val reason: String, val screensDone: Int) : CrawlResult
+    }
+
     /**
      * Обход: открывает входы, снимает read-only снимки экранов, тумблеры не нажимает.
-     * Отчёт возвращается вызывающей стороне (сохранение — в DataStore).
+     * Отчёт возвращается вызывающей стороне (DataStore + локальный diag-файл).
+     *
+     * [isPhaseRunning] проверяется ДО старта И в цикле: обход идёт без оверлея, и скан,
+     * начавшийся во время прогона, испортил бы именно те логи, по которым принимается
+     * работа. Молчаливого выхода нет — [CrawlResult.Skipped] несёт причину.
      */
     suspend fun crawl(
         service: AccessibilityService,
         entries: List<CrawlEntry>,
+        isPhaseRunning: () -> Boolean = { false },
         onScreen: (ScreenSnapshot) -> Unit = {}
-    ): CrawlReport {
+    ): CrawlResult {
+        if (isPhaseRunning()) {
+            AppLog.w(TAG, "SCAN skipped reason=$REASON_PHASE_RUNNING")
+            return CrawlResult.Skipped(REASON_PHASE_RUNNING, 0)
+        }
         val screens = ArrayList<ScreenSnapshot>()
         for (entry in entries.take(MAX_SCREENS)) {
+            if (isPhaseRunning()) {
+                AppLog.w(TAG, "SCAN aborted reason=$REASON_PHASE_STARTED screens=${screens.size}")
+                return CrawlResult.Skipped(REASON_PHASE_STARTED, screens.size)
+            }
             try {
                 service.startActivity(entry.intent)
             } catch (e: Exception) {
@@ -359,28 +401,28 @@ object ScreenCrawler {
             val snapshot = snapshotScreen(root, fg)
             recycle(root)
             screens.add(snapshot)
-            AppLog.i(
-                TAG,
-                "crawl screen pkg=${snapshot.packageName} step=${entry.label} " +
-                    "switches=${snapshot.switchCount} candidates=${snapshot.candidates.size} " +
-                    "title='${snapshot.title}'"
-            )
+            // SCAN-лог — только пакет и счётчик тумблеров, без сырых подписей чужих окон
+            // (.clinerules): подписи живут в локальном отчёте, а не в логе.
+            AppLog.i(TAG, "SCAN window=${snapshot.packageName}, toggles=${snapshot.switchCount}")
             onScreen(snapshot)
         }
         val profile = RomProfile.detect(service)
+        val matched = screens.flatMap { it.candidates }.map { it.matched }.toSet()
+        val unmatched = LEXICON.filterNot { it in matched }
         val report = CrawlReport(
             timestamp = System.currentTimeMillis(),
             osFamily = profile.family.name,
             osUi = profile.uiVersion ?: "unknown",
             incremental = android.os.Build.VERSION.INCREMENTAL,
-            screens = screens
+            screens = screens,
+            unmatchedLexicon = unmatched
         )
         AppLog.i(
             TAG,
-            "crawl done screens=${report.screens.size} candidates=${report.candidateCount} " +
-                "os=${report.osFamily}/${report.osUi}"
+            "SCAN done screens=${report.screens.size} candidates=${report.candidateCount} " +
+                "lexicon_unmatched=${unmatched.size} os=${report.osFamily}/${report.osUi}"
         )
-        return report
+        return CrawlResult.Done(report)
     }
 
     private fun recycle(node: AccessibilityNodeInfo?) {

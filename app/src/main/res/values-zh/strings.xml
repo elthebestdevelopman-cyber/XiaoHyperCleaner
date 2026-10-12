@@ -282,6 +282,11 @@
 <string name="restore_result_failed_list">未确认：%s</string>
 <string name="restore_result_unreadable_hint">这些设置在应用开始保存原始值之前就被修改了。再次回滚不会有用：请重新完整运行一次优化，之后回滚会从新的快照中恢复它们。</string>
 <string name="restore_result_failed_hint">这些设置会在下次回滚时恢复：它们的原始值已在快照中。</string>
+<string name="menu_window_scan">扫描带开关的窗口</string>
+<string name="scan_status_running">正在扫描屏幕…</string>
+<string name="scan_status_done">扫描完成：%1$d 个屏幕，%2$d 个候选项</string>
+<string name="scan_status_skipped">已跳过扫描：正在进行优化或回滚</string>
+<string name="scan_status_aborted">扫描已中止：优化阶段已开始</string>
     <string name="result_title">完成！猫咪很满意 🧡</string>
     <string name="result_summary">已完成 %1$d / %2$d 步</string>
     <string name="result_skipped">已跳过（设备上不存在）：%d</string>

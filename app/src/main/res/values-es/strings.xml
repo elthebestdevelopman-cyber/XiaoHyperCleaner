@@ -281,6 +281,11 @@
 <string name="restore_result_failed_list">Sin confirmar: %s</string>
 <string name="restore_result_unreadable_hint">Estos ajustes se cambiaron antes de que la aplicación empezara a guardar los valores originales. Repetir el rollback no ayudará: ejecuta de nuevo la optimización y el rollback los restaurará desde un snapshot nuevo.</string>
 <string name="restore_result_failed_hint">Estos ajustes se recuperan en el siguiente intento de rollback: sus valores originales ya están en el snapshot.</string>
+<string name="menu_window_scan">Escanear ventanas con interruptores</string>
+<string name="scan_status_running">Escaneando pantallas…</string>
+<string name="scan_status_done">Escaneo terminado: %1$d pantallas, %2$d candidatos</string>
+<string name="scan_status_skipped">Escaneo omitido: hay una ejecución o restauración en curso</string>
+<string name="scan_status_aborted">Escaneo interrumpido: comenzó una fase de ejecución</string>
     <string name="result_title">¡Listo! El gato está contento 🧡</string>
     <string name="result_summary">Completados %1$d de %2$d pasos</string>
     <string name="result_skipped">Omitidos (no en el dispositivo): %d</string>
