@@ -181,13 +181,32 @@ class AdbEnablerService : AccessibilityService() {
                     ?.let { simpleRunner.candidatePackages(it) }
                     .orEmpty()
             },
-            enabled = { installerWatcherEnabled }
+            enabled = { installerWatcherEnabled },
+            cycleClosed = { cycleClosedFor(watcherCycleFingerprint, watcherFingerprint()) },
+            onCycleDone = { closeWatcherCycle() }
         )
     }
 
     /** Пользовательский флаг ловца (default ON); значение ведёт коллектор prefs. */
     @Volatile
     private var installerWatcherEnabled: Boolean = true
+
+    /** Отпечаток сборки, для которой цикл ловца закрыт (ведёт коллектор prefs). */
+    @Volatile
+    private var watcherCycleFingerprint: String? = null
+
+    private val watcherRomProfile: RomProfile by lazy { RomProfile.detect(this) }
+
+    /** Отпечаток сборки: обновление системы меняет его — флаг цикла устаревает сам. */
+    private fun watcherFingerprint(): String =
+        buildCycleFingerprint(Build.VERSION.INCREMENTAL, watcherRomProfile.miuiVersion)
+
+    /** Цикл ловца отработан: запомнить отпечаток и в памяти, и в персисте. */
+    private fun closeWatcherCycle() {
+        val fingerprint = watcherFingerprint()
+        watcherCycleFingerprint = fingerprint
+        scope.launch { watcherPrefs.setInstallerWatcherCycle(fingerprint) }
+    }
 
     private val watcherPrefs: PreferencesManager by lazy { PreferencesManager(this) }
     private val stepMutex = Mutex()
@@ -255,8 +274,9 @@ class AdbEnablerService : AccessibilityService() {
                 "root=${rootInActiveWindow != null}"
         )
         ChainFlags.waitingAccessibilityReturn = true
-        // Ловец установщика: пользовательский флаг (default ON) — читаем и следим.
+        // Ловец установщика: пользовательский флаг (default ON) и флаг цикла — читаем и следим.
         scope.launch { watcherPrefs.installerWatcherEnabled.collect { installerWatcherEnabled = it } }
+        scope.launch { watcherPrefs.installerWatcherCycle.collect { watcherCycleFingerprint = it } }
     }
 
     /**

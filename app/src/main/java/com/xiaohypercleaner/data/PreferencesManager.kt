@@ -73,6 +73,15 @@ sealed interface PreferenceKey {
         override val name = "installer_watcher_enabled"
     }
 
+    /**
+     * Отпечаток сборки, для которой ловец уже отработал (флаг цикла). Сброс данных
+     * приложения стирает значение, обновление системы меняет отпечаток — оба события
+     * снимают признак автоматически, вмешательства пользователя не требуется.
+     */
+    data object InstallerWatcherCycle : PreferenceKey {
+        override val name = "installer_watcher_cycle"
+    }
+
     data object HasSeenDnsWarning : PreferenceKey {
         override val name = "has_seen_dns_warning"
     }
@@ -225,6 +234,22 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
     }.getOrElse { e ->
         AppLog.w(TAG, "getInstallerWatcherEnabled failed: ${e.message}")
         true
+    }
+
+    /** Отпечаток сборки, для которой цикл ловца закрыт (пусто — цикл открыт). */
+    val installerWatcherCycle: Flow<String?> = context.dataStore.data
+        .map { prefs -> prefs[stringPreferencesKey(PreferenceKey.InstallerWatcherCycle.name)] }
+        .catch { e ->
+            AppLog.e(TAG, "installerWatcherCycle flow error: ${e.message}")
+            emit(null)
+        }
+
+    suspend fun setInstallerWatcherCycle(fingerprint: String) = runCatching {
+        context.dataStore.edit { prefs ->
+            prefs[stringPreferencesKey(PreferenceKey.InstallerWatcherCycle.name)] = fingerprint
+        }
+    }.onFailure { e ->
+        AppLog.w(TAG, "setInstallerWatcherCycle failed: ${e.message}")
     }
 
     /**

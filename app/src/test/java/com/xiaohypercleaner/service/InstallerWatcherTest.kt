@@ -49,15 +49,13 @@ class InstallerWatcherTest {
         packageName: String = "com.miui.global.packageinstaller",
         viewIds: Set<String> = emptySet(),
         settingsScreen: Boolean = false,
-        toggleChecked: Boolean? = null,
-        appKey: String? = "app-one"
+        toggleChecked: Boolean? = null
     ) = InstallerObservation(
         packageName = packageName,
         viewIds = viewIds,
         screenText = "screen text",
         settingsScreen = settingsScreen,
         toggleChecked = toggleChecked,
-        appKey = appKey,
         installerPackages = packages
     )
 
@@ -65,7 +63,7 @@ class InstallerWatcherTest {
     fun `settings screen with the toggle on turns it off`() {
         val decision = InstallerWatcherLogic.decide(
             observation(viewIds = settingsIds, settingsScreen = true, toggleChecked = true),
-            coolingDown = false
+            cycleClosed = false
         )
 
         assertEquals(InstallerDecision.TurnOff, decision)
@@ -75,7 +73,7 @@ class InstallerWatcherTest {
     fun `settings screen with the toggle already off stays silent`() {
         val decision = InstallerWatcherLogic.decide(
             observation(viewIds = settingsIds, settingsScreen = true, toggleChecked = false),
-            coolingDown = false
+            cycleClosed = false
         )
 
         assertEquals(InstallerDecision.Ignore(InstallerWatcherLogic.REASON_ALREADY_OFF), decision)
@@ -85,7 +83,7 @@ class InstallerWatcherTest {
     fun `scan window is never acted on while the install can still be cancelled`() {
         val decision = InstallerWatcherLogic.decide(
             observation(viewIds = scanIds, settingsScreen = false),
-            coolingDown = false
+            cycleClosed = false
         )
 
         assertEquals(
@@ -101,7 +99,7 @@ class InstallerWatcherTest {
                 packageName = "com.google.android.packageinstaller",
                 viewIds = confirmIds
             ),
-            coolingDown = false
+            cycleClosed = false
         )
 
         assertEquals(
@@ -114,7 +112,7 @@ class InstallerWatcherTest {
     fun `post install window opens installer settings`() {
         val decision = InstallerWatcherLogic.decide(
             observation(viewIds = postInstallIds, settingsScreen = false),
-            coolingDown = false
+            cycleClosed = false
         )
 
         assertEquals(InstallerDecision.OpenSettings, decision)
@@ -124,7 +122,7 @@ class InstallerWatcherTest {
     fun `foreign window is left alone`() {
         val decision = InstallerWatcherLogic.decide(
             observation(packageName = "com.android.vending", viewIds = setOf("content")),
-            coolingDown = false
+            cycleClosed = false
         )
 
         assertEquals(
@@ -137,7 +135,7 @@ class InstallerWatcherTest {
     fun `installer window without the settings gear does nothing`() {
         val decision = InstallerWatcherLogic.decide(
             observation(viewIds = setOf("content", "grabLayout")),
-            coolingDown = false
+            cycleClosed = false
         )
 
         assertEquals(InstallerDecision.Ignore(InstallerWatcherLogic.REASON_NO_DOOR), decision)
@@ -157,33 +155,61 @@ class InstallerWatcherTest {
     }
 
     @Test
-    fun `same installed app is not processed twice`() {
-        var clock = 1_000L
-        val cooldown = InstallerCooldown(ttlMs = 60_000L, now = { clock })
-        val window = observation(
+    fun `cycle closes on a confirmed already-off toggle`() {
+        val observation = observation(
             viewIds = settingsIds,
             settingsScreen = true,
-            toggleChecked = true,
-            appKey = "app-one"
+            toggleChecked = false
         )
 
-        cooldown.markDone(window.appKey)
+        // Подтверждённое «уже выключено» — работа сделана, цикл закрывает вызывающий.
         assertEquals(
-            InstallerDecision.Ignore(InstallerWatcherLogic.REASON_COOLDOWN),
-            InstallerWatcherLogic.decide(window, cooldown.isCoolingDown(window.appKey))
+            InstallerDecision.Ignore(InstallerWatcherLogic.REASON_ALREADY_OFF),
+            InstallerWatcherLogic.decide(observation, cycleClosed = false)
+        )
+    }
+
+    @Test
+    fun `missing switch does not close the cycle`() {
+        val observation = observation(viewIds = settingsIds, settingsScreen = true)
+
+        // Тумблера нет: состояние НЕ подтверждено, цикл закрывать нельзя.
+        assertEquals(
+            InstallerDecision.Ignore(InstallerWatcherLogic.REASON_SWITCH_NOT_FOUND),
+            InstallerWatcherLogic.decide(observation, cycleClosed = false)
+        )
+    }
+
+    @Test
+    fun `closed cycle keeps the watcher away even from an enabled toggle`() {
+        val observation = observation(
+            viewIds = settingsIds,
+            settingsScreen = true,
+            toggleChecked = true
         )
 
-        // Другое приложение подряд (после сброса установки идут пачками) — снова работаем.
-        val nextApp = window.copy(appKey = "app-two")
+        // Пользователь включил галочку сам — до конца цикла не воюем.
         assertEquals(
-            InstallerDecision.TurnOff,
-            InstallerWatcherLogic.decide(nextApp, cooldown.isCoolingDown(nextApp.appKey))
+            InstallerDecision.Ignore(InstallerWatcherLogic.REASON_CYCLE_DONE),
+            InstallerWatcherLogic.decide(observation, cycleClosed = true)
         )
+    }
 
-        clock += 60_001L
+    @Test
+    fun `cycle fingerprint invalidates the flag after a system update`() {
+        val now = buildCycleFingerprint("V130.0.1.0", "V130")
+
+        assertEquals("свой отпечаток — цикл закрыт", true, cycleClosedFor(now, now))
+        assertEquals("пусто — цикл открыт", false, cycleClosedFor(null, now))
         assertEquals(
-            InstallerDecision.TurnOff,
-            InstallerWatcherLogic.decide(window, cooldown.isCoolingDown(window.appKey))
+            "обновление системы меняет отпечаток — цикл открывается снова",
+            false,
+            cycleClosedFor(now, buildCycleFingerprint("V130.0.2.0", "V130"))
+        )
+        assertEquals(
+            "новая версия MIUI — тоже новый отпечаток",
+            false,
+            cycleClosedFor(now, buildCycleFingerprint("V130.0.1.0", "V140"))
         )
     }
 }

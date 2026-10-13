@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import com.xiaohypercleaner.data.ComponentVerifier
 import com.xiaohypercleaner.data.SemanticCatalog
 import com.xiaohypercleaner.data.SwitchFinder
 import com.xiaohypercleaner.util.AppLog
@@ -54,8 +55,6 @@ internal data class InstallerObservation(
     val settingsScreen: Boolean,
     /** Состояние целевого тумблера; null — тумблера на экране нет. */
     val toggleChecked: Boolean?,
-    /** Ключ кулдауна — подпись устанавливаемого приложения (в логи не попадает). */
-    val appKey: String?,
     val installerPackages: List<String>
 )
 
@@ -97,7 +96,9 @@ internal object InstallerWatcherLogic {
     const val REASON_NO_DOOR = "no_settings_door"
     const val REASON_SWITCH_NOT_FOUND = "switch_not_found"
     const val REASON_ALREADY_OFF = "already_off"
-    const val REASON_COOLDOWN = "cooldown"
+
+    /** Цикл на этой сборке уже отработан: шестерёнку не тапаем, тумблер не трогаем. */
+    const val REASON_CYCLE_DONE = "cycle_done"
 
     /** Шестерёнка окна установки — вход на экран настроек. */
     const val ID_SETTINGS_DOOR = "btn_settings"
@@ -123,16 +124,21 @@ internal object InstallerWatcherLogic {
         else -> null
     }
 
-    fun decide(observation: InstallerObservation, coolingDown: Boolean): InstallerDecision = when {
+    fun decide(observation: InstallerObservation, cycleClosed: Boolean): InstallerDecision = when {
         observation.packageName !in observation.installerPackages ->
             InstallerDecision.Ignore(REASON_FOREIGN_PACKAGE)
 
+        // Цикл закрыт — не воюем: пользователь мог включить галочку сам, и выключать её
+        // повторно до конца цикла (сброс данных / обновление системы) права нет.
+        cycleClosed -> InstallerDecision.Ignore(REASON_CYCLE_DONE)
+
         observation.settingsScreen -> when {
+            // Тумблера на экране нет: состояние НЕ подтверждено — цикл не закрываем.
             observation.toggleChecked == null ->
                 InstallerDecision.Ignore(REASON_SWITCH_NOT_FOUND)
 
+            // Подтверждённое «уже выключено» — работа сделана, цикл закрывает вызывающий.
             !observation.toggleChecked -> InstallerDecision.Ignore(REASON_ALREADY_OFF)
-            coolingDown -> InstallerDecision.Ignore(REASON_COOLDOWN)
             else -> InstallerDecision.TurnOff
         }
 
@@ -150,38 +156,22 @@ internal object InstallerWatcherLogic {
 }
 
 /**
- * Кулдаун по устанавливаемому приложению (не глобальный): после сброса пользователь
- * ставит приложения подряд, и глобальный кулдаун подавил бы второе-третье
- * срабатывание. Ключ — подпись приложения из окна установки, только в памяти.
+ * Признак «цикл закрыт»: сохранённый отпечаток сборки совпал с текущим.
+ *
+ * Кулдаун по подписи приложения удалён как мёртвый механизм: на экране настроек подписи
+ * `app_name` нет, поэтому ключ всегда был null (в прогоне rmv6x9ts1 — `keyed=false` в 36
+ * из 37 срабатываний) и кулдаун не срабатывал ни разу. Роль «не воевать с пользователем»
+ * закрывает флаг цикла; два механизма на одну задачу — ловушка при разборе.
  */
-internal class InstallerCooldown(
-    private val ttlMs: Long = DEFAULT_TTL_MS,
-    private val now: () -> Long = SystemClock::elapsedRealtime
-) {
-    private val done = HashMap<String, Long>()
+internal fun cycleClosedFor(stored: String?, current: String): Boolean =
+    !stored.isNullOrEmpty() && stored == current
 
-    fun isCoolingDown(key: String?): Boolean {
-        key ?: return false
-        val at = done[key] ?: return false
-        if (now() - at >= ttlMs) {
-            done.remove(key)
-            return false
-        }
-        return true
-    }
-
-    fun markDone(key: String?) {
-        key ?: return
-        done[key] = now()
-    }
-
-    fun clear() = done.clear()
-
-    companion object {
-        /** Окно установки живёт минуты; час — с запасом и без роста карты. */
-        const val DEFAULT_TTL_MS = 60 * 60 * 1000L
-    }
-}
+/**
+ * Отпечаток сборки для флага цикла: обновление системы меняет его — признак «работа
+ * сделана» устаревает сам; сброс данных приложения стирает сохранённое значение.
+ */
+internal fun buildCycleFingerprint(incremental: String?, miuiVersion: String?): String =
+    "${incremental.orEmpty()}|${miuiVersion.orEmpty()}"
 
 /**
  * Ловец окна установки (триггер A): реагирует на события окна, пока живо окно
@@ -190,6 +180,11 @@ internal class InstallerCooldown(
  * Гейт фазы — свой: ранний выход [AdbEnablerService.onAccessibilityEvent] покрывает
  * только `SimpleRunner.isRunning`, а окно прогресса/откат фазы идут без шага в раннере.
  * Действие одно на окно: тап по шестерёнке, затем тап по целевому тумблеру.
+ *
+ * Цикл: одна операция на отпечаток сборки. После подтверждённого снятия (или
+ * подтверждённого «уже выключено») цикл закрывается, и до смены отпечатка ловец молчит —
+ * иначе пользователь включает галочку, ловец снова её снимает, и это бесконечная война
+ * (прогон rmv6x9ts1: 36 снятий за одну установку).
  */
 internal class InstallerWatcher(
     private val service: AccessibilityService,
@@ -197,16 +192,19 @@ internal class InstallerWatcher(
     /** Пакеты шага — тем же путём, что шаг ([SimpleRunner.candidatePackages]). */
     private val installerPackages: () -> List<String>,
     private val enabled: () -> Boolean,
+    /** Цикл уже закрыт для текущего отпечатка сборки. */
+    private val cycleClosed: () -> Boolean,
+    /** Работа сделана — записать отпечаток цикла (персист ведёт вызывающий). */
+    private val onCycleDone: () -> Unit,
     private val log: (String) -> Unit = { AppLog.i(TAG, it) },
     private val now: () -> Long = SystemClock::elapsedRealtime
 ) {
-    private val cooldown = InstallerCooldown()
-
     /** Сессия ловца: одна за раз. */
     private var sessionActive = false
 
-    /** Дедупликация служебных пропусков: окно даёт десятки событий подряд. */
+    /** Последняя залогированная причина и счётчик повторов: петля обязана быть видна. */
     private var lastSkipSignature: String? = null
+    private var skipRepeat: Int = 0
 
     fun onEvent(event: AccessibilityEvent?) {
         event ?: return
@@ -222,17 +220,21 @@ internal class InstallerWatcher(
             OverlayController.phaseRunning || SimpleRunner.isRunning
         )
         if (gate != null) {
-            logSkipFast(gate)
+            logRepeat(gate)
+            return
+        }
+
+        // Второй дешёвый гейт до обхода дерева: цикл закрыт — окно не читаем вовсе.
+        val eventPkg = event.packageName?.toString().orEmpty()
+        if (eventPkg.isNotEmpty() && eventPkg in installerPackages() && cycleClosed()) {
+            logRepeat(InstallerWatcherLogic.REASON_CYCLE_DONE, eventPkg)
             return
         }
 
         val observation = observe() ?: return
-        val decision = InstallerWatcherLogic.decide(
-            observation,
-            cooldown.isCoolingDown(observation.appKey)
-        )
+        val decision = InstallerWatcherLogic.decide(observation, cycleClosed())
         when (decision) {
-            is InstallerDecision.Ignore -> logSkip(observation, decision.reason)
+            is InstallerDecision.Ignore -> logRepeat(decision.reason, observation.packageName)
 
             InstallerDecision.OpenSettings -> {
                 if (sessionActive) return
@@ -253,7 +255,7 @@ internal class InstallerWatcher(
                 sessionActive = true
                 scope.launch {
                     try {
-                        turnOff(observation, observation.appKey)
+                        turnOff(observation)
                     } finally {
                         sessionActive = false
                     }
@@ -281,7 +283,6 @@ internal class InstallerWatcher(
                 screenText = screenText,
                 settingsScreen = markerHit || switch != null,
                 toggleChecked = checked,
-                appKey = appKeyOf(root),
                 installerPackages = installerPackages()
             )
         } finally {
@@ -301,16 +302,33 @@ internal class InstallerWatcher(
             InstallerWatcherState.set(InstallerWatcherStatus.Skipped)
             return
         }
-        turnOff(settings, observation.appKey)
+        turnOff(settings)
     }
 
-    /** Снять целевой тумблер: только в сторону false, с подтверждением состояния. */
-    private suspend fun turnOff(observation: InstallerObservation, appKey: String?) {
-        if (observation.toggleChecked != true) {
-            // Уже выключено — молчим и в UI ничего не пишем.
-            log("watcher skipped reason=${InstallerWatcherLogic.REASON_ALREADY_OFF}")
-            InstallerWatcherState.set(InstallerWatcherStatus.Idle)
-            return
+    /**
+     * Снять целевой тумблер: только в сторону false, с двойным подтверждением состояния.
+     *
+     * Разделение исходов принципиально: `null` (тумблера на экране нет) — состояние НЕ
+     * подтверждено, цикл не закрываем; `false` — подтверждённое «уже выключено», работа
+     * сделана, цикл закрываем (владелец: воевать не о чем).
+     */
+    private suspend fun turnOff(observation: InstallerObservation) {
+        when (observation.toggleChecked) {
+            null -> {
+                logRepeat(InstallerWatcherLogic.REASON_SWITCH_NOT_FOUND, observation.packageName)
+                InstallerWatcherState.set(InstallerWatcherStatus.Skipped)
+                return
+            }
+
+            false -> {
+                // Уже выключено — молчим в UI, но цикл закрываем: делать больше нечего.
+                logRepeat(InstallerWatcherLogic.REASON_ALREADY_OFF, observation.packageName)
+                onCycleDone()
+                InstallerWatcherState.set(InstallerWatcherStatus.Idle)
+                return
+            }
+
+            true -> Unit
         }
         val root = service.rootInActiveWindow ?: return
         val switch = try {
@@ -319,10 +337,11 @@ internal class InstallerWatcher(
             recycleNode(root)
         }
         if (switch == null) {
-            log("watcher skipped reason=${InstallerWatcherLogic.REASON_SWITCH_NOT_FOUND}")
+            logRepeat(InstallerWatcherLogic.REASON_SWITCH_NOT_FOUND, observation.packageName)
             InstallerWatcherState.set(InstallerWatcherStatus.Skipped)
             return
         }
+        val checkedBefore = SwitchFinder.isChecked(switch)
         val clicked = clickNode(switch)
         recycleNode(switch)
         if (!clicked) {
@@ -330,13 +349,58 @@ internal class InstallerWatcher(
             InstallerWatcherState.set(InstallerWatcherStatus.Skipped)
             return
         }
-        if (awaitWindow(OFF_VERIFY_MS) { it.settingsScreen && it.toggleChecked == false } != null) {
-            cooldown.markDone(appKey)
+        // Тап по тумблеру логируем явно: без этой строки петля была невидима в логе.
+        log("watcher tap target=switch checked_before=$checkedBefore pkg=${observation.packageName}")
+        if (awaitStableOff(OFF_VERIFY_MS)) {
+            onCycleDone()
+            leaveInstallerSettings(observation.packageName)
             InstallerWatcherState.set(InstallerWatcherStatus.RecommendationsOff)
-            log("watcher done recommendations_off pkg=${observation.packageName} keyed=${appKey != null}")
+            log("watcher done recommendations_off pkg=${observation.packageName}")
         } else {
             log("watcher done reason=verify_timeout pkg=${observation.packageName}")
             InstallerWatcherState.set(InstallerWatcherStatus.Skipped)
+        }
+    }
+
+    /**
+     * Двойное подтверждённое чтение «выключено» подряд: одно чтение ненадёжно — дерево
+     * на этом экране отдаёт то true, то false (прогон rmv6x9ts1: 36 снятий подряд).
+     */
+    private suspend fun awaitStableOff(timeoutMs: Long): Boolean {
+        val deadline = now() + timeoutMs
+        var confirmed = 0
+        while (now() < deadline) {
+            val observation = observe()
+            if (observation != null) {
+                if (OverlayController.phaseRunning || SimpleRunner.isRunning) {
+                    log("watcher aborted reason=${InstallerWatcherLogic.REASON_PHASE_RUNNING}")
+                    return false
+                }
+                if (observation.settingsScreen && observation.toggleChecked == false) {
+                    confirmed++
+                    if (confirmed >= OFF_CONFIRMATIONS) return true
+                } else {
+                    confirmed = 0
+                }
+            }
+            delay(POLL_MS)
+        }
+        return false
+    }
+
+    /**
+     * Возврат на домашний экран после работы: через `up`/Back пользователь попал бы назад
+     * в окно установщика с шестерёнкой, откуда ловец снова полез бы (петля «не даёт уйти»).
+     * Жест Back не используется — нативный GLOBAL_ACTION_HOME.
+     */
+    private suspend fun leaveInstallerSettings(pkg: String) {
+        val ok = try {
+            ComponentVerifier.resetToHome(service)
+        } catch (_: Exception) {
+            false
+        }
+        if (!ok) {
+            log("watcher home_failed pkg=$pkg")
         }
     }
 
@@ -413,33 +477,19 @@ internal class InstallerWatcher(
         return ids
     }
 
+    private fun toggleTexts(): List<String> = SemanticCatalog.itemTexts(InstallerWatcherLogic.STEP_ID)
+
     /**
-     * Ключ кулдауна: подпись устанавливаемого приложения из окна (`app_name`).
-     * Хэш — чтобы подпись не попала в логи и состояние UI.
+     * Повтор одного и того же пропуска печатается со счётчиком: полное молчание дедупа
+     * скрывало петлю целиком (прогон rmv6x9ts1 — 36 снятий подряд не было видно в логе).
+     * Подписи чужого окна в лог не пишутся (политика R2.1), только пакет и счётчик.
      */
-    private fun appKeyOf(root: AccessibilityNodeInfo): String? {
-        val label = findById(root, "app_name")?.text?.toString()?.trim().orEmpty()
-        return label.takeIf { it.isNotEmpty() }?.let { Integer.toHexString(it.hashCode()) }
-    }
-
-    private fun toggleTexts(): List<String> =
-        (SemanticCatalog.itemTexts(InstallerWatcherLogic.STEP_ID) +
-            SemanticCatalog.keywords(InstallerWatcherLogic.STEP_ID)).distinct()
-
-    /** Служебный пропуск: подписи чужого окна в лог не пишутся (политика R2.1). */
-    private fun logSkip(observation: InstallerObservation, reason: String) {
-        val signature = "${observation.packageName}|${observation.viewIds.size}|$reason"
-        if (signature == lastSkipSignature) return
+    private fun logRepeat(reason: String, pkg: String? = null) {
+        val signature = "$reason|${pkg.orEmpty()}"
+        skipRepeat = if (signature == lastSkipSignature) skipRepeat + 1 else 0
         lastSkipSignature = signature
-        log("watcher skipped reason=$reason pkg=${observation.packageName}")
-    }
-
-    /** Гейт фазы/выключенного ловца: лог без обхода дерева, с дедупликацией. */
-    private fun logSkipFast(reason: String) {
-        val signature = "gate|$reason"
-        if (signature == lastSkipSignature) return
-        lastSkipSignature = signature
-        log("watcher skipped reason=$reason")
+        val tail = if (pkg.isNullOrBlank()) "" else " pkg=$pkg"
+        log("watcher skipped reason=$reason repeat=$skipRepeat$tail")
     }
 
     private fun findById(root: AccessibilityNodeInfo, id: String): AccessibilityNodeInfo? {
@@ -476,6 +526,9 @@ internal class InstallerWatcher(
         const val POLL_MS = 250L
         const val SETTINGS_WAIT_MS = 8_000L
         const val OFF_VERIFY_MS = 4_000L
+
+        /** Подтверждений «выключено» подряд, необходимых для вердикта. */
+        const val OFF_CONFIRMATIONS = 2
         const val CLICK_ANCESTOR_DEPTH = 4
         const val MAX_NODES = 1200
         const val MAX_DEPTH = 30
