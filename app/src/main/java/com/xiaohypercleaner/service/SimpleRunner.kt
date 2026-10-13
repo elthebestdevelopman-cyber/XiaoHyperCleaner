@@ -5611,11 +5611,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
             // прогон rmuod5cmm: route 2/4 more_action_btn ok=false без тапа).
             handleConsentWalls(step)
             val ok = when {
-                item.intent != null -> startRouteIntent(
-                    item.intent,
-                    clearTop = isTargetAppForeground(item.intent),
-                    pkg = step.launchPackage
-                )
+                item.intent != null -> {
+                    // Пакет пункта маршрута: у deep-link шага нет launchPackage, а без пакета
+                    // интент уходит неявным (parseRouteIntent не ставит setPackage) и CLEAR_TOP
+                    // не выставляется — тот же класс, что «текстовое подтверждение» входа.
+                    val itemPkg = item.confirmPackage.firstOrNull() ?: step.launchPackage
+                    startRouteIntent(
+                        item.intent,
+                        clearTop = isTargetAppForeground(itemPkg.orEmpty()),
+                        pkg = itemPkg
+                    )
+                }
                 item.scroll -> {
                     scrollDownOnce()
                     true
@@ -5970,7 +5976,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     /**
-     * Интент сценария: `pkg/Class` (явная компонента) либо action.
+     * Интент сценария: `pkg/Class` (явная компонента), `scheme://authority` (deep-link
+     * приложения) либо action.
      *
      * [clearTop] добавляет `FLAG_ACTIVITY_CLEAR_TOP` — нужно, когда приложение шага
      * уже открыто на вложенном экране: запуск корневой `TabSettingActivity` с
@@ -6001,10 +6008,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * Целевой пакет route-интента уже на переднем плане: запуск с `NEW_TASK`
      * только выведет его задачу поверх, нужная activity не поднимется — поэтому
      * для такого случая маршрут запускается с `CLEAR_TOP`.
+     *
+     * spec — `pkg/Class`, голый пакет (deep-link маршрут: пакет даёт `confirmPackage`)
+     * либо сырой URI. Строку-URI отсекаем по `':'` (`fashiongallery://home` →
+     * `substringBefore('/')` дал бы `fashiongallery:`, а не пакет): фильтр по ФОРМЕ строки,
+     * пакет из схемы не выводится.
      */
     private fun isTargetAppForeground(spec: String): Boolean {
-        if (!spec.contains('/')) return false
-        val pkg = spec.substringBefore('/')
+        val pkg = if (spec.contains('/')) spec.substringBefore('/') else spec
+        if (pkg.isEmpty() || pkg.contains(':')) return false
         val root = service.rootInActiveWindow ?: return false
         val fg = root.packageName?.toString()
         recycleNode(root)

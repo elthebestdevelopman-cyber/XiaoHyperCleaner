@@ -1076,8 +1076,7 @@
             {
               "intent": "fashiongallery://home",
               "waitMs": 1200,
-              "confirmPackage": ["com.miui.android.fashiongallery"],
-              "confirmMarkers": ["Карусель обоев"]
+              "confirmPackage": ["com.miui.android.fashiongallery"]
             },
             {
               "tapId": "btn_setting",

@@ -259,6 +259,38 @@ class SemanticCatalogTest {
     }
 
     @Test
+    fun `carousel route confirms entry by package and taps the gear by id`() {
+        // Первый пункт — deep link: он открывает ImagePreviewActivity, где НЕТ ни одной строки
+        // с текстом (замер 2026-10-14), поэтому подтверждение идёт ПАКЕТОМ, без маркеров:
+        // иначе awaitRouteScreen не пропустит маркеры пакетом и маршрут умрёт в
+        // fallback_to_auto_nav, не дойдя до tapId. Шестерёнка на экране входа отдаётся без
+        // текста и описания — только resource-id (`btn_setting`), поэтому тап по id.
+        val variant = SemanticCatalog.step("carousel")?.variants
+            .orEmpty()
+            .first { it.id == "miui12_14" }
+
+        val entry = variant.route.first()
+        assertEquals("deep-link маршрута карусели", "fashiongallery://home", entry.intent)
+        assertEquals(
+            "вход подтверждается пакетом: целевых строк на экране входа нет",
+            emptyList<String>(),
+            entry.confirmMarkers
+        )
+        assertEquals(
+            listOf("com.miui.android.fashiongallery"),
+            entry.confirmPackage
+        )
+
+        val gear = variant.route.last()
+        assertEquals("шестерёнка без текста — тап по resource-id", "btn_setting", gear.tapId)
+        assertEquals(
+            "экран настроек карусели подтверждается своим маркером",
+            listOf("Карусель экрана блокировки"),
+            gear.confirmMarkers
+        )
+    }
+
+    @Test
     fun `carousel on hyperos disables the carousel itself`() {
         // Решение владельца (01.10): режим «Пользовательские обои» больше не цель —
         // карусель отключается целиком на всех прошивках. HyperOS-ветка на устройстве

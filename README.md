@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 399 тестов (дерево тестов ниже)
+app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 400 тестов (дерево тестов ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt
 │   ├── OptimizationEngineTest.kt
@@ -389,7 +389,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 399 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (399 тестов, 45 сьютов)
+### Unit-тесты (400 тестов, 45 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest
