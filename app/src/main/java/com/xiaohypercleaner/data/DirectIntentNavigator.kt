@@ -172,15 +172,12 @@ object DirectIntentNavigator {
             }
 
             "carousel" -> {
-                // Карусель обоев. На POCO/MIUI 13 пункта «Карусель обоев» в «Блокировке экрана»
-                // нет вовсе (дамп lockscreen), зато у приложения карусели есть экспортированное
-                // действие настроек: оно открывает экран с тумблерами «Карусель экрана блокировки»,
-                // «Проведите вправо…», «Обновлять через мобильный Интернет»
-                // (com.miui.cw.feature.ui.setting.SettingActivity, дамп carousel_setting_act).
+                // Карусель обоев. Внутренние активности приложения закрыты (exported=false),
+                // поэтому вход — публичная схема fashiongallery://home (замер 2026-10-14).
                 intents.addAll(carouselSettingsIntents())
                 // WALLPAPER_CAROUSEL / LOCK_SCREEN_SETTINGS / ACTION_SETTINGS убраны:
-                // пробами 2026-09-26 они не подтверждены, а зелёные точки входа шага —
-                // действие SETTING и компонента SettingActivity (verdict OK).
+                // пробами 2026-09-26 они не подтверждены, а действие SETTING и компонента
+                // SettingActivity дают SecurityException (неэкспортированы).
             }
 
             // ═══════════════════════════════════════════════════════════
@@ -623,22 +620,23 @@ object DirectIntentNavigator {
     )
 
     /**
-     * Настройки карусели обоев (`com.miui.android.fashiongallery`): экспортированное действие
-     * `com.miui.android.fashiongallery.setting.SETTING` открывает
-     * `com.miui.cw.feature.ui.setting.SettingActivity` — экран с тумблерами «Карусель экрана
-     * блокировки», «Проведите вправо по Экрану блокировки», «Обновлять через мобильный Интернет»
-     * (дамп carousel_setting_act). Пункта «Карусель обоев» в «Блокировке экрана» на POCO/MIUI 13
-     * нет (дамп lockscreen), поэтому прямой вход — основной, а drill остаётся фолбэком.
+     * Настройки карусели обоев (`com.miui.android.fashiongallery`): внутренние активности
+     * приложения закрыты (`exported=false`) — действие `…setting.SETTING` и явная компонента
+     * `com.miui.cw.feature.ui.setting.SettingActivity` дают `SecurityException: not exported`
+     * из процесса приложения (замер 2026-10-14, четыре варианта, включая запуск из shell).
+     * Прежний вердикт пробы `p_carousel_act_setting=OK` получен актором shell (`am start`
+     * умеет стартовать неэкспортированное) и на текущем состоянии не воспроизводится.
+     *
+     * Рабочий публичный вход — публичная схема приложения: `ACTION_VIEW fashiongallery://home`
+     * открывает `com.miui.nicegallery.preview.ImagePreviewActivity` (замер: 535/475/472 мс,
+     * три прогона с force-stop), а оттуда шестерёнка `btn_setting` ведёт в `KSettingActivity`
+     * с тумблерами «Карусель экрана блокировки», «Проведите вправо…», «Обновлять…».
      */
     internal fun carouselSettingsIntents(): List<Intent> = listOf(
-        actionIntent(
-            "com.miui.android.fashiongallery.setting.SETTING",
-            "com.miui.android.fashiongallery"
-        ),
-        explicitActivity(
-            "com.miui.android.fashiongallery",
-            "com.miui.cw.feature.ui.setting.SettingActivity"
-        )
+        Intent(Intent.ACTION_VIEW, android.net.Uri.parse("fashiongallery://home")).apply {
+            setPackage("com.miui.android.fashiongallery")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
     )
 
     /**

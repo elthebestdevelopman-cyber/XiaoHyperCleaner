@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 45 suites, 398 tests (test tree below)
+app/src/test/java/com/xiaohypercleaner/          # 45 suites, 399 tests (test tree below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt
 │   ├── OptimizationEngineTest.kt
@@ -371,7 +371,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 suites, 398 tests (test tr
 
 ## 🧪 Testing
 
-### Unit Tests (398 tests, 45 suites)
+### Unit Tests (399 tests, 45 suites)
 
 ```bash
 ./gradlew testDebugUnitTest

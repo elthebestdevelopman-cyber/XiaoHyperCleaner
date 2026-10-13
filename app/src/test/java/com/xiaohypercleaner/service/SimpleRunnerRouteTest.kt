@@ -3,6 +3,7 @@ package com.xiaohypercleaner.service
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
+import android.net.Uri
 import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.data.AdaptiveCatalog
 import com.xiaohypercleaner.data.RomFamily
@@ -145,7 +146,7 @@ class SimpleRunnerRouteTest {
     )
 
     private fun carouselRouteItem() = SemanticCatalog.RouteItem(
-        intent = "com.miui.android.fashiongallery/com.miui.cw.feature.ui.setting.SettingActivity",
+        intent = "fashiongallery://home",
         confirmPackage = listOf("com.miui.android.fashiongallery"),
         confirmMarkers = listOf("Карусель обоев")
     )
@@ -252,12 +253,10 @@ class SimpleRunnerRouteTest {
 
     @Test
     fun `entry gate package only applies to a foreign foreground`() {
-        val carouselIntent = Intent().setComponent(
-            ComponentName(
-                "com.miui.android.fashiongallery",
-                "com.miui.cw.feature.ui.setting.SettingActivity"
-            )
-        )
+        // Экран карусели открывается публичной схемой (внутренние активности закрыты),
+        // поэтому гейт обязан работать и для интента БЕЗ компоненты, но с пакетом.
+        val carouselIntent = Intent(Intent.ACTION_VIEW, Uri.parse("fashiongallery://home"))
+            .setPackage("com.miui.android.fashiongallery")
         val foreign = node(pkg = "com.google.android.gms", className = "android.widget.FrameLayout")
         Mockito.`when`(service.rootInActiveWindow).thenReturn(foreign)
         assertEquals(
@@ -276,8 +275,26 @@ class SimpleRunnerRouteTest {
             runner.entryGatePackage(carouselIntent)
         )
         assertNull(
-            "интент без явной компоненты гейта не имеет",
+            "интент без компоненты и без пакета гейта не имеет",
             runner.entryGatePackage(Intent("android.settings.SETTINGS"))
+        )
+    }
+
+    @Test
+    fun `entry gate honours an explicit component`() {
+        val componentIntent = Intent().setComponent(
+            ComponentName(
+                "com.miui.cleaner",
+                "com.miui.optimizecenter.settings.SettingsActivity"
+            )
+        )
+        val foreign = node(pkg = "com.google.android.gms", className = "android.widget.FrameLayout")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(foreign)
+
+        assertEquals(
+            "явная компонента задаёт владельца экрана",
+            "com.miui.cleaner",
+            runner.entryGatePackage(componentIntent)
         )
     }
 

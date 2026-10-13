@@ -7,6 +7,7 @@ import android.content.pm.PackageInfo
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -215,21 +216,24 @@ class DirectIntentNavigatorTest {
     }
 
     @Test
-    fun `carousel chain opens the wallpaper carousel settings`() {
-        // POCO/MIUI 13: пункта «Карусель обоев» в «Блокировке экрана» нет вовсе, зато у
-        // приложения карусели есть экспортированное действие настроек (дамп carousel_setting_act).
+    fun `carousel chain opens the carousel through its public scheme`() {
+        // Внутренние активности приложения карусели закрыты (exported=false): замер 2026-10-14 —
+        // действие SETTING и явная компонента SettingActivity дают SecurityException из процесса
+        // приложения. Рабочий вход — публичная схема fashiongallery://home (замер 535/475/472 мс).
         val intents = DirectIntentNavigator.carouselSettingsIntents()
 
-        assertEquals("com.miui.android.fashiongallery.setting.SETTING", intents.first().action)
-        assertEquals("com.miui.android.fashiongallery", intents.first().`package`)
+        assertEquals(1, intents.size)
+        val intent = intents.first()
+        assertEquals(Intent.ACTION_VIEW, intent.action)
+        assertEquals("fashiongallery", intent.data?.scheme)
+        assertEquals("com.miui.android.fashiongallery", intent.`package`)
         assertTrue(
-            "страховкой остаётся явная компонента экрана настроек карусели",
-            intents.any {
-                it.component == ComponentName(
-                    "com.miui.android.fashiongallery",
-                    "com.miui.cw.feature.ui.setting.SettingActivity"
-                )
-            }
+            "deep-link стартует из фонового сервиса — нужен NEW_TASK",
+            intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0
+        )
+        assertNull(
+            "неэкспортированная активность из входа убрана",
+            intent.component
         )
     }
 }

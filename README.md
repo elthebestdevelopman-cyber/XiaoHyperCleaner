@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 398 тестов (дерево тестов ниже)
+app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 399 тестов (дерево тестов ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt
 │   ├── OptimizationEngineTest.kt
@@ -389,7 +389,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 398 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (398 тестов, 45 сьютов)
+### Unit-тесты (399 тестов, 45 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -424,7 +424,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 398 тест
 | `SimpleRunnerAppEntryTest`    | 4      | Готовность экрана приложения перед бурением        |
 | `SimpleRunnerMuteTest`        | 4      | Громкость медиа: save→mute→restore, снапшот fresh-device |
 | `SimpleRunnerOverlayGateTest` | 7      | Гейт целостности оверлея, сторож жестов ±500 мс    |
-| `SimpleRunnerRouteTest`       | 21     | Маршрут-подсказка: подтверждение экрана пакетом и маркерами |
+| `SimpleRunnerRouteTest`       | 22     | Маршрут-подсказка: подтверждение экрана пакетом и маркерами, deep-link карусели |
 | `SimpleRunnerVerifyTest`      | 9      | Честный вердикт при исчезнувшей строке, открытом диалоге и опросе карусели |
 | `ReverseRollbackTest`         | 1      | Ключ снапшота доп. целей: разбор по `#extra:`, строка ищется по подписи |
 | `SimpleModeControllerOverlayTest` | 2  | Потеря разрешения оверлея останавливает прогон одним итогом |

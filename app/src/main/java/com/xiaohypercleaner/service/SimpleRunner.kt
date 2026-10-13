@@ -3006,7 +3006,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
      */
     // internal — для тестируемости (SimpleRunnerRouteTest).
     internal fun entryGatePackage(intent: Intent): String? {
-        val pkg = intent.component?.packageName ?: return null
+        // Неявный интент с пакетом (deep-link `fashiongallery://home` + setPackage) тоже
+        // задаёт владельца экрана: без фолбэка подтверждение оставалось бы текстовым,
+        // и маркеры чужого окна «подтверждали» вход (прогон rmuybnsfu, carousel).
+        val pkg = intent.component?.packageName ?: intent.`package` ?: return null
         return if (activePackage().equals(pkg, ignoreCase = true)) null else pkg
     }
 
@@ -5917,15 +5920,27 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val markers = SemanticCatalog.screenMarkers(step.id)
         // Экран читаем ЗДЕСЬ (живой), а не из снимка до route: на входе в шаг активным
         // было окно прошлого шага (прогон rmuod5cmm: PERCEPTION pkg=com.google.android.gms).
+        val liveRoot = service.rootInActiveWindow
+        val livePackage = liveRoot?.packageName?.toString()
+        recycleNode(liveRoot)
+        // Пакет окна обязан быть «своим» для шага: маркеры без проверки пакета ложно
+        // подтверждали экран (прогон rmv6x9ts1, carousel: markers_ok=true на странице
+        // «Блокировка экрана», где «Карусель обоев» — строка-ссылка, а не тумблер).
+        val packageOk = entryPackages.isEmpty() || livePackage == null ||
+            entryPackages.any { it.equals(livePackage, ignoreCase = true) }
         val liveScreen = currentScreenText()
         val markersOk = markers.isEmpty() ||
             markers.any { TextMatcher.normalizedContains(liveScreen, it) }
         StepDiagnostics.note(
             step.id, "EXTRA",
-            "pre_targets=${preTargets.size} markers_ok=$markersOk"
+            "pre_targets=${preTargets.size} markers_ok=$markersOk package_ok=$packageOk"
         )
-        if (!markersOk) {
-            AppLog.w(TAG, "extra targets skipped: markers not matched step=${step.id}")
+        if (!packageOk || !markersOk) {
+            AppLog.w(
+                TAG,
+                "extra targets skipped: screen not confirmed step=${step.id} " +
+                    "package_ok=$packageOk markers_ok=$markersOk"
+            )
             return
         }
         runExtraTargets(step, preTargets)
