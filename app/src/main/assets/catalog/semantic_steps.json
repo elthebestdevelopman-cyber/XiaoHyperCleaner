@@ -1071,6 +1071,19 @@
               "control": "toggle",
               "confirmTexts": { "ru": ["Подтвердить"], "en": ["Confirm"] }
             }
+          ],
+          "route": [
+            {
+              "intent": "fashiongallery://home",
+              "waitMs": 1200,
+              "confirmPackage": ["com.miui.android.fashiongallery"],
+              "confirmMarkers": ["Карусель обоев"]
+            },
+            {
+              "tapId": "btn_setting",
+              "waitMs": 1200,
+              "confirmMarkers": ["Карусель экрана блокировки"]
+            }
           ]
         },
         {

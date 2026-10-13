@@ -193,12 +193,16 @@ class SemanticCatalogTest {
 
         assertEquals("Блокировка экрана", variant.drillPath.first().first())
         assertEquals("Карусель обоев", variant.drillPath.last().first())
-        // Битый route (интент SettingActivity на устройстве не резолвится — прогон
-        // rmuu1hsq6: «Unable to find explicit activity class») снят: вход идёт drill-путём.
-        assertTrue(
-            "битый маршрут карусели снят — вход drill-путём",
-            variant.route.isEmpty()
+        // Вход: внутренние активности приложения карусели закрыты (exported=false, замер
+        // 2026-10-14), поэтому маршрут идёт публичной схемой, а шестерёнка KSettingActivity
+        // (`btn_setting`, подписи/описания нет) тапается по resource-id.
+        assertEquals(2, variant.route.size)
+        assertEquals("fashiongallery://home", variant.route.first().intent)
+        assertEquals(
+            listOf("com.miui.android.fashiongallery"),
+            variant.route.first().confirmPackage
         )
+        assertEquals("btn_setting", variant.route.last().tapId)
         assertEquals(listOf("Карусель экрана блокировки"), variant.itemTexts["ru"])
         assertEquals(
             "главный тумблер закрывается отказом «Нет, спасибо»",
