@@ -517,6 +517,21 @@ class SimpleRunnerRouteTest {
     }
 
     @Test
+    fun `route id tap does not scroll a content screen that does not move`() = runTest {
+        // Экран предпросмотра карусели (прогон rmv8b85e7): прокрутка НЕ меняет текст экрана,
+        // значит это контент, а не список — слепые свайпы запрещены, иначе робот листает обои
+        // вместо тапа по шестерёнке (`scroll: container down` ×2 → confirm_miss).
+        val contentScreen = node(pkg = "com.miui.android.fashiongallery", text = "Начать просмотр")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(contentScreen)
+        Mockito.`when`(service.dispatchGesture(any(), any(), any())).thenReturn(false)
+
+        val tapped = runner.tapRouteNode(step("carousel"), id = "btn_setting", routeIndex = 2)
+
+        assertFalse("узла нет и экран не двигается — тапа нет", tapped)
+        Mockito.verify(service, Mockito.atMost(1)).dispatchGesture(any(), any(), any())
+    }
+
+    @Test
     fun `warm-up budget is spent once per step and reset by a new run`() {
         // Прогрев Ленты (appvault_services, прогон rmv16fbxe) — самый дорогой повтор шага:
         // открыть ленту, дождаться карточек, закрыть, повторить маршрут. Второй прогрев

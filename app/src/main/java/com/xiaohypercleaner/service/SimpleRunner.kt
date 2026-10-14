@@ -5628,7 +5628,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 }
                 item.tapText != null -> tapRouteNode(step, text = item.tapText)
                 item.tapDesc != null -> tapRouteNode(step, desc = item.tapDesc)
-                item.tapId != null -> tapRouteNode(step, id = item.tapId, idIndex = item.tapIdIndex)
+                item.tapId != null ->
+                    tapRouteNode(step, id = item.tapId, idIndex = item.tapIdIndex, routeIndex = index + 1)
                 item.tapTopRightBlank -> tapRouteNode(step, topRightBlank = true)
                 else -> false
             }
@@ -6035,12 +6036,24 @@ class SimpleRunner(private val service: AdbEnablerService) {
         id: String? = null,
         /** Индекс среди узлов с тем же id (нижние вкладки без подписей: `id=tab` ×4). */
         idIndex: Int? = null,
+        /** Номер пункта маршрута (1-based) — для диагностики провала. */
+        routeIndex: Int? = null,
         /** Тап по самой правой кликабельной иконке заголовка без текста и описания:
          * шестерёнка настроек Mi Apps в дереве WebView не имеет ни текста, ни id
          * (дамп diagnostic_snapshot_getapps_*.json, прогон rmuwvcqiw). */
         topRightBlank: Boolean = false
     ): Boolean {
-        repeat(3) { attempt ->
+        // Счётчики для диагностики провала пункта (3.2 разбора rmv8b85e7): «узла не было
+        // в дереве» и «узел был, но кликабельной цели нет» — разные причины.
+        var seen = 0
+        var clickableSeen = 0
+        var stoppedScrolling = false
+        for (attempt in 0 until 3) {
+            // Стена/промо могут появиться ПОСЛЕ старта пункта (карусель показывает свой промо
+            // через ~1 с после deep-link): закрываем и пробуем снова — образец topRightBlank.
+            if (attempt == 1 && handleConsentWalls(step) > 0) {
+                AppLog.i(TAG, "route ${step.id}: tap node — consent wall handled, retry")
+            }
             val root = service.rootInActiveWindow ?: return false
             if (topRightBlank) {
                 recycleNode(root)
@@ -6086,7 +6099,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 AppLog.i(TAG, "route ${step.id}: blank icon gesture retry=$viaGesture")
                 return viaGesture
             }
-            val nodes = NodeTree.findAllInTree(root, predicate = { node ->
+            val labelMatch: (AccessibilityNodeInfo) -> Boolean = { node ->
                 val matches = when {
                     text != null -> TextMatcher.normalizedContains(node.text?.toString(), text)
                     desc != null ->
@@ -6097,8 +6110,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 // Кнопки установки/обновления/скачивания маршрут не нажимает никогда
                 // (инцидент 06.10.2026: тап по «СКАЧАТЬ» магазина запустил пачку установок).
                 val label = node.text?.toString() ?: node.contentDescription?.toString()
-                matches && !isInstallBlockedLabel(label) && clickableAncestorOrSelf(node) != null
-            })
+                matches && !isInstallBlockedLabel(label)
+            }
+            val allMatches = NodeTree.findAllInTree(root, predicate = labelMatch)
+            seen = allMatches.size
+            val nodes = allMatches.filter { clickableAncestorOrSelf(it) != null }
+            allMatches.forEach { if (it !in nodes) recycleNode(it) }
+            clickableSeen = nodes.size
             // Позиционный выбор (вкладки MIUI без подписи): берём N-й совпавший узел,
             // а не первый — иначе «Профиль» подменялся бы «Главной».
             val indexed = if (idIndex != null && id != null) {
@@ -6132,7 +6150,30 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 return tapped
             }
             recycleNode(root)
-            if (attempt < 2) scrollDownOnce()
+            if (attempt >= 2) break
+            // Слепая прокрутка запрещена: на контентных экранах (предпросмотр карусели) свайп
+            // листает содержимое, а не список — прогон rmv8b85e7: два `scroll: container down`
+            // вместо тапа по шестерёнке, и confirm_miss показал уже контент карусели.
+            // Крутим только если прокрутка ФАКТИЧЕСКИ меняет текст экрана (это список).
+            if (!scrollDownVerified()) {
+                AppLog.i(TAG, "route ${step.id}: scroll did not move the screen — stop scrolling")
+                stoppedScrolling = true
+                break
+            }
+        }
+        if (!topRightBlank) {
+            // Диагностика провала пункта: приёмка 3.2 требует строку целиком, иначе
+            // «узла не было» и «узел был без кликабельной цели» неразличимы в логе.
+            val fgRoot = service.rootInActiveWindow
+            val fg = fgRoot?.packageName?.toString() ?: "-"
+            val rootOk = fgRoot != null
+            recycleNode(fgRoot)
+            StepDiagnostics.note(
+                step.id, "ROUTE",
+                "taps_miss step=${routeIndex ?: "-"} id='${id.orEmpty()}' text='${text.orEmpty()}' " +
+                    "desc='${desc.orEmpty()}' fg=$fg windows=${windowPackages()} root=$rootOk " +
+                    "idSeen=$seen clickableSeen=$clickableSeen scrolled=${!stoppedScrolling}"
+            )
         }
         // Узел с подписью есть, но кликабельного предка у него нет (страницы WebView:
         // мастер магазина — «Пропустить»): тапаем по центру самой подписи, иначе
@@ -6355,6 +6396,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * Прокрутка экрана вниз. Контейнер прокручивается action'ом, а если его нет —
      * жестом: списки MIUI бывают без ScrollView-предка, доступного accessibility.
      */
+    /** Пакеты всех окон — для диагностики провала пункта маршрута. */
+    private fun windowPackages(): String = runCatching {
+        val names = ArrayList<String>()
+        service.windows.forEach { window ->
+            val root = window.root
+            names.add(root?.packageName?.toString() ?: "?")
+            recycleNode(root)
+        }
+        names.joinToString(",")
+    }.getOrDefault("n/a")
+
     private suspend fun scrollDownOnce() {
         val root = service.rootInActiveWindow ?: return
         val scrollable = findScrollableContainer(root)
