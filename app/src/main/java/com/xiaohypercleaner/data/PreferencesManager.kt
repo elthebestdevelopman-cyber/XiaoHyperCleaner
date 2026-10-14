@@ -222,12 +222,15 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
         true
     }
 
-    /** Ловец окна установки (дефолт ON): снятие «Получать рекомендации» при установке. */
+    /**
+     * Ловец окна установки: снятие «Получать рекомендации» при установке.
+     *
+     * Legacy-флаг: до 1.0-beta2 тумблер был в меню (пункт снят — ловец не должен спорить
+     * с пользователем). Сохранённое значение помнится и уважается, отсутствие значения =
+     * включён; пишет флаг только legacy-UI, поэтому сеттера здесь нет.
+     */
     val installerWatcherEnabled: Flow<Boolean> =
         readBool(PreferenceKey.InstallerWatcherEnabled, true)
-
-    suspend fun setInstallerWatcherEnabled(enabled: Boolean) =
-        writeBool(PreferenceKey.InstallerWatcherEnabled, enabled)
 
     suspend fun getInstallerWatcherEnabled(): Boolean = runCatching {
         installerWatcherEnabled.first()

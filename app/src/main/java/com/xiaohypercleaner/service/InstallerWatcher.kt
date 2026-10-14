@@ -35,7 +35,8 @@ sealed interface InstallerWatcherStatus {
 /**
  * Статус ловца живёт в процессе: сервис доступности и активность — один процесс,
  * поэтому StateFlow виден UI без IPC. Состояние сессии — только в памяти:
- * персистится единственный пользовательский флаг `InstallerWatcherEnabled`.
+ * персистится единственный флаг `InstallerWatcherEnabled` — legacy: UI-тумблер снят
+ * (1.0-beta2), значение читается и уважается, но не пишется.
  */
 object InstallerWatcherState {
     private val _status = MutableStateFlow<InstallerWatcherStatus>(InstallerWatcherStatus.Idle)

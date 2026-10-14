@@ -5152,6 +5152,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * Единая точка входа для системных диалогов: welcome-стены и
      * runtime-permission запросы по consentPolicy (deny по умолчанию).
      */
+    /**
+     * Владельцы диалогов, которые в канале отката закрывать нельзя (3.3): диалог
+     * приложения-цели — его «Отмена» отменяет само восстановление состояния. В прямом
+     * прогоне список ПУСТ: правило 7 обязано закрывать те же промо-диалоги, иначе шаг
+     * упирается в промо и падает (форвард ломать запрещено).
+     */
+    internal fun rollbackGuardOwners(
+        reverse: Boolean,
+        stepPackages: List<String>
+    ): List<String> = if (reverse) stepPackages else emptyList()
+
     private suspend fun handleConsentWalls(step: SimpleSteps.Step): Int {
         val handled = ConsentWallHandler.handleUntilSettled(
             service = service,
@@ -5170,6 +5181,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
             // Welcome-стены запрещены шагам с RouteScript (Проводник): их рабочие
             // экраны совпадают словами с welcomeActions (прогон rmumuqr53).
             allowWelcome = SemanticCatalog.welcomeAllowed(step.id),
+            // 3.3: в канале отката диалоги приложения-цели не закрываем — правило 7 иначе
+            // гасит диалог, отмена которого ломает само восстановление состояния.
+            ignoreOwnerPackages = rollbackGuardOwners(
+                reverse = reverseCtx != null,
+                stepPackages = stepPackagesFor(step)
+            ),
             maxIterations = SemanticCatalog.maxConsentIterations(
                 step.id,
                 SemanticCatalog.maxConsentIterationsPolicy()

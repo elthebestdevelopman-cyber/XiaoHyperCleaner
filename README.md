@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 402 теста (дерево тестов ниже)
+app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 406 тестов (дерево тестов ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt
 │   ├── OptimizationEngineTest.kt
@@ -389,7 +389,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 402 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (402 теста, 45 сьютов)
+### Unit-тесты (406 тестов, 45 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -408,7 +408,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 402 тест
 | `DirectIntentNavigatorTest`   | 8      | Точка входа шага: launcher, прямые экраны настроек   |
 | `ManualStepsTest`             | 4      | Ручная памятка: паритет 7 локалей                  |
 | `SwitchFinderTest`            | 16     | Тумблеры, checked_before, запрет чужой строки      |
-| `ConsentWallTest`             | 40     | Диалоги: force-stop, «по умолчанию», consent, обманки |
+| `ConsentWallTest`             | 42     | Диалоги: force-stop, «по умолчанию», consent, обманки, гейт отката |
 | `ConsentPermissionTest`       | 4      | Permission-запрос: deny по умолчанию, allow для цели |
 | `SimpleRunnerMsaResumeTest`   | 6      | Resume бурения + подтверждение отзыва msa          |
 | `SimpleRunnerMsaRevokeTest`   | 9      | Отзыв msa: кнопка диалога, отсчёт, подтверждение   |
@@ -424,7 +424,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 402 тест
 | `SimpleRunnerAppEntryTest`    | 4      | Готовность экрана приложения перед бурением        |
 | `SimpleRunnerMuteTest`        | 4      | Громкость медиа: save→mute→restore, снапшот fresh-device |
 | `SimpleRunnerOverlayGateTest` | 7      | Гейт целостности оверлея, сторож жестов ±500 мс    |
-| `SimpleRunnerRouteTest`       | 24     | Маршрут-подсказка: подтверждение экрана пакетом и маркерами, прокрутка только при смене экрана |
+| `SimpleRunnerRouteTest`       | 25     | Маршрут-подсказка: подтверждение экрана пакетом и маркерами, прокрутка только при смене экрана, гейт отката |
 | `SimpleRunnerVerifyTest`      | 9      | Честный вердикт при исчезнувшей строке, открытом диалоге и опросе карусели |
 | `ReverseRollbackTest`         | 1      | Ключ снапшота доп. целей: разбор по `#extra:`, строка ищется по подписи |
 | `SimpleModeControllerOverlayTest` | 2  | Потеря разрешения оверлея останавливает прогон одним итогом |

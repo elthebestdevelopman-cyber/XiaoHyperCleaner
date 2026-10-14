@@ -74,6 +74,33 @@ class StringsLocaleParityTest {
         )
     }
 
+    @Test
+    fun `forbidden ad lexicon is absent from user-facing strings in every locale`() {
+        // Нейтральная лексика: пользовательские строки не содержат токенов про рекламные
+        // блокировщики и «уборку». Проверяем ЗНАЧЕНИЯ <string>, а не сырые строки файла:
+        // в values-es есть комментарий «ADVERTENCIA DNS» (исп. «предупреждение»), и греп
+        // по файлу давал бы ложное срабатывание.
+        val forbidden = listOf("реклам", "advert", "ad block", "adblock", "уборк")
+        val problems = locales.flatMap { locale ->
+            val values = stringValues(resFile("$locale/strings.xml"))
+            assertTrue(
+                "$locale: разбор вернул ${values.size} значений — сломан регексп, и проверка ниже вакуумна",
+                values.size >= MIN_EXPECTED_KEYS
+            )
+            values.flatMap { value ->
+                forbidden.filter { value.contains(it, ignoreCase = true) }
+                    .map { "$locale: токен '$it' в значении строки" }
+            }
+        }
+        assertTrue("запрещённая лексика в строках UI: $problems", problems.isEmpty())
+    }
+
+    private fun stringValues(file: File): List<String> =
+        Regex("<string\\s+[^>]*>(.*?)</string>", RegexOption.DOT_MATCHES_ALL)
+            .findAll(file.readText(Charsets.UTF_8))
+            .map { it.groupValues[1] }
+            .toList()
+
     private fun translatableKeys(file: File): Set<String> =
         Regex("<string\\s+([^>]*)>")
             .findAll(file.readText(Charsets.UTF_8))

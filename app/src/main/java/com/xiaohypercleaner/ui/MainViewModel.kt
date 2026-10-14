@@ -183,13 +183,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Ловец установщика: флаг (default ON) и статус последнего срабатывания в UI.
-        viewModelScope.launch {
-            prefs.installerWatcherEnabled.collect { enabled ->
-                AppLog.i(TAG, "installerWatcherEnabled changed to $enabled")
-                update { it.copy(installerWatcherEnabled = enabled) }
-            }
-        }
+        // Ловец установщика: статус последнего срабатывания в UI. Флаг в меню снят —
+        // решение владельца: ловец не должен спорить с пользователем (3.6).
         viewModelScope.launch {
             InstallerWatcherState.status.collect { status ->
                 update { it.copy(installerWatcher = status) }
@@ -818,16 +813,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         update { it.copy(notifTransparency = enabled) }
         simpleController.setNotifTransparency(enabled)
         viewModelScope.launch { prefs.setNotifTransparency(enabled) }
-    }
-
-    /**
-     * Ловец окна установки: снятие «Получать рекомендации» на экране настроек
-     * установщика, пока живо окно установки (дефолт ON — решение владельца).
-     */
-    fun toggleInstallerWatcher(enabled: Boolean) {
-        AppLog.i(TAG, "toggleInstallerWatcher: $enabled")
-        update { it.copy(installerWatcherEnabled = enabled) }
-        viewModelScope.launch { prefs.setInstallerWatcherEnabled(enabled) }
     }
 
     /**

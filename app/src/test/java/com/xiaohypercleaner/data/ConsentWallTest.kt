@@ -603,6 +603,58 @@ class ConsentWallTest {
     }
 
     @Test
+    fun `target app dialog is closed in the forward run`() = runTest {
+        // Форвард: промо-диалог приложения-цели (правило 7) закрывается отрицательной
+        // кнопкой — это поведение ломать нельзя, иначе шаг упирается в промо и падает.
+        val root = container(
+            dialogNode("android:id/alertTitle", "Mi Браузер"),
+            dialogNode("android:id/message", "Установите Mi Браузер по умолчанию"),
+            dialogNode("android:id/button2", "Отмена", clickable = true),
+            dialogNode("android:id/button1", "OK", clickable = true)
+        )
+        Mockito.`when`(root.packageName).thenReturn("com.android.browser")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        val outcome = ConsentWallHandler.handleOnce(
+            service, bridge, "browser_sys",
+            stepPackages = listOf("com.android.browser")
+        )
+
+        assertTrue("промо-диалог приложения-цели обязан закрываться", outcome.handled)
+        assertTrue("закрытие — отрицательной кнопкой", "Отмена" in tappedTexts)
+        assertEquals("правило 7: alert-диалог", "dialog", outcome.kind)
+        assertEquals("правило 7: закрыт, а не принят", "dismissed", outcome.decision)
+    }
+
+    @Test
+    fun `target app dialog is left alone in the rollback channel`() = runTest {
+        // 3.3: в канале отката тот же диалог НЕ закрываем — «Отмена» отменяет само
+        // восстановление состояния. Причина в логе обязана быть явной.
+        val root = container(
+            dialogNode("android:id/alertTitle", "Mi Браузер"),
+            dialogNode("android:id/message", "Установите Mi Браузер по умолчанию"),
+            dialogNode("android:id/button2", "Отмена", clickable = true),
+            dialogNode("android:id/button1", "OK", clickable = true)
+        )
+        Mockito.`when`(root.packageName).thenReturn("com.android.browser")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        val outcome = ConsentWallHandler.handleOnce(
+            service, bridge, "browser_sys",
+            stepPackages = listOf("com.android.browser"),
+            ignoreOwnerPackages = listOf("com.android.browser")
+        )
+
+        assertFalse("диалог приложения-цели оставлен намеренно", outcome.handled)
+        assertEquals("причина — гейт отката", "rollback_guard", outcome.decision)
+        assertTrue(
+            "ни одного тапа: ни по подписи, ни по id",
+            tappedTexts.isEmpty() && tappedIds.isEmpty() && bridge.events.isEmpty()
+        )
+        assertFalse("продолжать вслепую нельзя", outcome.safeToContinue)
+    }
+
+    @Test
     fun `crash report dialog is dismissed instead of blocking the step`() = runTest {
         val root = container(
             dialogNode("android:id/alertTitle", "В приложении \"GetApps\" снова произошел сбой"),

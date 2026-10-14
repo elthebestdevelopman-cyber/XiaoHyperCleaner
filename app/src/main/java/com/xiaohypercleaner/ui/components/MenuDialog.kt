@@ -72,10 +72,7 @@ fun MenuDialog(
     onPrivacyPolicyClick: () -> Unit,
     /** R2.1: скан окон с переключателями (read-only, без оверлея). */
     onWindowScan: () -> Unit,
-    /** Ловец установщика: снятие «Получать рекомендации» при установке (дефолт ON). */
-    onInstallerWatcherChange: (Boolean) -> Unit,
     isNotifTransparency: Boolean = true,
-    isInstallerWatcher: Boolean = true,
     diagLevelFull: Boolean = false,
     /** Статус скана: текст собирается здесь из строк resources (хардкода нет). */
     windowScan: WindowScanStatus = WindowScanStatus(),
@@ -156,32 +153,6 @@ fun MenuDialog(
                         onCheckedChange = { checked: Boolean ->
                             AppLog.i(TAG, "Notification transparency toggled: $checked")
                             onNotifTransparencyChange(checked)
-                        }
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-
-                // Ловец установщика: работает только в контексте установки приложения.
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            stringResource(R.string.menu_installer_watcher),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Text(
-                            stringResource(R.string.menu_installer_watcher_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = isInstallerWatcher,
-                        onCheckedChange = { checked: Boolean ->
-                            AppLog.i(TAG, "Installer watcher toggled: $checked")
-                            onInstallerWatcherChange(checked)
                         }
                     )
                 }
