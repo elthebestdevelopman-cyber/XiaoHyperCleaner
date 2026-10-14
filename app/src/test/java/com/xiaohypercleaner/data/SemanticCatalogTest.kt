@@ -193,16 +193,15 @@ class SemanticCatalogTest {
 
         assertEquals("Блокировка экрана", variant.drillPath.first().first())
         assertEquals("Карусель обоев", variant.drillPath.last().first())
-        // Вход: внутренние активности приложения карусели закрыты (exported=false, замер
-        // 2026-10-14), поэтому маршрут идёт публичной схемой, а шестерёнка KSettingActivity
-        // (`btn_setting`, подписи/описания нет) тапается по resource-id.
-        assertEquals(2, variant.route.size)
-        assertEquals("fashiongallery://home", variant.route.first().intent)
-        assertEquals(
-            listOf("com.miui.android.fashiongallery"),
-            variant.route.first().confirmPackage
+        // Вход: маршрут СНЯТ (прогон rmv8b85e7). `route 1/2 'fashiongallery://home' ok=true` →
+        // два `scroll: container down` → `route 2/2 'btn_setting' ok=false` → confirm_miss →
+        // fallback_to_auto_nav: шестерёнку не тапнули ни разу, а слепая прокрутка на экране
+        // предпросмотра листала обои. Рабочий путь — авто-навигация (интент + drill из
+        // Настроек), где шаг и ушёл в `OK toggled`. Вернувшийся маршрут снова заслонит его.
+        assertTrue(
+            "маршрут карусели снят — он заслонял работающую авто-навигацию",
+            variant.route.isEmpty()
         )
-        assertEquals("btn_setting", variant.route.last().tapId)
         assertEquals(listOf("Карусель экрана блокировки"), variant.itemTexts["ru"])
         assertEquals(
             "главный тумблер закрывается отказом «Нет, спасибо»",
@@ -259,34 +258,25 @@ class SemanticCatalogTest {
     }
 
     @Test
-    fun `carousel route confirms entry by package and taps the gear by id`() {
-        // Первый пункт — deep link: он открывает ImagePreviewActivity, где НЕТ ни одной строки
-        // с текстом (замер 2026-10-14), поэтому подтверждение идёт ПАКЕТОМ, без маркеров:
-        // иначе awaitRouteScreen не пропустит маркеры пакетом и маршрут умрёт в
-        // fallback_to_auto_nav, не дойдя до tapId. Шестерёнка на экране входа отдаётся без
-        // текста и описания — только resource-id (`btn_setting`), поэтому тап по id.
+    fun `carousel keeps the lock screen drill as its only entry path`() {
+        // Маршрут снят осознанно (прогон rmv8b85e7): пункт `btn_setting` не тапнулся ни разу —
+        // repeat(3) со слепой прокруткой на экране предпросмотра, затем confirm_miss и
+        // fallback_to_auto_nav. Рабочий путь — drill «Блокировка экрана» → «Карусель обоев».
+        // Вернувшийся маршрут снова заслонит работающую навигацию, поэтому проверяем отсутствие.
         val variant = SemanticCatalog.step("carousel")?.variants
             .orEmpty()
             .first { it.id == "miui12_14" }
 
-        val entry = variant.route.first()
-        assertEquals("deep-link маршрута карусели", "fashiongallery://home", entry.intent)
+        assertTrue("маршрут карусели снят", variant.route.isEmpty())
         assertEquals(
-            "вход подтверждается пакетом: целевых строк на экране входа нет",
-            emptyList<String>(),
-            entry.confirmMarkers
+            "рабочий вход — drill, а не маршрут",
+            listOf("Блокировка экрана", "Карусель обоев"),
+            variant.drillPath.map { it.first() }
         )
         assertEquals(
-            listOf("com.miui.android.fashiongallery"),
-            entry.confirmPackage
-        )
-
-        val gear = variant.route.last()
-        assertEquals("шестерёнка без текста — тап по resource-id", "btn_setting", gear.tapId)
-        assertEquals(
-            "экран настроек карусели подтверждается своим маркером",
+            "цель главного тумблера — строка с KSettingActivity",
             listOf("Карусель экрана блокировки"),
-            gear.confirmMarkers
+            variant.itemTexts["ru"]
         )
     }
 
