@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 45 suites, 401 tests (test tree below)
+app/src/test/java/com/xiaohypercleaner/          # 45 suites, 402 tests (test tree below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt
 │   ├── OptimizationEngineTest.kt
@@ -371,7 +371,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 suites, 401 tests (test tr
 
 ## 🧪 Testing
 
-### Unit Tests (401 tests, 45 suites)
+### Unit Tests (402 tests, 45 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -406,7 +406,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 suites, 401 tests (test tr
 | `SimpleRunnerAppEntryTest`    | 4     | App screen readiness before drilling              |
 | `SimpleRunnerMuteTest`        | 4     | Media volume: save→mute→restore, fresh-device snapshot |
 | `SimpleRunnerOverlayGateTest` | 7     | Overlay integrity gate, ±500 ms gesture guard      |
-| `SimpleRunnerRouteTest`       | 21    | Route as hint: screen confirmed by package and markers |
+| `SimpleRunnerRouteTest`       | 24    | Route as hint: screen confirmed by package and markers, scrolling only when the screen moves |
 | `SimpleRunnerVerifyTest`      | 9     | Honest verdict when the row vanished behind a dialog or the carousel survey |
 | `ReverseRollbackTest`         | 1     | Extra target snapshot key: parsed by `#extra:`, row found by its label |
 | `SimpleModeControllerOverlayTest` | 2 | Overlay permission loss stops the run with a single result |

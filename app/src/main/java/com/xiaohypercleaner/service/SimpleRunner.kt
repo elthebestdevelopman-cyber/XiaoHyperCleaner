@@ -6049,8 +6049,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
         var clickableSeen = 0
         var stoppedScrolling = false
         for (attempt in 0 until 3) {
-            // Стена/промо могут появиться ПОСЛЕ старта пункта (карусель показывает свой промо
-            // через ~1 с после deep-link): закрываем и пробуем снова — образец topRightBlank.
+            // Стена/промо могут появиться ПОСЛЕ старта пункта: закрываем и пробуем снова —
+            // образец topRightBlank. Гипотеза «промо карусели всплывает через ~1 с после
+            // deep-link» логом НЕ подтверждена (в окне прогона rmv8b85e7 строк consent нет);
+            // наблюдаемый механизм провала пункта — слепая прокрутка. Ретрай безвреден, но
+            // приёмке его как причину успеха приписывать нельзя.
             if (attempt == 1 && handleConsentWalls(step) > 0) {
                 AppLog.i(TAG, "route ${step.id}: tap node — consent wall handled, retry")
             }

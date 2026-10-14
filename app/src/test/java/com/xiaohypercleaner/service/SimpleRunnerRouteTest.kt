@@ -521,14 +521,70 @@ class SimpleRunnerRouteTest {
         // Экран предпросмотра карусели (прогон rmv8b85e7): прокрутка НЕ меняет текст экрана,
         // значит это контент, а не список — слепые свайпы запрещены, иначе робот листает обои
         // вместо тапа по шестерёнке (`scroll: container down` ×2 → confirm_miss).
-        val contentScreen = node(pkg = "com.miui.android.fashiongallery", text = "Начать просмотр")
-        Mockito.`when`(service.rootInActiveWindow).thenReturn(contentScreen)
+        // Каждое чтение — СВЕЖИЙ узел: currentScreenText() рециклит прочитанный узел, и
+        // thenReturn с одним моком делал бы «экран не изменился» по построению мока, а не
+        // по факту контентного экрана.
+        Mockito.`when`(service.rootInActiveWindow).thenAnswer {
+            node(pkg = "com.miui.android.fashiongallery", text = "Начать просмотр")
+        }
         Mockito.`when`(service.dispatchGesture(any(), any(), any())).thenReturn(false)
 
         val tapped = runner.tapRouteNode(step("carousel"), id = "btn_setting", routeIndex = 2)
 
         assertFalse("узла нет и экран не двигается — тапа нет", tapped)
-        Mockito.verify(service, Mockito.atMost(1)).dispatchGesture(any(), any(), any())
+        // Ровно ОДИН жест: второй свайп на контентном экране — это и был баг 3.2, а
+        // atMost(1) пропускал бы и полное отключение прокрутки.
+        Mockito.verify(service, Mockito.times(1)).dispatchGesture(any(), any(), any())
+    }
+
+    @Test
+    fun `route id tap scrolls a real list until the node appears`() = runTest {
+        // Настоящий список: целевой узел ниже сгиба. Прокрутка двигает экран (текст
+        // меняется), поэтому второй проход обязан случиться и нажать найденный узел —
+        // гейт «крутить только при смене экрана» не смеет отключать прокрутку на списках.
+        val gear = node(text = "Раздел списка")
+        Mockito.`when`(gear.viewIdResourceName)
+            .thenReturn("com.miui.android.fashiongallery:id/btn_setting")
+        Mockito.`when`(gear.isClickable).thenReturn(true)
+        var tappedNode = false
+        Mockito.`when`(gear.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenAnswer {
+            tappedNode = true
+            true
+        }
+        // Прокрутка через контейнер (`ACTION_SCROLL_FORWARD`), а не жестом: жест ждёт
+        // callback от системы (`suspendCancellableCoroutine`), в моке он не придёт, и
+        // тест повис бы до таймаута. Контейнерный путь — тот же `scroll: container down`.
+        val list = node(pkg = "com.miui.android.fashiongallery")
+        Mockito.`when`(list.isScrollable).thenReturn(true)
+        Mockito.`when`(list.getBoundsInScreen(any())).thenAnswer { inv ->
+            (inv.arguments[0] as android.graphics.Rect).set(0, 0, 1080, 2000)
+            null
+        }
+        var scrolled = false
+        Mockito.`when`(list.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD))
+            .thenAnswer {
+                scrolled = true
+                true
+            }
+        Mockito.`when`(service.rootInActiveWindow).thenAnswer {
+            if (scrolled) {
+                node(pkg = "com.miui.android.fashiongallery", children = arrayOf(gear))
+            } else {
+                node(
+                    pkg = "com.miui.android.fashiongallery",
+                    text = "Верх списка",
+                    children = arrayOf(list)
+                )
+            }
+        }
+
+        val result = runner.tapRouteNode(step("carousel"), id = "btn_setting", routeIndex = 2)
+
+        assertTrue("прокрутка сдвинула список — пункт маршрута пройден", result)
+        assertTrue("тап ушёл в найденный узел", tappedNode)
+        // Жестов не было вовсе: список листался контейнером, и это доказывает, что гейт
+        // «крутить только при смене экрана» не выключил прокрутку.
+        Mockito.verify(service, Mockito.never()).dispatchGesture(any(), any(), any())
     }
 
     @Test
