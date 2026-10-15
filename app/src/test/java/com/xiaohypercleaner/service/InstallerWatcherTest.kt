@@ -1,8 +1,14 @@
 package com.xiaohypercleaner.service
 
+import android.accessibilityservice.AccessibilityService
+import android.view.accessibility.AccessibilityNodeInfo
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.mockito.Mockito
 
 /**
  * Ловец окна установки: решение по снимку окна. Наборы id взяты ИЗ ДАМПОВ
@@ -152,6 +158,78 @@ class InstallerWatcherTest {
             InstallerWatcherLogic.gateReason(enabled = false, phaseRunning = false)
         )
         assertNull(InstallerWatcherLogic.gateReason(enabled = true, phaseRunning = false))
+    }
+
+    /**
+     * Ловец с подменённым логом: строка оценки окна на реконнекте обязана быть видна, иначе
+     * приёмка «оценил и не сработал» неотличима от «не оценивал».
+     */
+    private fun watcherWithLog(
+        logs: MutableList<String>,
+        rootPackage: String?,
+        enabled: Boolean = true,
+        cycleClosed: Boolean = false
+    ): InstallerWatcher {
+        val service = Mockito.mock(AccessibilityService::class.java)
+        if (rootPackage != null) {
+            val root = Mockito.mock(AccessibilityNodeInfo::class.java)
+            Mockito.`when`(root.packageName).thenReturn(rootPackage)
+            Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+        }
+        return InstallerWatcher(
+            service = service,
+            scope = CoroutineScope(Job()),
+            installerPackages = { packages },
+            enabled = { enabled },
+            cycleClosed = { cycleClosed },
+            onCycleDone = {},
+            log = { logs.add(it) }
+        )
+    }
+
+    @Test
+    fun `reconnect writes a line even when there is no window at all`() {
+        val logs = mutableListOf<String>()
+
+        watcherWithLog(logs, rootPackage = null).onServiceReconnected()
+
+        assertTrue(
+            "оценка окна на реконнекте обязана быть видна строкой: $logs",
+            logs.any {
+                it.startsWith("watcher window on reconnect") &&
+                    it.contains("reason=${InstallerWatcherLogic.REASON_NO_WINDOW}")
+            }
+        )
+    }
+
+    @Test
+    fun `reconnect reports the gate reason instead of staying silent`() {
+        val logs = mutableListOf<String>()
+
+        watcherWithLog(logs, rootPackage = "com.miui.global.packageinstaller", enabled = false)
+            .onServiceReconnected()
+
+        assertTrue(
+            "выключенный ловец на реконнекте говорит причиной: $logs",
+            logs.any { it.contains("reason=${InstallerWatcherLogic.REASON_DISABLED}") }
+        )
+    }
+
+    @Test
+    fun `reconnect respects the closed cycle of an installer window`() {
+        val logs = mutableListOf<String>()
+
+        watcherWithLog(logs, rootPackage = "com.miui.global.packageinstaller", cycleClosed = true)
+            .onServiceReconnected()
+
+        // Закрытый цикл — не война с пользователем: окно установщика не трогаем, но строку пишем.
+        assertTrue(
+            "закрытый цикл виден в строке реконнекта: $logs",
+            logs.any {
+                it.contains("reason=${InstallerWatcherLogic.REASON_CYCLE_DONE}") &&
+                    it.contains("pkg=com.miui.global.packageinstaller")
+            }
+        )
     }
 
     @Test

@@ -25,6 +25,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -277,6 +278,14 @@ class AdbEnablerService : AccessibilityService() {
         // Ловец установщика: пользовательский флаг (default ON) и флаг цикла — читаем и следим.
         scope.launch { watcherPrefs.installerWatcherEnabled.collect { installerWatcherEnabled = it } }
         scope.launch { watcherPrefs.installerWatcherCycle.collect { watcherCycleFingerprint = it } }
+        scope.launch {
+            // Оценка окна на реконнекте — ПОСЛЕ первого чтения персиста: без флага цикла
+            // решение «цикл закрыт» неизвестно, и ловец мог бы снова открыть настройки
+            // установщика (война с пользователем, закрытая именно флагом цикла).
+            installerWatcherEnabled = watcherPrefs.installerWatcherEnabled.first()
+            watcherCycleFingerprint = watcherPrefs.installerWatcherCycle.first()
+            installerWatcher.onServiceReconnected()
+        }
     }
 
     /**

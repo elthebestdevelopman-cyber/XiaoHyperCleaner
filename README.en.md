@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 45 suites, 406 tests (test tree below)
+app/src/test/java/com/xiaohypercleaner/          # 45 suites, 409 tests (test tree below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt
 │   ├── OptimizationEngineTest.kt
@@ -308,7 +308,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 suites, 406 tests (test tr
 │   ├── SimpleRunnerApplicabilityTest.kt  # not applicable steps, notif_* entry
 │   ├── SimpleRunnerAppEntryTest.kt  # app screen readiness
 │   └── SimpleRunnerClearDataTest.kt
-│   └── InstallerWatcherTest.kt  # installer watcher: phase gate, post-install, cooldown
+│   └── InstallerWatcherTest.kt  # installer watcher: phase gate, post-install, cycle, reconnect
 ├── ui/
 │   └── MainViewModelTest.kt  # Robolectric
 └── util/
@@ -371,7 +371,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 suites, 406 tests (test tr
 
 ## 🧪 Testing
 
-### Unit Tests (406 tests, 45 suites)
+### Unit Tests (409 tests, 45 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -413,7 +413,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 suites, 406 tests (test tr
 | `OverlayPermissionProbeTest`  | 3     | Overlay permission via two sources (Settings + app-op) |
 | `ScanOrchestratorTest`        | 4     | Navigation planning, cache                         |
 | `ScreenCrawlerTest`           | 9     | Screen crawler (diagnostics), installer entry without semantics |
-| `InstallerWatcherTest`        | 12    | Installer watcher: phase gate, post-install, per-build cycle flag |
+| `InstallerWatcherTest`        | 15    | Installer watcher: phase gate, post-install, per-build cycle flag, reconnect line |
 | `ActivityScannerTest`         | 8     | Package/activity visibility                        |
 | `RomProfileTest`              | 5     | ROM profile: region, family, version               |
 | `SimpleStepsTest`             | 8     | Simple mode step map, extra toggles                |

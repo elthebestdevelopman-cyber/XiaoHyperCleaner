@@ -98,6 +98,9 @@ internal object InstallerWatcherLogic {
     const val REASON_SWITCH_NOT_FOUND = "switch_not_found"
     const val REASON_ALREADY_OFF = "already_off"
 
+    /** На реконнекте окна может не быть вовсе — это тоже причина, а не тишина. */
+    const val REASON_NO_WINDOW = "no_window"
+
     /** Цикл на этой сборке уже отработан: шестерёнку не тапаем, тумблер не трогаем. */
     const val REASON_CYCLE_DONE = "cycle_done"
 
@@ -215,27 +218,63 @@ internal class InstallerWatcher(
         ) {
             return
         }
+        evaluateWindow(trigger = "event", windowPackage = event.packageName?.toString().orEmpty())
+    }
+
+    /**
+     * Оценка активного окна на переподключении сервиса доступности: событий после реконнекта
+     * нет, а окно установщика может уже стоять на экране (сервис переподключается и после
+     * нашей переустановки). Гейты те же, что у события; строка печатается ВСЕГДА — иначе
+     * «оценка была и не сработала» неотличима от «оценки не было».
+     */
+    fun onServiceReconnected() {
+        val root = service.rootInActiveWindow
+        val windowPackage = root?.packageName?.toString().orEmpty()
+        recycleNode(root)
+        evaluateWindow(trigger = "reconnect", windowPackage = windowPackage, alwaysLog = true)
+    }
+
+    /**
+     * Общий путь события и реконнекта: дешёвые гейты (выключен / идёт фаза), гейт закрытого
+     * цикла по пакету окна — до обхода дерева, затем снимок окна и решение.
+     */
+    private fun evaluateWindow(
+        trigger: String,
+        windowPackage: String,
+        alwaysLog: Boolean = false
+    ) {
+        fun report(reason: String, pkg: String? = windowPackage.ifEmpty { null }) {
+            if (alwaysLog) {
+                val tail = pkg?.let { " pkg=$it" }.orEmpty()
+                log("watcher window on $trigger reason=$reason$tail")
+            } else {
+                logRepeat(reason, pkg)
+            }
+        }
 
         val gate = InstallerWatcherLogic.gateReason(
             enabled(),
             OverlayController.phaseRunning || SimpleRunner.isRunning
         )
         if (gate != null) {
-            logRepeat(gate)
+            report(gate)
             return
         }
 
-        // Второй дешёвый гейт до обхода дерева: цикл закрыт — окно не читаем вовсе.
-        val eventPkg = event.packageName?.toString().orEmpty()
-        if (eventPkg.isNotEmpty() && eventPkg in installerPackages() && cycleClosed()) {
-            logRepeat(InstallerWatcherLogic.REASON_CYCLE_DONE, eventPkg)
+        if (windowPackage.isNotEmpty() && windowPackage in installerPackages() && cycleClosed()) {
+            report(InstallerWatcherLogic.REASON_CYCLE_DONE)
             return
         }
 
-        val observation = observe() ?: return
+        val observation = observe()
+        if (observation == null) {
+            // Путь события молчит по-прежнему (шум в логе), реконнект говорит всегда.
+            if (alwaysLog) report(InstallerWatcherLogic.REASON_NO_WINDOW)
+            return
+        }
         val decision = InstallerWatcherLogic.decide(observation, cycleClosed())
         when (decision) {
-            is InstallerDecision.Ignore -> logRepeat(decision.reason, observation.packageName)
+            is InstallerDecision.Ignore -> report(decision.reason, observation.packageName)
 
             InstallerDecision.OpenSettings -> {
                 if (sessionActive) return

@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 406 тестов (дерево тестов ниже)
+app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 409 тестов (дерево тестов ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt
 │   ├── OptimizationEngineTest.kt
@@ -326,7 +326,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 406 тест
 │   ├── SimpleRunnerApplicabilityTest.kt  # неприменимые шаги, вход notif_*, поздняя проверка
 │   ├── SimpleRunnerAppEntryTest.kt  # готовность экрана приложения
 │   └── SimpleRunnerClearDataTest.kt
-│   └── InstallerWatcherTest.kt  # ловец установщика: гейт фазы, post-install, кулдаун
+│   └── InstallerWatcherTest.kt  # ловец установщика: гейт фазы, post-install, цикл, реконнект
 ├── ui/
 │   └── MainViewModelTest.kt  # Robolectric
 └── util/
@@ -389,7 +389,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 406 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (406 тестов, 45 сьютов)
+### Unit-тесты (409 тестов, 45 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -431,7 +431,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 406 тест
 | `OverlayPermissionProbeTest`  | 3      | Разрешение оверлея по двум источникам (Settings + app-op) |
 | `ScanOrchestratorTest`        | 4      | Планирование навигации, кэш                        |
 | `ScreenCrawlerTest`           | 9      | Сканер экранов (диагностика), вход установщика без семантики |
-| `InstallerWatcherTest`        | 12     | Ловец установщика: гейт фазы, post-install, флаг цикла на отпечаток сборки |
+| `InstallerWatcherTest`        | 15     | Ловец установщика: гейт фазы, post-install, флаг цикла на отпечаток сборки, строка реконнекта |
 | `ActivityScannerTest`         | 8      | Видимость пакетов и активностей                    |
 | `RomProfileTest`              | 5      | Профиль ROM: регион, family, версия                |
 | `SimpleStepsTest`             | 8      | Карта шагов Простого режима, доп. тумблеры          |
