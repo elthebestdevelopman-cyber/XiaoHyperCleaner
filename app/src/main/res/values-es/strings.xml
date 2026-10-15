@@ -151,6 +151,12 @@
     <string name="menu_dark_theme">Tema oscuro</string>
     <string name="menu_notif_transparency">Desactivar notificaciones de servicios de recomendaciones</string>
     <string name="menu_notif_transparency_desc">La aplicación dejará de mostrar notificaciones, incluidas las de servicio. Es reversible.</string>
+    <string name="installer_prestep_title">Recomendaciones del instalador</string>
+    <string name="installer_prestep_text">Mientras se instala, la app desactivará «Recibir recomendaciones» en los ajustes del instalador. Para ello la app se reinstala con la misma compilación y la optimización continúa justo después de la instalación. El cambio es reversible.</string>
+    <string name="installer_prestep_disable">Desactivar ahora</string>
+    <string name="installer_prestep_skip">Omitir</string>
+    <string name="installer_prestep_waiting">Esperando la instalación de la app. La optimización continúa justo después.</string>
+    <string name="installer_prestep_waiting_skip">Continuar sin el instalador</string>
     <string name="watcher_status_running">Abriendo los ajustes del instalador…</string>
     <string name="watcher_status_off">Las sugerencias del instalador están desactivadas.</string>
     <string name="watcher_status_skipped">La pantalla de ajustes del instalador no se abrió; lo intentaremos en la próxima instalación.</string>

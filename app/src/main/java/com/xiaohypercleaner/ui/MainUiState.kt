@@ -160,6 +160,19 @@ data class MainUiState(
     /** Выбранный уровень */
     val selectedLevel: OptimizationMode? = null,
 
+    /**
+     * Предшаг «одной кнопки»: вопрос про рекомендации установщика после подтверждения
+     * Простого режима. Спрашивается ДО старта оптимизации: окно установщика живёт только
+     * во время установки, позже его уже не поймать.
+     */
+    val showInstallerPreStep: Boolean = false,
+
+    /**
+     * Предшаг отдан установщику: ждём переустановку. Простой режим продолжит
+     * `tryResumePendingSimpleMode()` — pending-флаг выставлен до открытия установщика.
+     */
+    val installerPreStepWaiting: Boolean = false,
+
     // ═══════════════════════════════════════════════════════════════
     // Shizuku (Pro Mode)
     // ═══════════════════════════════════════════════════════════════
@@ -245,6 +258,7 @@ data class MainUiState(
                 showAppInfoDialog || showLocationDialog || showPermissionFallbackDialog ||
                 showBatteryDialog || showOptionsDialog || showDnsWarningDialog ||
                 showLevelDialog || showLevelConfirm || showShizukuDialog ||
+                showInstallerPreStep || installerPreStepWaiting ||
                 showShizukuSources || showShizukuWizard || showDevModeDialog ||
                 showFinalDialog || showRebootDialog || showEeaNoticeDialog
 

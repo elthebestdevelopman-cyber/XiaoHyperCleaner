@@ -6,6 +6,7 @@ import androidx.annotation.VisibleForTesting
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.DiagnosticSnapshotManager
 import com.xiaohypercleaner.util.LogMasker
+import com.xiaohypercleaner.util.SelfApkExporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -144,6 +145,15 @@ class XiaoHyperApp : Application() {
         }
 
         initDiagnostics()
+        // Копия собственной сборки (предшаг установщика) нужна только на время установки:
+        // оставшаяся с прошлого раза — мусор в кэше, удаляем на старте.
+        initScope.launch {
+            runCatching { SelfApkExporter.purge(this@XiaoHyperApp) }
+                .onSuccess { removed ->
+                    if (removed > 0) AppLog.i(TAG, "self apk copies purged: $removed")
+                }
+                .onFailure { e -> AppLog.w(TAG, "self apk purge failed: ${e.message}") }
+        }
         AppLog.i(TAG, "=== XiaoHyperApp onCreate completed ===")
     }
 

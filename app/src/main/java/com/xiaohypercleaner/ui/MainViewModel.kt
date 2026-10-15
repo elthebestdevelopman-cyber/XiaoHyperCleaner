@@ -31,7 +31,9 @@ import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.DiagnosticSnapshotManager
 import com.xiaohypercleaner.util.OptimizationNotifier
 import com.xiaohypercleaner.util.ShizukuHelper
+import com.xiaohypercleaner.util.SelfApkExporter
 import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +42,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -506,7 +509,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (_state.value.simpleModeActive) {
                     simpleController.continueToSteps()
                 } else {
-                    startSimpleMode()
+                    // Предшаг «одной кнопки»: окно установщика живёт только во время
+                    // установки, поэтому спрашиваем сейчас, а не после начала оптимизации.
+                    update { it.copy(showInstallerPreStep = true) }
                 }
             }
 
@@ -522,10 +527,64 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     @VisibleForTesting
     internal fun startSimpleMode() {
         AppLog.i(TAG, "startSimpleMode")
+        prepareSimpleModePending()
+        simpleController.start()
+    }
+
+    /**
+     * Готовит Простой режим, не запуская шаги: pending-флаг переживает переустановку и
+     * срабатывает в [tryResumePendingSimpleMode]. Нужен предшагу установщика: он сам
+     * «стартует» оптимизацию уже после установки приложения.
+     */
+    private fun prepareSimpleModePending() {
         failedSimpleStepIds.clear()
         stepAttempt = 1
         viewModelScope.launch { prefs.setPendingSimpleMode(true) }
-        simpleController.start()
+    }
+
+    /**
+     * Предшаг «одной кнопки»: пользователь согласился снять рекомендации установщика.
+     * Установщик открываем только после удачного копирования сборки; при любой неудаче
+     * идём обычным путём ([startSimpleMode]) и pending НЕ оставляем — иначе Простой режим
+     * стартовал бы сам при следующем запуске, хотя установки не было.
+     */
+    fun onInstallerPreStepDisableNow() {
+        AppLog.i(TAG, "installer pre-step: disable now")
+        update { it.copy(showInstallerPreStep = false, installerPreStepWaiting = true) }
+        viewModelScope.launch {
+            val apk = withContext(Dispatchers.IO) { SelfApkExporter.copyToCache(app) }
+            if (apk == null) {
+                AppLog.w(TAG, "installer pre-step: apk copy failed — обычный старт")
+                update { it.copy(installerPreStepWaiting = false) }
+                startSimpleMode()
+                return@launch
+            }
+            prepareSimpleModePending()
+            viewModelScope.launch { prefs.setOptimizationMode(OptimizationMode.SIMPLE) }
+            val opened = withContext(Dispatchers.IO) { SelfApkExporter.openInstaller(app, apk) }
+            if (!opened) {
+                AppLog.w(TAG, "installer pre-step: installer not opened — обычный старт")
+                withContext(Dispatchers.IO) { SelfApkExporter.purge(app) }
+                viewModelScope.launch { prefs.setPendingSimpleMode(false) }
+                update { it.copy(installerPreStepWaiting = false) }
+                startSimpleMode()
+            }
+        }
+    }
+
+    /** Предшаг отклонён: обычный старт Простого режима, персист не трогаем. */
+    fun onInstallerPreStepSkip() {
+        AppLog.i(TAG, "installer pre-step: skipped")
+        update { it.copy(showInstallerPreStep = false) }
+        startSimpleMode()
+    }
+
+    /** Возврат из установщика без переустановки: ждать больше нечего. */
+    fun onInstallerPreStepWaitingSkip() {
+        AppLog.i(TAG, "installer pre-step: waiting cancelled")
+        update { it.copy(installerPreStepWaiting = false) }
+        viewModelScope.launch { prefs.setPendingSimpleMode(false) }
+        startSimpleMode()
     }
 
     private fun startAdvancedFlow() {
@@ -660,7 +719,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun tryResumePendingSimpleMode() {
         viewModelScope.launch {
             if (!prefs.getPendingSimpleMode()) return@launch
-            if (_state.value.simpleModeActive) return@launch
+            if (_state.value.simpleModeActive) {
+                // Режим уже идёт: ожидание установщика больше не актуально.
+                update { it.copy(installerPreStepWaiting = false) }
+                return@launch
+            }
             val component = ComponentName(app, AdbEnablerService::class.java).flattenToString()
             val acc = Settings.Secure.getString(
                 app.contentResolver,
@@ -672,6 +735,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             AppLog.i(TAG, "tryResumePendingSimpleMode: restoring Simple Mode after process restart")
+            update { it.copy(installerPreStepWaiting = false) }
             failedSimpleStepIds.clear()
             stepAttempt = 1
             simpleController.start()

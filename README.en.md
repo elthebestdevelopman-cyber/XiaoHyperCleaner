@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 45 suites, 409 tests (test tree below)
+app/src/test/java/com/xiaohypercleaner/          # 46 suites, 411 tests (test tree below)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt
 │   ├── OptimizationEngineTest.kt
@@ -313,6 +313,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 suites, 409 tests (test tr
 │   └── MainViewModelTest.kt  # Robolectric
 └── util/
     ├── LogMaskerTest.kt
+    ├── SelfApkExporterTest.kt
     └── TextMatcherTest.kt
 ```
 
@@ -371,7 +372,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 suites, 409 tests (test tr
 
 ## 🧪 Testing
 
-### Unit Tests (409 tests, 45 suites)
+### Unit Tests (411 tests, 46 suites)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -419,6 +420,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 suites, 409 tests (test tr
 | `SimpleStepsTest`             | 8     | Simple mode step map, extra toggles                |
 | `MainViewModelTest`           | 9     | UI logic, already-off report (Robolectric)         |
 | `LogMaskerTest`               | 15    | IP, token, path masking                            |
+| `SelfApkExporterTest`         | 2     | Own build copy for the installer pre-step: cache purge |
 | `TextMatcherTest`             | 10    | Text normalization and fuzzy matching              |
 | `UiWaitTest`                  | 6     | Unified UiWait: early exit, double confirmation, hard limit |
 | `ProgressFormatTest`          | 2     | Phase scale: percent and timer (step bounds, time format) |

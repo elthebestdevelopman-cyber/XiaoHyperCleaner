@@ -460,6 +460,36 @@ private fun MainDialogsHost(
         )
     }
 
+    if (state.showInstallerPreStep) {
+        InfoDialog(
+            title = stringResource(R.string.installer_prestep_title),
+            text = stringResource(R.string.installer_prestep_text),
+            confirmText = stringResource(R.string.installer_prestep_disable),
+            dismissText = stringResource(R.string.installer_prestep_skip),
+            onConfirm = {
+                AppLog.i(MainActivity.TAG, "installer pre-step: disable now clicked")
+                vm.onInstallerPreStepDisableNow()
+            },
+            onDismiss = {
+                AppLog.i(MainActivity.TAG, "installer pre-step: skipped")
+                vm.onInstallerPreStepSkip()
+            }
+        )
+    }
+    if (state.installerPreStepWaiting) {
+        // Ожидание установки не закрывается тапом мимо/BACK: единственный выход — кнопка,
+        // иначе пользователь остаётся в непонятном состоянии без оптимизации.
+        InfoDialog(
+            title = stringResource(R.string.installer_prestep_title),
+            text = stringResource(R.string.installer_prestep_waiting),
+            confirmText = stringResource(R.string.installer_prestep_waiting_skip),
+            onConfirm = {
+                AppLog.i(MainActivity.TAG, "installer pre-step: waiting cancelled")
+                vm.onInstallerPreStepWaitingSkip()
+            }
+        )
+    }
+
     if (state.showShizukuDialog) {
         ShizukuGuideDialog(
             status = state.shizukuStatus,

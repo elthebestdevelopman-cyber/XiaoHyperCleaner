@@ -152,6 +152,12 @@
     <string name="menu_dark_theme">深色主题</string>
     <string name="menu_notif_transparency">关闭推荐服务的通知</string>
     <string name="menu_notif_transparency_desc">应用将不再显示通知（包括服务通知）。此操作可恢复。</string>
+    <string name="installer_prestep_title">安装器推荐</string>
+    <string name="installer_prestep_text">安装期间，应用会关闭安装器设置中的“接收推荐”。为此应用会用同一版本重新安装，安装后立即继续优化。此更改可撤销。</string>
+    <string name="installer_prestep_disable">立即关闭</string>
+    <string name="installer_prestep_skip">跳过</string>
+    <string name="installer_prestep_waiting">正在等待应用安装。安装后将立即继续优化。</string>
+    <string name="installer_prestep_waiting_skip">不通过安装器继续</string>
     <string name="watcher_status_running">正在打开安装器设置…</string>
     <string name="watcher_status_off">安装器推荐已关闭。</string>
     <string name="watcher_status_skipped">安装器设置界面未打开——将在下次安装时重试。</string>

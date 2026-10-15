@@ -129,6 +129,12 @@
     <string name="menu_dark_theme">Тёмная тема</string>
     <string name="menu_notif_transparency">Отключать уведомления сервисов рекомендаций</string>
     <string name="menu_notif_transparency_desc">Приложение перестанет показывать уведомления, включая сервисные. Изменение обратимо.</string>
+    <string name="installer_prestep_title">Рекомендации установщика</string>
+    <string name="installer_prestep_text">Пока идёт установка, приложение снимет «Получать рекомендации» в настройках установщика. Для этого приложение переустановится той же сборкой, а оптимизация продолжится сразу после установки. Изменение обратимо.</string>
+    <string name="installer_prestep_disable">Отключить сейчас</string>
+    <string name="installer_prestep_skip">Пропустить</string>
+    <string name="installer_prestep_waiting">Ожидаем установку приложения. Оптимизация продолжится сразу после неё.</string>
+    <string name="installer_prestep_waiting_skip">Продолжить без установщика</string>
     <string name="watcher_status_running">Открываем настройки установщика…</string>
     <string name="watcher_status_off">Рекомендации установщика отключены.</string>
     <string name="watcher_status_skipped">Экран настроек установщика не открылся — попробуем при следующей установке.</string>

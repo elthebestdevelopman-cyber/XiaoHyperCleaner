@@ -153,17 +153,24 @@ class MainViewModelTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `confirmLevelStart begins optimization`() = runTest {
+    fun `confirmLevelStart asks about the installer before starting optimization`() = runTest {
         vm.startFlow()
         vm.onLevelChosen(OptimizationMode.SIMPLE)
 
         vm.confirmLevelStart(OptimizationMode.SIMPLE)
 
+        // Предшаг «одной кнопки»: сначала вопрос про рекомендации установщика — окно
+        // установщика живёт только во время установки, после старта оптимизации его не поймать.
         val state = vm.state.value
         assertFalse("showLevelConfirm should be closed", state.showLevelConfirm)
+        assertTrue("installer pre-step should be shown", state.showInstallerPreStep)
+        assertFalse("optimization must not start before the choice", state.simpleModeActive)
+
+        vm.onInstallerPreStepSkip()
+
         assertTrue(
-            "simpleModeActive should be true after SIMPLE start",
-            state.simpleModeActive
+            "simpleModeActive should be true after the pre-step is skipped",
+            vm.state.value.simpleModeActive
         )
     }
 

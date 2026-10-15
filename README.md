@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 409 тестов (дерево тестов ниже)
+app/src/test/java/com/xiaohypercleaner/          # 46 сьютов, 411 тестов (дерево тестов ниже)
 ├── data/
 │   ├── AdaptiveCatalogTest.kt
 │   ├── OptimizationEngineTest.kt
@@ -331,6 +331,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 409 тест
 │   └── MainViewModelTest.kt  # Robolectric
 └── util/
     ├── LogMaskerTest.kt
+    ├── SelfApkExporterTest.kt
     └── TextMatcherTest.kt
 ```
 
@@ -389,7 +390,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 409 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (409 тестов, 45 сьютов)
+### Unit-тесты (411 тестов, 46 сьютов)
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -437,6 +438,7 @@ app/src/test/java/com/xiaohypercleaner/          # 45 сьютов, 409 тест
 | `SimpleStepsTest`             | 8      | Карта шагов Простого режима, доп. тумблеры          |
 | `MainViewModelTest`           | 9      | UI-логика, отчёт «уже выключено» (Robolectric)     |
 | `LogMaskerTest`               | 15     | Маскировка IP, токенов, путей                      |
+| `SelfApkExporterTest`         | 2      | Копия своей сборки для предшага установщика: чистка кэша |
 | `TextMatcherTest`             | 10     | Нормализация и нечёткое сравнение текстов          |
 | `UiWaitTest`                  | 6      | Единый UiWait: ранний выход, двойное подтверждение, лимит |
 | `ProgressFormatTest`          | 2      | Шкала фазы: проценты и таймер (границы шага, формат времени) |
