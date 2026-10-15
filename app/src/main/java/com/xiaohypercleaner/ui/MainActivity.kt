@@ -477,14 +477,18 @@ private fun MainDialogsHost(
         )
     }
     if (state.installerPreStepWaiting) {
-        // Ожидание установки не закрывается тапом мимо/BACK: единственный выход — кнопка,
-        // иначе пользователь остаётся в непонятном состоянии без оптимизации.
+        // BACK и тап вне равны кнопке (onDismiss), состояние не висит: без onDismiss
+        // системное закрытие диалога гасило только окно Compose.
         InfoDialog(
             title = stringResource(R.string.installer_prestep_title),
             text = stringResource(R.string.installer_prestep_waiting),
             confirmText = stringResource(R.string.installer_prestep_waiting_skip),
             onConfirm = {
                 AppLog.i(MainActivity.TAG, "installer pre-step: waiting cancelled")
+                vm.onInstallerPreStepWaitingSkip()
+            },
+            onDismiss = {
+                AppLog.i(MainActivity.TAG, "installer pre-step: waiting cancelled via BACK/outside")
                 vm.onInstallerPreStepWaitingSkip()
             }
         )

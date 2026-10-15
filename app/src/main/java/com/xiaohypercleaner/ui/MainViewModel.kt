@@ -720,7 +720,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             if (!prefs.getPendingSimpleMode()) return@launch
             if (_state.value.simpleModeActive) {
-                // Режим уже идёт: ожидание установщика больше не актуально.
+                // Режим уже идёт: ожидание установщика больше не актуально. Лог — под гейтом
+                // состояния: ветка срабатывает на КАЖДОМ возврате в приложение во время прогона.
+                if (_state.value.installerPreStepWaiting) {
+                    AppLog.i(TAG, "installer pre-step: waiting cancelled on resume")
+                }
                 update { it.copy(installerPreStepWaiting = false) }
                 return@launch
             }
@@ -735,6 +739,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             AppLog.i(TAG, "tryResumePendingSimpleMode: restoring Simple Mode after process restart")
+            // Возврат после отменённой установки: ожидание снимается по resume, и это
+            // обязано быть видно — «снялось» и «не пыталось» иначе неотличимы.
+            if (_state.value.installerPreStepWaiting) {
+                AppLog.i(TAG, "installer pre-step: waiting cancelled on resume")
+            }
             update { it.copy(installerPreStepWaiting = false) }
             failedSimpleStepIds.clear()
             stepAttempt = 1
