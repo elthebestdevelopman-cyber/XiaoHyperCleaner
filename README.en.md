@@ -295,7 +295,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider for logs
 
-app/src/test/java/com/xiaohypercleaner/          # 46 suites, 411 tests (test tree below)
+app/src/test/java/com/xiaohypercleaner/          # tests: see app/build/test-results/
 ├── data/
 │   ├── AdaptiveCatalogTest.kt
 │   ├── OptimizationEngineTest.kt
@@ -372,58 +372,16 @@ app/src/test/java/com/xiaohypercleaner/          # 46 suites, 411 tests (test tr
 
 ## 🧪 Testing
 
-### Unit Tests (411 tests, 46 suites)
+### Unit Tests
 
 ```bash
 ./gradlew testDebugUnitTest
 ```
 
-| File                          | Tests | What is tested                                     |
-|-------------------------------|-------|----------------------------------------------------|
-| `OptimizationEngineTest`      | 15    | Optimization, rollback, DNS, transactions, channel |
-| `RestoreSnapshotTest`         | 5     | Rollback snapshot of original values               |
-| `AdbPortResolverTest`         | 5     | mDNS discovery, mergePorts                         |
-| `AdaptiveCatalogTest`         | 17    | Variant catalog, text merging                      |
-| `SemanticCatalogTest`         | 32    | Step semantics, packages, dialog policy            |
-| `SemanticVariantTest`         | 9     | OS variant selection (MIUI 13 / HyperOS 2)         |
-| `SemanticGateTest`            | 6     | Confidence gate                                    |
-| `PlanBuilderTest`             | 9     | Plan pre-filter + red list                         |
-| `DirectIntentNavigatorTest`   | 8     | Step entry point: launcher, direct settings screens |
-| `ManualStepsTest`             | 4     | Manual checklist: 7-locale parity                  |
-| `SwitchFinderTest`            | 16    | Toggles, checked_before, foreign row rejection     |
-| `ConsentWallTest`             | 42    | Dialogs: force-stop, default app, consent, decoys, rollback guard |
-| `ConsentPermissionTest`       | 4     | Permission request: deny by default, allow for target |
-| `SimpleRunnerMsaResumeTest`   | 6     | Drill resume + msa revoke confirmation             |
-| `SimpleRunnerMsaRevokeTest`   | 9     | msa revoke: dialog button, countdown, confirmation |
-| `SimpleRunnerClearDataTest`   | 2     | CLEAR_DATA_DECLINE without false success           |
-| `SimpleRunnerConfirmTest`     | 2     | Confirm button: its own label, not the dialog title |
-| `SimpleRunnerDialogActionTest` | 2    | Own confirm dialog on the target screen counts as the step action |
-| `SimpleRunnerFolderTest`      | 16    | Home folder search (structural markers)            |
-| `SimpleRunnerInstallerTest`   | 3     | Installer settings route, no APK install           |
-| `SimpleRunnerInstallGuardTest`| 3     | Install guard: download/install/update labels are never tapped |
-| `SimpleRunnerScrollTest`      | 5     | Scroll container lookup, row below the fold, edge switch |
-| `SimpleRunnerDrillTest`       | 12    | Drill level verification (route, header menu, alternative nodes) |
-| `SimpleRunnerApplicabilityTest` | 12  | Not applicable steps, notif_* entry, late verify   |
-| `SimpleRunnerAppEntryTest`    | 4     | App screen readiness before drilling              |
-| `SimpleRunnerMuteTest`        | 4     | Media volume: save→mute→restore, fresh-device snapshot |
-| `SimpleRunnerOverlayGateTest` | 7     | Overlay integrity gate, ±500 ms gesture guard      |
-| `SimpleRunnerRouteTest`       | 25    | Route as hint: screen confirmed by package and markers, scrolling only when the screen moves, rollback guard |
-| `SimpleRunnerVerifyTest`      | 9     | Honest verdict when the row vanished behind a dialog or the carousel survey |
-| `ReverseRollbackTest`         | 1     | Extra target snapshot key: parsed by `#extra:`, row found by its label |
-| `SimpleModeControllerOverlayTest` | 2 | Overlay permission loss stops the run with a single result |
-| `OverlayPermissionProbeTest`  | 3     | Overlay permission via two sources (Settings + app-op) |
-| `ScanOrchestratorTest`        | 4     | Navigation planning, cache                         |
-| `ScreenCrawlerTest`           | 9     | Screen crawler (diagnostics), installer entry without semantics |
-| `InstallerWatcherTest`        | 15    | Installer watcher: phase gate, post-install, per-build cycle flag, reconnect line |
-| `ActivityScannerTest`         | 8     | Package/activity visibility                        |
-| `RomProfileTest`              | 5     | ROM profile: region, family, version               |
-| `SimpleStepsTest`             | 8     | Simple mode step map, extra toggles                |
-| `MainViewModelTest`           | 9     | UI logic, already-off report (Robolectric)         |
-| `LogMaskerTest`               | 15    | IP, token, path masking                            |
-| `SelfApkExporterTest`         | 2     | Own build copy for the installer pre-step: cache purge |
-| `TextMatcherTest`             | 10    | Text normalization and fuzzy matching              |
-| `UiWaitTest`                  | 6     | Unified UiWait: early exit, double confirmation, hard limit |
-| `ProgressFormatTest`          | 2     | Phase scale: percent and timer (step bounds, time format) |
+Covered: semantic catalog and gates, step machine and drill, dialogs/consent, rollback,
+installer and watcher, ADB parser and log masking. The exact list is in the test tree above and in
+`app/build/test-results/`.
+
 
 ### Manual Testing
 

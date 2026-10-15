@@ -313,7 +313,7 @@ app/src/main/res/
     ├── data_extraction_rules.xml
     └── file_paths.xml            # FileProvider для логов
 
-app/src/test/java/com/xiaohypercleaner/          # 46 сьютов, 411 тестов (дерево тестов ниже)
+app/src/test/java/com/xiaohypercleaner/          # тесты: см. app/build/test-results/
 ├── data/
 │   ├── AdaptiveCatalogTest.kt
 │   ├── OptimizationEngineTest.kt
@@ -390,58 +390,16 @@ app/src/test/java/com/xiaohypercleaner/          # 46 сьютов, 411 тест
 
 ## 🧪 Тестирование
 
-### Unit-тесты (411 тестов, 46 сьютов)
+### Unit-тесты
 
 ```bash
 ./gradlew testDebugUnitTest
 ```
 
-| Файл                          | Тестов | Что проверяется                                    |
-|-------------------------------|--------|----------------------------------------------------|
-| `OptimizationEngineTest`      | 15     | Оптимизация, откат, DNS, транзакции, канал отката  |
-| `RestoreSnapshotTest`         | 5      | Снапшот оригиналов для отката                      |
-| `AdbPortResolverTest`         | 5      | mDNS discovery, mergePorts                         |
-| `AdaptiveCatalogTest`         | 17     | Вариантный каталог, мердж текстов                  |
-| `SemanticCatalogTest`         | 32     | Семантика шагов, пакеты-цели, политика диалогов    |
-| `SemanticVariantTest`         | 9      | Выбор вариантов по версии ОС (MIUI 13 / HyperOS 2) |
-| `SemanticGateTest`            | 6      | Гейт уверенности                                   |
-| `PlanBuilderTest`             | 9      | Префильтр плана + красный список                   |
-| `DirectIntentNavigatorTest`   | 8      | Точка входа шага: launcher, прямые экраны настроек   |
-| `ManualStepsTest`             | 4      | Ручная памятка: паритет 7 локалей                  |
-| `SwitchFinderTest`            | 16     | Тумблеры, checked_before, запрет чужой строки      |
-| `ConsentWallTest`             | 42     | Диалоги: force-stop, «по умолчанию», consent, обманки, гейт отката |
-| `ConsentPermissionTest`       | 4      | Permission-запрос: deny по умолчанию, allow для цели |
-| `SimpleRunnerMsaResumeTest`   | 6      | Resume бурения + подтверждение отзыва msa          |
-| `SimpleRunnerMsaRevokeTest`   | 9      | Отзыв msa: кнопка диалога, отсчёт, подтверждение   |
-| `SimpleRunnerClearDataTest`   | 2      | CLEAR_DATA_DECLINE без ложных успехов              |
-| `SimpleRunnerConfirmTest`     | 2      | Кнопка подтверждения диалога: своя подпись, не заголовок |
-| `SimpleRunnerDialogActionTest` | 2     | Свой диалог подтверждения на целевом экране — действие шага |
-| `SimpleRunnerFolderTest`      | 16     | Поиск папок рабочего стола (структурный признак)   |
-| `SimpleRunnerInstallerTest`   | 3      | Настройки установщика, запрет установки APK        |
-| `SimpleRunnerInstallGuardTest`| 3      | Запрет установки: подписи скачать/установить/обновить не нажимаются |
-| `SimpleRunnerScrollTest`      | 5      | Поиск контейнера прокрутки, строка ниже сгиба, тумблер на кромке |
-| `SimpleRunnerDrillTest`       | 12     | Проверка уровней бурения (маршрут, меню шапки, альтернативные узлы) |
-| `SimpleRunnerApplicabilityTest` | 12   | Неприменимые шаги, вход notif_*, поздняя проверка состояния |
-| `SimpleRunnerAppEntryTest`    | 4      | Готовность экрана приложения перед бурением        |
-| `SimpleRunnerMuteTest`        | 4      | Громкость медиа: save→mute→restore, снапшот fresh-device |
-| `SimpleRunnerOverlayGateTest` | 7      | Гейт целостности оверлея, сторож жестов ±500 мс    |
-| `SimpleRunnerRouteTest`       | 25     | Маршрут-подсказка: подтверждение экрана пакетом и маркерами, прокрутка только при смене экрана, гейт отката |
-| `SimpleRunnerVerifyTest`      | 9      | Честный вердикт при исчезнувшей строке, открытом диалоге и опросе карусели |
-| `ReverseRollbackTest`         | 1      | Ключ снапшота доп. целей: разбор по `#extra:`, строка ищется по подписи |
-| `SimpleModeControllerOverlayTest` | 2  | Потеря разрешения оверлея останавливает прогон одним итогом |
-| `OverlayPermissionProbeTest`  | 3      | Разрешение оверлея по двум источникам (Settings + app-op) |
-| `ScanOrchestratorTest`        | 4      | Планирование навигации, кэш                        |
-| `ScreenCrawlerTest`           | 9      | Сканер экранов (диагностика), вход установщика без семантики |
-| `InstallerWatcherTest`        | 15     | Ловец установщика: гейт фазы, post-install, флаг цикла на отпечаток сборки, строка реконнекта |
-| `ActivityScannerTest`         | 8      | Видимость пакетов и активностей                    |
-| `RomProfileTest`              | 5      | Профиль ROM: регион, family, версия                |
-| `SimpleStepsTest`             | 8      | Карта шагов Простого режима, доп. тумблеры          |
-| `MainViewModelTest`           | 9      | UI-логика, отчёт «уже выключено» (Robolectric)     |
-| `LogMaskerTest`               | 15     | Маскировка IP, токенов, путей                      |
-| `SelfApkExporterTest`         | 2      | Копия своей сборки для предшага установщика: чистка кэша |
-| `TextMatcherTest`             | 10     | Нормализация и нечёткое сравнение текстов          |
-| `UiWaitTest`                  | 6      | Единый UiWait: ранний выход, двойное подтверждение, лимит |
-| `ProgressFormatTest`          | 2      | Шкала фазы: проценты и таймер (границы шага, формат времени) |
+Покрыто: семантический каталог и гейты, машина шагов и drill, диалоги/согласия, откат,
+установщик и ловец, парсер ADB и маскировка логов. Точный состав — в дереве тестов выше и в
+`app/build/test-results/`.
+
 
 ### Ручное тестирование
 
