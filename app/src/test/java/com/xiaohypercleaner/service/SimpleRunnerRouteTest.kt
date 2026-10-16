@@ -588,22 +588,6 @@ class SimpleRunnerRouteTest {
     }
 
     @Test
-    fun `rollback channel ignores target app dialogs while forward channel does not`() {
-        // 3.3: в откате диалог приложения-цели не закрываем (правило 7 гасит его
-        // отрицательной кнопкой, и восстановление отменяется); в прямом прогоне список
-        // игнора пуст — форвард обязан закрывать те же промо-диалоги.
-        val packages = listOf("com.miui.player")
-        assertTrue(
-            "откат: владельцы диалогов шага попадают в игнор",
-            runner.rollbackGuardOwners(reverse = true, stepPackages = packages) == packages
-        )
-        assertTrue(
-            "форвард: список игнора пуст",
-            runner.rollbackGuardOwners(reverse = false, stepPackages = packages).isEmpty()
-        )
-    }
-
-    @Test
     fun `warm-up budget is spent once per step and reset by a new run`() {
         // Прогрев Ленты (appvault_services, прогон rmv16fbxe) — самый дорогой повтор шага:
         // открыть ленту, дождаться карточек, закрыть, повторить маршрут. Второй прогрев

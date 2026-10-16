@@ -121,9 +121,9 @@ object ConsentWallHandler {
         val decision: String,
         /**
          * true — диалог не блокирует шаг: либо действия не требовалось (диалога нет),
-         * либо тап отправлен и экран изменился. false — тап не дал эффекта, кнопки не
-         * нашлось или диалог намеренно оставлен (гейт отката 3.3): продолжать вслепую
-         * нельзя. Частичное состояние запрещено маскировать под успех.
+         * либо тап отправлен и экран изменился. false — тап не дал эффекта или кнопки не
+         * нашлось: продолжать вслепую нельзя. Частичное состояние запрещено маскировать
+         * под успех.
          *
          * ВНИМАНИЕ: поле ИНФОРМАЦИОННОЕ — читателей в продакшне нет.
          * Использовать как гейт остановки для not_found / welcome_without_button НЕЛЬЗЯ:
@@ -247,28 +247,12 @@ object ConsentWallHandler {
          * (прогон rmumuqr53: три ложных `kind=welcome` на step=filemanager,
          * route 3/4 и 4/4 = ok=false).
          */
-        allowWelcome: Boolean = true,
-        /**
-         * Гейт отката (3.3): владельцы диалогов, которые НЕ обрабатываются. В канале
-         * возврата состояний диалог приложения-цели закрывать нельзя — его «Отмена»
-         * отменяет само восстановление. В прямом прогоне список пуст.
-         */
-        ignoreOwnerPackages: List<String> = emptyList()
+        allowWelcome: Boolean = true
     ): Outcome {
         if (isCancelled()) return Outcome(false, "none", "cancelled", safeToContinue = false)
         val root = service.rootInActiveWindow
             ?: return Outcome(false, "none", "no_window", safeToContinue = false)
         val owner = root.packageName?.toString()
-        if (owner != null && ignoreOwnerPackages.any { it.equals(owner, ignoreCase = true) }) {
-            recycle(root)
-            // Явная причина вместо тишины: видно, что диалог БЫЛ и оставлен намеренно
-            // (иначе «не сработало» и «не пыталось» неразличимы в приёмке).
-            AppLog.i(
-                TAG,
-                "consent: kind=- decision=skipped_rollback_guard step=$stepId owner=$owner"
-            )
-            return Outcome(false, "none", "rollback_guard", safeToContinue = false)
-        }
         val screenText = NodeTree.collectText(root)
         val alertDialog = isAlertDialog(root)
 
@@ -689,9 +673,7 @@ object ConsentWallHandler {
         /** Подписи приложений-целей шага: по ним узнаём адресата permission-запроса. */
         stepLabels: List<String> = emptyList(),
         /** Welcome-стены шага (route-шаги их не принимают: `welcomeAllowed: false`). */
-        allowWelcome: Boolean = true,
-        /** Гейт отката (3.3): владельцы диалогов, которые не обрабатываются (см. [handleOnce]). */
-        ignoreOwnerPackages: List<String> = emptyList()
+        allowWelcome: Boolean = true
     ): Int {
         var handled = 0
         val limit = maxIterations.coerceAtLeast(1)
@@ -703,7 +685,7 @@ object ConsentWallHandler {
             if (isCancelled()) break
             val outcome = handleOnce(
                 service, bridge, stepId, stepConsentTexts, stepConfirmTexts, stepPackages,
-                isCancelled, stepLabels, allowWelcome, ignoreOwnerPackages
+                isCancelled, stepLabels, allowWelcome
             )
             if (!outcome.handled) break
             handled++

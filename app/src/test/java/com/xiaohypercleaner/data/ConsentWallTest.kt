@@ -627,31 +627,37 @@ class ConsentWallTest {
     }
 
     @Test
-    fun `target app dialog is left alone in the rollback channel`() = runTest {
-        // 3.3: в канале отката тот же диалог НЕ закрываем — «Отмена» отменяет само
-        // восстановление состояния. Причина в логе обязана быть явной.
-        val root = container(
-            dialogNode("android:id/alertTitle", "Mi Браузер"),
-            dialogNode("android:id/message", "Установите Mi Браузер по умолчанию"),
-            dialogNode("android:id/button2", "Отмена", clickable = true),
-            dialogNode("android:id/button1", "OK", clickable = true)
-        )
-        Mockito.`when`(root.packageName).thenReturn("com.android.browser")
-        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+    fun `welcome wall owned by the target app is accepted instead of being left alone`() = runTest {
+        // Регресс к гейту отката 3.3: он оставлял ЛЮБОЙ диалог приложения-цели нетронутым,
+        // и welcome-стена самого приложения валила шаг (прогон rmvb6atul: browser_sys,
+        // `owner=com.mi.globalbrowser` → skipped_rollback_guard → not_applicable).
+        withLocale("ru") {
+            val wallText = "Условия использования Принять и продолжить"
+            val node = wallScreen(wallText, "Принять и продолжить")
+            Mockito.`when`(node.packageName).thenReturn("com.android.browser")
+            Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
 
-        val outcome = ConsentWallHandler.handleOnce(
-            service, bridge, "browser_sys",
-            stepPackages = listOf("com.android.browser"),
-            ignoreOwnerPackages = listOf("com.android.browser")
-        )
+            val action = ConsentWallHandler.classify(
+                screenText = wallText,
+                ownerPackage = "com.android.browser",
+                stepPackages = listOf("com.android.browser"),
+                stepId = "browser_sys",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = emptyList(),
+                alertDialog = false,
+                confirmButtonTexts = listOf("Принять и продолжить")
+            )
+            assertEquals("владелец стены — приложение шага", "app_owned", action?.cause)
 
-        assertFalse("диалог приложения-цели оставлен намеренно", outcome.handled)
-        assertEquals("причина — гейт отката", "rollback_guard", outcome.decision)
-        assertTrue(
-            "ни одного тапа: ни по подписи, ни по id",
-            tappedTexts.isEmpty() && tappedIds.isEmpty() && bridge.events.isEmpty()
-        )
-        assertFalse("продолжать вслепую нельзя", outcome.safeToContinue)
+            val outcome = ConsentWallHandler.handleOnce(
+                service, bridge, "browser_sys",
+                stepPackages = listOf("com.android.browser")
+            )
+
+            assertTrue("welcome-стена приложения-цели обязана закрываться", outcome.handled)
+            assertEquals("welcome", outcome.kind)
+            assertEquals("accepted", outcome.decision)
+        }
     }
 
     @Test
