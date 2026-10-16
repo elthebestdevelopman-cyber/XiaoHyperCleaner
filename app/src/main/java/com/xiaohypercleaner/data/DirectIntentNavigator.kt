@@ -172,12 +172,19 @@ object DirectIntentNavigator {
             }
 
             "carousel" -> {
-                // Карусель обоев. Внутренние активности приложения закрыты (exported=false),
-                // поэтому вход — публичная схема fashiongallery://home (замер 2026-10-14).
-                intents.addAll(carouselSettingsIntents())
-                // WALLPAPER_CAROUSEL / LOCK_SCREEN_SETTINGS / ACTION_SETTINGS убраны:
-                // пробами 2026-09-26 они не подтверждены, а действие SETTING и компонента
-                // SettingActivity дают SecurityException (неэкспортированы).
+                // Карусель обоев: прямого входа НЕТ. Внутренние активности приложения закрыты
+                // (exported=false): действие SETTING и явная компонента SettingActivity дают
+                // SecurityException из процесса приложения, а единственный публичный вход —
+                // схема `fashiongallery://home` (замер 535/475/472 мс, три прогона с force-stop,
+                // 1c88f54) — открывает экран ПРЕДПРОСМОТРА (ноль текста, шестерёнка
+                // `btn_setting`) вместо целевого `com.miui.nicegallery.setting.KSettingActivity`
+                // (дампы carousel_level1|level2|open: «Карусель обоев» — навигационная строка без
+                // тумблера в MainSettings|SubSettings, тумблер «Включить» живёт в KSettingActivity).
+                // Поэтому deep-link снят: вход шага — Settings (SimpleSteps: intents =
+                // listOf(settingsRoot())) и drill каталога «Блокировка экрана» → строка
+                // «Карусель обоев» → KSettingActivity.
+                // WALLPAPER_CAROUSEL / LOCK_SCREEN_SETTINGS / ACTION_SETTINGS убраны ранее:
+                // пробами 2026-09-26 они не подтверждены.
             }
 
             // ═══════════════════════════════════════════════════════════
@@ -617,26 +624,6 @@ object DirectIntentNavigator {
             "com.mi.android.globallauncher",
             "com.miui.home.settings.HomeSettingsActivity"
         )
-    )
-
-    /**
-     * Настройки карусели обоев (`com.miui.android.fashiongallery`): внутренние активности
-     * приложения закрыты (`exported=false`) — действие `…setting.SETTING` и явная компонента
-     * `com.miui.cw.feature.ui.setting.SettingActivity` дают `SecurityException: not exported`
-     * из процесса приложения (замер 2026-10-14, четыре варианта, включая запуск из shell).
-     * Прежний вердикт пробы `p_carousel_act_setting=OK` получен актором shell (`am start`
-     * умеет стартовать неэкспортированное) и на текущем состоянии не воспроизводится.
-     *
-     * Рабочий публичный вход — публичная схема приложения: `ACTION_VIEW fashiongallery://home`
-     * открывает `com.miui.nicegallery.preview.ImagePreviewActivity` (замер: 535/475/472 мс,
-     * три прогона с force-stop), а оттуда шестерёнка `btn_setting` ведёт в `KSettingActivity`
-     * с тумблерами «Карусель экрана блокировки», «Проведите вправо…», «Обновлять…».
-     */
-    internal fun carouselSettingsIntents(): List<Intent> = listOf(
-        Intent(Intent.ACTION_VIEW, android.net.Uri.parse("fashiongallery://home")).apply {
-            setPackage("com.miui.android.fashiongallery")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
     )
 
     /**
