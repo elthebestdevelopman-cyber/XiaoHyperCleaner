@@ -261,7 +261,16 @@ internal class InstallerWatcher(
             return
         }
 
-        if (windowPackage.isNotEmpty() && windowPackage in installerPackages() && cycleClosed()) {
+        val packages = installerPackages()
+        // Пакет-гейт ДО обхода дерева: чужое окно (наш собственный диалог, лаунчер, systemui)
+        // не обходим вовсе — обход стоил чтений и печатал `row search failed` по подписям
+        // НАШЕГО диалога (прогон rmvb6atul). Причина та же, что у решения по снимку.
+        if (windowPackage.isNotEmpty() && windowPackage !in packages) {
+            report(InstallerWatcherLogic.REASON_FOREIGN_PACKAGE)
+            return
+        }
+
+        if (windowPackage.isNotEmpty() && cycleClosed()) {
             report(InstallerWatcherLogic.REASON_CYCLE_DONE)
             return
         }
@@ -277,7 +286,11 @@ internal class InstallerWatcher(
             is InstallerDecision.Ignore -> report(decision.reason, observation.packageName)
 
             InstallerDecision.OpenSettings -> {
-                if (sessionActive) return
+                if (sessionActive) {
+                    // Сессия уже идёт: без строки реконнект выглядел бы как «не оценивал».
+                    report(REASON_SESSION_ACTIVE, observation.packageName)
+                    return
+                }
                 sessionActive = true
                 InstallerWatcherState.set(InstallerWatcherStatus.Running)
                 log("watcher open settings pkg=${observation.packageName}")
@@ -291,7 +304,10 @@ internal class InstallerWatcher(
             }
 
             InstallerDecision.TurnOff -> {
-                if (sessionActive) return
+                if (sessionActive) {
+                    report(REASON_SESSION_ACTIVE, observation.packageName)
+                    return
+                }
                 sessionActive = true
                 scope.launch {
                     try {
@@ -523,11 +539,16 @@ internal class InstallerWatcher(
      * Повтор одного и того же пропуска печатается со счётчиком: полное молчание дедупа
      * скрывало петлю целиком (прогон rmv6x9ts1 — 36 снятий подряд не было видно в логе).
      * Подписи чужого окна в лог не пишутся (политика R2.1), только пакет и счётчик.
+     *
+     * Печатается первый пропуск серии и далее каждый [SKIP_LOG_EVERY]-й: на каждое событие
+     * окна лог получал ~950 строк одного и того же `reason=phase_running` (прогон rmvb6atul),
+     * а счётчик при этом продолжает расти — петля по-прежнему видна.
      */
     private fun logRepeat(reason: String, pkg: String? = null) {
         val signature = "$reason|${pkg.orEmpty()}"
         skipRepeat = if (signature == lastSkipSignature) skipRepeat + 1 else 0
         lastSkipSignature = signature
+        if (skipRepeat % SKIP_LOG_EVERY != 0) return
         val tail = if (pkg.isNullOrBlank()) "" else " pkg=$pkg"
         log("watcher skipped reason=$reason repeat=$skipRepeat$tail")
     }
@@ -566,6 +587,12 @@ internal class InstallerWatcher(
         const val POLL_MS = 250L
         const val SETTINGS_WAIT_MS = 8_000L
         const val OFF_VERIFY_MS = 4_000L
+
+        /** Сессия ловца уже идёт — окно оценено, строка пишется только на реконнекте. */
+        const val REASON_SESSION_ACTIVE = "session_active"
+
+        /** Один и тот же пропуск печатается не чаще, чем каждый N-й (см. [logRepeat]). */
+        const val SKIP_LOG_EVERY = 25
 
         /** Подтверждений «выключено» подряд, необходимых для вердикта. */
         const val OFF_CONFIRMATIONS = 2

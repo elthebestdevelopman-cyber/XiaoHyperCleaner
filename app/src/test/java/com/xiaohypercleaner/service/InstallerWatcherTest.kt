@@ -168,9 +168,9 @@ class InstallerWatcherTest {
         logs: MutableList<String>,
         rootPackage: String?,
         enabled: Boolean = true,
-        cycleClosed: Boolean = false
+        cycleClosed: Boolean = false,
+        service: AccessibilityService = Mockito.mock(AccessibilityService::class.java)
     ): InstallerWatcher {
-        val service = Mockito.mock(AccessibilityService::class.java)
         if (rootPackage != null) {
             val root = Mockito.mock(AccessibilityNodeInfo::class.java)
             Mockito.`when`(root.packageName).thenReturn(rootPackage)
@@ -184,6 +184,26 @@ class InstallerWatcherTest {
             cycleClosed = { cycleClosed },
             onCycleDone = {},
             log = { logs.add(it) }
+        )
+    }
+
+    @Test
+    fun `foreign window on reconnect is cut off by the package gate before the tree walk`() {
+        val logs = mutableListOf<String>()
+        val service = Mockito.mock(AccessibilityService::class.java)
+        val root = Mockito.mock(AccessibilityNodeInfo::class.java)
+        Mockito.`when`(root.packageName).thenReturn("com.android.systemui")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        watcherWithLog(logs, rootPackage = null, service = service).onServiceReconnected()
+
+        // Ровно ОДНО чтение активного окна (в onServiceReconnected): второе означало бы обход
+        // чужого дерева, по которому SwitchFinder печатал `row search failed` подписями нашего
+        // собственного диалога (прогон rmvb6atul).
+        Mockito.verify(service, Mockito.times(1)).rootInActiveWindow
+        assertTrue(
+            "чужое окно отсекается причиной: $logs",
+            logs.any { it.contains("reason=${InstallerWatcherLogic.REASON_FOREIGN_PACKAGE}") }
         )
     }
 
