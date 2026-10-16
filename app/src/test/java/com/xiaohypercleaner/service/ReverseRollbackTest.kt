@@ -234,14 +234,15 @@ class ReverseRollbackTest {
 
     @Test
     fun `reverse drill step must reach its own screen before drilling`() {
-        // Форвард не меняется: решение — бурить с текущего экрана, предикат не вызывается.
+        // Форвард не меняется: решение — бурить с текущего экрана, предикаты не вызываются.
         var forwardReads = 0
         assertEquals(
             ReverseEntryAction.CONTINUE_DRILL,
             ReverseExtras.entryAction(
                 reverse = false,
                 onStepScreen = { forwardReads++; false },
-                retried = false
+                budgetLeftMs = 30_000L,
+                foreignWindow = { forwardReads++; false }
             )
         )
         assertEquals("форвард не платит за чтение экрана", 0, forwardReads)
@@ -249,17 +250,27 @@ class ReverseRollbackTest {
         assertEquals(
             "откат: шаг на своём экране — бурим",
             ReverseEntryAction.CONTINUE_DRILL,
-            ReverseExtras.entryAction(reverse = true, onStepScreen = { true }, retried = false)
+            ReverseExtras.entryAction(true, { true }, 30_000L, { false })
         )
         assertEquals(
-            "откат: чужой экран — повторный вход, а не бурение чужого окна",
+            "откат: чужой экран и живой бюджет — повторный вход, а не бурение чужого окна",
             ReverseEntryAction.RETRY_ENTRY,
-            ReverseExtras.entryAction(reverse = true, onStepScreen = { false }, retried = false)
+            ReverseExtras.entryAction(true, { false }, 30_000L, { false })
         )
         assertEquals(
-            "откат: повторный вход не помог — честный провал вместо low_confidence",
+            "откат: бюджет шага исчерпан, окно не чужое — бурение как в форварде",
+            ReverseEntryAction.CONTINUE_DRILL,
+            ReverseExtras.entryAction(true, { false }, 0L, { false })
+        )
+        assertEquals(
+            "откат: чужое окно — честный провал вместо low_confidence",
             ReverseEntryAction.FAIL_SCREEN_NOT_REACHED,
-            ReverseExtras.entryAction(reverse = true, onStepScreen = { false }, retried = true)
+            ReverseExtras.entryAction(true, { false }, 30_000L, { true })
+        )
+        assertEquals(
+            "откат: чужое окно — провал и без остатка бюджета",
+            ReverseEntryAction.FAIL_SCREEN_NOT_REACHED,
+            ReverseExtras.entryAction(true, { false }, 0L, { true })
         )
     }
 }

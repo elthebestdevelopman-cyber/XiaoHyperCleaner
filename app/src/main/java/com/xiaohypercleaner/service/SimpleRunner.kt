@@ -1344,28 +1344,46 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // low_confidence). Intent-шаги закрывает обратное окно подтверждения маршрута,
         // drill-шаги — нет: в канале отката шаг обязан попасть на свой экран ДО бурения.
         if (mergedDrillPath.isNotEmpty()) {
-            var reentered = false
+            val onStepScreen = { onTargetScreen(step) || isForegroundStepPackage(step) }
+            var attempts = 0
             while (true) {
-                when (
-                    ReverseExtras.entryAction(
-                        reverse = reverseCtx != null,
-                        onStepScreen = { onTargetScreen(step) || isForegroundStepPackage(step) },
-                        retried = reentered
+                val action = ReverseExtras.entryAction(
+                    reverse = reverseCtx != null,
+                    onStepScreen = onStepScreen,
+                    budgetLeftMs = remainingBudgetMs(),
+                    foreignWindow = { isForeignWindowFor(step) }
+                )
+                if (action != ReverseEntryAction.RETRY_ENTRY) break
+                attempts++
+                AppLog.w(
+                    TAG,
+                    "reverse entry: ${step.id} not on step screen " +
+                        "screen=${activePackage() ?: "-"} attempt=$attempts " +
+                        "budget=${remainingBudgetMs()}ms"
+                )
+                StepDiagnostics.note(step.id, "DRILL", "reverse_reentry attempt=$attempts")
+                // Интентов на повторный вход нет (`retryEnterStep` сразу вернёт false) — окно
+                // от повтора не изменится, вердикт выносится после выхода из петли.
+                if (step.intents.isEmpty()) break
+                retryEnterStep(step)
+            }
+            // Свой экран так и не достигнут: чужое окно — честный провал (бурить его нельзя),
+            // своё или нейтральное (Настройки, лаунчер) — бурим как в форварде.
+            if (attempts > 0 && !onStepScreen()) {
+                if (isForeignWindowFor(step)) {
+                    AppLog.w(
+                        TAG,
+                        "reverse entry: ${step.id} screen not reached — foreign window " +
+                            "'${activePackage() ?: "-"}' after $attempts attempts"
                     )
-                ) {
-                    ReverseEntryAction.CONTINUE_DRILL -> break
-                    ReverseEntryAction.RETRY_ENTRY -> {
-                        AppLog.w(TAG, "reverse entry: ${step.id} not on step screen — re-enter")
-                        StepDiagnostics.note(step.id, "DRILL", "reverse_reentry")
-                        retryEnterStep(step)
-                        reentered = true
-                    }
-                    ReverseEntryAction.FAIL_SCREEN_NOT_REACHED -> {
-                        AppLog.w(TAG, "reverse entry: ${step.id} screen not reached after re-entry")
-                        StepDiagnostics.note(step.id, "DRILL", "screen_not_reached")
-                        return Result(false, REVERSE_SCREEN_NOT_REACHED)
-                    }
+                    StepDiagnostics.note(step.id, "DRILL", "screen_not_reached attempts=$attempts")
+                    return Result(false, REVERSE_SCREEN_NOT_REACHED)
                 }
+                AppLog.w(
+                    TAG,
+                    "reverse entry: ${step.id} screen unconfirmed after $attempts attempts — drilling anyway"
+                )
+                StepDiagnostics.note(step.id, "DRILL", "reverse_drill_fallback attempts=$attempts")
             }
         }
         // Resume: если интент уже открыл нужный экран, начинаем с текущего уровня
