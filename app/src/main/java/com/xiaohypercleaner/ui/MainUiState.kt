@@ -169,7 +169,8 @@ data class MainUiState(
 
     /**
      * Предшаг отдан установщику: ждём переустановку. Простой режим продолжит
-     * `tryResumePendingSimpleMode()` — pending-флаг выставлен до открытия установщика.
+     * `tryResumePendingSimpleMode()` — pending-флаг выставлен после удачного открытия
+     * окна установщика.
      */
     val installerPreStepWaiting: Boolean = false,
 

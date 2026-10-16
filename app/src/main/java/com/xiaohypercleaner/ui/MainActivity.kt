@@ -261,7 +261,9 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(lifecycle) {
                         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                             vm.refreshStatuses()
-                            vm.tryResumePendingSimpleMode()
+                            // wasStopped смотрим ДО сброса в onResume: ложный resume
+                            // (без onStop) не должен снимать ожидание предшага установщика.
+                            vm.tryResumePendingSimpleMode(wasStopped)
                         }
                     }
                     MainContent(

@@ -3,6 +3,7 @@ package com.xiaohypercleaner.ui
 import android.app.Application
 import android.content.ComponentName
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.AndroidViewModel
@@ -544,32 +545,66 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Предшаг «одной кнопки»: пользователь согласился снять рекомендации установщика.
-     * Установщик открываем только после удачного копирования сборки; при любой неудаче
-     * идём обычным путём ([startSimpleMode]) и pending НЕ оставляем — иначе Простой режим
-     * стартовал бы сам при следующем запуске, хотя установки не было.
+     * Порядок обязателен: право на установку из неизвестных источников → копия сборки →
+     * окно установщика → pending. pending ставится ТОЛЬКО после удачного открытия окна:
+     * иначе Простой режим стартовал бы сам, хотя установки не было. Неудача на любом шаге —
+     * обычный старт ([startSimpleMode]); без права ожидание сохраняется, и проход
+     * повторяется по возврату из настроек ([tryResumePendingSimpleMode]).
      */
     fun onInstallerPreStepDisableNow() {
         AppLog.i(TAG, "installer pre-step: disable now")
         update { it.copy(showInstallerPreStep = false, installerPreStepWaiting = true) }
-        viewModelScope.launch {
-            val apk = withContext(Dispatchers.IO) { SelfApkExporter.copyToCache(app) }
-            if (apk == null) {
-                AppLog.w(TAG, "installer pre-step: apk copy failed — обычный старт")
-                update { it.copy(installerPreStepWaiting = false) }
-                startSimpleMode()
-                return@launch
-            }
-            prepareSimpleModePending()
-            viewModelScope.launch { prefs.setOptimizationMode(OptimizationMode.SIMPLE) }
-            val opened = withContext(Dispatchers.IO) { SelfApkExporter.openInstaller(app, apk) }
-            if (!opened) {
-                AppLog.w(TAG, "installer pre-step: installer not opened — обычный старт")
-                withContext(Dispatchers.IO) { SelfApkExporter.purge(app) }
-                viewModelScope.launch { prefs.setPendingSimpleMode(false) }
-                update { it.copy(installerPreStepWaiting = false) }
-                startSimpleMode()
-            }
+        viewModelScope.launch { runInstallerPreStep() }
+    }
+
+    /** Один проход предшага: право → копия → окно установщика → pending. */
+    private suspend fun runInstallerPreStep() {
+        if (!canInstallUnknownApps()) {
+            AppLog.i(TAG, "installer pre-step: unknown sources permission required")
+            openUnknownSourcesSettings()
+            return
         }
+        val apk = withContext(Dispatchers.IO) { SelfApkExporter.copyToCache(app) }
+        if (apk == null) {
+            AppLog.w(TAG, "installer pre-step: apk copy failed — обычный старт")
+            update { it.copy(installerPreStepWaiting = false) }
+            startSimpleMode()
+            return
+        }
+        val opened = withContext(Dispatchers.IO) { SelfApkExporter.openInstaller(app, apk) }
+        if (!opened) {
+            AppLog.w(TAG, "installer pre-step: installer not opened — обычный старт")
+            withContext(Dispatchers.IO) { SelfApkExporter.purge(app) }
+            update { it.copy(installerPreStepWaiting = false) }
+            startSimpleMode()
+            return
+        }
+        prepareSimpleModePending()
+        viewModelScope.launch { prefs.setOptimizationMode(OptimizationMode.SIMPLE) }
+    }
+
+    /** Разрешение ставить APK из неизвестных источников (Android 8+). */
+    private fun canInstallUnknownApps(): Boolean = runCatching {
+        app.packageManager.canRequestPackageInstalls()
+    }.getOrDefault(false)
+
+    /** Экран «Установка неизвестных приложений» для нашего пакета: выдать право и вернуться. */
+    private fun openUnknownSourcesSettings() {
+        val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+            .setData(Uri.parse("package:${app.packageName}"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val resolved = runCatching {
+            app.packageManager.queryIntentActivities(intent, 0).size
+        }.getOrDefault(-1)
+        val started = runCatching {
+            app.startActivity(intent)
+            true
+        }.getOrDefault(false)
+        AppLog.i(
+            TAG,
+            "installer pre-step: unknown sources settings resolved=$resolved started=$started"
+        )
+        if (!started) AppLog.w(TAG, "installer pre-step: unknown sources settings not opened")
     }
 
     /** Предшаг отклонён: обычный старт Простого режима, персист не трогаем. */
@@ -716,9 +751,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun tryResumePendingSimpleMode() {
+    /**
+     * Возобновление Простого режима после переустановки (pending из DataStore).
+     *
+     * [wasStopped] — активность реально уходила из приложения (был `onStop`). Ложный
+     * resume (`wasStopped = false`: системный диалог MIUI поверх либо наш собственный
+     * `startActivity` в установщик) ожидание предшага НЕ снимает — иначе оптимизация
+     * стартует до переустановки (прогон rmvb6atul: 0 onPause/onStop за прогон, resume
+     * через 76 мс после `self apk installer opened`).
+     */
+    fun tryResumePendingSimpleMode(wasStopped: Boolean = false) {
         viewModelScope.launch {
-            if (!prefs.getPendingSimpleMode()) return@launch
+            val waiting = _state.value.installerPreStepWaiting
+            if (waiting && !wasStopped) {
+                AppLog.i(TAG, "installer pre-step: waiting kept on false resume")
+                return@launch
+            }
+            if (!prefs.getPendingSimpleMode()) {
+                // Ожидание живо, а pending нет: право на установку выдавали в настройках —
+                // предшаг не доведён. Повторяем проход по реальному возврату.
+                if (waiting) {
+                    AppLog.i(TAG, "installer pre-step: retry after return without pending")
+                    runInstallerPreStep()
+                }
+                return@launch
+            }
             if (_state.value.simpleModeActive) {
                 // Режим уже идёт: ожидание установщика больше не актуально. Лог — под гейтом
                 // состояния: ветка срабатывает на КАЖДОМ возврате в приложение во время прогона.

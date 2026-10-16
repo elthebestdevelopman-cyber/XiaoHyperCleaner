@@ -50,7 +50,9 @@ internal object SelfApkExporter {
         source.inputStream().use { input ->
             target.outputStream().use { output -> input.copyTo(output) }
         }
-        AppLog.i(TAG, "self apk copied: ${target.name}, bytes=${target.length()}")
+        // Размер — коротким числом в килобайтах: восьмизначное число в байтах ловит
+        // LogMasker.phoneRegex (3+3+2 цифры) и уезжает в лог как `***-***-**-**`.
+        AppLog.i(TAG, "self apk copied: ${target.name}, size=${target.length() / 1024} KB")
         target
     }.onFailure { e ->
         AppLog.w(TAG, "self apk copy failed: ${e.message}")
@@ -67,6 +69,15 @@ internal object SelfApkExporter {
             setDataAndType(uri, MIME_APK)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         }
+        // Резолв пишем ДО старта: связка «права на установку нет → окно не открылось»
+        // остаётся гипотезой приёмки (прогон rmvb6atul: `installer opened`, но у MainActivity
+        // 0 onPause/onStop). По строке видно, находит ли MIUI активность под ACTION_VIEW на APK.
+        val resolved = context.packageManager.queryIntentActivities(intent, 0)
+        AppLog.i(
+            TAG,
+            "self apk installer resolve: count=${resolved.size} " +
+                "first=${resolved.firstOrNull()?.activityInfo?.packageName}"
+        )
         context.startActivity(intent)
         AppLog.i(TAG, "self apk installer opened: ${apk.name}")
         true
