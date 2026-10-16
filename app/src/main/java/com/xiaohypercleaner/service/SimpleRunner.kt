@@ -1031,10 +1031,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // не дошёл — шаг продолжает авто-навигацией (intents → drill → сканер):
         // вариантные пути обязаны оставаться подсказками-фолбэками (master-task v2).
         // Guard чужого окна (P4): набор пакетов, окна которых для этого шага свои.
-        // Пополняется по ходу шага (launchPackage, resolvedPkg, пакеты route-подсказки,
-        // пакет подтверждённого входа); всё остальное — чужое окно.
-        entryPackages.clear()
-        step.launchPackage?.let { entryPackages.add(it) }
+        // Семя — пакеты-цели шага ([stepPackagesFor]: launchPackage плюс requiredPackages
+        // каталога и legacy-структуры), дальше набор пополняется по ходу шага (resolvedPkg,
+        // пакеты route-подсказки, пакет подтверждённого входа). Остальное — чужое окно.
+        seedEntryPackages(step)
         val routeScript = SemanticCatalog.route(step.id)
         if (routeScript.isNotEmpty()) {
             AppLog.i(TAG, "route script for ${step.id}: ${routeScript.size} шаг(ов) — подсказка, не замена навигации")
@@ -3063,11 +3063,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
     /**
      * Окно drilling принадлежит ЧУЖОМУ приложению: шаг не тапает и не скроллит его
      * (прогон rmuyfjtvk: промо-ссылка свежей Mi Music открыла Google Play, и дрил продолжал
-     * тапать и скроллить магазин). Свои окна — пакеты, зафиксированные за шагом
-     * ([entryPackages]: launchPackage, resolvedPkg, пакеты route-подсказки, пакет
-     * подтверждённого входа), плюс Настройки, лаунчеры MIUI, системные поверхности и
-     * собственное окно. Пакет не прочитался — окно чужим не считается: иначе шаг падал бы
-     * на мигающем дереве.
+     * тапать и скроллить магазин). Свои окна — пакеты-цели шага ([stepPackagesFor]:
+     * launchPackage плюс requiredPackages), resolvedPkg, пакеты route-подсказки, пакет
+     * подтверждённого входа ([entryPackages]), плюс Настройки, лаунчеры MIUI, системные
+     * поверхности и собственное окно. Пакет не прочитался — окно чужим не считается: иначе
+     * шаг падал бы на мигающем дереве.
      */
     // internal — для тестируемости (SimpleRunnerRouteTest).
     internal fun isForeignWindowFor(step: SimpleSteps.Step): Boolean {
@@ -3081,6 +3081,30 @@ class SimpleRunner(private val service: AdbEnablerService) {
         if (own != null && own.equals(fg, ignoreCase = true)) return false
         return true
     }
+
+    /**
+     * Семя набора «своих» окон шага: пакеты-цели ([stepPackagesFor]). Раньше семенем был один
+     * launchPackage, и у шага с requiredPackages без launchPackage (carousel) набор оставался
+     * пустым: `isForegroundStepPackage` (читает [stepPackagesFor]) считал окно своим, а
+     * [isForeignWindowFor] — чужим, поэтому drill рубился на первом же уровне (прогон
+     * rmvb6atul). Набор пакетов от этого не расширяется за пределы пакетов-целей шага.
+     */
+    // internal — для тестируемости (SimpleRunnerRouteTest).
+    internal fun seedEntryPackages(step: SimpleSteps.Step) {
+        entryPackages.clear()
+        entryPackages.addAll(stepPackagesFor(step))
+    }
+
+    /**
+     * Подтверждение экрана для доп. целей: пакет окна обязан быть «своим». Пустой набор и
+     * непрочитанный пакет проверку не выполняют (прежнее поведение). Настройки «своими» не
+     * становятся: расширенное семя не имеет права вернуть ложное подтверждение экрана
+     * (прогон rmv6x9ts1, carousel: `markers_ok=true` на странице «Блокировка экрана»).
+     */
+    // internal — для тестируемости (SimpleRunnerRouteTest).
+    internal fun extraTargetsPackageOk(livePackage: String?): Boolean =
+        entryPackages.isEmpty() || livePackage == null ||
+            entryPackages.any { it.equals(livePackage, ignoreCase = true) }
 
     /**
      * Один возврат в приложение шага после ухода в чужое окно (P4). Без CLEAR_TASK:
@@ -5924,8 +5948,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Пакет окна обязан быть «своим» для шага: маркеры без проверки пакета ложно
         // подтверждали экран (прогон rmv6x9ts1, carousel: markers_ok=true на странице
         // «Блокировка экрана», где «Карусель обоев» — строка-ссылка, а не тумблер).
-        val packageOk = entryPackages.isEmpty() || livePackage == null ||
-            entryPackages.any { it.equals(livePackage, ignoreCase = true) }
+        val packageOk = extraTargetsPackageOk(livePackage)
         val liveScreen = currentScreenText()
         val markersOk = markers.isEmpty() ||
             markers.any { TextMatcher.normalizedContains(liveScreen, it) }

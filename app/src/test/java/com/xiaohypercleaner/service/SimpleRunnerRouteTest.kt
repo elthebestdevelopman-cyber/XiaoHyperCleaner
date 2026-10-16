@@ -604,6 +604,66 @@ class SimpleRunnerRouteTest {
         assertTrue("новый прогон выдаёт бюджет заново", runner.claimWarmUp("appvault_services"))
     }
 
+    /**
+     * F5a: пакеты-цели шага (launchPackage + requiredPackages) — семя набора «своих» окон.
+     *
+     * Прежнее семя из одного launchPackage оставляло набор пустым у carousel (launchPackage
+     * пуст, пакет задан только requiredPackages): `isForegroundStepPackage` считал окно своим,
+     * а `isForeignWindowFor` — чужим, и drill рубился на первом же уровне (прогон rmvb6atul).
+     */
+    @Test
+    fun `required packages alone make the step window its own`() = runTest {
+        val carousel = step("carousel")
+        val fashion = node(pkg = "com.miui.android.fashiongallery")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(fashion)
+
+        runner.seedEntryPackages(carousel)
+
+        assertFalse(
+            "окно пакета-цели чужим не считается",
+            runner.isForeignWindowFor(carousel)
+        )
+        assertTrue(
+            "пакет окна подтверждает экран доп. целей",
+            runner.extraTargetsPackageOk("com.miui.android.fashiongallery")
+        )
+    }
+
+    @Test
+    fun `a step without package targets keeps the previous behaviour`() = runTest {
+        // Шаг без launchPackage и без requiredPackages: семя пусто, чужое окно остаётся чужим,
+        // а проверка пакета для доп. целей по-прежнему вакуумная (прежнее поведение).
+        val bare = step("browser_sys")
+        val foreign = node(pkg = "com.google.android.gms")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(foreign)
+
+        runner.seedEntryPackages(bare)
+
+        assertTrue("чужое окно остаётся чужим", runner.isForeignWindowFor(bare))
+        assertTrue(
+            "пустое семя проверку пакета не выполняет",
+            runner.extraTargetsPackageOk("com.google.android.gms")
+        )
+    }
+
+    @Test
+    fun `settings window does not confirm extra targets of another app step`() = runTest {
+        // Строгая семантика package_ok: Настройки «своими» для чужого шага не становятся —
+        // иначе возвращалось ложное подтверждение экрана на странице «Блокировка экрана»
+        // (прогон rmv6x9ts1, carousel: markers_ok=true, package_ok=true).
+        val carousel = step("carousel")
+        runner.seedEntryPackages(carousel)
+
+        assertFalse(
+            "Настройки экран доп. целей не подтверждают",
+            runner.extraTargetsPackageOk("com.android.settings")
+        )
+        assertTrue(
+            "непрочитанный пакет проверку не выполняет (прежнее поведение)",
+            runner.extraTargetsPackageOk(null)
+        )
+    }
+
     /** Границы узла: `getBoundsInScreen` заполняет переданный Rect. */
     private fun bounds(n: AccessibilityNodeInfo, l: Int, t: Int, r: Int, b: Int) {
         Mockito.`when`(n.getBoundsInScreen(Mockito.any(android.graphics.Rect::class.java)))
