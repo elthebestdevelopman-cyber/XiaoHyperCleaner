@@ -434,6 +434,19 @@ class SimpleRunner(private val service: AdbEnablerService) {
         internal const val INSTALLER_SETTINGS_DENIED = "installer_settings_denied"
 
         /**
+         * Исход обхода папок: «секции рекомендаций нет» ([FOLDER_SWITCH_ABSENT]) — только когда
+         * хотя бы одну папку довели до редактора с СИЛЬНЫМ подтверждением
+         * ([FolderEditorEvidence.STRONG]); иначе это промах автоматизации
+         * ([FOLDER_EDITOR_NOT_OPENED], ведро «не нашёл»), а не состояние устройства.
+         *
+         * Конъюнкция с [foldersChecked] документирует инвариант: сильное подтверждение возможно
+         * только внутри засчитанной папки (счётчик растёт до вызова `openFolderEditor`).
+         */
+        internal fun folderWalkReason(foldersChecked: Int, strongConfirmed: Int): String =
+            if (foldersChecked > 0 && strongConfirmed > 0) FOLDER_SWITCH_ABSENT
+            else FOLDER_EDITOR_NOT_OPENED
+
+        /**
          * Ведро причины пропуска шага. Статический помощник: его зовёт AdbEnablerService
          * при выборе текста отчёта, экземпляр раннера для этого не нужен.
          *
@@ -4393,7 +4406,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         var probed = 0
         var foldersChecked = 0
-        var editorMissed = false
+        // Кандидаты без СИЛЬНОГО подтверждения редактора и сорвавшиеся тапы: по ним
+        // «секции нет» не выносится, а открытый пункт «пересбор кандидатов» становится
+        // измеримым (taps_failed > 0 — узлы устарели).
+        var strongConfirmed = 0
+        var weakOrMissed = 0
+        var tapsFailed = 0
         for (candidate in candidates) {
             if (probed >= probeLimit) break
             if (remainingBudgetMs() < FOLDER_BUDGET_RESERVE_MS) {
@@ -4416,6 +4434,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             recycleNode(candidate)
             if (!tapped) {
                 AppLog.w(TAG, "folder: tap failed for " + label)
+                tapsFailed++
                 continue
             }
             delay(FOLDER_OPEN_DELAY_MS)
@@ -4436,7 +4455,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             AppLog.i(TAG, "folder: popover opened for " + label)
             foldersChecked++
 
-            val editorOpened = openFolderEditor(
+            val evidence = openFolderEditor(
                 folderLabel = label,
                 folderX = rect.centerX().toFloat(),
                 folderY = rect.centerY().toFloat(),
@@ -4444,13 +4463,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 editorMarkers = editorMarkers,
                 toggleTexts = toggleTexts
             )
-            if (!editorOpened) {
+            if (evidence == FolderEditorEvidence.NONE) {
                 // У ЭТОЙ папки секция/редактор не открылись: первая по дереву папка
                 // может быть не той (владелец: робот открывает не те папки) — проверяем
                 // следующую, а не объявляем шаг неприменимым.
                 AppLog.w(TAG, "folder: editor not opened for " + label + " — следующая папка")
-                StepDiagnostics.note(step.id, "FOLDER", "editor_not_opened name=" + label)
-                editorMissed = true
+                StepDiagnostics.note(
+                    step.id, "FOLDER", "editor_not_opened name=" + label + " evidence=none"
+                )
+                weakOrMissed++
                 leaveFolderEditor()
                 continue
             }
@@ -4462,23 +4483,50 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 rememberFolderName(step.id, label)
                 return result
             }
+            if (evidence == FolderEditorEvidence.WEAK) {
+                // Редактор подтверждён СЛАБО (маркеры каталога без заголовка поповера): это мог
+                // быть список приложений рабочего стола — «секции нет» отсюда не выводится,
+                // кандидат считается промахом (прогон rmvb6atul: вывод об отсутствии настройки
+                // был сделан на экране списка приложений).
+                AppLog.w(
+                    TAG,
+                    "folder: редактор подтверждён слабо для " + label + " — следующая папка"
+                )
+                StepDiagnostics.note(
+                    step.id, "FOLDER", "editor_not_opened name=" + label + " evidence=weak"
+                )
+                weakOrMissed++
+                continue
+            }
             AppLog.i(TAG, "folder: в папке " + label + " секции рекомендаций нет — следующая")
-            StepDiagnostics.note(step.id, "FOLDER", "no_suggestions name=" + label)
+            strongConfirmed++
+            StepDiagnostics.note(
+                step.id, "FOLDER", "no_suggestions name=" + label + " evidence=strong"
+            )
         }
 
-        if (foldersChecked > 0 && !editorMissed) {
-            // Проверили все папки: секции рекомендаций нет ни в одной — состояние
-            // устройства (выключено вместе с msa/персонализацией), а не промах.
+        if (folderWalkReason(foldersChecked, strongConfirmed) == FOLDER_SWITCH_ABSENT) {
+            // Проверили все папки, и хотя бы одну довели до редактора с СИЛЬНЫМ
+            // подтверждением: секции рекомендаций нет ни в одной — состояние устройства
+            // (выключено вместе с msa/персонализацией), а не промах.
             AppLog.i(TAG, "folder: секции рекомендаций нет в " + foldersChecked + " папках")
             StepDiagnostics.note(
-                step.id, "APPLICABILITY", "folder_switch_absent folders=" + foldersChecked
+                step.id,
+                "APPLICABILITY",
+                "folder_switch_absent folders=" + foldersChecked +
+                    " strong=" + strongConfirmed + " weak=" + weakOrMissed +
+                    " taps_failed=" + tapsFailed
             )
             return Result(false, FOLDER_SWITCH_ABSENT)
         }
-        // Папки есть, но ни одну не довели до секции: честный промах автоматизации
-        // (ведро «не нашёл» в отчёте), а не «нет на устройстве».
+        // Папки есть, но ни одну не довели до секции с сильным подтверждением: честный промах
+        // автоматизации (ведро «не нашёл» в отчёте), а не «нет на устройстве».
         StepDiagnostics.note(
-            step.id, "APPLICABILITY", "folder_editor_not_opened folders=" + foldersChecked
+            step.id,
+            "APPLICABILITY",
+            "folder_editor_not_opened folders=" + foldersChecked +
+                " strong=" + strongConfirmed + " weak=" + weakOrMissed +
+                " taps_failed=" + tapsFailed
         )
         return Result(false, FOLDER_EDITOR_NOT_OPENED)
     }
@@ -4629,41 +4677,50 @@ class SimpleRunner(private val service: AdbEnablerService) {
         menuTexts: List<String>,
         editorMarkers: List<String>,
         toggleTexts: List<String>
-    ): Boolean {
+    ): FolderEditorEvidence {
+        // Лучшее свидетельство серии: STRONG возвращается сразу, WEAK запоминается и не мешает
+        // следующей попытке тапа дать сильное подтверждение.
+        var best = FolderEditorEvidence.NONE
         // Ждём поповер: без ожидания тап заголовка уходил в иконку рабочего стола ПОЗАДИ
         // поповера (анимация MIUI), редактор не открывался и шаг шёл искать другие папки
         // (прогон rmulg783z).
         if (awaitFolderPopover(FOLDER_POPOVER_WAIT_MS)) {
             repeat(FOLDER_TITLE_TAPS) { attempt ->
-                if (cancelled) return false
+                if (cancelled) return FolderEditorEvidence.NONE
                 if (!tapFolderTitle(folderLabel)) return@repeat
                 delay(UI_SETTLE_DELAY_MS)
-                if (isFolderEditorVisible(editorMarkers, toggleTexts)) return true
+                val evidence = folderEditorEvidence(editorMarkers, toggleTexts)
+                if (evidence == FolderEditorEvidence.STRONG) return evidence
+                if (evidence == FolderEditorEvidence.WEAK) best = maxOf(best, evidence)
                 AppLog.w(
                     TAG,
-                    "folder: заголовок нажат, редактор не подтверждён (попытка " + (attempt + 1) + ")"
+                    "folder: заголовок нажат, редактор не подтверждён " +
+                        "(попытка " + (attempt + 1) + ", evidence=" + evidence + ")"
                 )
             }
         } else {
             AppLog.w(TAG, "folder: поповер папки не появился за " + FOLDER_POPOVER_WAIT_MS + "ms")
         }
-        if (menuTexts.isEmpty()) return false
-        if (!awaitOverlayReadyOrPause()) return false
+        if (menuTexts.isEmpty()) return best
+        if (!awaitOverlayReadyOrPause()) return best
         // Контекстное меню папки живёт только на рабочем столе: возвращаемся.
         resetToHome()
         delay(UI_SETTLE_DELAY_MS)
         longPressAt(folderX, folderY)
         delay(FOLDER_OPEN_DELAY_MS)
-        val root = service.rootInActiveWindow ?: return false
+        val root = service.rootInActiveWindow ?: return best
         val item = findClickableByText(root, menuTexts)
         if (item == null) {
             recycleNode(root)
-            return false
+            return best
         }
         val tapped = tapNode(item)
         recycleNode(item); recycleNode(root)
         delay(FOLDER_OPEN_DELAY_MS)
-        return tapped && isFolderEditorVisible(editorMarkers, toggleTexts)
+        if (!tapped) return best
+        // Меню/long-press — второй путь к редактору (HyperOS 2/3): его свидетельство сильнее
+        // слабого из серии тапов, поэтому берём максимум.
+        return maxOf(best, folderEditorEvidence(editorMarkers, toggleTexts))
     }
 
     /**
@@ -4800,14 +4857,25 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     /**
-     * Экран редактора папки. Признаки: поле переименования `rename_edit`, найденный
-     * тумблер рекомендаций либо маркеры каталога. Маркеры принимаем ТОЛЬКО когда заголовка
-     * поповера уже нет (в редакторе его место занимает `rename_edit`): иначе фоновые тексты
-     * давали ложное «редактор открыт», и шаг объявлял, что секции рекомендаций нет
-     * (прогон rmulg783z).
+     * Сила подтверждения редактора папки. Порядок объявления — ПО СИЛЕ (`NONE < WEAK < STRONG`),
+     * поэтому `maxOf` даёт сильнейшее свидетельство серии тапов.
      */
-    private fun isFolderEditorVisible(markers: List<String>, toggleTexts: List<String>): Boolean {
-        val root = service.rootInActiveWindow ?: return false
+    internal enum class FolderEditorEvidence { NONE, WEAK, STRONG }
+
+    /**
+     * Экран редактора папки и СИЛА подтверждения. Признаки: поле переименования `rename_edit`,
+     * найденный тумблер рекомендаций (`STRONG`) либо маркеры каталога при исчезнувшем заголовке
+     * поповера (`WEAK`). Маркеры сами по себе принимались только без заголовка (фоновые тексты
+     * рабочего стола давали ложное «редактор открыт», прогон rmulg783z), но и в этом виде
+     * признак слабый: на экране списка приложений `rename_edit` и тумблера нет, заголовка нет,
+     * а маркеры совпадают — шаг объявлял «секции рекомендаций нет» по слабому свидетельству
+     * (прогон rmvb6atul). Вердикт «секции нет» выносится только по [FolderEditorEvidence.STRONG].
+     */
+    internal fun folderEditorEvidence(
+        markers: List<String>,
+        toggleTexts: List<String>
+    ): FolderEditorEvidence {
+        val root = service.rootInActiveWindow ?: return FolderEditorEvidence.NONE
         val text = collectAllText(root)
         val renamed = NodeTree.findInTree(root) { node ->
             node.viewIdResourceName?.endsWith("rename_edit") == true
@@ -4822,7 +4890,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
         recycleNode(titleNode)
         recycleNode(root)
         val byMarkers = markers.isNotEmpty() && markers.any { TextMatcher.normalizedContains(text, it) }
-        return byRename || bySwitch || (byMarkers && titleGone)
+        return when {
+            byRename || bySwitch -> FolderEditorEvidence.STRONG
+            byMarkers && titleGone -> FolderEditorEvidence.WEAK
+            else -> FolderEditorEvidence.NONE
+        }
     }
 
     /** Заголовок открытого поповера: узел `id=title` с непустым текстом. Иконки рабочего

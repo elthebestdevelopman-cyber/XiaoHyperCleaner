@@ -301,5 +301,28 @@ class SimpleRunnerFolderTest {
         assertFalse("чужой заголовок не подходит", runner.isFolderTitleNode(chromeTitle))
         assertEquals("com.miui.home:id/title", runner.findFolderTitleNode()?.viewIdResourceName)
     }
+
+    @Test
+    fun `folder walk reports a miss unless the editor was strongly confirmed`() {
+        // F8-1: «секции рекомендаций нет» — только по СИЛЬНОМУ подтверждению редактора
+        // (`rename_edit` либо тумблер с текстом шага). Слабое подтверждение (маркеры каталога
+        // без заголовка поповера) на экране списка приложений давало вывод об отсутствии
+        // настройки и уводило шаг в пропуск «нет на устройстве» (прогон rmvb6atul).
+        assertEquals(
+            "кандидаты без сильного подтверждения — промах, а не отсутствие настройки",
+            SimpleRunner.FOLDER_EDITOR_NOT_OPENED,
+            SimpleRunner.folderWalkReason(foldersChecked = 2, strongConfirmed = 0)
+        )
+        assertEquals(
+            "хотя бы одна папка с сильным подтверждением — состояние устройства",
+            SimpleRunner.FOLDER_SWITCH_ABSENT,
+            SimpleRunner.folderWalkReason(foldersChecked = 2, strongConfirmed = 1)
+        )
+        assertEquals(
+            "ни одной папки не засчитано — промах",
+            SimpleRunner.FOLDER_EDITOR_NOT_OPENED,
+            SimpleRunner.folderWalkReason(foldersChecked = 0, strongConfirmed = 0)
+        )
+    }
 }
 
