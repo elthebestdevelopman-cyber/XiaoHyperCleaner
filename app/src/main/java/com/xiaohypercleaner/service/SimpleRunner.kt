@@ -3383,13 +3383,29 @@ class SimpleRunner(private val service: AdbEnablerService) {
             // честный already_off, а не skip «нет на устройстве» (прогон rmuwvcqiw:
             // notif_appvault skipped при уже выключенных уведомлениях).
             if (isChecked == step.targetChecked) {
-                AppLog.i(TAG, "switch disabled by rom but already in target state for {step.id}")
-                StepDiagnostics.note(step.id, "APPLICABILITY", "switch_disabled_already_target")
+                AppLog.i(
+                    TAG,
+                    "switch disabled by rom but already in target state for {step.id} " +
+                        "checked=$isChecked target=${step.targetChecked}"
+                )
+                StepDiagnostics.note(
+                    step.id,
+                    "APPLICABILITY",
+                    "switch_disabled_already_target checked=$isChecked target=${step.targetChecked}"
+                )
                 recycleNode(targetSwitch); recycleNode(currentRoot)
                 return Result(true, if (step.targetChecked) "already_done" else "already_off")
             }
-            AppLog.w(TAG, "switch disabled by rom for {step.id} — switch_disabled")
-            StepDiagnostics.note(step.id, "APPLICABILITY", "switch_disabled")
+            AppLog.w(
+                TAG,
+                "switch disabled by rom for {step.id} — switch_disabled " +
+                    "checked=$isChecked target=${step.targetChecked}"
+            )
+            StepDiagnostics.note(
+                step.id,
+                "APPLICABILITY",
+                "switch_disabled checked=$isChecked target=${step.targetChecked}"
+            )
             recycleNode(targetSwitch); recycleNode(currentRoot)
             return Result(false, SWITCH_DISABLED_BY_ROM)
         }
