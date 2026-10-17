@@ -162,23 +162,24 @@ object ReverseExtras {
      * (правило возвращает [ReverseEntryAction.CONTINUE_DRILL] первым же условием), поэтому
      * стоимость чтений окна платит только канал отката. Форвардное поведение не меняется.
      *
-     * Повтор входа ограничен остатком бюджета шага ([budgetLeftMs]), а не одной попыткой:
-     * один вход стоит ~3,2 с при бюджете шага 30–40 с, и единственная попытка отдавала
-     * `screen_not_reached` при живом бюджете (прогон rmvb6atul: msa и ux_program — провал
-     * за 6,1 с при 23 с успеха в прямой фазе).
+     * Повтор ограничен двумя границами: остатком бюджета НАД резервом
+     * ([budgetAboveReserveMs] — вызывающий вычитает резерв на вход и на тумблер) и потолком
+     * попыток ([attemptsLeft]). Одна попытка отдавала `screen_not_reached` при живом бюджете
+     * (прогон rmvb6atul: msa и ux_program — провал за 6,1 с при 23 с успеха в прямой фазе).
      */
     fun entryAction(
         reverse: Boolean,
         onStepScreen: () -> Boolean,
-        budgetLeftMs: Long,
+        budgetAboveReserveMs: Long,
+        attemptsLeft: Int,
         foreignWindow: () -> Boolean
     ): ReverseEntryAction = when {
         !reverse -> ReverseEntryAction.CONTINUE_DRILL
         onStepScreen() -> ReverseEntryAction.CONTINUE_DRILL
         // Чужое окно: в него не возвращаемся и его не бурим — честный провал шага.
         foreignWindow() -> ReverseEntryAction.FAIL_SCREEN_NOT_REACHED
-        budgetLeftMs > 0 -> ReverseEntryAction.RETRY_ENTRY
-        // Бюджет исчерпан, но окно не чужое (Настройки, лаунчер, наше окно): отказа шагу не
+        attemptsLeft > 0 && budgetAboveReserveMs > 0 -> ReverseEntryAction.RETRY_ENTRY
+        // Попытки исчерпаны или бюджет ниже резерва, но окно не чужое: отказа шагу не
         // выписываем — дальше бурение с текущего экрана, как в форварде.
         else -> ReverseEntryAction.CONTINUE_DRILL
     }

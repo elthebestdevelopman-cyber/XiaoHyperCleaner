@@ -551,6 +551,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
          */
         private const val TOGGLE_BUDGET_RESERVE_MS = 4000L
 
+        /**
+         * Резерв бюджета на повторный вход drill-шага в откате: вход стоит до
+         * [APP_SCREEN_WAIT_MS], а после него шагу нужны тумблер и verify
+         * ([TOGGLE_BUDGET_RESERVE_MS]). Ниже этой границы повтор не начинаем — иначе
+         * повтор съедал бы время, оставленное на само действие.
+         */
+        private const val REENTRY_RESERVE_MS = TOGGLE_BUDGET_RESERVE_MS + APP_SCREEN_WAIT_MS
+
+        /** Потолок повторов входа на шаг: каждый повтор стоит до [APP_SCREEN_WAIT_MS]. */
+        private const val MAX_REENTRY_ATTEMPTS = 3
+
         /** Сколько ждать появления диалога подтверждения (confirmTexts) после тумблера. */
         /** Пауза после тапа подтверждения: проверяем, что диалог действительно закрылся. */
         private const val CONFIRM_SETTLE_MS = 400L
@@ -1355,7 +1366,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 val action = ReverseExtras.entryAction(
                     reverse = reverseCtx != null,
                     onStepScreen = onStepScreen,
-                    budgetLeftMs = remainingBudgetMs(),
+                    budgetAboveReserveMs = remainingBudgetMs() - REENTRY_RESERVE_MS,
+                    attemptsLeft = MAX_REENTRY_ATTEMPTS - attempts,
                     foreignWindow = { isForeignWindowFor(step) }
                 )
                 if (action != ReverseEntryAction.RETRY_ENTRY) break
@@ -1363,8 +1375,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 AppLog.w(
                     TAG,
                     "reverse entry: ${step.id} not on step screen " +
-                        "screen=${activePackage() ?: "-"} attempt=$attempts " +
-                        "budget=${remainingBudgetMs()}ms"
+                        "screen=${activePackage() ?: "-"} attempt=$attempts" +
+                        "/$MAX_REENTRY_ATTEMPTS budget=${remainingBudgetMs()}ms " +
+                        "reserve=${REENTRY_RESERVE_MS}ms"
                 )
                 StepDiagnostics.note(step.id, "DRILL", "reverse_reentry attempt=$attempts")
                 // Интентов на повторный вход нет (`retryEnterStep` сразу вернёт false) — окно
