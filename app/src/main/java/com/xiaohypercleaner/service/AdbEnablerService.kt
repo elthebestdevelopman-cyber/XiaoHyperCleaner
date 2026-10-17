@@ -527,26 +527,16 @@ class AdbEnablerService : AccessibilityService() {
                 // ИСПРАВЛЕНО (строка 295): В новом Result нет поля `skipped`.
                 // Если пакет не установлен, раннер возвращает reason="app_not_installed"
                 // ═══════════════════════════════════════════════════════════════
-                // not_applicable: экрана/строк шага на этом устройстве нет вовсе —
-                // это skip, а не FAIL (иначе отчёт врёт, прогон rmu8qhjhi).
-                // Пропуск ≠ провал, но и не «нет на устройстве» по умолчанию: ведро причины
-                // считает SimpleRunner.classifySkip, а текст отчёта берётся из отдельных
-                // строк — иначе отчёт сваливал вину на устройство (прогон rmuk44un7).
-                val skippedResult = !result.success && (
-                    result.reason == "app_not_installed" ||
-                        result.reason == "low_confidence" ||
-                        result.reason == "foreign_screen" ||
-                        result.reason == "installer_settings_not_found" ||
-                        result.reason == "installer_settings_denied" ||
-                        result.reason == "switch_disabled" ||
-                        result.reason == "folder_switch_absent" ||
-                        result.reason == SimpleRunner.FOLDER_EDITOR_NOT_OPENED ||
-                        result.reason == SimpleRunner.LAUNCHER_ABSENT ||
-                        result.reason == SimpleRunner.ROUTE_SCREEN_UNCONFIRMED ||
-                        result.reason == SimpleRunner.NOT_APPLICABLE
-                    )
+                // Пропуском в отчёте становится ТОЛЬКО ведро «нет на устройстве»
+                // (SimpleRunner.classifySkip == NOT_ON_DEVICE: пакет не установлен, экрана настроек
+                // установщика на прошивке нет). Промахи автоматизации — LAUNCHER_ABSENT
+                // (`home_suggestions`: каталог ждёт не тот путь) и UNRESOLVED (`not_applicable`,
+                // `low_confidence`, нерабочий route) — обязаны считаться провалом: прежде они
+                // уезжали в skipped, и отчёт показывал `failed=0` при пяти FAIL в диагностике
+                // (прогон rmvb6atul: 23/23, failed=0, skipped=5).
+                val kind = SimpleRunner.classifySkip(result.reason)
+                val skippedResult = !result.success && kind == SimpleRunner.SkipKind.NOT_ON_DEVICE
                 if (skippedResult) {
-                    val kind = SimpleRunner.classifySkip(result.reason)
                     AppLog.i(TAG, "runSimpleStep: step ${step.id} skipped (${result.reason}) kind=$kind")
                     OverlayController.updateStatus(
                         this,

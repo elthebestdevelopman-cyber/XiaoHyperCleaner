@@ -68,6 +68,9 @@ class OverlayService : Service() {
         const val EXTRA_UNRESOLVED = "unresolved"
         const val EXTRA_NOTIF_STEPS = "notif_steps"
         const val EXTRA_ALREADY_OFF_STEPS = "already_off_steps"
+
+        /** Провалившиеся шаги прогона (перечень для экрана результата, F6). */
+        const val EXTRA_FAILED_STEPS = "failed_steps"
         const val EXTRA_RESTORE_APPLIED = "restore_applied"
         const val EXTRA_RESTORE_ALREADY_ORIGINAL = "restore_already_original"
         const val EXTRA_RESTORE_UNREADABLE = "restore_unreadable"
@@ -299,7 +302,8 @@ class OverlayService : Service() {
                 intent.getIntExtra(EXTRA_RESTORE_UNREADABLE, 0),
                 intent.getIntExtra(EXTRA_RESTORE_FAILED, 0),
                 intent.getStringExtra(EXTRA_RESTORE_UNREADABLE_STEPS).orEmpty(),
-                intent.getStringExtra(EXTRA_RESTORE_FAILED_STEPS).orEmpty()
+                intent.getStringExtra(EXTRA_RESTORE_FAILED_STEPS).orEmpty(),
+                intent.getStringExtra(EXTRA_FAILED_STEPS).orEmpty()
             )
         }
         // Сервис мог быть убит MIUI и пересоздан этим startService: окна нет, а фаза идёт.
@@ -591,7 +595,8 @@ class OverlayService : Service() {
         restoreUnreadable: Int = 0,
         restoreFailed: Int = 0,
         restoreUnreadableSteps: String = "",
-        restoreFailedSteps: String = ""
+        restoreFailedSteps: String = "",
+        failedSteps: String = ""
     ) {
         stopHeartbeat()
         hide()
@@ -680,6 +685,19 @@ class OverlayService : Service() {
         if (!restore && launcherSkipped > 0) layout.addView(bodyText(getString(R.string.result_skipped_launcher, launcherSkipped), small = true), llWrap().apply { topMargin = dp(4) })
         if (!restore && unresolved > 0) layout.addView(bodyText(getString(R.string.result_skipped_unresolved, unresolved), small = true), llWrap().apply { topMargin = dp(4) })
         if (!restore && failed > 0) layout.addView(bodyText(getString(R.string.result_failed, failed), small = true), llWrap().apply { topMargin = dp(4) })
+        // Провалившиеся шаги — списком, как в откате: счётчик без имён не даёт понять, что
+        // именно осталось включённым (F6, прогон rmvb6atul: failed=0 при пяти FAIL).
+        val failedStepTitles =
+            failedSteps.split('\n').filter { it.isNotBlank() }.take(NOTIF_LIST_MAX)
+        if (!restore && failedStepTitles.isNotEmpty()) {
+            layout.addView(
+                bodyText(
+                    getString(R.string.result_failed_list, failedStepTitles.joinToString(", ")),
+                    small = true
+                ),
+                llWrap().apply { topMargin = dp(2) }
+            )
+        }
         // Прозрачность notif_*: что именно отключено (Аддендум C3).
         val notifTitles = notifSteps.split('\n').filter { it.isNotBlank() }.take(NOTIF_LIST_MAX)
         if (!restore && notifTitles.isNotEmpty()) {

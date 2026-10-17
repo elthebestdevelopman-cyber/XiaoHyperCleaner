@@ -272,6 +272,7 @@
     <string name="result_skipped_launcher">Configuração ausente no launcher: %d</string>
     <string name="result_skipped_unresolved">Não encontrado automaticamente (verifique manualmente): %d</string>
     <string name="result_failed">Protegidos pelo sistema: %d</string>
+    <string name="result_failed_list">Não foi possível: %s</string>
     <string name="result_notif_title">Notificações desativadas:</string>
     <string name="result_already_off_title">Já estava desativado (verificado):</string>
     <string name="result_manual_title">Para o melhor resultado, faça manualmente</string>

@@ -292,6 +292,7 @@
     <string name="result_skipped_launcher">Setting not present in launcher: %d</string>
     <string name="result_skipped_unresolved">Not found automatically (check manually): %d</string>
     <string name="result_failed">Couldn\'t complete (system-protected): %d</string>
+    <string name="result_failed_list">Couldn\'t complete: %s</string>
     <string name="result_notif_title">Notifications turned off:</string>
     <string name="result_already_off_title">Already off (verified):</string>
     <string name="result_manual_title">For the best result, do manually</string>

@@ -302,6 +302,7 @@
     <string name="result_skipped_launcher">启动器中无此设置：%d</string>
     <string name="result_skipped_unresolved">未能自动找到（请手动检查）：%d</string>
     <string name="result_failed">无法完成（系统保护）：%d</string>
+    <string name="result_failed_list">未能完成：%s</string>
     <string name="result_notif_title">已关闭通知：</string>
     <string name="result_already_off_title">已经关闭（已验证）：</string>
     <string name="result_manual_title">为了最佳效果，请手动完成</string>

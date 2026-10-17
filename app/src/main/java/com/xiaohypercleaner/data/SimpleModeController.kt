@@ -217,7 +217,10 @@ class SimpleModeController(
             notifToggledIds.map { stepTitle(it) },
             alreadyOffIds.map { stepTitle(it) },
             launcherSkippedIds.size,
-            unresolvedIds.size
+            unresolvedIds.size,
+            // Провалившиеся шаги — списком: счётчик без имён не показывает, что осталось
+            // включённым (F6, прогон rmvb6atul).
+            failedSteps = failedIds.map { stepTitle(it) }
         )
     }
 

@@ -272,6 +272,7 @@
     <string name="result_skipped_launcher">लॉन्चर में यह सेटिंग नहीं है: %d</string>
     <string name="result_skipped_unresolved">स्वतः नहीं मिला (मैन्युअल जाँचें): %d</string>
     <string name="result_failed">सिस्टम द्वारा संरक्षित: %d</string>
+    <string name="result_failed_list">पूरा नहीं हुआ: %s</string>
     <string name="result_notif_title">सूचनाए\u0901 बंद कर दी गईं:</string>
     <string name="result_already_off_title">पहले से बंद (सत्यापित):</string>
     <string name="result_soft">यदि उपयोगी लगा — तो समीक्षा या समर्थन की सराहना की जाएगी।</string>

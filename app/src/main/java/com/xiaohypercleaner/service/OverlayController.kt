@@ -303,7 +303,9 @@ object OverlayController {
         /** Шаги без сохранённого значения: откат их не выдумывает, нужен новый прогон. */
         restoreUnreadableSteps: List<String> = emptyList(),
         /** Шаги, где состояние не подтвердилось: лечится повторной попыткой отката. */
-        restoreFailedSteps: List<String> = emptyList()
+        restoreFailedSteps: List<String> = emptyList(),
+        /** Провалившиеся шаги прогона: их видно списком, а не только счётчиком (F6). */
+        failedSteps: List<String> = emptyList()
     ) {
         endPhase()
         AppLog.i(
@@ -311,8 +313,10 @@ object OverlayController {
             "showResult: $completed/$total, failed=$failed, skipped=$skipped " +
                 "launcher=$launcherSkipped unresolved=$unresolved mode=$mode " +
                 "notif=${notifSteps.size} alreadyOff=${alreadyOffSteps.size} " +
+                "failedSteps=${failedSteps.size} " +
                 "applied=$restoreApplied alreadyOriginal=$restoreAlreadyOriginal " +
-                "unreadable=$restoreUnreadable failedSteps=${restoreFailedSteps.size} " +
+                "unreadable=$restoreUnreadable unreadableSteps=${restoreUnreadableSteps.size} " +
+                "failedRestoreSteps=${restoreFailedSteps.size} " +
                 "caller=${callerName()}"
         )
         ctx.startService(
@@ -335,6 +339,7 @@ object OverlayController {
                     restoreUnreadableSteps.joinToString("\n")
                 )
                 .putExtra(OverlayService.EXTRA_RESTORE_FAILED_STEPS, restoreFailedSteps.joinToString("\n"))
+                .putExtra(OverlayService.EXTRA_FAILED_STEPS, failedSteps.joinToString("\n"))
         )
     }
 

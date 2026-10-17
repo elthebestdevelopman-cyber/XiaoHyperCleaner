@@ -279,6 +279,7 @@
     <string name="result_skipped_launcher">Настройка отсутствует в лаунчере: %d</string>
     <string name="result_skipped_unresolved">Не найдено автоматически (проверьте вручную): %d</string>
     <string name="result_failed">Не получилось (защищено системой): %d</string>
+    <string name="result_failed_list">Не получилось: %s</string>
     <string name="result_notif_title">Уведомления отключены:</string>
     <string name="result_already_off_title">Уже было выключено (проверено):</string>
     <string name="result_manual_title">Для максимального результата вручную</string>

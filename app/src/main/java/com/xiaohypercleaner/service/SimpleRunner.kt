@@ -448,6 +448,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
          *   (`not_applicable`, `drill_failed`, `screen_markers_absent`,
          *   `foreign_screen`, провалившийся route), `low_confidence`,
          *   `switch_not_found`, `verify_failed`, неизвестная причина и null.
+         *
+         * Канал прогона зовёт это правило ради одного ведра: пропуском в отчёте становится
+         * ТОЛЬКО [SkipKind.NOT_ON_DEVICE]. Ведра LAUNCHER_ABSENT и UNRESOLVED остаются
+         * размеченными (их проверяет SimpleRunnerApplicabilityTest), но провалы
+         * автоматизации теперь считаются провалом, а не пропуском (F6, прогон rmvb6atul).
          */
         internal fun classifySkip(reason: String?): SkipKind = when (reason) {
             LAUNCHER_ABSENT -> SkipKind.LAUNCHER_ABSENT
