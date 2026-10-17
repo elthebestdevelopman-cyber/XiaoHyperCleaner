@@ -14,6 +14,11 @@ import java.io.File
 /**
  * Копия собственной сборки для предшага установщика. Проверяется чистка: копия нужна только
  * на время установки, а оставшийся APK — мусор в кэше на десятки мегабайт.
+ *
+ * Число удалённых файлов здесь НЕ проверяется: старт приложения чистит копии фоном
+ * (`XiaoHyperApp.onCreate` → `initScope`), и счётчик гоняется с этой чисткой — на загруженной
+ * машине тест падал «ожидалось 1, получено 0». Контракт «старой копии после чистки нет,
+ * каталог остаётся рабочим» от гонки не зависит и проверяется полностью.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], manifest = Config.NONE)
@@ -26,9 +31,8 @@ class SelfApkExporterTest {
         dir.mkdirs()
         val stale = File(dir, "com.xiaohypercleaner-1.0-beta2.apk").apply { writeText("stale") }
 
-        val removed = SelfApkExporter.purge(context)
+        SelfApkExporter.purge(context)
 
-        assertEquals("удалён ровно один файл", 1, removed)
         assertFalse("копии больше нет", stale.exists())
         assertTrue("каталог остаётся рабочим", dir.isDirectory)
     }
