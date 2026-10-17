@@ -3220,7 +3220,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 recovered = awaitScreen(mergedSearchTexts) ||
                     scrollUntilScreenHasAny(mergedSearchTexts + markers)
                 if (recovered) {
-                    AppLog.i(TAG, "step {step.id}: target screen found after re-entry")
+                    AppLog.i(TAG, "step ${step.id}: target screen found after re-entry")
                     StepDiagnostics.note(step.id, "APPLICABILITY", "recovered_after_reentry")
                 }
             }
@@ -3407,7 +3407,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             if (isChecked == step.targetChecked) {
                 AppLog.i(
                     TAG,
-                    "switch disabled by rom but already in target state for {step.id} " +
+                    "switch disabled by rom but already in target state for ${step.id} " +
                         "checked=$isChecked target=${step.targetChecked}"
                 )
                 StepDiagnostics.note(
@@ -3420,7 +3420,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             }
             AppLog.w(
                 TAG,
-                "switch disabled by rom for {step.id} — switch_disabled " +
+                "switch disabled by rom for ${step.id} — switch_disabled " +
                     "checked=$isChecked target=${step.targetChecked}"
             )
             StepDiagnostics.note(
