@@ -50,7 +50,16 @@ object PlanBuilder {
         context: Context,
         profile: RomProfile,
         notifTransparency: Boolean = true
-    ): List<PlanStep> {
+    ): List<PlanStep> = buildDetailed(context, profile, notifTransparency).steps
+
+    /** Итог построения плана: шаги и причины исключений (`<id>:<reason>`) — для тестов и лога. */
+    internal data class BuiltPlan(val steps: List<PlanStep>, val excluded: List<String>)
+
+    internal fun buildDetailed(
+        context: Context,
+        profile: RomProfile,
+        notifTransparency: Boolean = true
+    ): BuiltPlan {
         SemanticCatalog.ensureLoaded(context)
         // Варианты шагов под версию прошивки выбираются один раз на прогон:
         // дальше accessors каталога отдают эффективные (вариантные) значения.
@@ -115,7 +124,7 @@ object PlanBuilder {
                 "region=${profile.regionCode} rom=${profile.family}/${profile.uiVersion ?: "?"} " +
                 "excludedIds=${excluded.joinToString(",")}"
         )
-        return plan
+        return BuiltPlan(plan, excluded)
     }
 
     /** Destructive-действия, запрещённые для пакетов красного списка. */

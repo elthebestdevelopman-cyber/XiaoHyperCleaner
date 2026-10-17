@@ -2,6 +2,7 @@ package com.xiaohypercleaner.data
 
 import android.content.pm.PackageInfo
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -11,6 +12,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows
 import org.robolectric.annotation.Config
+import java.util.Locale
 
 /**
  * Префильтр плана: ложные `app_not_installed` (P0 package visibility).
@@ -161,6 +163,42 @@ class PlanBuilderTest {
                 neverTouch = neverTouch
             )
         )
+    }
+
+    @Test
+    fun `installer recommendations step is out of the plan for both variants`() {
+        // F7: шаг «Рекомендации установщика» живёт только в окне установки (его ловит ловец
+        // и предшаг «одной кнопки»), а в обычном плане падал `candidates=0 за 257 мс`
+        // (прогон rmvb6atul). Отключён для ОБОИХ вариантов каталога, причина видна в плане.
+        val original = Locale.getDefault()
+        try {
+            // ru → global_ru, en → cn_hyperos (диспетчер варианта по языку устройства).
+            listOf("ru" to "global_ru", "en" to "cn_hyperos").forEach { (lang, variant) ->
+                Locale.setDefault(Locale.forLanguageTag(lang))
+                AdaptiveCatalog.resetForTest()
+                SemanticCatalog.resetForTest()
+                SemanticCatalog.ensureLoaded(context)
+
+                assertEquals(
+                    "вариант каталога по языку",
+                    variant,
+                    AdaptiveCatalog.selectVariant(context, profile)
+                )
+                val built = PlanBuilder.buildDetailed(context, profile)
+
+                assertFalse(
+                    "шаг не запускается в плане варианта $variant",
+                    built.steps.any { it.id == "installer_recommendations" }
+                )
+                assertTrue(
+                    "причина исключения обязана быть видна: ${built.excluded}",
+                    built.excluded.contains("installer_recommendations:disabled_for_variant")
+                )
+            }
+        } finally {
+            Locale.setDefault(original)
+            AdaptiveCatalog.resetForTest()
+        }
     }
 
     @Test

@@ -104,7 +104,8 @@
     "Lewati", "Nanti", "Tutup", "Batalkan", "Setuju", "Ya", "Kembali",
     "Pular", "Agora não", "Fechar", "Cancelar", "Concordar", "Sim", "Confirmar",
     "Saltar", "Ahora no", "Cerrar", "Aceptar", "Sí"
-  ]
+  ],
+  "disabledSteps": ["installer_recommendations"]
 },
     "global_ru": {
       "uiSteps": {
@@ -158,7 +159,7 @@
           "searchTexts": ["Показывать рекламу", "Персональные рекомендации", "Сервисы онлайн-контента", "Аккаунт и настройки"]
         }
       },
-      "disabledSteps": []
+      "disabledSteps": ["installer_recommendations"]
     }
   }
 }
