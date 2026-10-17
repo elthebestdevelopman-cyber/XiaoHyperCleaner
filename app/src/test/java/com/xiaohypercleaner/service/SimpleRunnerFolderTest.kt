@@ -304,24 +304,35 @@ class SimpleRunnerFolderTest {
 
     @Test
     fun `folder walk reports a miss unless the editor was strongly confirmed`() {
-        // F8-1: «секции рекомендаций нет» — только по СИЛЬНОМУ подтверждению редактора
+        // F8-1/F8-4: «секции рекомендаций нет» — только по СИЛЬНОМУ подтверждению редактора
         // (`rename_edit` либо тумблер с текстом шага). Слабое подтверждение (маркеры каталога
         // без заголовка поповера) на экране списка приложений давало вывод об отсутствии
         // настройки и уводило шаг в пропуск «нет на устройстве» (прогон rmvb6atul).
+        // В откате сильный признак означает другое: строку мы видели и тумбили — она исчезла.
         assertEquals(
-            "кандидаты без сильного подтверждения — промах, а не отсутствие настройки",
+            "форвард: кандидаты без сильного подтверждения — промах, а не отсутствие настройки",
             SimpleRunner.FOLDER_EDITOR_NOT_OPENED,
-            SimpleRunner.folderWalkReason(foldersChecked = 2, strongConfirmed = 0)
+            SimpleRunner.folderWalkReason(foldersChecked = 2, strongConfirmed = 0, reverse = false)
         )
         assertEquals(
-            "хотя бы одна папка с сильным подтверждением — состояние устройства",
+            "форвард: сильное подтверждение — состояние устройства",
             SimpleRunner.FOLDER_SWITCH_ABSENT,
-            SimpleRunner.folderWalkReason(foldersChecked = 2, strongConfirmed = 1)
+            SimpleRunner.folderWalkReason(foldersChecked = 2, strongConfirmed = 1, reverse = false)
         )
         assertEquals(
-            "ни одной папки не засчитано — промах",
+            "откат: сильное подтверждение и нет строки — исчезнувшая цель, а не «нет настройки»",
+            SimpleRunner.FOLDER_SECTION_VANISHED,
+            SimpleRunner.folderWalkReason(foldersChecked = 2, strongConfirmed = 1, reverse = true)
+        )
+        assertEquals(
+            "откат: сильного подтверждения не было — промах",
             SimpleRunner.FOLDER_EDITOR_NOT_OPENED,
-            SimpleRunner.folderWalkReason(foldersChecked = 0, strongConfirmed = 0)
+            SimpleRunner.folderWalkReason(foldersChecked = 2, strongConfirmed = 0, reverse = true)
+        )
+        assertEquals(
+            "ни одной папки не засчитано — промах в обоих каналах",
+            SimpleRunner.FOLDER_EDITOR_NOT_OPENED,
+            SimpleRunner.folderWalkReason(foldersChecked = 0, strongConfirmed = 0, reverse = true)
         )
     }
 }

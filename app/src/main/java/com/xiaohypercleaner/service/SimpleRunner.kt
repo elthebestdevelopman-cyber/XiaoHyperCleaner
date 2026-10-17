@@ -413,8 +413,20 @@ class SimpleRunner(private val service: AdbEnablerService) {
          */
         internal const val FOLDER_EDITOR_NOT_OPENED = "folder_editor_not_opened"
 
-        /** Папки проверены все, секции рекомендаций нет ни в одной. */
+        /**
+         * Папки проверены все, секции рекомендаций нет ни в одной — и хотя бы одна папка была
+         * подтверждена СИЛЬНО (в форварде: редактор открылся, тумблера нет).
+         */
         internal const val FOLDER_SWITCH_ABSENT = "folder_switch_absent"
+
+        /**
+         * Откат: папка подтверждена сильно, а строки-цели в ней нет. Это НЕ «настройки на
+         * устройстве нет»: шаг восстанавливается из снапшота, значит строку мы видели и
+         * тумбили (в прогоне rmvb6atul та же папка «Russia» в прямой фазе тумблернулась).
+         * Причина уходит в ведро «не нашёл» (`else` в classifySkip) и в отчёте отката
+         * считается провалом восстановления.
+         */
+        internal const val FOLDER_SECTION_VANISHED = "folder_section_vanished"
 
         /**
          * Тумблер выключен самой прошивкой (`enabled=false` у строки и её
@@ -434,17 +446,27 @@ class SimpleRunner(private val service: AdbEnablerService) {
         internal const val INSTALLER_SETTINGS_DENIED = "installer_settings_denied"
 
         /**
-         * Исход обхода папок: «секции рекомендаций нет» ([FOLDER_SWITCH_ABSENT]) — только когда
-         * хотя бы одну папку довели до редактора с СИЛЬНЫМ подтверждением
+         * Исход обхода папок. В форварде «секции рекомендаций нет» ([FOLDER_SWITCH_ABSENT]) —
+         * только когда хотя бы одну папку довели до редактора с СИЛЬНЫМ подтверждением
          * ([FolderEditorEvidence.STRONG]); иначе это промах автоматизации
          * ([FOLDER_EDITOR_NOT_OPENED], ведро «не нашёл»), а не состояние устройства.
+         *
+         * В откате тот же сильный признак означает ДРУГОЕ: строку-цель мы видели (шаг
+         * восстанавливается из снапшота) и тумбили её в этом же прогоне — значит она исчезла,
+         * и честная причина — [FOLDER_SECTION_VANISHED], а не «настройки на устройстве нет».
          *
          * Конъюнкция с [foldersChecked] документирует инвариант: сильное подтверждение возможно
          * только внутри засчитанной папки (счётчик растёт до вызова `openFolderEditor`).
          */
-        internal fun folderWalkReason(foldersChecked: Int, strongConfirmed: Int): String =
-            if (foldersChecked > 0 && strongConfirmed > 0) FOLDER_SWITCH_ABSENT
-            else FOLDER_EDITOR_NOT_OPENED
+        internal fun folderWalkReason(
+            foldersChecked: Int,
+            strongConfirmed: Int,
+            reverse: Boolean
+        ): String = when {
+            foldersChecked <= 0 || strongConfirmed <= 0 -> FOLDER_EDITOR_NOT_OPENED
+            reverse -> FOLDER_SECTION_VANISHED
+            else -> FOLDER_SWITCH_ABSENT
+        }
 
         /**
          * Ведро причины пропуска шага. Статический помощник: его зовёт AdbEnablerService
@@ -4521,30 +4543,39 @@ class SimpleRunner(private val service: AdbEnablerService) {
             )
         }
 
-        if (folderWalkReason(foldersChecked, strongConfirmed) == FOLDER_SWITCH_ABSENT) {
-            // Проверили все папки, и хотя бы одну довели до редактора с СИЛЬНЫМ
-            // подтверждением: секции рекомендаций нет ни в одной — состояние устройства
-            // (выключено вместе с msa/персонализацией), а не промах.
-            AppLog.i(TAG, "folder: секции рекомендаций нет в " + foldersChecked + " папках")
+        val walkReason = folderWalkReason(
+            foldersChecked = foldersChecked,
+            strongConfirmed = strongConfirmed,
+            reverse = reverseCtx != null
+        )
+        if (walkReason == FOLDER_EDITOR_NOT_OPENED) {
+            // Папки есть, но ни одну не довели до секции с сильным подтверждением: честный
+            // промах автоматизации (ведро «не нашёл» в отчёте), а не «нет на устройстве».
             StepDiagnostics.note(
                 step.id,
                 "APPLICABILITY",
-                "folder_switch_absent folders=" + foldersChecked +
+                "folder_editor_not_opened folders=" + foldersChecked +
                     " strong=" + strongConfirmed + " weak=" + weakOrMissed +
-                    " taps_failed=" + tapsFailed
+                    " taps_failed=" + tapsFailed + " reverse=" + (reverseCtx != null)
             )
-            return Result(false, FOLDER_SWITCH_ABSENT)
+            return Result(false, FOLDER_EDITOR_NOT_OPENED)
         }
-        // Папки есть, но ни одну не довели до секции с сильным подтверждением: честный промах
-        // автоматизации (ведро «не нашёл» в отчёте), а не «нет на устройстве».
+        // Сильное подтверждение было, а строки-цели в папках нет: в форварде это состояние
+        // устройства (секция выключена вместе с msa/персонализацией), в ОТКАТЕ — исчезнувшая
+        // строка, которую мы сами и тумбили (прогон rmvb6atul: папка «Russia» тумблернулась
+        // в прямой фазе того же прогона).
+        AppLog.i(
+            TAG,
+            "folder: секции рекомендаций нет — " + walkReason + " (" + foldersChecked + " папок)"
+        )
         StepDiagnostics.note(
             step.id,
             "APPLICABILITY",
-            "folder_editor_not_opened folders=" + foldersChecked +
+            walkReason + " folders=" + foldersChecked +
                 " strong=" + strongConfirmed + " weak=" + weakOrMissed +
-                " taps_failed=" + tapsFailed
+                " taps_failed=" + tapsFailed + " reverse=" + (reverseCtx != null)
         )
-        return Result(false, FOLDER_EDITOR_NOT_OPENED)
+        return Result(false, walkReason)
     }
 
     /**
