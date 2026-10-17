@@ -70,6 +70,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         private const val VERSION_TAPS_FOR_FULL = 7
         private const val VERSION_TAP_WINDOW_MS = 7000L
 
+        /**
+         * Потолок визитов на экран «Установка неизвестных приложений» в предшаге: показ и одна
+         * повторная попытка. Отказ выдать право иначе запирал бы пользователя в цикле настроек
+         * (ожидание живо, pending не выставлен → каждый возврат снова открывал настройки).
+         */
+        private const val MAX_INSTALLER_PERMISSION_ATTEMPTS = 2
+
         /** Скан не выполнялся: accessibility-сервис недоступен. */
         private const val REASON_SCAN_NO_SERVICE = "no_service"
     }
@@ -107,6 +114,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Счётчик тапов по версии в меню (скрытый вход в FULL-диагностику). */
     private var versionTapCount: Int = 0
     private var versionTapFirstMs: Long = 0L
+
+    /** Визиты на экран «Установка неизвестных приложений» в текущем предшаге (см. потолок). */
+    private var installerPermissionAttempts: Int = 0
 
     init {
         AppLog.i(TAG, "init started")
@@ -549,10 +559,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * окно установщика → pending. pending ставится ТОЛЬКО после удачного открытия окна:
      * иначе Простой режим стартовал бы сам, хотя установки не было. Неудача на любом шаге —
      * обычный старт ([startSimpleMode]); без права ожидание сохраняется, и проход
-     * повторяется по возврату из настроек ([tryResumePendingSimpleMode]).
+     * повторяется по возврату из настроек ([tryResumePendingSimpleMode]) — но не больше
+     * [MAX_INSTALLER_PERMISSION_ATTEMPTS] визитов, иначе отказ выдать право запирал бы
+     * пользователя в цикле настроек.
      */
     fun onInstallerPreStepDisableNow() {
         AppLog.i(TAG, "installer pre-step: disable now")
+        installerPermissionAttempts = 0
         update { it.copy(showInstallerPreStep = false, installerPreStepWaiting = true) }
         viewModelScope.launch { runInstallerPreStep() }
     }
@@ -560,7 +573,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Один проход предшага: право → копия → окно установщика → pending. */
     private suspend fun runInstallerPreStep() {
         if (!canInstallUnknownApps()) {
-            AppLog.i(TAG, "installer pre-step: unknown sources permission required")
+            installerPermissionAttempts++
+            if (installerPermissionAttempts > MAX_INSTALLER_PERMISSION_ATTEMPTS) {
+                // Право так и не выдали: держать пользователя в цикле настроек нельзя.
+                // Копии ещё нет, pending не выставлен — идём обычным стартом.
+                AppLog.w(TAG, "installer pre-step: unknown sources not granted — обычный старт")
+                update { it.copy(installerPreStepWaiting = false) }
+                startSimpleMode()
+                return
+            }
+            AppLog.i(
+                TAG,
+                "installer pre-step: unknown sources permission required " +
+                    "attempt=$installerPermissionAttempts/$MAX_INSTALLER_PERMISSION_ATTEMPTS"
+            )
             openUnknownSourcesSettings()
             return
         }
@@ -580,6 +606,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         prepareSimpleModePending()
+        installerPermissionAttempts = 0
         viewModelScope.launch { prefs.setOptimizationMode(OptimizationMode.SIMPLE) }
     }
 
