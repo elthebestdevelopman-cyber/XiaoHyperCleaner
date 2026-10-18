@@ -1459,51 +1459,69 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Откат: предыдущий шаг мог оставить своё окно, а drill-шаг с пустым legacy
         // launchPackage попадает в ветку «settings-шаг» и бурит ЧУЖОЙ экран (прогон
         // rmv5fd8wl: carousel стартовал с com.google.android.gms, бурил Настройки и отдал
-        // low_confidence). Intent-шаги закрывает обратное окно подтверждения маршрута,
-        // drill-шаги — нет: в канале отката шаг обязан попасть на свой экран ДО бурения.
+        // low_confidence). Экран шага подтверждается МАРКЕРАМИ ([onTargetScreen]): пакет цели
+        // в фокусе без маркеров — это карточки и под-экраны приложения (appvault_services:
+        // «Уже добавлено…»), с них drill давал confirm_miss ×3 — такой экран считается
+        // нейтральным и требует возврата на корень маршрута.
         if (mergedDrillPath.isNotEmpty()) {
-            val onStepScreen = { onTargetScreen(step) || isForegroundStepPackage(step) }
+            val onStepScreen = { onTargetScreen(step) }
             var attempts = 0
             while (true) {
                 val action = ReverseExtras.entryAction(
                     reverse = reverseCtx != null,
                     onStepScreen = onStepScreen,
                     budgetAboveReserveMs = remainingBudgetMs() - REENTRY_RESERVE_MS,
-                    attemptsLeft = MAX_REENTRY_ATTEMPTS - attempts,
+                    // Повтор входа без интентов ничего не изменит — попыток не выдаём вовсе.
+                    attemptsLeft = if (step.intents.isEmpty()) 0 else MAX_REENTRY_ATTEMPTS - attempts,
                     foreignWindow = { isForeignWindowFor(step) }
                 )
-                if (action != ReverseEntryAction.RETRY_ENTRY) break
-                attempts++
-                AppLog.w(
-                    TAG,
-                    "reverse entry: ${step.id} not on step screen " +
-                        "screen=${activePackage() ?: "-"} attempt=$attempts" +
-                        "/$MAX_REENTRY_ATTEMPTS budget=${remainingBudgetMs()}ms " +
-                        "reserve=${REENTRY_RESERVE_MS}ms"
-                )
-                StepDiagnostics.note(step.id, "DRILL", "reverse_reentry attempt=$attempts")
-                // Интентов на повторный вход нет (`retryEnterStep` сразу вернёт false) — окно
-                // от повтора не изменится, вердикт выносится после выхода из петли.
-                if (step.intents.isEmpty()) break
-                retryEnterStep(step)
-            }
-            // Свой экран так и не достигнут: чужое окно — честный провал (бурить его нельзя),
-            // своё или нейтральное (Настройки, лаунчер) — бурим как в форварде.
-            if (attempts > 0 && !onStepScreen()) {
-                if (isForeignWindowFor(step)) {
-                    AppLog.w(
-                        TAG,
-                        "reverse entry: ${step.id} screen not reached — foreign window " +
-                            "'${activePackage() ?: "-"}' after $attempts attempts"
-                    )
-                    StepDiagnostics.note(step.id, "DRILL", "screen_not_reached attempts=$attempts")
-                    return Result(false, REVERSE_SCREEN_NOT_REACHED)
+                when (action) {
+                    ReverseEntryAction.CONTINUE_DRILL -> break
+                    ReverseEntryAction.FAIL_SCREEN_NOT_REACHED -> {
+                        // Чужое окно: в него не возвращаемся и его не бурим.
+                        AppLog.w(
+                            TAG,
+                            "reverse entry: ${step.id} screen not reached — foreign window " +
+                                "'${activePackage() ?: "-"}' after $attempts attempts"
+                        )
+                        StepDiagnostics.note(step.id, "DRILL", "screen_not_reached attempts=$attempts")
+                        return Result(false, REVERSE_SCREEN_NOT_REACHED)
+                    }
+                    ReverseEntryAction.DRILL_FROM_NEUTRAL -> {
+                        // Нейтральное окно (Настройки, лаунчер, карточки цели): возврат на КОРЕНЬ
+                        // маршрута одним входом, затем бурение. Бурение с текущего экрана уводило
+                        // на соседний под-экран (carousel: «Блокировка экрана» вместо «Карусели
+                        // обоев»), а ожидание цели без relaunch жгло три полных окна.
+                        val reEntered = reEnterStepRoot(step)
+                        if (attempts == 0) {
+                            AppLog.i(
+                                TAG,
+                                "reverse_drill_from_neutral screen=${activePackage() ?: "-"} " +
+                                    "ok=$reEntered step=${step.id}"
+                            )
+                            StepDiagnostics.note(step.id, "DRILL", "reverse_drill_from_neutral ok=$reEntered")
+                        } else {
+                            AppLog.w(
+                                TAG,
+                                "reverse_drill_fallback attempts=$attempts ok=$reEntered step=${step.id}"
+                            )
+                            StepDiagnostics.note(step.id, "DRILL", "reverse_drill_fallback attempts=$attempts")
+                        }
+                        break
+                    }
+                    ReverseEntryAction.RETRY_ENTRY -> {
+                        attempts++
+                        AppLog.w(
+                            TAG,
+                            "reverse entry: ${step.id} not on step screen " +
+                                "screen=${activePackage() ?: "-"} attempt=$attempts" +
+                                "/$MAX_REENTRY_ATTEMPTS budget=${remainingBudgetMs()}ms " +
+                                "reserve=${REENTRY_RESERVE_MS}ms"
+                        )
+                        StepDiagnostics.note(step.id, "DRILL", "reverse_reentry attempt=$attempts")
+                        retryEnterStep(step)
+                    }
                 }
-                AppLog.w(
-                    TAG,
-                    "reverse entry: ${step.id} screen unconfirmed after $attempts attempts — drilling anyway"
-                )
-                StepDiagnostics.note(step.id, "DRILL", "reverse_drill_fallback attempts=$attempts")
             }
         }
         // Resume: если интент уже открыл нужный экран, начинаем с текущего уровня
@@ -2285,6 +2303,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
      */
     private suspend fun retryEnterStep(step: SimpleSteps.Step): Boolean {
         val intent = step.intents.firstOrNull() ?: return false
+        // Ждём пакет ЦЕЛИ ИНТЕНТА (resolveActivity), а не «любой пакет шага»: у
+        // `settingsRoot()` = ACTION_SETTINGS нет ни component, ни package, и
+        // `entryGatePackage` для него вернёт null — ожидание экрана тогда не подтверждалось.
+        val targetPkg = intentTargetPackage(intent)
         return try {
             service.startActivity(intent)
             val ok = waitFor(
@@ -2292,13 +2314,38 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 reason = WAIT_APP_ENTRY,
                 timeoutMs = APP_SCREEN_WAIT_MS,
                 pollMs = WAIT_POLL_MS
-            ) { isForegroundStepPackage(step) }
+            ) {
+                if (targetPkg != null) activePackage().equals(targetPkg, ignoreCase = true)
+                else isForegroundStepPackage(step)
+            }
             if (ok) handleConsentWalls(step)
             ok
         } catch (e: Exception) {
             AppLog.w(TAG, "re-entry failed for ${step.id}: ${e.message}")
             false
         }
+    }
+
+    /**
+     * Пакет активности, которой интент реально будет отдан ([PackageManager.resolveActivity]),
+     * либо null (неявный интент без резолва). Явный component/`package` — уже не «цель
+     * интента», а пожелание: MIUI умеет отдать запрос другой активности.
+     */
+    private fun intentTargetPackage(intent: Intent): String? = runCatching {
+        service.packageManager.resolveActivity(intent, 0)?.activityInfo?.packageName
+    }.getOrNull()
+
+    /**
+     * Возврат на КОРЕНЬ маршрута шага перед бурением из отката: сначала рабочий стол (в прогоне
+     * с окном прогресса приложение поднимается только с него), затем повторный вход по интенту.
+     * Один проход: повторы ограничены правилами канала отката.
+     */
+    private suspend fun reEnterStepRoot(step: SimpleSteps.Step): Boolean {
+        if (needsHomeBeforeAppLaunch()) {
+            resetToHome()
+            delay(UI_SETTLE_DELAY_MS)
+        }
+        return retryEnterStep(step)
     }
 
 /**

@@ -91,6 +91,14 @@ enum class ReverseEntryAction {
     /** Шаг не на своём экране: повторный вход в приложение шага (образец `retryEnterStep`). */
     RETRY_ENTRY,
 
+    /**
+     * Окно нейтральное для шага (Настройки, лаунчер, карточки приложения-цели): возврат на
+     * КОРЕНЬ маршрута одним входом и бурение оттуда. С текущего экрана drill уходил на
+     * соседний под-экран (carousel: «Блокировка экрана» вместо «Карусели обоев»), а ожидание
+     * цели без relaunch жгло три полных окна (appvault_services: confirm_miss ×3).
+     */
+    DRILL_FROM_NEUTRAL,
+
     /** Повторный вход не привёл шаг на его экран: честный провал вместо `low_confidence`. */
     FAIL_SCREEN_NOT_REACHED
 }
@@ -162,6 +170,13 @@ object ReverseExtras {
      * (правило возвращает [ReverseEntryAction.CONTINUE_DRILL] первым же условием), поэтому
      * стоимость чтений окна платит только канал отката. Форвардное поведение не меняется.
      *
+     * Порядок решения (он же — приоритет сигналов):
+     * 1. форвард или шаг на своём экране → [ReverseEntryAction.CONTINUE_DRILL];
+     * 2. окно НЕ чужое (нейтральное: Настройки, лаунчер, карточки приложения-цели) →
+     *    [ReverseEntryAction.DRILL_FROM_NEUTRAL] — бурим сразу, но от корня маршрута;
+     * 3. чужое окно, есть и бюджет, и попытки → [ReverseEntryAction.RETRY_ENTRY];
+     * 4. чужое окно, повторов больше нет → [ReverseEntryAction.FAIL_SCREEN_NOT_REACHED].
+     *
      * Повтор ограничен двумя границами: остатком бюджета НАД резервом
      * ([budgetAboveReserveMs] — вызывающий вычитает резерв на вход и на тумблер) и потолком
      * попыток ([attemptsLeft]). Одна попытка отдавала `screen_not_reached` при живом бюджете
@@ -176,11 +191,12 @@ object ReverseExtras {
     ): ReverseEntryAction = when {
         !reverse -> ReverseEntryAction.CONTINUE_DRILL
         onStepScreen() -> ReverseEntryAction.CONTINUE_DRILL
-        // Чужое окно: в него не возвращаемся и его не бурим — честный провал шага.
-        foreignWindow() -> ReverseEntryAction.FAIL_SCREEN_NOT_REACHED
+        // Нейтральное окно (Настройки, лаунчер, карточки приложения-цели): бурим сразу, но с
+        // КОРНЯ маршрута — ожидание и возврат в такое окно ничего не дают, а бурение с него
+        // уводит на соседний под-экран (carousel) и даёт confirm_miss (appvault_services).
+        !foreignWindow() -> ReverseEntryAction.DRILL_FROM_NEUTRAL
         attemptsLeft > 0 && budgetAboveReserveMs > 0 -> ReverseEntryAction.RETRY_ENTRY
-        // Попытки исчерпаны или бюджет ниже резерва, но окно не чужое: отказа шагу не
-        // выписываем — дальше бурение с текущего экрана, как в форварде.
-        else -> ReverseEntryAction.CONTINUE_DRILL
+        // Чужое окно и повторов больше нет: честный провал шага вместо бурения чужого экрана.
+        else -> ReverseEntryAction.FAIL_SCREEN_NOT_REACHED
     }
 }

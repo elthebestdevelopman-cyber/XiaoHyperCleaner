@@ -255,23 +255,28 @@ class ReverseRollbackTest {
             ReverseExtras.entryAction(true, { true }, 30_000L, 3, { false })
         )
         assertEquals(
-            "откат: чужой экран при живом бюджете и попытках — повтор входа, а не бурение",
-            ReverseEntryAction.RETRY_ENTRY,
+            "откат: нейтральное окно (Настройки, лаунчер, карточки цели) — бурение от корня сразу",
+            ReverseEntryAction.DRILL_FROM_NEUTRAL,
             ReverseExtras.entryAction(true, { false }, 30_000L, 3, { false })
         )
         assertEquals(
-            "откат: бюджет ниже резерва на вход и тумблер — бурение как в форварде",
-            ReverseEntryAction.CONTINUE_DRILL,
-            ReverseExtras.entryAction(true, { false }, -1L, 3, { false })
+            "откат: нейтральное окно бурим и без бюджета с попытками",
+            ReverseEntryAction.DRILL_FROM_NEUTRAL,
+            ReverseExtras.entryAction(true, { false }, -1L, 0, { false })
         )
         assertEquals(
-            "откат: потолок попыток исчерпан — повтор не выдаётся",
-            ReverseEntryAction.CONTINUE_DRILL,
-            ReverseExtras.entryAction(true, { false }, 30_000L, 0, { false })
-        )
-        assertEquals(
-            "откат: чужое окно — честный провал вместо low_confidence",
+            "откат: пустые интенты (attemptsLeft=0) на чужом окне — честный провал без цикла повторов",
             ReverseEntryAction.FAIL_SCREEN_NOT_REACHED,
+            ReverseExtras.entryAction(true, { false }, 30_000L, 0, { true })
+        )
+        assertEquals(
+            "откат: бюджет ниже резерва на вход и тумблер — повтор не выдаётся",
+            ReverseEntryAction.FAIL_SCREEN_NOT_REACHED,
+            ReverseExtras.entryAction(true, { false }, -1L, 3, { true })
+        )
+        assertEquals(
+            "откат: чужое окно при живом бюджете и попытках — повтор входа, а не провал",
+            ReverseEntryAction.RETRY_ENTRY,
             ReverseExtras.entryAction(true, { false }, 30_000L, 3, { true })
         )
         assertEquals(
