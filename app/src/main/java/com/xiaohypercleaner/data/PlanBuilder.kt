@@ -64,6 +64,12 @@ object PlanBuilder {
         // Варианты шагов под версию прошивки выбираются один раз на прогон:
         // дальше accessors каталога отдают эффективные (вариантные) значения.
         SemanticCatalog.selectVariant(profile)
+        // Региональный вариант адаптивного каталога выбирается ЗДЕСЬ же: иначе `disabledSteps`,
+        // `pkgSteps` и `groups` читались бы из дефолтного cn_hyperos, пока план строится ДО
+        // первого шага (SimpleRunner выбирает вариант позже, на своём старте). Прогон rmve63243:
+        // `plan steps=27 excluded=2` — `home_suggestions` не исключался для global_ru и падал
+        // `launcher_setting_absent`.
+        AdaptiveCatalog.selectVariant(context, profile)
         val installedHome = resolveHomePackage(context)
         val neverTouch = SemanticCatalog.neverTouchPackages()
         // Шаги, отключённые для активного варианта каталога (нет экранов на прошивке):

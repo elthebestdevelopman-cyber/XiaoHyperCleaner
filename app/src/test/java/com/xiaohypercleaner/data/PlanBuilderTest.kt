@@ -215,8 +215,11 @@ class PlanBuilderTest {
             SemanticCatalog.resetForTest()
             SemanticCatalog.ensureLoaded(context)
 
-            assertEquals("вариант каталога по языку", "global_ru", AdaptiveCatalog.selectVariant(context, profile))
+            // Вариант НЕ выбирается вручную ДО плана: его обязан выбрать сам PlanBuilder, иначе
+            // `disabledSteps` читаются из дефолтного cn_hyperos и шаг не исключается для global_ru
+            // (прогон rmve63243: `plan steps=27 excluded=2` и падение `launcher_setting_absent`).
             val ru = PlanBuilder.buildDetailed(context, profile)
+            assertEquals("вариант каталога по языку", "global_ru", AdaptiveCatalog.selectVariant(context, profile))
             assertFalse(
                 "для global_ru шаг предложений лаунчера не запускается",
                 ru.steps.any { it.id == "home_suggestions" }
