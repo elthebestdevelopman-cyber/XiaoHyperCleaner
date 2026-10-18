@@ -463,17 +463,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
         internal const val INSTALLER_SETTINGS_DENIED = "installer_settings_denied"
 
         /**
-         * Исход обхода папок. В форварде «секции рекомендаций нет» ([FOLDER_SWITCH_ABSENT]) —
-         * только когда хотя бы одну папку довели до редактора с СИЛЬНЫМ подтверждением
-         * ([FolderEditorEvidence.STRONG]); иначе это промах автоматизации
-         * ([FOLDER_EDITOR_NOT_OPENED], ведро «не нашёл»), а не состояние устройства.
+         * Исход обхода папок. В форварде «секции рекомендаций нет» ([FOLDER_SWITCH_ABSENT]) — только
+         * когда хотя бы одну папку довели до редактора с СИЛЬНЫМ подтверждением
+         * ([FolderEditorEvidence.STRONG]); иначе это промах автоматизации ([FOLDER_EDITOR_NOT_OPENED]).
+         * Конъюнкция с [foldersChecked] документирует инвариант: сильное подтверждение возможно только
+         * внутри засчитанной папки (счётчик растёт до вызова `openFolderEditor`).
          *
-         * В откате тот же сильный признак означает ДРУГОЕ: строку-цель мы видели (шаг
-         * восстанавливается из снапшота) и тумбили её в этом же прогоне — значит она исчезла,
-         * и честная причина — [FOLDER_SECTION_VANISHED], а не «настройки на устройстве нет».
-         *
-         * Конъюнкция с [foldersChecked] документирует инвариант: сильное подтверждение возможно
-         * только внутри засчитанной папки (счётчик растёт до вызова `openFolderEditor`).
+         * В откате тот же признак означает ДРУГОЕ: строку видели и тумбили в этом же прогоне — значит
+         * она исчезла ([FOLDER_SECTION_VANISHED]), а не «настройки на устройстве нет».
          */
         internal fun folderWalkReason(
             foldersChecked: Int,
@@ -486,25 +483,22 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }
 
         /**
-         * Ведро причины пропуска шага. Статический помощник: его зовёт AdbEnablerService
-         * при выборе текста отчёта, экземпляр раннера для этого не нужен.
+         * Ведро причины пропуска шага (статический помощник: экземпляр раннера для этого не нужен).
          *
-         * Маппинг reason → ведро (прогон rmumuqr53: навигационные провалы уезжали в
-         * «нет на устройстве», и отчёт обвинял устройство вместо автоматизации):
-         * - [SkipKind.LAUNCHER_ABSENT] — `launcher_setting_absent`: настройки рабочего
-         *   стола, которой на прошивке нет (home_suggestions и подобные шаги лаунчера);
-         * - [SkipKind.NOT_ON_DEVICE] — ТОЛЬКО признаки отсутствия функции на устройстве:
-         *   `app_not_installed`, `folder_switch_absent`, `switch_disabled`,
-         *   `installer_settings_not_found`, `installer_settings_denied`;
-         * - [SkipKind.UNRESOLVED] — всё остальное: навигационные провалы
-         *   (`not_applicable`, `drill_failed`, `screen_markers_absent`,
-         *   `foreign_screen`, провалившийся route), `low_confidence`,
-         *   `switch_not_found`, `verify_failed`, неизвестная причина и null.
+         * Маппинг reason → ведро (прогон rmumuqr53: навигационные провалы уезжали в «нет на
+         * устройстве», и отчёт обвинял устройство вместо автоматизации):
+         * - [SkipKind.LAUNCHER_ABSENT] — `launcher_setting_absent` (настройки рабочего стола, которой
+         *   на прошивке нет);
+         * - [SkipKind.NOT_ON_DEVICE] — ТОЛЬКО признаки отсутствия функции: `app_not_installed`,
+         *   `folder_switch_absent`, `switch_disabled`, `installer_settings_not_found`,
+         *   `installer_settings_denied`;
+         * - [SkipKind.UNRESOLVED] — всё остальное: навигационные провалы (`not_applicable`,
+         *   `drill_failed`, `screen_markers_absent`, `foreign_screen`, провалившийся route),
+         *   `low_confidence`, `switch_not_found`, `verify_failed`, неизвестная причина и null.
          *
-         * Канал прогона зовёт это правило ради одного ведра: пропуском в отчёте становится
-         * ТОЛЬКО [SkipKind.NOT_ON_DEVICE]. Ведра LAUNCHER_ABSENT и UNRESOLVED остаются
-         * размеченными (их проверяет SimpleRunnerApplicabilityTest), но провалы
-         * автоматизации теперь считаются провалом, а не пропуском (F6, прогон rmvb6atul).
+         * Канал прогона зовёт правило ради одного ведра: пропуском становится ТОЛЬКО
+         * [SkipKind.NOT_ON_DEVICE]; LAUNCHER_ABSENT и UNRESOLVED размечены (их проверяет
+         * SimpleRunnerApplicabilityTest), но провалы автоматизации считаются провалом (F6, rmvb6atul).
          */
         internal fun classifySkip(reason: String?): SkipKind = when (reason) {
             LAUNCHER_ABSENT -> SkipKind.LAUNCHER_ABSENT
@@ -665,20 +659,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
     internal fun metricsSnapshot(): StepMetrics.Snapshot = stepMetrics.snapshot()
 
     /**
-     * Последнее ФАКТИЧЕСКИ прочитанное состояние тумблера главной строки текущего шага
-     * (null — не читали). Строка-настройка исчезает из дерева после применения, и финальный
-     * readSwitchState даёт null, хотя состояние читалось раньше (ux_program/browser_sys,
-     * прогон rmuu1hsq6: VERDICT `checked_after=null`). Подставляется в вердикт как факт.
+     * Последнее ФАКТИЧЕСКИ прочитанное состояние тумблера главной строки текущего шага (null —
+     * не читали). Строка исчезает из дерева после применения, и финальный readSwitchState даёт null,
+     * хотя состояние читалось раньше (прогон rmuu1hsq6: VERDICT `checked_after=null`).
      * Сбрасывается на старте шага ([run]).
      */
     // internal — для тестируемости (SimpleRunnerVerifyTest).
     internal var lastReadSwitchState: Boolean? = null
 
     /**
-     * Пакеты, окна которых для drilling ТЕКУЩЕГО шага свои: launchPackage, resolvedPkg,
-     * пакеты route-подсказки и пакет, на котором подтвердился вход. Всё остальное — чужое
-     * окно, по нему дрил не тапает и не скроллит (P4, прогон rmuyfjtvk: промо-ссылка свежей
-     * Mi Music открыла Google Play, и автоматизация продолжила тапать магазин).
+     * Пакеты, окна которых для drilling ТЕКУЩЕГО шага свои. Всё остальное — чужое окно, по нему
+     * дрил не тапает и не скроллит (P4, прогон rmuyfjtvk: промо-ссылка Mi Music открыла Google Play,
+     * и автоматизация продолжила тапать магазин).
      */
     private val entryPackages = HashSet<String>(4)
 
@@ -842,11 +834,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     /**
      * Выход шага (в том числе cancel/timeout/исключение — вызывается из finally прогона).
-     *
-     * Порядок восстановления важен: сначала ШАГОВАЯ громкость, затем снапшот свежего
-     * устройства. Раньше [restoreStepMute] обнулял `originalVolume`, и ветка возврата
-     * fresh-device становилась мёртвой: громкость, поднятая владельцем до прогона,
-     * оставалась заглушённой (прогон rmuojptft: `media volume restored to 0`).
+     * Порядок восстановления важен: сначала ШАГОВАЯ громкость, затем снапшот свежего устройства —
+     * обратный порядок обнулял `originalVolume` и делал ветку возврата мёртвой (прогон rmuojptft).
      */
     internal fun cleanupFreshDevice() {
         restoreStepMute()
@@ -895,23 +884,19 @@ class SimpleRunner(private val service: AdbEnablerService) {
     // ─── Public API ───────────────────────────────────────────────────────
 
     /**
-     * Гейт целостности оверлея: в обычном прогоне Простого режима окно прогресса
-     * обязано быть на экране, в канале отката ([AdbEnablerService.reverseSimpleToggles])
-     * его нет вовсе — окно прогресса показывает MainActivity, а не раннер, и прежний
-     * безусловный гейт фейлил каждый шаг отката `overlay_lost` (прогоны rmuebpgnr,
-     * rmueihkd3: `reverseSimpleToggles done: 0/11`, «Не удалось подключиться для
-     * восстановления»). Задаётся на время прогона параметром [run].
+     * Гейт целостности оверлея: в обычном прогоне окно прогресса обязано быть на экране, в канале
+     * отката ([AdbEnablerService.reverseSimpleToggles]) его нет вовсе — окно показывает MainActivity,
+     * а не раннер, и безусловный гейт фейлил каждый шаг отката `overlay_lost` (прогоны rmuebpgnr,
+     * rmueihkd3: `reverseSimpleToggles done: 0/11`). Задаётся на время прогона параметром [run].
      */
     // internal — для тестируемости (SimpleRunnerOverlayGateTest).
     internal var overlayGateRequired: Boolean = true
 
     /**
-     * Канал отката ([overlayGateRequired] = false): окна прогресса нет, и уход на рабочий
-     * стол запрещён — приложение-инициатор обязано остаться видимым (MainActivity в
-     * foreground), иначе MIUI блокирует запуск приложения шага как фоновый и откат
-     * упирается в `App not ready … fg=com.mi.android.globallauncher` (прогон rmuftmq29:
-     * reverse `music_sys` → timeout). В обычном прогоне рабочий стол нужен: оверлей
-     * остаётся верхним окном и навигация начинается с известной точки.
+     * Канал отката ([overlayGateRequired] = false): ухода на рабочий стол нет — приложение-инициатор
+     * обязано остаться видимым, иначе MIUI блокирует запуск приложения шага как фоновый (прогон
+     * rmuftmq29: reverse `music_sys` → timeout). В обычном прогоне рабочий стол нужен: оверлей
+     * остаётся верхним окном, навигация начинается с известной точки.
      */
     // internal — для тестируемости (SimpleRunnerOverlayGateTest).
     internal fun needsHomeBeforeAppLaunch(): Boolean = overlayGateRequired
@@ -1143,15 +1128,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
             return toggleInstallerRecommendations(step)
         }
 
-        // RouteScript: явный сценарий маршрута, проверенный руками на этой прошивке, —
-        // БЫСТРАЯ ПОДСКАЗКА (3–5 с), а не замена навигации. Дошёл до целевого экрана —
-        // тумблер ищет общий хвост шага (гейт уверенности + checked_before + verify);
-        // не дошёл — шаг продолжает авто-навигацией (intents → drill → сканер):
-        // вариантные пути обязаны оставаться подсказками-фолбэками (master-task v2).
-        // Guard чужого окна (P4): набор пакетов, окна которых для этого шага свои.
-        // Семя — пакеты-цели шага ([stepPackagesFor]: launchPackage плюс requiredPackages
-        // каталога и legacy-структуры), дальше набор пополняется по ходу шага (resolvedPkg,
-        // пакеты route-подсказки, пакет подтверждённого входа). Остальное — чужое окно.
+        // RouteScript: явный сценарий маршрута, проверенный руками на этой прошивке, — БЫСТРАЯ ПОДСКАЗКА
+        // (3–5 с), а не замена навигации. Дошёл до целевого экрана — тумблер ищет общий хвост шага
+        // (гейт уверенности + checked_before + verify); не дошёл — продолжает авто-навигацией
+        // (intents → drill → сканер): вариантные пути обязаны оставаться подсказками-фолбэками.
+        // Guard чужого окна (P4): семя — пакеты-цели шага ([stepPackagesFor]), дальше набор пополняется
+        // по ходу (resolvedPkg, пакеты route-подсказки, пакет подтверждённого входа); остальное — чужое.
         seedEntryPackages(step)
         val routeScript = SemanticCatalog.route(step.id)
         if (routeScript.isNotEmpty()) {
