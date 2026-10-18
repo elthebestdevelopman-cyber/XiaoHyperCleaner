@@ -77,6 +77,22 @@ class ScreenCrawlerTest {
     }
 
     @Test
+    fun `equal length keys keep the lexicon priority and the choice is deterministic`() {
+        // Порядок лексикона — приоритет локали: при РАВНОЙ длине ключей побеждает более ранний
+        // (maxByOrNull отдаёт первый максимум). Лексикон — упорядоченный List, не Map, поэтому
+        // порядок итерации гарантирован и повторный вызов даёт тот же ключ.
+        val lexicon = listOf("aaa", "bbb")
+        val row = "строка со словами aaa и bbb"
+        assertEquals("первый из равных по длине", "aaa", ScreenCrawler.classify(row, lexicon))
+        assertEquals("выбор детерминирован", "aaa", ScreenCrawler.classify(row, lexicon))
+        assertEquals(
+            "порядок — единственный арбитр при равной длине",
+            "bbb",
+            ScreenCrawler.classify(row, lexicon.reversed())
+        )
+    }
+
+    @Test
     fun `unrelated rows are not candidates`() {
         assertNull(ScreenCrawler.classify("Показывать пароли"))
         assertNull(ScreenCrawler.classify("О телефоне"))
