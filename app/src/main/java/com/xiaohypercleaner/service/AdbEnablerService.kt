@@ -534,6 +534,13 @@ class AdbEnablerService : AccessibilityService() {
                 // `low_confidence`, нерабочий route) — обязаны считаться провалом: прежде они
                 // уезжали в skipped, и отчёт показывал `failed=0` при пяти FAIL в диагностике
                 // (прогон rmvb6atul: 23/23, failed=0, skipped=5).
+                // Отмена — не провал шага: явные `Result(false, REASON_CANCELLED)` из drill и
+                // обхода папок НЕ уходят ни в onResult, ни в onSkipped — иначе остановленный
+                // шаг попадал в failed отчёта.
+                if (result.reason == SimpleRunner.REASON_CANCELLED) {
+                    AppLog.i(TAG, "runSimpleStep: step ${step.id} cancelled — результат не рапортуется")
+                    return@run
+                }
                 val kind = SimpleRunner.classifySkip(result.reason)
                 val skippedResult = !result.success && kind == SimpleRunner.SkipKind.NOT_ON_DEVICE
                 if (skippedResult) {

@@ -4,6 +4,7 @@ import com.xiaohypercleaner.data.SimpleSteps
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -278,5 +279,46 @@ class ReverseRollbackTest {
             ReverseEntryAction.FAIL_SCREEN_NOT_REACHED,
             ReverseExtras.entryAction(true, { false }, -1L, 0, { true })
         )
+    }
+
+    @Test
+    fun `cancellation during rollback is not a failure and does not touch the snapshot`() {
+        // Отмена обратного канала симметрична прямому: остановленный откат не рапортует
+        // FAILED и не запускает остаток (запись в снапшот идёт из самого раннера и до
+        // отменённого шага не доходит). Прогон rmvcp6zzq: причина cancelled уезжала в отчёт
+        // провалов, а вместе с ней «не восстановленными» числились и непройденные шаги.
+        val steps = listOf(step("a", targetChecked = false), step("b", targetChecked = false))
+        val runCalls = mutableListOf<SimpleSteps.Step>()
+        val done = mutableListOf<Pair<String, Boolean>>()
+        val results = mutableListOf<ReverseStepResult>()
+        val progress = mutableListOf<Float>()
+        val runner = ReverseToggleRunner(
+            findStep = { id -> steps.firstOrNull { it.id == id } },
+            runStep = { s, _ ->
+                runCalls += s
+                throw kotlinx.coroutines.CancellationException("cancelled during rollback")
+            },
+            log = {}
+        )
+
+        assertThrows(kotlinx.coroutines.CancellationException::class.java) {
+            runBlocking {
+                runner.run(
+                    stepIds = LinkedHashSet(steps.map { it.id }),
+                    checkedBeforeStates = mapOf("a" to true, "b" to true),
+                    requireOverlay = true,
+                    shouldStop = { false },
+                    onStep = { _, _, _ -> },
+                    onStepDone = { id, ok -> done += id to ok },
+                    onStepResult = { results += it },
+                    onProgress = { progress += it }
+                )
+            }
+        }
+
+        assertEquals("отменённый шаг не превращается в FAILED", 0, results.size)
+        assertEquals("итог отменённого шага в UI не отправляется", 0, done.size)
+        assertEquals("прогресс после отмены не двигается", 0, progress.size)
+        assertEquals("остаток отката после отмены не запускается", listOf("a"), runCalls.map { it.id })
     }
 }

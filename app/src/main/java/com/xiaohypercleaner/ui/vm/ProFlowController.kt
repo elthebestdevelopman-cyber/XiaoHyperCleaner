@@ -17,6 +17,7 @@ import com.xiaohypercleaner.service.ReverseStepResult
 import com.xiaohypercleaner.ui.MainUiState
 import com.xiaohypercleaner.util.AppLog
 import com.xiaohypercleaner.util.OverlayPermissionProbe
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -575,6 +576,12 @@ class ProFlowController(
                             (proPending && !adbOk)
                     )
                 }
+            } catch (e: CancellationException) {
+                // Симметрично прямому каналу: отмена отката не пишет провал и не трогает
+                // снапшот (clearSimpleToggledSteps ниже недостижим при проброшенном
+                // исключении), иначе остановленный пользователем откат рапортовал бы failed.
+                AppLog.i(TAG, "restoreOptimization: cancelled")
+                throw e
             } catch (e: Exception) {
                 AppLog.e(TAG, "restore failed: ${e.message}", e)
                 update { it.copy(isWorking = false, restoreFailed = true) }

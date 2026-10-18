@@ -34,6 +34,7 @@ import com.xiaohypercleaner.util.StepDiagnostics
 import com.xiaohypercleaner.util.StepMetrics
 import com.xiaohypercleaner.util.UiWait
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -268,6 +269,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         /** Причина остановки навигации на чужом окне: дрил не тапает чужое приложение (P4). */
         internal const val FOREIGN_WINDOW = "foreign_window"
+
+    /**
+     * Токен отмены шага: отмена — не провал, поэтому причина не рапортуется ни в `onResult`,
+     * ни в `onSkipped` (иначе явные `Result(false, REASON_CANCELLED)` из drill/папок попадали
+     * бы в failed отчёта). Один владелец токена — и у производителя, и у потребителя.
+     */
+    internal const val REASON_CANCELLED = "cancelled"
 
         /** Префикс шагов управления уведомлениями приложений. */
         private const val NOTIF_PREFIX = "notif_"
@@ -1004,6 +1012,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 }
                 recycleNode(root)
                 effective
+            } catch (e: CancellationException) {
+                // Отмена — не провал шага: исключение пробрасывается (структурная
+                // конкурентность), callback(result) после finally не вызывается вовсе —
+                // ложного Result(false,"error") из-за отмены не появляется.
+                AppLog.i(TAG, "Step ${step.id} cancelled")
+                throw e
             } catch (e: Exception) {
                 AppLog.e(TAG, "Step ${step.id} failed: ${e.message}", e)
                 lastFailureReason = "error"
@@ -1114,7 +1128,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
     private suspend fun runInternal(stepParam: SimpleSteps.Step, profile: RomProfile): Result {
         // Семантический launchPackage (каталог) дополняет legacy-структуру шага.
         var step = applySemanticLaunchPackage(stepParam)
-        if (cancelled) return Result(false, "cancelled")
+        if (cancelled) return Result(false, REASON_CANCELLED)
 
         // Гейт целостности оверлея (Аддендум A4): навигация без окна прогресса запрещена.
         if (!awaitOverlayReadyOrPause()) return Result(false, "overlay_lost")
@@ -1251,7 +1265,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val attemptIntents = if (pmLauncher != null) listOf(pmLauncher) + intents else intents
         var screenOpened = false
         for (intent in attemptIntents) {
-            if (cancelled) return Result(false, "cancelled")
+            if (cancelled) return Result(false, REASON_CANCELLED)
             try {
                 service.startActivity(intent)
                 screenOpened = true
@@ -1298,7 +1312,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         if (!screenOpened) {
             for (intent in step.intents) {
-                if (cancelled) return Result(false, "cancelled")
+                if (cancelled) return Result(false, REASON_CANCELLED)
                 try {
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     service.startActivity(intent)
@@ -1515,7 +1529,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             // Окно «цель дорисовалась» — не более одного раза на шаг (см. ниже).
             var targetGraceSpent = false
             for (levelIndex in startLevel until mergedDrillPath.size) {
-                if (cancelled) return Result(false, "cancelled")
+                if (cancelled) return Result(false, REASON_CANCELLED)
                 // Навигационное действие — только при целостном оверлее.
                 if (!awaitOverlayReadyOrPause()) return Result(false, "overlay_lost")
                 // P4: на чужом окне не тапаем и не скроллим — один возврат в приложение шага,
@@ -3416,7 +3430,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             currentRoot = null
             var stalled = 0
             for (attempt in 0 until ROW_SCROLL_ATTEMPTS) {
-                if (cancelled) return Result(false, "cancelled")
+                if (cancelled) return Result(false, REASON_CANCELLED)
                 AppLog.i(
                     TAG,
                     "switch: scroll attempt ${attempt + 1}/$ROW_SCROLL_ATTEMPTS " +
@@ -3497,7 +3511,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             if (isFullyVisible(targetSwitch)) break
             if (cancelled) {
                 recycleNode(targetSwitch); recycleNode(currentRoot)
-                return Result(false, "cancelled")
+                return Result(false, REASON_CANCELLED)
             }
             AppLog.i(
                 TAG,
@@ -4622,7 +4636,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 break
             }
             probed++
-            if (cancelled) return Result(false, "cancelled")
+            if (cancelled) return Result(false, REASON_CANCELLED)
             if (!awaitOverlayReadyOrPause()) return Result(false, "overlay_lost")
 
             val label = folderLabel(candidate)
@@ -5279,7 +5293,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         for (component in candidates) {
             if (tried >= MAX_INSTALLER_CANDIDATES) break
             tried++
-            if (cancelled) return Result(false, "cancelled")
+            if (cancelled) return Result(false, REASON_CANCELLED)
             if (!awaitOverlayReadyOrPause()) return Result(false, "overlay_lost")
             val short = component.flattenToShortString()
             StepDiagnostics.note(step.id, "INSTALLER", "open=$tried component=$short")
