@@ -202,6 +202,52 @@ class PlanBuilderTest {
     }
 
     @Test
+    fun `home suggestions step is disabled only for the global_ru variant`() {
+        // F8-3/разбор hs_recon: на POCO Launcher (com.mi.android.globallauncher) настройки
+        // «Показывать предложения» нет ни в лаунчере, ни в Ленте виджетов — шаг отключён
+        // ТОЛЬКО для global_ru; для cn_hyperos (системный com.miui.home) он остаётся в плане.
+        // При системном лаунчере перепроверить: путь там другой (см. handoff).
+        install("com.miui.home")
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.forLanguageTag("ru"))
+            AdaptiveCatalog.resetForTest()
+            SemanticCatalog.resetForTest()
+            SemanticCatalog.ensureLoaded(context)
+
+            assertEquals("вариант каталога по языку", "global_ru", AdaptiveCatalog.selectVariant(context, profile))
+            val ru = PlanBuilder.buildDetailed(context, profile)
+            assertFalse(
+                "для global_ru шаг предложений лаунчера не запускается",
+                ru.steps.any { it.id == "home_suggestions" }
+            )
+            assertTrue(
+                "причина исключения обязана быть видна: ${ru.excluded}",
+                ru.excluded.contains("home_suggestions:disabled_for_variant")
+            )
+
+            Locale.setDefault(Locale.forLanguageTag("en"))
+            AdaptiveCatalog.resetForTest()
+            SemanticCatalog.resetForTest()
+            SemanticCatalog.ensureLoaded(context)
+
+            assertEquals("вариант каталога по языку", "cn_hyperos", AdaptiveCatalog.selectVariant(context, profile))
+            val cn = PlanBuilder.buildDetailed(context, profile)
+            assertTrue(
+                "cn_hyperos не трогали: шаг остаётся в плане",
+                cn.steps.any { it.id == "home_suggestions" }
+            )
+            assertFalse(
+                "у cn_hyperos нет исключения по варианту",
+                cn.excluded.contains("home_suggestions:disabled_for_variant")
+            )
+        } finally {
+            Locale.setDefault(original)
+            AdaptiveCatalog.resetForTest()
+        }
+    }
+
+    @Test
     fun `carousel is excluded when fashiongallery is absent`() {
         // R2-3: карусель обоев живёт в com.miui.android.fashiongallery. Без пакета
         // экрана на устройстве нет: шаг не должен попадать в план (прогон rmupuzwh1 —

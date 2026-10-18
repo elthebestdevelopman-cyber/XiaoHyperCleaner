@@ -159,7 +159,7 @@
           "searchTexts": ["Показывать рекламу", "Персональные рекомендации", "Сервисы онлайн-контента", "Аккаунт и настройки"]
         }
       },
-      "disabledSteps": ["installer_recommendations"]
+      "disabledSteps": ["installer_recommendations", "home_suggestions"]
     }
   }
 }
