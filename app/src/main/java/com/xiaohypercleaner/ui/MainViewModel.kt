@@ -835,10 +835,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (openedAt > 0L) {
                 val lastUpdate = SelfApkExporter.lastUpdateTimeMs(app)
                 val installed = SelfApkExporter.installHappenedAfterOpened(lastUpdate, openedAt)
+                // Дельту пишем в СЕКУНДАХ: 13-значные timestamp уезжали в лог как «***-***-**-**»
+                // (LogMasker.phoneRegex), и гейт установки нельзя было сверить по логу.
                 AppLog.i(
                     TAG,
-                    "installer pre-step: resume gate openedAt=$openedAt " +
-                        "lastUpdateTime=$lastUpdate installed=$installed"
+                    "installer pre-step: resume gate installed=$installed " +
+                        "lastUpdateAfterOpenSec=${(lastUpdate - openedAt) / 1000}"
                 )
                 if (!installed) {
                     // Установки не было — предшаг не подтверждён: ожидание снимается, старта нет.
