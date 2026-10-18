@@ -95,11 +95,20 @@ object ScreenCrawler {
         val candidates: List<Candidate>
     )
 
-    /** Совпавший ключ лексикона для подписи строки (null — не кандидат). */
+    /**
+     * Совпавший ключ лексикона для подписи строки (null — не кандидат).
+     *
+     * Из нескольких совпадений берётся САМЫЙ ДЛИННЫЙ ключ: общий «рекомендации» в лексиконе стоит
+     * раньше специфичного «рекомендации приложений», и при первом совпадении специфичный ключ молча
+     * не срабатывал — `unmatchedLexicon` показывал «строка не сработала» про строку, которая на
+     * экране была. При равной длине выигрывает более ранний (порядок лексикона — приоритет локали).
+     */
     fun classify(rowText: String?, lexicon: List<String> = LEXICON): String? {
         val text = rowText?.trim().orEmpty()
         if (text.isEmpty()) return null
-        return lexicon.firstOrNull { TextMatcher.normalizedContains(text, it) }
+        return lexicon
+            .filter { TextMatcher.normalizedContains(text, it) }
+            .maxByOrNull { TextMatcher.normalize(it).length }
     }
 
     /** Отчёт обхода: экраны + кандидаты (сохраняется в DataStore, пишется в лог). */

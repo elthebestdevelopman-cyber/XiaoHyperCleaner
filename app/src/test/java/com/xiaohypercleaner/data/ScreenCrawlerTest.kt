@@ -59,6 +59,24 @@ class ScreenCrawlerTest {
     }
 
     @Test
+    fun `more specific lexicon key wins over the generic one`() {
+        // Порядок лексикона не должен решать исход: общий «рекомендации» стоит раньше специфичного
+        // «рекомендации приложений», и при первом совпадении специфичный ключ молча не срабатывал —
+        // отчёт показывал его в unmatchedLexicon, хотя строка на экране была.
+        assertEquals(
+            "специфичный ключ важнее общего",
+            "рекомендации приложений",
+            ScreenCrawler.classify("Рекомендации приложений")
+        )
+        assertEquals("общий ключ работает, когда специфичного нет", "рекомендации", ScreenCrawler.classify("Рекомендации"))
+        assertEquals(
+            "самый длинный совпавший ключ выигрывает и на английском",
+            "personalized recommendations",
+            ScreenCrawler.classify("Personalized recommendations")
+        )
+    }
+
+    @Test
     fun `unrelated rows are not candidates`() {
         assertNull(ScreenCrawler.classify("Показывать пароли"))
         assertNull(ScreenCrawler.classify("О телефоне"))
