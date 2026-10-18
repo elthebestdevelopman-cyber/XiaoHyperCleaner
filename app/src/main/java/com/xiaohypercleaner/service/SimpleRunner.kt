@@ -4672,9 +4672,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
         var foldersChecked = 0
         // Кандидаты без СИЛЬНОГО подтверждения редактора и сорвавшиеся тапы: по ним
         // «секции нет» не выносится, а открытый пункт «пересбор кандидатов» становится
-        // измеримым (taps_failed > 0 — узлы устарели).
+        // измеримым (taps_failed > 0 — узлы устарели). Промахи разделены по сигналу:
+        // weak — редактор подтверждён слабо, none — редактор не открылся вовсе.
         var strongConfirmed = 0
-        var weakOrMissed = 0
+        var weakConfirmed = 0
+        var noneOrMissed = 0
         var tapsFailed = 0
         for (candidate in candidates) {
             if (probed >= probeLimit) break
@@ -4735,7 +4737,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 StepDiagnostics.note(
                     step.id, "FOLDER", "editor_not_opened name=" + label + " evidence=none"
                 )
-                weakOrMissed++
+                noneOrMissed++
                 leaveFolderEditor()
                 continue
             }
@@ -4759,7 +4761,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 StepDiagnostics.note(
                     step.id, "FOLDER", "editor_not_opened name=" + label + " evidence=weak"
                 )
-                weakOrMissed++
+                weakConfirmed++
                 continue
             }
             AppLog.i(TAG, "folder: в папке " + label + " секции рекомендаций нет — следующая")
@@ -4781,7 +4783,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 step.id,
                 "APPLICABILITY",
                 "folder_editor_not_opened folders=" + foldersChecked +
-                    " strong=" + strongConfirmed + " weak=" + weakOrMissed +
+                    " strong=" + strongConfirmed + " weak=" + weakConfirmed +
+                    " none=" + noneOrMissed +
                     " taps_failed=" + tapsFailed + " reverse=" + (reverseCtx != null)
             )
             return Result(false, FOLDER_EDITOR_NOT_OPENED)
@@ -4798,7 +4801,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
             step.id,
             "APPLICABILITY",
             walkReason + " folders=" + foldersChecked +
-                " strong=" + strongConfirmed + " weak=" + weakOrMissed +
+                " strong=" + strongConfirmed + " weak=" + weakConfirmed +
+                " none=" + noneOrMissed +
                 " taps_failed=" + tapsFailed + " reverse=" + (reverseCtx != null)
         )
         return Result(false, walkReason)

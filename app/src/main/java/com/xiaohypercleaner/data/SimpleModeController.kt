@@ -74,10 +74,6 @@ class SimpleModeController(
          * между «выключено сейчас» и «было выключено».
          */
         val alreadyOffStepIds: List<String> = emptyList(),
-        /** Шаги, которых нет в лаунчере: «настройка отсутствует в лаунчере» (POCO). */
-        val launcherSkippedStepIds: List<String> = emptyList(),
-        /** Шаги, которые робот не нашёл сам: не провал и не «нет на устройстве». */
-        val unresolvedStepIds: List<String> = emptyList(),
         /**
          * Прогон прерван пользователем ПОСЛЕ подтверждения отмены (S4): результат
          * частичный — `partial=true` в логах и состоянии.
@@ -88,8 +84,6 @@ class SimpleModeController(
     val isActive: Boolean get() = state.active
     val failedStepIds: List<String> get() = state.failedStepIds
     val skippedStepIds: List<String> get() = state.skippedStepIds
-    val launcherSkippedStepIds: List<String> get() = state.launcherSkippedStepIds
-    val unresolvedStepIds: List<String> get() = state.unresolvedStepIds
 
     private fun checkAccessibility(): Boolean {
         val component = ComponentName(context, AdbEnablerService::class.java).flattenToString()
@@ -116,8 +110,6 @@ class SimpleModeController(
     private var autoFlowJob: Job? = null
     private val failedIds: MutableList<String> = mutableListOf()
     private val skippedIds: MutableList<String> = mutableListOf()
-    private val launcherSkippedIds: MutableList<String> = mutableListOf()
-    private val unresolvedIds: MutableList<String> = mutableListOf()
     private val notifToggledIds: MutableList<String> = mutableListOf()
     private val alreadyOffIds: MutableList<String> = mutableListOf()
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -216,8 +208,6 @@ class SimpleModeController(
             skippedIds.size,
             notifToggledIds.map { stepTitle(it) },
             alreadyOffIds.map { stepTitle(it) },
-            launcherSkippedIds.size,
-            unresolvedIds.size,
             // Провалившиеся шаги — списком: счётчик без имён не показывает, что осталось
             // включённым (F6, прогон rmvb6atul).
             failedSteps = failedIds.map { stepTitle(it) }
@@ -277,8 +267,6 @@ class SimpleModeController(
         skippedIds.clear()
         notifToggledIds.clear()
         alreadyOffIds.clear()
-        launcherSkippedIds.clear()
-        unresolvedIds.clear()
         stepAttempt = 1
         stepsStarted = false
         restrictedLocation = RestrictedLocation.UNKNOWN
@@ -667,22 +655,10 @@ class SimpleModeController(
 
     fun onStepSkipped(stepId: String, kind: String = SimpleRunner.SkipKind.NOT_ON_DEVICE.name) {
         AppLog.i(TAG, "onStepSkipped: step=$stepId kind=$kind, index=${state.currentStepIndex}")
+        // Пропуском в отчёте остаётся одно ведро — «нет на устройстве»; kind приходит из
+        // раннера транспортом (SkipKind не трогаем) и виден только в логе.
         if (!skippedIds.contains(stepId)) skippedIds.add(stepId)
-        // Ведро причины: «нет в лаунчере» и «робот не нашёл» показываются отдельными
-        // строками отчёта — состояние устройства и промах автоматизации не смешиваются.
-        when (kind) {
-            SimpleRunner.SkipKind.LAUNCHER_ABSENT.name ->
-                if (!launcherSkippedIds.contains(stepId)) launcherSkippedIds.add(stepId)
-            SimpleRunner.SkipKind.UNRESOLVED.name ->
-                if (!unresolvedIds.contains(stepId)) unresolvedIds.add(stepId)
-        }
-        setState {
-            copy(
-                skippedStepIds = skippedIds.toList(),
-                launcherSkippedStepIds = launcherSkippedIds.toList(),
-                unresolvedStepIds = unresolvedIds.toList()
-            )
-        }
+        setState { copy(skippedStepIds = skippedIds.toList()) }
         scheduleAdvance()
     }
 
@@ -916,8 +892,6 @@ class SimpleModeController(
         skippedIds.clear()
         notifToggledIds.clear()
         alreadyOffIds.clear()
-        launcherSkippedIds.clear()
-        unresolvedIds.clear()
         stepAttempt = 1
         stepsStarted = false
         SimplePlan.reset()

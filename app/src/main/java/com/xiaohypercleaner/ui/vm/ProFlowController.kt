@@ -552,8 +552,6 @@ class ProFlowController(
                         skipped = 0,
                         notifSteps = emptyList(),
                         alreadyOffSteps = emptyList(),
-                        launcherSkipped = 0,
-                        unresolved = 0,
                         mode = OverlayController.MODE_RESTORE,
                         restoreApplied = restoreApplied,
                         restoreAlreadyOriginal = restoreAlreadyOriginal,

@@ -62,10 +62,6 @@ class OverlayService : Service() {
         const val EXTRA_COMPLETED = "completed"
         const val EXTRA_FAILED = "failed"
         const val EXTRA_SKIPPED = "skipped"
-        /** Шаги, которых нет в лаунчере: отдельная строка отчёта. */
-        const val EXTRA_LAUNCHER_SKIPPED = "launcher_skipped"
-        /** Шаги, которые робот не нашёл сам: отдельная строка отчёта. */
-        const val EXTRA_UNRESOLVED = "unresolved"
         const val EXTRA_NOTIF_STEPS = "notif_steps"
         const val EXTRA_ALREADY_OFF_STEPS = "already_off_steps"
 
@@ -294,8 +290,6 @@ class OverlayService : Service() {
                 intent.getIntExtra(EXTRA_SKIPPED, 0),
                 intent.getStringExtra(EXTRA_NOTIF_STEPS).orEmpty(),
                 intent.getStringExtra(EXTRA_ALREADY_OFF_STEPS).orEmpty(),
-                intent.getIntExtra(EXTRA_LAUNCHER_SKIPPED, 0),
-                intent.getIntExtra(EXTRA_UNRESOLVED, 0),
                 intent.getIntExtra(EXTRA_MODE, OverlayController.MODE_AUTOMATION),
                 intent.getIntExtra(EXTRA_RESTORE_APPLIED, 0),
                 intent.getIntExtra(EXTRA_RESTORE_ALREADY_ORIGINAL, 0),
@@ -587,8 +581,6 @@ class OverlayService : Service() {
         skipped: Int,
         notifSteps: String,
         alreadyOffSteps: String,
-        launcherSkipped: Int,
-        unresolved: Int,
         mode: Int = OverlayController.MODE_AUTOMATION,
         restoreApplied: Int = 0,
         restoreAlreadyOriginal: Int = 0,
@@ -680,10 +672,6 @@ class OverlayService : Service() {
             }
         }
         if (!restore && skipped > 0) layout.addView(bodyText(getString(R.string.result_skipped, skipped), small = true), llWrap().apply { topMargin = dp(4) })
-        // Честный отчёт: «нет настройки в лаунчере» и «робот не нашёл» — разные строки,
-        // их нельзя показывать как «нет на устройстве».
-        if (!restore && launcherSkipped > 0) layout.addView(bodyText(getString(R.string.result_skipped_launcher, launcherSkipped), small = true), llWrap().apply { topMargin = dp(4) })
-        if (!restore && unresolved > 0) layout.addView(bodyText(getString(R.string.result_skipped_unresolved, unresolved), small = true), llWrap().apply { topMargin = dp(4) })
         if (!restore && failed > 0) layout.addView(bodyText(getString(R.string.result_failed, failed), small = true), llWrap().apply { topMargin = dp(4) })
         // Провалившиеся шаги — списком, как в откате: счётчик без имён не даёт понять, что
         // именно осталось включённым (F6, прогон rmvb6atul: failed=0 при пяти FAIL).
@@ -741,7 +729,6 @@ class OverlayService : Service() {
         AppLog.i(
             TAG,
             "result shown: $completed/$total, failed=$failed, skipped=$skipped " +
-                "launcherSkipped=$launcherSkipped unresolved=$unresolved " +
                 "notif=${notifTitles.size} manual=$manualShown"
         )
     }

@@ -273,7 +273,6 @@
     <string name="automation_status_done">Listo, verificando…</string>
     <string name="automation_status_fail">No se pudo, continuando…</string>
     <string name="automation_status_skip">Ajuste no disponible — saltando</string>
-    <string name="automation_status_unresolved">No encontrado — saltando</string>
     <string name="automation_percent_time">%1$d%% · %2$s</string>
     <string name="restore_phase_title">Restaurando ajustes…</string>
     <string name="restore_status_step">Restaurando: %s…</string>
@@ -298,8 +297,6 @@
     <string name="result_title">¡Listo! El gato está contento 🧡</string>
     <string name="result_summary">Completados %1$d de %2$d pasos</string>
     <string name="result_skipped">Omitidos (no en el dispositivo): %d</string>
-    <string name="result_skipped_launcher">Ajuste ausente en el lanzador: %d</string>
-    <string name="result_skipped_unresolved">No se encontró automáticamente (revisa manualmente): %d</string>
     <string name="result_failed">No se pudo completar (protegido por el sistema): %d</string>
     <string name="result_failed_list">No se pudo: %s</string>
     <string name="result_notif_title">Notificaciones desactivadas:</string>

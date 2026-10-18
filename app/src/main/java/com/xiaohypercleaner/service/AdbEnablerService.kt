@@ -533,7 +533,8 @@ class AdbEnablerService : AccessibilityService() {
                 // (`home_suggestions`: каталог ждёт не тот путь) и UNRESOLVED (`not_applicable`,
                 // `low_confidence`, нерабочий route) — обязаны считаться провалом: прежде они
                 // уезжали в skipped, и отчёт показывал `failed=0` при пяти FAIL в диагностике
-                // (прогон rmvb6atul: 23/23, failed=0, skipped=5).
+                // (прогон rmvb6atul: 23/23, failed=0, skipped=5). Отдельных строк отчёта у этих
+                // вёдер больше нет: план показывает причину исключения, шаг — провал.
                 // Отмена — не провал шага: явные `Result(false, REASON_CANCELLED)` из drill и
                 // обхода папок НЕ уходят ни в onResult, ни в onSkipped — иначе остановленный
                 // шаг попадал в failed отчёта.
@@ -545,16 +546,7 @@ class AdbEnablerService : AccessibilityService() {
                 val skippedResult = !result.success && kind == SimpleRunner.SkipKind.NOT_ON_DEVICE
                 if (skippedResult) {
                     AppLog.i(TAG, "runSimpleStep: step ${step.id} skipped (${result.reason}) kind=$kind")
-                    OverlayController.updateStatus(
-                        this,
-                        getString(
-                            if (kind == SimpleRunner.SkipKind.UNRESOLVED) {
-                                R.string.automation_status_unresolved
-                            } else {
-                                R.string.automation_status_skip
-                            }
-                        )
-                    )
+                    OverlayController.updateStatus(this, getString(R.string.automation_status_skip))
                     SimpleStepBridge.onSkipped?.invoke(step.id, kind.name)
                 } else {
                     AppLog.i(

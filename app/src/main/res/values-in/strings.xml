@@ -244,7 +244,6 @@
     <string name="automation_status_done">Selesai, memverifikasi…</string>
     <string name="automation_status_fail">Melanjutkan…</string>
     <string name="automation_status_skip">Setelan tidak ada — melewati</string>
-    <string name="automation_status_unresolved">Tidak ditemukan — melewati</string>
     <string name="automation_percent_time">%1$d%% · %2$s</string>
     <string name="restore_phase_title">Memulihkan pengaturan…</string>
     <string name="restore_status_step">Memulihkan: %s…</string>
@@ -269,8 +268,6 @@
     <string name="result_title">Selesai! Sistem rapi 🧡</string>
     <string name="result_summary">%1$d dari %2$d langkah selesai</string>
     <string name="result_skipped">Dilewati: %d</string>
-    <string name="result_skipped_launcher">Setelan tidak ada di peluncur: %d</string>
-    <string name="result_skipped_unresolved">Tidak ditemukan otomatis (periksa manual): %d</string>
     <string name="result_failed">Dilindungi sistem: %d</string>
     <string name="result_failed_list">Tidak berhasil: %s</string>
     <string name="result_notif_title">Notifikasi dimatikan:</string>

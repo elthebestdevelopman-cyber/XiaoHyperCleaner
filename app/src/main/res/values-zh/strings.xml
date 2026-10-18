@@ -274,7 +274,6 @@
     <string name="automation_status_done">完成，正在验证…</string>
     <string name="automation_status_fail">无法完成，继续下一步…</string>
     <string name="automation_status_skip">设置不存在 — 跳过</string>
-    <string name="automation_status_unresolved">未找到 — 跳过</string>
     <string name="automation_percent_time">%1$d%% · %2$s</string>
     <string name="restore_phase_title">正在恢复设置…</string>
     <string name="restore_status_step">正在恢复：%s…</string>
@@ -299,8 +298,6 @@
     <string name="result_title">完成！猫咪很满意 🧡</string>
     <string name="result_summary">已完成 %1$d / %2$d 步</string>
     <string name="result_skipped">已跳过（设备上不存在）：%d</string>
-    <string name="result_skipped_launcher">启动器中无此设置：%d</string>
-    <string name="result_skipped_unresolved">未能自动找到（请手动检查）：%d</string>
     <string name="result_failed">无法完成（系统保护）：%d</string>
     <string name="result_failed_list">未能完成：%s</string>
     <string name="result_notif_title">已关闭通知：</string>

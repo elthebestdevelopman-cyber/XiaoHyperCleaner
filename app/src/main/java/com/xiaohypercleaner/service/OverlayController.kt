@@ -288,10 +288,6 @@ object OverlayController {
         notifSteps: List<String> = emptyList(),
         /** Шаги, где тумблер уже был выключен: ничего не меняли, но состояние проверено. */
         alreadyOffSteps: List<String> = emptyList(),
-        /** Шаги, которых нет в лаунчере: «настройка отсутствует в лаунчере». */
-        launcherSkipped: Int = 0,
-        /** Шаги, которые робот не нашёл сам (не провал и не «нет на устройстве»). */
-        unresolved: Int = 0,
         /** [MODE_AUTOMATION] или [MODE_RESTORE]: экран результата для прогона или отката. */
         mode: Int = MODE_AUTOMATION,
         /** Отчёт отката: четыре состояния — applied / already_original / unreadable / failed. */
@@ -311,7 +307,7 @@ object OverlayController {
         AppLog.i(
             TAG,
             "showResult: $completed/$total, failed=$failed, skipped=$skipped " +
-                "launcher=$launcherSkipped unresolved=$unresolved mode=$mode " +
+                "mode=$mode " +
                 "notif=${notifSteps.size} alreadyOff=${alreadyOffSteps.size} " +
                 "failedSteps=${failedSteps.size} " +
                 "applied=$restoreApplied alreadyOriginal=$restoreAlreadyOriginal " +
@@ -327,8 +323,6 @@ object OverlayController {
                 .putExtra(OverlayService.EXTRA_SKIPPED, skipped)
                 .putExtra(OverlayService.EXTRA_NOTIF_STEPS, notifSteps.joinToString("\n"))
                 .putExtra(OverlayService.EXTRA_ALREADY_OFF_STEPS, alreadyOffSteps.joinToString("\n"))
-                .putExtra(OverlayService.EXTRA_LAUNCHER_SKIPPED, launcherSkipped)
-                .putExtra(OverlayService.EXTRA_UNRESOLVED, unresolved)
                 .putExtra(OverlayService.EXTRA_MODE, mode)
                 .putExtra(OverlayService.EXTRA_RESTORE_APPLIED, restoreApplied)
                 .putExtra(OverlayService.EXTRA_RESTORE_ALREADY_ORIGINAL, restoreAlreadyOriginal)
