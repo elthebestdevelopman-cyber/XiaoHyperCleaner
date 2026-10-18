@@ -45,4 +45,61 @@ class SelfApkExporterTest {
         // Старт приложения обязан пережить отсутствие каталога: чистка не бросает.
         assertEquals(0, SelfApkExporter.purge(context))
     }
+
+    @Test
+    fun `stale purge keeps the copy when no install happened after the pre-step`() {
+        // Пользователь вернулся из установщика, ничего не поставив: копия нужна предшагу для
+        // продолжения, а приложение старше копии — установки не было.
+        val context = ApplicationProvider.getApplicationContext<XiaoHyperApp>()
+        val dir = SelfApkExporter.dir(context)
+        dir.mkdirs()
+        val copy = File(dir, "com.xiaohypercleaner-1.0.apk").apply { writeText("copy") }
+        val openedAt = System.currentTimeMillis()
+        copy.setLastModified(openedAt)
+
+        val removed = SelfApkExporter.purgeStale(context, lastUpdateTimeMs = openedAt - 60_000L)
+
+        assertEquals("установки не было — чистить нечего", 0, removed)
+        assertTrue("копия остаётся для продолжения предшага", copy.exists())
+    }
+
+    @Test
+    fun `stale purge removes the copy when the install happened after the pre-step`() {
+        // Установка состоялась: приложение новее копии — копия стала мусором в кэше.
+        val context = ApplicationProvider.getApplicationContext<XiaoHyperApp>()
+        val dir = SelfApkExporter.dir(context)
+        dir.mkdirs()
+        val copy = File(dir, "com.xiaohypercleaner-1.0.apk").apply { writeText("copy") }
+        copy.setLastModified(System.currentTimeMillis() - 60_000L)
+
+        val removed = SelfApkExporter.purgeStale(
+            context,
+            lastUpdateTimeMs = System.currentTimeMillis()
+        )
+
+        assertEquals("копия установленной сборки удалена", 1, removed)
+        assertFalse("копии больше нет", copy.exists())
+    }
+
+    @Test
+    fun `install gate compares lastUpdateTime with the moment the installer was opened`() {
+        val openedAt = 1_800_000_000_000L
+
+        assertTrue(
+            "установка ровно в момент открытия (гранулярность ФС) — установка была",
+            SelfApkExporter.installHappenedAfterOpened(openedAt, openedAt)
+        )
+        assertTrue(
+            "lastUpdateTime на 900 мс раньше открытия — гранулярность 1 с",
+            SelfApkExporter.installHappenedAfterOpened(openedAt - 900L, openedAt)
+        )
+        assertFalse(
+            "обновление на 2 с раньше открытия — установки после предшага не было",
+            SelfApkExporter.installHappenedAfterOpened(openedAt - 2_000L, openedAt)
+        )
+        assertFalse(
+            "штатный старт (openedAt=0) гейтом не проверяется",
+            SelfApkExporter.installHappenedAfterOpened(Long.MAX_VALUE, 0L)
+        )
+    }
 }

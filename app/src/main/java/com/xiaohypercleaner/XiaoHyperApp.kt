@@ -146,12 +146,15 @@ class XiaoHyperApp : Application() {
 
         initDiagnostics()
         // Копия собственной сборки (предшаг установщика) нужна только на время установки:
-        // оставшаяся с прошлого раза — мусор в кэше, удаляем на старте.
+        // оставшаяся после УСТАНОВКИ — мусор в кэше, удаляем на старте. Копия без установки
+        // (пользователь вернулся, ничего не поставив) остаётся: предшаг продолжается по ней.
         initScope.launch {
-            runCatching { SelfApkExporter.purge(this@XiaoHyperApp) }
-                .onSuccess { removed ->
-                    if (removed > 0) AppLog.i(TAG, "self apk copies purged: $removed")
-                }
+            runCatching {
+                SelfApkExporter.purgeStale(
+                    this@XiaoHyperApp,
+                    SelfApkExporter.lastUpdateTimeMs(this@XiaoHyperApp)
+                )
+            }
                 .onFailure { e -> AppLog.w(TAG, "self apk purge failed: ${e.message}") }
         }
         AppLog.i(TAG, "=== XiaoHyperApp onCreate completed ===")

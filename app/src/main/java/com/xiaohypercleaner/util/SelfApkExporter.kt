@@ -25,6 +25,21 @@ internal object SelfApkExporter {
     /** Каталог копий (один файл, перезаписывается). */
     internal fun dir(context: Context): File = File(context.cacheDir, DIR_NAME)
 
+    /**
+     * Допуск на гранулярность файловой системы (lastUpdateTime пакета — секунды): установка
+     * сразу после открытия установщика может выглядеть «на 1 с раньше» открытия.
+     */
+    private const val OPENED_AT_FS_GRACE_MS = 1_000L
+
+    /**
+     * Состоялась ли установка ПОСЛЕ открытия установщика ([openedAtMs] — момент открытия).
+     * `lastUpdateTime` пакета меняется при установке, поэтому это и есть сигнал гейта:
+     * без него «ожидание установки» стартовало бы оптимизацию без самой установки, а с ним
+     * штатный рестарт посреди прогона (openedAt == 0) возобновляется по-прежнему.
+     */
+    internal fun installHappenedAfterOpened(lastUpdateTimeMs: Long, openedAtMs: Long): Boolean =
+        openedAtMs > 0L && lastUpdateTimeMs >= openedAtMs - OPENED_AT_FS_GRACE_MS
+
     /** Удаляет старые копии, возвращает число удалённых файлов. */
     internal fun purge(context: Context): Int {
         val files = dir(context).listFiles() ?: return 0
@@ -32,6 +47,31 @@ internal object SelfApkExporter {
         files.forEach { if (it.delete()) removed++ }
         return removed
     }
+
+    /**
+     * Чистит копию ТОЛЬКО когда установка состоялась: приложение новее копии. Копия без
+     * установки остаётся — по ней предшаг продолжается после возврата в приложение, и
+     * копировать заново (десятки мегабайт в кэш) не приходится.
+     */
+    internal fun purgeStale(context: Context, lastUpdateTimeMs: Long): Int {
+        val files = dir(context).listFiles() ?: return 0
+        var removed = 0
+        files.forEach { file ->
+            if (lastUpdateTimeMs > file.lastModified() && file.delete()) removed++
+        }
+        AppLog.i(
+            TAG,
+            "self apk stale purge: removed=$removed total=${files.size} " +
+                "installNewer=${lastUpdateTimeMs > (files.maxOfOrNull { it.lastModified() } ?: 0L)}"
+        )
+        return removed
+    }
+
+    /** Время последнего обновления НАШЕГО пакета (0 — прочитать не удалось). Сигнал гейта
+     *  предшага: `adb install -r` его меняет, поэтому «установка была» видно по факту. */
+    internal fun lastUpdateTimeMs(context: Context): Long = runCatching {
+        context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
+    }.getOrDefault(0L)
 
     /**
      * Потоково копирует текущую сборку в кэш. null — копирование не удалось (нет места,

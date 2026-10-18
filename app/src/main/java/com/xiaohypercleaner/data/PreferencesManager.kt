@@ -3,6 +3,7 @@ package com.xiaohypercleaner.data
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.xiaohypercleaner.AppConstants
@@ -45,6 +46,11 @@ sealed interface PreferenceKey {
 
     data object PendingSimpleMode : PreferenceKey {
         override val name = "pending_simple_mode"
+    }
+
+    /** Момент открытия установщика предшагом (0 — предшаг не запускался). */
+    data object SelfApkOpenedAt : PreferenceKey {
+        override val name = "self_apk_opened_at"
     }
 
     data object PendingOptimization : PreferenceKey {
@@ -202,6 +208,23 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
 
     suspend fun setPendingSimpleMode(pending: Boolean) =
         writeBool(PreferenceKey.PendingSimpleMode, pending)
+
+    /**
+     * Момент открытия установщика предшагом. 0 — предшаг не запускался (штатный старт):
+     * такие pending восстанавливаются как раньше, без сверки с установкой.
+     */
+    suspend fun getSelfApkOpenedAt(): Long = runCatching {
+        context.dataStore.data.first()[longPreferencesKey(PreferenceKey.SelfApkOpenedAt.name)] ?: 0L
+    }.getOrElse { e ->
+        AppLog.w(TAG, "getSelfApkOpenedAt failed: ${e.message}")
+        0L
+    }
+
+    suspend fun setSelfApkOpenedAt(openedAtMs: Long) = runCatching {
+        context.dataStore.edit { it[longPreferencesKey(PreferenceKey.SelfApkOpenedAt.name)] = openedAtMs }
+    }.onFailure { e ->
+        AppLog.w(TAG, "setSelfApkOpenedAt($openedAtMs) failed: ${e.message}")
+    }
 
     suspend fun setHasShownRestrictedDialog(shown: Boolean) =
         writeBool(PreferenceKey.HasShownRestrictedDialog, shown)

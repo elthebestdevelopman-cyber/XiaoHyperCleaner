@@ -545,12 +545,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Готовит Простой режим, не запуская шаги: pending-флаг переживает переустановку и
      * срабатывает в [tryResumePendingSimpleMode]. Нужен предшагу установщика: он сам
-     * «стартует» оптимизацию уже после установки приложения.
+     * «стартует» оптимизацию уже после установки.
+     *
+     * Здесь же снимается момент открытия установщика: этой точкой закрываются «Пропустить»
+     * и отмена ожидания (оба идут через [startSimpleMode]) — ожидание установки снято, и
+     * восстанавливать pending по установке больше не нужно.
      */
     private fun prepareSimpleModePending() {
         failedSimpleStepIds.clear()
         stepAttempt = 1
-        viewModelScope.launch { prefs.setPendingSimpleMode(true) }
+        viewModelScope.launch {
+            // Штатный старт не ждёт установки: момент открытия установщика снимается, иначе
+            // stale `openedAt` примешивался бы к следующему восстановлению pending.
+            prefs.setSelfApkOpenedAt(0L)
+            prefs.setPendingSimpleMode(true)
+        }
     }
 
     /**
@@ -597,17 +606,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             startSimpleMode()
             return
         }
+        // Момент открытия установщика и pending пишутся ДО старта окна: по ним на возврате
+        // проверяется, состоялась ли установка (`lastUpdateTime` пакета — сигнал гейта).
+        // Оба значения awaited: установщик не должен открываться раньше, чем они на диске.
+        val openedAt = System.currentTimeMillis()
+        prefs.setSelfApkOpenedAt(openedAt)
+        prefs.setPendingSimpleMode(true)
         val opened = withContext(Dispatchers.IO) { SelfApkExporter.openInstaller(app, apk) }
         if (!opened) {
             AppLog.w(TAG, "installer pre-step: installer not opened — обычный старт")
+            // Установщик не открылся — ни ожидания, ни копии быть не должно.
+            clearInstallerPreStepState()
             withContext(Dispatchers.IO) { SelfApkExporter.purge(app) }
             update { it.copy(installerPreStepWaiting = false) }
             startSimpleMode()
             return
         }
-        prepareSimpleModePending()
         installerPermissionAttempts = 0
         viewModelScope.launch { prefs.setOptimizationMode(OptimizationMode.SIMPLE) }
+    }
+
+    /**
+     * Снимает состояние ожидания установки: pending и момент открытия установщика. Оба
+     * снимаются вместе — иначе `openedAt` без pending (или наоборот) давал бы ложное
+     * восстановление Простого режима после решения пользователя.
+     */
+    private suspend fun clearInstallerPreStepState() {
+        prefs.setPendingSimpleMode(false)
+        prefs.setSelfApkOpenedAt(0L)
     }
 
     /** Разрешение ставить APK из неизвестных источников (Android 8+). */
@@ -645,7 +671,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun onInstallerPreStepWaitingSkip() {
         AppLog.i(TAG, "installer pre-step: waiting cancelled")
         update { it.copy(installerPreStepWaiting = false) }
-        viewModelScope.launch { prefs.setPendingSimpleMode(false) }
         startSimpleMode()
     }
 
@@ -803,6 +828,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 return@launch
             }
+            // Гейт установки: pending от предшага восстанавливается только когда установка
+            // ФАКТИЧЕСКИ состоялась (lastUpdateTime пакета новее момента открытия установщика).
+            // openedAt == 0 — штатный старт: он возобновляется как раньше, иначе рестарт
+            // посреди прогона перестал бы восстанавливаться.
+            val openedAt = prefs.getSelfApkOpenedAt()
+            if (openedAt > 0L) {
+                val lastUpdate = SelfApkExporter.lastUpdateTimeMs(app)
+                val installed = SelfApkExporter.installHappenedAfterOpened(lastUpdate, openedAt)
+                AppLog.i(
+                    TAG,
+                    "installer pre-step: resume gate openedAt=$openedAt " +
+                        "lastUpdateTime=$lastUpdate installed=$installed"
+                )
+                if (!installed) {
+                    // Установки не было — предшаг не подтверждён: ожидание снимается, старта нет.
+                    update { it.copy(installerPreStepWaiting = false) }
+                    clearInstallerPreStepState()
+                    return@launch
+                }
+            }
             if (_state.value.simpleModeActive) {
                 // Режим уже идёт: ожидание установщика больше не актуально. Лог — под гейтом
                 // состояния: ветка срабатывает на КАЖДОМ возврате в приложение во время прогона.
@@ -829,6 +874,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 AppLog.i(TAG, "installer pre-step: waiting cancelled on resume")
             }
             update { it.copy(installerPreStepWaiting = false) }
+            // Решение принято (установка подтверждена и режим стартует): момент открытия
+            // установщика снимается — следующий рестарт не должен проходить гейт установки.
+            clearInstallerPreStepState()
+            prefs.setPendingSimpleMode(true)
             failedSimpleStepIds.clear()
             stepAttempt = 1
             simpleController.start()
