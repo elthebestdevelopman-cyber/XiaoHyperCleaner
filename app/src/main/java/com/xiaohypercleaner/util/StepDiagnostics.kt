@@ -55,6 +55,8 @@ object StepDiagnostics {
         success: Boolean,
         reason: String,
         elapsedMs: Long,
+        /** Счётчики шага: тапы и ожидания (см. [StepMetrics]). */
+        metrics: StepMetrics.Snapshot,
         root: AccessibilityNodeInfo?,
         service: AdbEnablerService?
     ) {
@@ -65,7 +67,8 @@ object StepDiagnostics {
         AppLog.i(
             TAG,
             "DIAG run=$runId step=$stepId event=$event reason=$reason " +
-                "elapsed=${elapsedMs}ms pkg=$pkg windows=$windows screen=[$screen]"
+                "elapsed=${elapsedMs}ms ${metrics.formatFields()} " +
+                "pkg=$pkg windows=$windows screen=[$screen]"
         )
     }
 

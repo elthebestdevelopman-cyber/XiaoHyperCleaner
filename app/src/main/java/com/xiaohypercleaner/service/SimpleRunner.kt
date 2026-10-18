@@ -31,6 +31,7 @@ import com.xiaohypercleaner.util.NodeTree
 import com.xiaohypercleaner.util.TextMatcher
 import com.xiaohypercleaner.util.DiagnosticSnapshotManager
 import com.xiaohypercleaner.util.StepDiagnostics
+import com.xiaohypercleaner.util.StepMetrics
 import com.xiaohypercleaner.util.UiWait
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
@@ -639,6 +640,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
     private var stepDeadlineMs: Long = 0L
 
     /**
+     * Метрика шага (тапы и ожидания) для финальной DIAG-строки. Сбрасывается в начале шага —
+     * числа второго шага не включают первый. Наблюдательный инструмент, на решения не влияет.
+     */
+    private val stepMetrics = StepMetrics()
+
+    /** Снимок метрики для теста «метрики не текут между шагами». internal — для тестируемости. */
+    internal fun metricsSnapshot(): StepMetrics.Snapshot = stepMetrics.snapshot()
+
+    /**
      * Последнее ФАКТИЧЕСКИ прочитанное состояние тумблера главной строки текущего шага
      * (null — не читали). Строка-настройка исчезает из дерева после применения, и финальный
      * readSwitchState даёт null, хотя состояние читалось раньше (ux_program/browser_sys,
@@ -739,6 +749,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
             condition = condition
         )
         StepDiagnostics.wait(stepId, reason, outcome.elapsedMs, outcome.hit, outcome.reads)
+        // Метрика копится ВНУТРИ существующего механизма: новых ожиданий и чтений не появляется.
+        stepMetrics.recordWait(outcome.elapsedMs, outcome.hit, outcome.reads)
         return outcome.hit
     }
 
@@ -906,6 +918,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         val timeout = computeTimeout(step, profile)
         AppLog.i(TAG, "Executing step: ${step.id} (timeout ${timeout}ms)")
+        // Метрика шага начинается с нуля ЯВНО на входе: иначе числа второго шага включали бы
+        // первый (наблюдательный инструмент не имеет права искажать картину шага).
+        stepMetrics.reset()
         // Дедлайн нужен фазе тумблера: перед тапом проверяем остаток бюджета (S2).
         stepDeadlineMs = System.currentTimeMillis() + timeout
 
@@ -936,6 +951,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     effective.success,
                     effective.reason ?: if (effective.success) "ok" else "unknown",
                     System.currentTimeMillis() - start,
+                    stepMetrics.snapshot(),
                     root,
                     service
                 )
@@ -961,6 +977,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
             } finally {
                 cleanupFreshDevice()
                 stepDeadlineMs = 0L
+                // Метрика шага закрыта вместе с дедлайном: следующий шаг стартует с нуля даже
+                // если этот упал исключением.
+                stepMetrics.reset()
                 isRunning = false
                 currentStepId = null
                 reverseCtx = null
@@ -4373,6 +4392,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     }
                 }, null)
             if (!dispatched && cont.isActive) cont.resume(false)
+            // Метрика: считаем только отправленную инъекцию (неудачная отправка не тап).
+            if (dispatched) stepMetrics.recordTap()
         }
     }
 
@@ -6654,6 +6675,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val bounds = "[${rect.left},${rect.top},${rect.right},${rect.bottom}]"
         if (node.isClickable && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
             AppLog.i(TAG, "tap: $cls id=$id clickable=true bounds=$bounds via=node")
+            stepMetrics.recordTap()
             return true
         }
         var parent = node.parent
@@ -6661,6 +6683,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         while (parent != null && depth < 5) {
             if (parent.isClickable && parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
                 AppLog.i(TAG, "tap: $cls id=$id clickable=false bounds=$bounds via=parent depth=${depth + 1}")
+                stepMetrics.recordTap()
                 return true
             }
             parent = parent.parent
@@ -6683,13 +6706,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
             "tap: $cls id=$id clickable=${node.isClickable} bounds=$bounds " +
                 "via=gesture center=(${rect.centerX()},${rect.centerY()})"
         )
-        return performGesture(
+        // Жестовая ветка — тоже тап по узлу (короткий жест 100 мс в его центре).
+        val byGesture = performGesture(
             rect.centerX().toFloat(),
             rect.centerY().toFloat(),
             rect.centerX().toFloat(),
             rect.centerY().toFloat(),
             100
         )
+        if (byGesture) stepMetrics.recordTap()
+        return byGesture
     }
 
     /** Жест с временно снятым поглощением тапов оверлеем (см. [withOverlayPassthrough]). */
