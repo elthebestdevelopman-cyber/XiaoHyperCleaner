@@ -296,6 +296,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
         private const val MSA_TAP_RETRY_MIN_MS = 500L
         private const val MSA_TAP_MAX = 3
 
+        /**
+         * Повтор тапа в фазе settle: не раньше этого времени с последнего тапа И только если
+         * кнопка снова кликабельна. Прежний повтор срабатывал через 140 мс по только что
+         * нажатой кнопке и отсчёт перезапускался (прогон rmvcp6zzq: `revoke tapped` 41.897 →
+         * повтор 42.038).
+         */
+        private const val MSA_SETTLE_RETRY_MIN_MS = 2_000L
+
+        /** Токен дампа: диалог отзыва ещё на экране в момент провала (снимается ДО BACK). */
+        private const val REASON_REVOKE_DIALOG_OPEN = "revoke_dialog_open"
+
         /** Отсчётный хвост кнопки MIUI: «(9 с)», «(9s)», «(9)» — кнопка ещё неактивна. */
         private val COUNTDOWN_LABEL_REGEX = Regex("\\(\\s*\\d+\\s*(с|s)?\\s*\\)")
         /** Потолок ожидания отзыва после подтверждения: завершать шаг с открытым диалогом нельзя — он уносит следующий (прогон rmuslthv7). */
@@ -352,9 +363,6 @@ class SimpleRunner(private val service: AdbEnablerService) {
         private const val WAIT_POLL_SLOW_MS = 250L
         /** Сколько чтений ПОДРЯД подтверждают важное состояние (отзыв msa, исчезнувшая строка). */
         private const val WAIT_CONFIRM_READS = 2
-
-        /** Сколько раз пробуем закрыть оставшийся диалог шага (кнопка-отказ, затем BACK). */
-        private const val CLOSE_LEFT_DIALOG_ATTEMPTS = 2
 
         /** Ожидание готовности рабочего стола после HOME (опрос, а не фиксированные 500 мс). */
         private const val HOME_SETTLE_WAIT_MS = 500L
@@ -721,6 +729,32 @@ class SimpleRunner(private val service: AdbEnablerService) {
     internal fun targetGraceBudgetMs(budgetMs: Long = remainingBudgetMs()): Long {
         if (budgetMs == Long.MAX_VALUE) return APP_SCREEN_WAIT_MS
         return minOf(APP_SCREEN_WAIT_MS, budgetMs - TOGGLE_BUDGET_RESERVE_MS)
+    }
+
+    /** Остаток бюджета шага НАД резервом на тумблер и verify (окна msa не едят это время). */
+    internal fun budgetAboveReserveMs(): Long {
+        val budget = remainingBudgetMs()
+        if (budget == Long.MAX_VALUE) return budget
+        return budget - TOGGLE_BUDGET_RESERVE_MS
+    }
+
+    /**
+     * Окно АКТИВАЦИИ кнопки отзыва: разобрали отсчёт в подписи («Отозвать (9 с)») — ждём
+     * ровно N плюс один опрос; не разобрали — фолбэк на полный [MSA_REVOKE_WAIT_MAX_MS].
+     * Сверху окно урезается остатком бюджета НАД резервом ([budgetAboveReserveMs]): ожидание
+     * не имеет права оставить шаг без времени на тумблер и verify.
+     */
+    internal fun msaActivationWindowMs(countdownSeconds: Int?, budgetAboveReserveMs: Long): Long {
+        val requested = countdownSeconds?.let { it * 1_000L + MSA_CONFIRM_POLL_MS }
+            ?: MSA_REVOKE_WAIT_MAX_MS
+        if (budgetAboveReserveMs == Long.MAX_VALUE) return requested
+        return minOf(requested, budgetAboveReserveMs.coerceAtLeast(0L))
+    }
+
+    /** Окно SETTLE: не больше потолка [MSA_REVOKE_SETTLE_MAX_MS] и не больше остатка над резервом. */
+    internal fun msaSettleWindowMs(budgetAboveReserveMs: Long): Long {
+        if (budgetAboveReserveMs == Long.MAX_VALUE) return MSA_REVOKE_SETTLE_MAX_MS
+        return minOf(MSA_REVOKE_SETTLE_MAX_MS, budgetAboveReserveMs.coerceAtLeast(0L))
     }
 
     /**
@@ -2431,19 +2465,24 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     /**
      * Подтверждение с задержкой (msa): кнопка «Отозвать»/«ОК» становится активной
-     * только после отсчёта MIUI (~10 c). Три фазы:
+     * только после отсчёта MIUI (~10 c). Три фазы, и у каждой свой НАБЛЮДАЕМЫЙ сигнал:
      *
-     * 1. ПОЯВЛЕНИЕ диалога — короткое окно [MSA_DIALOG_APPEAR_WAIT_MS]. Признаков
-     *    диалога нет — проверяем фактическое состояние тумблера и выходим: MIUI 13
-     *    отзывает доступ прямо по чекбоксу, и пустого ожидания отсчёта нет;
-     * 2. АКТИВАЦИЯ кнопки (отсчёт прошивки) — тап сразу при активной кнопке,
-     *    повторов тапа ≤[MSA_TAP_MAX] с интервалом [MSA_TAP_RETRY_MIN_MS], ранний
-     *    выход по уже применённому состоянию;
-     * 3. SETTLE после тапа — до [MSA_REVOKE_SETTLE_MAX_MS] с ранним выходом по
-     *    закрытию диалога/прогресса.
+     * 1. ПОЯВЛЕНИЕ диалога — короткое окно [MSA_DIALOG_APPEAR_WAIT_MS]. Присутствие
+     *    считается по КНОПКЕ диалога (кликабельной или отсчётной), а не по подстроке
+     *    заголовка: «Отзыв разрешения» есть в confirmTexts как заголовок, и подстрочный
+     *    признак делал диалог «вечным» — `dialogGone` не мог стать true (прогон rmvcp6zzq:
+     *    `revoke NOT confirmed dialogGone=false` при уже уведённом экране);
+     * 2. АКТИВАЦИЯ кнопки — окно берётся из отсчёта в подписи кнопки ([countdownSeconds]),
+     *    фолбэк — полный [MSA_REVOKE_WAIT_MAX_MS]; сверху окно урезается остатком бюджета НАД
+     *    резервом на тумблер и verify. В фазе отсчёта тумблер НЕ опрашивается (прежние ~40
+     *    полных чтений дерева), сигнал прогресса — смена отсчётной подписи;
+     * 3. SETTLE после тапа — не больше [MSA_REVOKE_SETTLE_MAX_MS] и не больше остатка над
+     *    резервом. Повтор тапа — только если кнопка СНОВА кликабельна и прошло
+     *    [MSA_SETTLE_RETRY_MIN_MS].
      *
-     * Без фактического подтверждения отзыва шаг не успешен (инвариант честности:
-     * открытый диалог/прогресс успехом не считается — прогон rmuslthv7).
+     * Успех — только когда ушли И кнопка, И прогресс, И тумблер в целевом состоянии;
+     * провал называет причину (`button=`/`progress=`/`switch=`) и снимает дамп ДО закрытия
+     * остаточного диалога (уведённый экран ничего не объясняет).
      */
     internal suspend fun confirmDelayedRevoke(
         step: SimpleSteps.Step,
@@ -2451,12 +2490,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         switchTexts: List<String>
     ): Boolean {
         if (confirmTexts.isEmpty()) return false
-        // Окно активации кнопки — ВСЕГДА полный лимит [MSA_REVOKE_WAIT_MAX_MS]:
-        // отсчёт MIUI на устройстве занимает ~10.4 с (прогон rmuvlyyor: кнопка стала
-        // активной уже после 10 с, и каталожный confirmWaitMs=10_000 урезал окно —
-        // шаг падал, оставляя диалог открытым). Бюджет шага (40 с) не меняется.
-        val waitMs = MSA_REVOKE_WAIT_MAX_MS
-        val appearStart = System.currentTimeMillis()
+        // Верхняя граница окон — остаток бюджета НАД резервом на тумблер и verify; сам
+        // бюджет шага не меняется.
+        val budgetAboveReserve = budgetAboveReserveMs()
 
         // Фаза 1: появление диалога отзыва (короткое окно с ранним выходом).
         val dialogAppeared = waitFor(
@@ -2464,7 +2500,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             reason = WAIT_DIALOG_APPEAR,
             timeoutMs = MSA_DIALOG_APPEAR_WAIT_MS,
             pollMs = WAIT_POLL_MS
-        ) { msaDialogVisible(confirmTexts) }
+        ) { readRevokeDialog(confirmTexts).let { d -> d.present.also { d.recycle() } } }
         if (!dialogAppeared) {
             // Признаков диалога нет: единственное честное доказательство — фактическое
             // состояние тумблера (отзыв мог примениться прямо по чекбоксу).
@@ -2478,89 +2514,120 @@ class SimpleRunner(private val service: AdbEnablerService) {
             )
         }
 
+        // Отсчёт из подписи кнопки («Отозвать (9 с)» → 9): ждём ровно N, а не полный лимит;
+        // не разобрали подпись — фолбэк на полный [MSA_REVOKE_WAIT_MAX_MS].
+        val countdownNow = readRevokeDialog(confirmTexts).let { d ->
+            val seconds = countdownSeconds(d.countdownLabel)
+            d.recycle()
+            seconds
+        }
+
         // Фаза 2: ожидание активной кнопки (отсчёт MIUI). Общий лимит не увеличиваем:
         // из него вычитаем время, потраченное на появление диалога.
-        val activationWindow = (waitMs - (System.currentTimeMillis() - appearStart)).coerceAtLeast(0L)
+        val activationWindow = msaActivationWindowMs(countdownNow, budgetAboveReserve)
         var countdownLogged = false
+        var progressSeen = false
+        var lastTapAt = 0L
         var taps = 0
-        val tapped = withTimeoutOrNull(activationWindow) {
-            var lastTapAt = 0L
-            while (!cancelled) {
-                // Отзыв мог примениться сам (диалог закрылся) — дальше ждать нечего.
-                if (msaSwitchInTargetState(step, switchTexts, timeoutMs = WAIT_POLL_MS)) {
-                    return@withTimeoutOrNull true
-                }
-                val root = service.rootInActiveWindow
-                val node = root?.let { findDialogConfirmButton(it, confirmTexts) }
-                if (root != null) recycleNode(root)
-                if (node != null) {
-                    val label = buttonLabel(node)
-                    if (isCountdownLabel(label)) {
-                        // MIUI держит «Отозвать (N с)» неактивной до конца отсчёта:
-                        // тап в это время не нажимает кнопку (прогон rmua0pt7i).
+        val tapped = if (activationWindow <= 0L) {
+            AppLog.w(
+                TAG,
+                "msa: activation window exhausted budget=${remainingBudgetMs()}ms step=${step.id}"
+            )
+            false
+        } else {
+            withTimeoutOrNull(activationWindow) {
+                while (!cancelled) {
+                    val dialog = readRevokeDialog(confirmTexts)
+                    if (dialog.countdownLabel != null) {
+                        // Отсчёт: MIUI держит «Отозвать (N с)» неактивной — тап в это время
+                        // кнопку не нажимает (прогон rmua0pt7i). Тумблер здесь НЕ читаем.
+                        progressSeen = true
                         if (!countdownLogged) {
-                            AppLog.i(TAG, "msa: waiting for revoke countdown '$label'")
+                            AppLog.i(TAG, "msa: waiting for revoke countdown '${dialog.countdownLabel}'")
                             countdownLogged = true
                         }
-                    } else {
-                        val now = System.currentTimeMillis()
-                        if (taps < MSA_TAP_MAX && now - lastTapAt >= MSA_TAP_RETRY_MIN_MS) {
-                            taps++
-                            lastTapAt = now
-                            val ok = tapNode(node)
-                            recycleNode(node)
-                            if (ok) return@withTimeoutOrNull true
-                        }
+                        dialog.recycle()
+                        delay(MSA_CONFIRM_POLL_MS)
+                        continue
                     }
+                    val node = dialog.button
+                    if (node == null) {
+                        // Кнопки диалога нет: диалог либо ушёл (подтвердим состоянием
+                        // тумблера после выхода), либо отсчёт ещё не отрисован.
+                        dialog.recycle()
+                        break
+                    }
+                    val now = System.currentTimeMillis()
+                    if (taps < MSA_TAP_MAX && node.isClickable && now - lastTapAt >= MSA_TAP_RETRY_MIN_MS) {
+                        taps++
+                        lastTapAt = now
+                        val ok = tapNode(node)
+                        dialog.recycle()
+                        if (ok) return@withTimeoutOrNull true
+                    } else {
+                        dialog.recycle()
+                    }
+                    delay(MSA_CONFIRM_POLL_MS)
                 }
-                delay(MSA_CONFIRM_POLL_MS)
-            }
-            false
-        } ?: false
+                false
+            } ?: false
+        }
 
         if (!tapped) {
-            // Кнопка так и не стала активной: подтверждаем по фактическому состоянию
+            // Кнопка так и не была нажата: подтверждаем по фактическому состоянию
             // тумблера (MIUI 13 отзывает прямо по чекбоксу), иначе честный fail.
             if (msaSwitchInTargetState(step, switchTexts)) {
                 AppLog.i(TAG, "msa: кнопка не активировалась, тумблер в целевом состоянии")
                 return true
             }
-            AppLog.w(TAG, "msa: revoke button not enabled within ${waitMs}ms (step=${step.id})")
+            AppLog.w(
+                TAG,
+                "msa: revoke button not tapped progress=$progressSeen " +
+                    "window=${activationWindow}ms taps=$taps step=${step.id}"
+            )
+            // Диалог мог остаться открытым — он уносит следующий шаг в чужой экран, поэтому
+            // здесь тот же порядок, что и после settle: дамп ДО закрытия, затем закрытие.
+            if (readRevokeDialog(confirmTexts).let { d -> d.present.also { d.recycle() } }) {
+                captureRevokeDialogSnapshot(step)
+            }
+            closeLeftoverDialog(step)
             return false
         }
-        AppLog.i(TAG, "msa: revoke tapped, waiting up to ${MSA_REVOKE_SETTLE_MAX_MS}ms")
+        val settleWindow = msaSettleWindowMs(budgetAboveReserve)
+        AppLog.i(TAG, "msa: revoke tapped, settle window=${settleWindow}ms")
 
-        // Фаза 3: settle. Первая проверка идёт СРАЗУ (диалог мог закрыться мгновенно),
-        // ранний выход — как только диалог/прогресс ушёл. При упорном диалоге один
-        // повтор тапа, факт отзыва принимается по состоянию тумблера ЛИБО по закрытию
-        // диалога на целевом экране — на MIUI 13 состояние sliding_button читается не всегда.
-        var dialogGone = false
+        // Фаза 3: settle. Первая проверка идёт СРАЗУ (диалог мог закрыться мгновенно), ранний
+        // выход — как только ушли И кнопка, И прогресс. Повтор тапа — только по СНОВА
+        // кликабельной кнопке и не раньше [MSA_SETTLE_RETRY_MIN_MS]: прежний повтор бил по
+        // только что нажатой кнопке через 140 мс (прогон rmvcp6zzq).
+        var presenceGone = false
+        var progressGone = false
         var retried = false
         val settleStart = System.currentTimeMillis()
-        val deadline = settleStart + MSA_REVOKE_SETTLE_MAX_MS
+        val deadline = settleStart + settleWindow
         // Лимит по числу чтений — жёсткий и детерминированный (медленное чтение дерева
         // не растягивает settle, как и в [UiWait]).
-        val maxReads = (MSA_REVOKE_SETTLE_MAX_MS / MSA_CONFIRM_POLL_MS).toInt() + 1
+        val maxReads = (settleWindow / MSA_CONFIRM_POLL_MS).toInt() + 1
         var settleReads = 0
         while (!cancelled) {
             settleReads++
-            val confirmation = service.rootInActiveWindow
-            val confirmText = ComponentVerifier.screenText(confirmation)
-            val dialogNode = confirmation?.let { findDialogConfirmButton(it, confirmTexts) }
-            val dialogVisible = confirmTexts.any { TextMatcher.normalizedContains(confirmText, it) }
-            if (!dialogVisible) {
-                dialogGone = true
-                dialogNode?.let { recycleNode(it) }
-                if (confirmation != null) recycleNode(confirmation)
+            val dialog = readRevokeDialog(confirmTexts)
+            if (!dialog.present) {
+                presenceGone = true
+                progressGone = true
+                dialog.recycle()
                 break
             }
-            if (!retried && dialogNode != null && !isCountdownLabel(buttonLabel(dialogNode))) {
+            val node = dialog.button
+            if (!retried && node != null &&
+                System.currentTimeMillis() - lastTapAt >= MSA_SETTLE_RETRY_MIN_MS
+            ) {
                 retried = true
                 AppLog.i(TAG, "msa: диалог не закрылся — повторный тап подтверждения")
-                tapNode(dialogNode)
+                tapNode(node)
             }
-            dialogNode?.let { recycleNode(it) }
-            if (confirmation != null) recycleNode(confirmation)
+            dialog.recycle()
             if (settleReads >= maxReads || System.currentTimeMillis() >= deadline) break
             delay(MSA_CONFIRM_POLL_MS)
         }
@@ -2568,20 +2635,28 @@ class SimpleRunner(private val service: AdbEnablerService) {
             step.id,
             WAIT_REVOKE_SETTLE,
             System.currentTimeMillis() - settleStart,
-            dialogGone,
+            presenceGone && progressGone,
             settleReads
         )
         val switchOk = verifySwitchState(step, switchTexts)
-        // Успех — ТОЛЬКО факт: состояние тумблера целевое либо строка исчезла на чистом
-        // целевом экране (два чтения подряд — внутри verify). Прежняя ветка
-        // `dialogGone && onTargetScreen` давала «успех» при живом чекбоксе, когда диалог
-        // ушёл сам: по логу шаг «успешен», в реальности отзыв не применён
-        // (прогон rmuvlyyor, скриншот diag-dumps/after/screenshot_msa_*.png).
-        if (switchOk) {
+        // Успех — ТОЛЬКО полный факт: ушли кнопка И прогресс, И тумблер в целевом состоянии
+        // (два чтения подряд внутри verify). Прежняя ветка `dialogGone && onTargetScreen`
+        // давала «успех» при живом чекбоксе, когда диалог ушёл сам (прогон rmuvlyyor,
+        // скриншот diag-dumps/after/screenshot_msa_*.png).
+        if (presenceGone && progressGone && switchOk) {
             AppLog.i(TAG, "msa: revoke confirmed step=${step.id}")
             return true
         }
-        AppLog.w(TAG, "msa: revoke NOT confirmed step=${step.id} dialogGone=$dialogGone")
+        AppLog.w(
+            TAG,
+            "msa: revoke NOT confirmed step=${step.id} button=${if (presenceGone) "нет" else "есть"} " +
+                "progress=${if (progressGone) "нет" else "есть"} switch=${lastReadSwitchState}"
+        )
+        // Дамп снимается ДО любого BACK: с уведённого экрана причина провала не читается
+        // (условие приёмки круга 18.10), а закрытие остаточного диалога меняет экран.
+        if (!presenceGone || !progressGone) {
+            captureRevokeDialogSnapshot(step)
+        }
         // Незавершённое действие не должно утекать в следующий шаг: открытый диалог
         // отзыва перекрывал старт sys_recommendations (прогоны rmuslthv7, rmuvlyyor:
         // `skip foreign confirm dialog step=sys_recommendations owner=msa`).
@@ -2590,73 +2665,142 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     /**
-     * Закрывает оставшийся диалог шага: негативная кнопка, иначе системный BACK.
-     * Открытый диалог уносит следующий шаг в чужой экран — гасим его сами.
+     * Закрывает оставшийся диалог шага: негативная кнопка, иначе РОВНО ОДИН системный BACK.
+     * Второй слепой BACK уводил шаг на чужой экран (прогон rmvcp6zzq: `BACK attempt=2` →
+     * финал «Пароли и безопасность»), поэтому после закрытия шаг обязан вернуться на свой
+     * экран — [returnToStepScreenAfterLeftover].
      */
     private suspend fun closeLeftoverDialog(step: SimpleSteps.Step) {
-        repeat(CLOSE_LEFT_DIALOG_ATTEMPTS) { attempt ->
-            if (!leftoverDialogVisible(step)) return
-            val root = service.rootInActiveWindow
-            val node = root?.let { findClickableByText(it, DIALOG_NEGATIVE_TEXTS) }
-            if (root != null) recycleNode(root)
-            if (node != null) {
-                val label = buttonLabel(node)
-                val tapped = tapNode(node)
-                recycleNode(node)
-                AppLog.i(TAG, "leftover dialog: tapped '$label' ok=$tapped step=${step.id}")
-                if (tapped) {
-                    // Ждём ФАКТИЧЕСКОГО закрытия, а не фиксированную паузу.
-                    waitFor(
-                        stepId = step.id,
-                        reason = WAIT_DIALOG_APPEAR,
-                        timeoutMs = CONFIRM_RETRY_MS,
-                        pollMs = WAIT_POLL_FAST_MS
-                    ) { !leftoverDialogVisible(step) }
-                    return@repeat
+        if (!leftoverDialogVisible(step)) return
+        val root = service.rootInActiveWindow
+        val node = root?.let { findClickableByText(it, DIALOG_NEGATIVE_TEXTS) }
+        if (root != null) recycleNode(root)
+        if (node != null) {
+            val label = buttonLabel(node)
+            val tapped = tapNode(node)
+            recycleNode(node)
+            AppLog.i(TAG, "leftover dialog: tapped '$label' ok=$tapped step=${step.id}")
+            if (tapped) {
+                // Ждём ФАКТИЧЕСКОГО закрытия, а не фиксированную паузу.
+                val closed = waitFor(
+                    stepId = step.id,
+                    reason = WAIT_DIALOG_APPEAR,
+                    timeoutMs = CONFIRM_RETRY_MS,
+                    pollMs = WAIT_POLL_FAST_MS
+                ) { !leftoverDialogVisible(step) }
+                if (closed) {
+                    returnToStepScreenAfterLeftover(step)
+                    return
                 }
             }
-            AppLog.w(TAG, "leftover dialog: BACK attempt=${attempt + 1} step=${step.id}")
-            pressBack()
-            waitFor(
-                stepId = step.id,
-                reason = WAIT_DIALOG_APPEAR,
-                timeoutMs = CONFIRM_RETRY_MS,
-                pollMs = WAIT_POLL_FAST_MS
-            ) { !leftoverDialogVisible(step) }
         }
+        AppLog.w(TAG, "leftover dialog: BACK attempt=1 step=${step.id}")
+        pressBack()
+        waitFor(
+            stepId = step.id,
+            reason = WAIT_DIALOG_APPEAR,
+            timeoutMs = CONFIRM_RETRY_MS,
+            pollMs = WAIT_POLL_FAST_MS
+        ) { !leftoverDialogVisible(step) }
         if (leftoverDialogVisible(step)) {
-            AppLog.w(
-                TAG,
-                "leftover dialog: still open after ${CLOSE_LEFT_DIALOG_ATTEMPTS} attempts step=${step.id}"
-            )
+            AppLog.w(TAG, "leftover dialog: still open after single BACK step=${step.id}")
         }
+        returnToStepScreenAfterLeftover(step)
     }
 
     /**
-     * Диалог-остаток шага всё ещё на экране: его confirm-тексты (msa «Отзыв разрешения»)
-     * либо негативные кнопки. Нужно только для проверки факта закрытия — тап идёт
-     * обычным путём, по кнопкам.
+     * Возврат на экран шага после закрытия остаточного диалога (образец [retryEnterStep]):
+     * брошенный на «Пароли и безопасность» откат/следующий шаг терял свой экран.
+     * Один проход и без петель — повтор входа уже ограничен своими гейтами.
+     */
+    private suspend fun returnToStepScreenAfterLeftover(step: SimpleSteps.Step) {
+        if (onTargetScreen(step) || isForegroundStepPackage(step)) return
+        val reEntered = retryEnterStep(step)
+        AppLog.i(
+            TAG,
+            "leftover dialog: return to step screen ok=$reEntered " +
+                "screen=${activePackage() ?: "-"} step=${step.id}"
+        )
+        StepDiagnostics.note(step.id, "MSA", "leftover_return ok=$reEntered")
+    }
+
+    /**
+     * Диалог-остаток шага всё ещё на экране. Присутствие считается по КНОПКЕ диалога
+     * (подтверждения в любом состоянии либо негативной), а не по подстроке confirm-текста:
+     * заголовок «Отзыв разрешения» матчился всегда, и диалог выглядел вечным.
      */
     private fun leftoverDialogVisible(step: SimpleSteps.Step): Boolean {
         val root = service.rootInActiveWindow ?: return false
-        val text = ComponentVerifier.screenText(root)
+        val dialog = readRevokeDialog(confirmTextsFor(step), root)
+        val negative = findClickableByText(root, DIALOG_NEGATIVE_TEXTS)
+        val visible = dialog.present || negative != null
+        recycleNode(negative)
+        dialog.recycle()
         recycleNode(root)
-        val markers = confirmTextsFor(step) + DIALOG_NEGATIVE_TEXTS
-        return markers.any { it.isNotBlank() && TextMatcher.normalizedContains(text, it) }
+        return visible
     }
 
     /**
-     * Признак открытого диалога/прогресса отзыва msa: кнопка подтверждения (в любом
-     * состоянии, включая отсчётную) ИЛИ её confirm-текст на экране. Нет обоих —
-     * ждать диалог нечего (фаза появления отвечает коротким окном, а не отсчётом).
+     * Сигналы диалога отзыва с ОДНОГО чтения дерева: кликабельная кнопка подтверждения
+     * (по ней тапаем), отсчётная подпись (сигнал ПРОГРЕССА отсчёта MIUI). Отсчётная кнопка
+     * неактивна, поэтому [findDialogConfirmButton] её не отдаёт — ищем отдельно, но в любом
+     * состоянии; заголовок/сообщение ([isDialogMarkerNode]) отсекаем, как и при отборе кнопки.
      */
-    private fun msaDialogVisible(confirmTexts: List<String>): Boolean {
-        val root = service.rootInActiveWindow ?: return false
-        val text = ComponentVerifier.screenText(root)
-        val node = root.let { findDialogConfirmButton(it, confirmTexts) }
-        recycleNode(node)
-        recycleNode(root)
-        return node != null || confirmTexts.any { TextMatcher.normalizedContains(text, it) }
+    private inner class RevokeDialogSignals(
+        val button: AccessibilityNodeInfo?,
+        val countdownLabel: String?
+    ) {
+        /** Кнопка диалога в любом состоянии — диалог на экране. */
+        val present: Boolean get() = button != null || countdownLabel != null
+
+        fun recycle() {
+            recycleNode(button)
+        }
+    }
+
+    private fun readRevokeDialog(confirmTexts: List<String>): RevokeDialogSignals {
+        val root = service.rootInActiveWindow ?: return RevokeDialogSignals(null, null)
+        return readRevokeDialog(confirmTexts, root).also { recycleNode(root) }
+    }
+
+    private fun readRevokeDialog(
+        confirmTexts: List<String>,
+        root: AccessibilityNodeInfo
+    ): RevokeDialogSignals {
+        // Отсчёт ищем ПЕРВЫМ: неактивную кнопку штатный отбор не отдаёт, а подменять её
+        // кнопкой из роли нельзя — тап по отсчётной кнопке не нажимает ничего (rmua0pt7i).
+        val countdownNode = NodeTree.findAllInTree(root, predicate = { n ->
+            !isDialogMarkerNode(n, emptyList()) &&
+                (n.isClickable || isDialogButtonNode(n)) &&
+                isCountdownLabel(buttonLabel(n))
+        }).firstOrNull()
+        val label = countdownNode?.let { buttonLabel(it) }
+        recycleNode(countdownNode)
+        return RevokeDialogSignals(findDialogConfirmButton(root, confirmTexts), label)
+    }
+
+    /** Секунды из отсчётной подписи кнопки («Отозвать (9 с)» → 9); null — не разобрали. */
+    internal fun countdownSeconds(label: String?): Int? {
+        if (label == null || !isCountdownLabel(label)) return null
+        val digits = Regex("\\d+").find(TextMatcher.normalize(label))?.value ?: return null
+        return digits.toIntOrNull()
+    }
+
+    /**
+     * Дамп экрана с ещё живым диалогом отзыва: снимается ДО любого BACK, иначе причина
+     * провала читается с уже уведённого экрана (условие приёмки круга 18.10). В прямом
+     * прогоне профиль определён в [run]; при вызове вне шага (unit-тесты) дампа нет.
+     */
+    private suspend fun captureRevokeDialogSnapshot(step: SimpleSteps.Step) {
+        if (!::romProfile.isInitialized) return
+        DiagnosticSnapshotManager.captureAndSaveSnapshot(
+            service,
+            step.id,
+            REASON_REVOKE_DIALOG_OPEN,
+            service.rootInActiveWindow,
+            romProfile,
+            activePackage()
+        )
     }
 
     /**

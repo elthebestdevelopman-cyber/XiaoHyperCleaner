@@ -1,5 +1,6 @@
 package com.xiaohypercleaner.service
 
+import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.data.AdaptiveCatalog
 import com.xiaohypercleaner.data.SemanticCatalog
@@ -305,5 +306,108 @@ class SimpleRunnerMsaRevokeTest {
             "должна выбираться кнопка «Отозвать», а не заголовок диалога",
             found === revoke
         )
+    }
+
+    @Test
+    fun `countdown seconds are parsed from the button label`() {
+        // Окно активации берётся из подписи отсчёта: «Отозвать (9 с)» → 9.
+        assertEquals(9, runner.countdownSeconds("Отозвать (9 с)"))
+        assertEquals(4, runner.countdownSeconds("Revoke (4s)"))
+        assertNull("подпись без отсчёта — не отсчёт", runner.countdownSeconds("Отозвать"))
+        assertNull("null — не отсчёт", runner.countdownSeconds(null))
+    }
+
+    @Test
+    fun `activation window never exceeds the budget left above the reserve`() {
+        // Остаток бюджета меньше полного лимита: окно урезается остатком НАД резервом, а не
+        // ждёт полные 12 с (прежний лимит возвращался всегда и съедал тумблер с verify).
+        assertEquals(5_000L, runner.msaActivationWindowMs(countdownSeconds = null, budgetAboveReserveMs = 5_000L))
+        assertEquals(
+            "разобранный отсчёт тоже не выше остатка бюджета",
+            5_000L,
+            runner.msaActivationWindowMs(countdownSeconds = 9, budgetAboveReserveMs = 5_000L)
+        )
+        assertEquals(
+            "бюджета хватает — работает полный лимит (свободный дедлайн)",
+            12_000L,
+            runner.msaActivationWindowMs(countdownSeconds = null, budgetAboveReserveMs = Long.MAX_VALUE)
+        )
+        assertEquals(
+            "отсчёт + один опрос",
+            9_250L,
+            runner.msaActivationWindowMs(countdownSeconds = 9, budgetAboveReserveMs = 30_000L)
+        )
+        assertEquals(
+            "settle не выходит за остаток бюджета",
+            3_000L,
+            runner.msaSettleWindowMs(budgetAboveReserveMs = 3_000L)
+        )
+    }
+
+    @Test
+    fun `header text alone is not a dialog and never presses BACK`() = runTest {
+        // Корень прогона rmvcp6zzq: присутствие диалога считалось по подстроке заголовка
+        // («Отзыв разрешения» есть в confirmTexts), и экран без кнопок выглядел «вечным
+        // диалогом» — после провала по нему бил BACK и уводил шаг на чужой экран.
+        val title = node(
+            text = "Отзыв разрешения",
+            id = "android:id/alertTitle",
+            className = "android.widget.TextView"
+        )
+        val message = node(
+            text = "После отзыва разрешения приложение прекратит сбор данных. Отозвать разрешение?",
+            id = "android:id/message",
+            className = "android.widget.TextView"
+        )
+        val root = node(className = "android.widget.FrameLayout", children = arrayOf(title, message))
+        val stillOn = node(
+            text = "msa",
+            checked = true,
+            checkable = true,
+            className = "android.widget.Switch"
+        )
+        val listRoot = node(className = "android.widget.FrameLayout", children = arrayOf(stillOn))
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root, listRoot, listRoot, listRoot)
+
+        val confirmed = runner.confirmDelayedRevoke(
+            msaStep(),
+            listOf("Отозвать", "ОК", "Отзыв разрешения"),
+            listOf("msa")
+        )
+
+        assertFalse("заголовок без кнопки — не диалог подтверждения", confirmed)
+        Mockito.verify(service, Mockito.never())
+            .performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+    }
+
+    @Test
+    fun `leftover dialog is closed with a single BACK`() = runTest {
+        // Второй слепой BACK уводил шаг на чужой экран (прогон rmvcp6zzq: финал
+        // «Пароли и безопасность» после `BACK attempt=2`). Отсчётный диалог без негативной
+        // кнопки закрывается ровно одним BACK, и шаг остаётся в теме.
+        val countdown = node(
+            text = "Отозвать (5 с)",
+            id = "android:id/button1",
+            className = "android.widget.TextView"
+        )
+        val root = node(className = "android.widget.FrameLayout", children = arrayOf(countdown))
+        val stillOn = node(
+            text = "msa",
+            checked = true,
+            checkable = true,
+            className = "android.widget.Switch"
+        )
+        val listRoot = node(className = "android.widget.FrameLayout", children = arrayOf(stillOn))
+        // Диалог виден, пока BACK не нажат: иначе «закрытие» проверялось бы на пустом экране.
+        var backPressed = false
+        Mockito.`when`(service.rootInActiveWindow).thenAnswer { if (backPressed) listRoot else root }
+        Mockito.doAnswer { backPressed = true; true }
+            .`when`(service).performGlobalAction(Mockito.anyInt())
+
+        val confirmed = runner.confirmDelayedRevoke(msaStep(), listOf("Отозвать"), listOf("msa"))
+
+        assertFalse("отсчётный диалог не подтверждает отзыв", confirmed)
+        Mockito.verify(service, Mockito.times(1))
+            .performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
     }
 }
