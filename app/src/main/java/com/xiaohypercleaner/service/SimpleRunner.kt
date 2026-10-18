@@ -305,6 +305,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
         private const val MSA_TAP_MAX = 3
 
         /**
+         * Запас к окну отсчёта: подпись показывает «(9 с)», а кнопка становится кликабельной
+         * позже конца отсчёта (исторически ~10,4 с, прогон rmuvlyyor). Прогон rmve63243:
+         * `window=9250ms taps=0 progress=true` — окно кончилось раньше активации, шаг упал
+         * `revoke_not_confirmed`, не сделав ни одного тапа. Ранний выход по кликабельной кнопке
+         * остаётся, поэтому запас удлиняет только неуспешный путь.
+         */
+        private const val MSA_ACTIVATION_MARGIN_MS = 3_000L
+
+        /**
          * Повтор тапа в фазе settle: не раньше этого времени с последнего тапа И только если
          * кнопка снова кликабельна. Прежний повтор срабатывал через 140 мс по только что
          * нажатой кнопке и отсчёт перезапускался (прогон rmvcp6zzq: `revoke tapped` 41.897 →
@@ -740,12 +749,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     /**
      * Окно АКТИВАЦИИ кнопки отзыва: разобрали отсчёт в подписи («Отозвать (9 с)») — ждём
-     * ровно N плюс один опрос; не разобрали — фолбэк на полный [MSA_REVOKE_WAIT_MAX_MS].
-     * Сверху окно урезается остатком бюджета НАД резервом ([budgetAboveReserveMs]): ожидание
-     * не имеет права оставить шаг без времени на тумблер и verify.
+     * ровно N плюс запас [MSA_ACTIVATION_MARGIN_MS] и один опрос; не разобрали — фолбэк на
+     * полный [MSA_REVOKE_WAIT_MAX_MS]. Сверху окно урезается остатком бюджета НАД резервом
+     * ([budgetAboveReserveMs]): ожидание не имеет права оставить шаг без времени на тумблер
+     * и verify. Ранний выход по кликабельной кнопке делает запас бесплатным.
      */
     internal fun msaActivationWindowMs(countdownSeconds: Int?, budgetAboveReserveMs: Long): Long {
-        val requested = countdownSeconds?.let { it * 1_000L + MSA_CONFIRM_POLL_MS }
+        val requested = countdownSeconds?.let { it * 1_000L + MSA_ACTIVATION_MARGIN_MS + MSA_CONFIRM_POLL_MS }
             ?: MSA_REVOKE_WAIT_MAX_MS
         if (budgetAboveReserveMs == Long.MAX_VALUE) return requested
         return minOf(requested, budgetAboveReserveMs.coerceAtLeast(0L))
@@ -1448,6 +1458,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
         if (mergedDrillPath.isNotEmpty()) {
             val onStepScreen = { onTargetScreen(step) }
             var attempts = 0
+            var neutralLogged = false
+            var immediateEntryDone = false
             while (true) {
                 val action = ReverseExtras.entryAction(
                     reverse = reverseCtx != null,
@@ -1458,7 +1470,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     foreignWindow = { isForeignWindowFor(step) }
                 )
                 when (action) {
-                    ReverseEntryAction.CONTINUE_DRILL -> break
+                    ReverseEntryAction.CONTINUE_DRILL -> {
+                        if (attempts > 0) {
+                            AppLog.w(
+                                TAG,
+                                "reverse_drill_fallback attempts=$attempts " +
+                                    "screen=${activePackage() ?: "-"} step=${step.id}"
+                            )
+                            StepDiagnostics.note(step.id, "DRILL", "reverse_drill_fallback attempts=$attempts")
+                        }
+                        break
+                    }
                     ReverseEntryAction.FAIL_SCREEN_NOT_REACHED -> {
                         // Чужое окно: в него не возвращаемся и его не бурим.
                         AppLog.w(
@@ -1470,26 +1492,39 @@ class SimpleRunner(private val service: AdbEnablerService) {
                         return Result(false, REVERSE_SCREEN_NOT_REACHED)
                     }
                     ReverseEntryAction.DRILL_FROM_NEUTRAL -> {
-                        // Нейтральное окно (Настройки, лаунчер, карточки цели): возврат на КОРЕНЬ
-                        // маршрута одним входом, затем бурение. Бурение с текущего экрана уводило
-                        // на соседний под-экран (carousel: «Блокировка экрана» вместо «Карусели
-                        // обоев»), а ожидание цели без relaunch жгло три полных окна.
-                        val reEntered = reEnterStepRoot(step)
-                        if (attempts == 0) {
+                        // Нейтральное окно (Настройки, лаунчер, карточки цели): ОДИН немедленный
+                        // вход без «трёх полных окон» — и правило пересчитывается заново, потому
+                        // что приложение могло подняться не сразу. Обрыв цикла после первого
+                        // входа ронял app-шаги в откате (прогон rmve63243: `done 15/22`,
+                        // `reverse_drill_from_neutral ok=false` ×5 у music_sys, security_sys,
+                        // downloads, mivideo, shareme).
+                        if (!neutralLogged) {
+                            neutralLogged = true
                             AppLog.i(
                                 TAG,
-                                "reverse_drill_from_neutral screen=${activePackage() ?: "-"} " +
-                                    "ok=$reEntered step=${step.id}"
+                                "reverse_drill_from_neutral screen=${activePackage() ?: "-"} step=${step.id}"
                             )
-                            StepDiagnostics.note(step.id, "DRILL", "reverse_drill_from_neutral ok=$reEntered")
+                            StepDiagnostics.note(step.id, "DRILL", "reverse_drill_from_neutral")
+                        }
+                        if (step.intents.isEmpty()) break
+                        if (!immediateEntryDone) {
+                            immediateEntryDone = true
+                            reEnterStepRoot(step)
                         } else {
+                            // Немедленный вход не помог: дальше работают обычные гейтовые повторы
+                            // (они ждут пакет цели), пока есть бюджет и потолок попыток.
+                            if (attempts >= MAX_REENTRY_ATTEMPTS) break
+                            attempts++
                             AppLog.w(
                                 TAG,
-                                "reverse_drill_fallback attempts=$attempts ok=$reEntered step=${step.id}"
+                                "reverse entry: ${step.id} still neutral " +
+                                    "screen=${activePackage() ?: "-"} attempt=$attempts" +
+                                    "/$MAX_REENTRY_ATTEMPTS budget=${remainingBudgetMs()}ms " +
+                                    "reserve=${REENTRY_RESERVE_MS}ms"
                             )
-                            StepDiagnostics.note(step.id, "DRILL", "reverse_drill_fallback attempts=$attempts")
+                            StepDiagnostics.note(step.id, "DRILL", "reverse_reentry attempt=$attempts")
+                            retryEnterStep(step)
                         }
-                        break
                     }
                     ReverseEntryAction.RETRY_ENTRY -> {
                         attempts++

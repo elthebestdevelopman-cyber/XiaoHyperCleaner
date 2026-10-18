@@ -333,8 +333,8 @@ class SimpleRunnerMsaRevokeTest {
             runner.msaActivationWindowMs(countdownSeconds = null, budgetAboveReserveMs = Long.MAX_VALUE)
         )
         assertEquals(
-            "отсчёт + один опрос",
-            9_250L,
+            "отсчёт + запас активации + один опрос: подпись «(9 с)» короче реальной активации",
+            12_250L,
             runner.msaActivationWindowMs(countdownSeconds = 9, budgetAboveReserveMs = 30_000L)
         )
         assertEquals(
