@@ -310,6 +310,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         )?.contains(component) == true
         val overlay: Boolean = Settings.canDrawOverlays(app)
+        applyPermissionStatuses(acc, overlay)
+    }
+
+    /**
+     * Применение фактических разрешений: состояние UI, предшаг установщика и продвижение фазы
+     * разрешений. Вынесено из [refreshStatuses], чтобы порядок «разрешения → предшаг → шаги»
+     * проверялся тестом без подмены системных настроек.
+     */
+    @VisibleForTesting
+    internal fun applyPermissionStatuses(acc: Boolean, overlay: Boolean) {
         val prevState: MainUiState = _state.value
 
         AppLog.i(
@@ -328,6 +338,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         shizuku.consumePendingSourceSuggestion()
+        // Предшаг спрашивается ДО продвижения фазы: иначе поверх него успел бы открыться
+        // диалог батареи, а шаги стартовали бы раньше решения пользователя.
+        if (askInstallerPreStepIfNeeded(acc, overlay)) return
         simpleController.updatePermissionStatuses(acc, overlay)
 
         if (_state.value.simpleModeActive) {
@@ -486,6 +499,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        // Новый прогон: предшаг спрашивается заново.
+        installerPreStepAsked = false
+
         val profile = RomProfile.detect(app)
         if (profile.optimizationScope == OptimizationScope.PRE_OPTIMIZED_EEA && !eeaNoticeAcknowledged) {
             update { it.copy(showEeaNoticeDialog = true, eeaRegionName = profile.regionCode) }
@@ -519,9 +535,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (_state.value.simpleModeActive) {
                     simpleController.continueToSteps()
                 } else {
-                    // Предшаг «одной кнопки»: окно установщика живёт только во время
-                    // установки, поэтому спрашиваем сейчас, а не после начала оптимизации.
-                    update { it.copy(showInstallerPreStep = true) }
+                    // Предшаг спрашивается ПОСЛЕ выдачи разрешений ([askInstallerPreStepIfNeeded]):
+                    // до них уход в настройки гасил окно установщика, и предшаг приходилось
+                    // запускать повторным кликом (прогон rmve63243).
+                    startSimpleMode()
                 }
             }
 
@@ -562,6 +579,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Однократность предшага в прогоне: спрашиваем один раз, до первого шага. Сбрасывается
+     * только новым запуском ([startFlow]) — решениями пользователя нет, иначе диалог
+     * возвращался бы на каждом обновлении разрешений.
+     */
+    private var installerPreStepAsked: Boolean = false
+
+    /**
+     * Предшаг установщика после выдачи разрешений — замечание владельца 19.10 по прогону
+     * rmve63243: пока Accessibility и оверлей не выданы, уход в настройки гасит окно
+     * установщика (в логе: настройки 01:32:42 → ожидание снято по BACK 01:35:43 → повторный
+     * клик 01:36:29 → установщик открылся). Шаги стартуют позже (батарея → `goSteps`),
+     * поэтому диалог успевает до первого шага.
+     *
+     * Возвращает `true`, если диалог показан на этом обороте: вызывающий не продвигает фазу,
+     * иначе поверх предшага открылся бы следующий диалог.
+     */
+    private fun askInstallerPreStepIfNeeded(acc: Boolean, overlay: Boolean): Boolean {
+        if (!acc || !overlay) return false
+        if (!_state.value.simpleModeActive) return false
+        if (_state.value.simpleModePhase != SimpleModePhase.PERMISSIONS) return false
+        if (installerPreStepAsked) return false
+        if (_state.value.showInstallerPreStep || _state.value.installerPreStepWaiting) return false
+        installerPreStepAsked = true
+        AppLog.i(TAG, "installer pre-step: asking after permissions granted")
+        // Диалоги разрешений и батареи поверх предшага не держим: фаза продвинется после
+        // решения пользователя ([onInstallerPreStepSkip] → refresh).
+        update {
+            it.copy(
+                showInstallerPreStep = true,
+                showOverlayDialog = false,
+                showAccessibilityDialog = false,
+                showRestrictedSettingsScreen = false,
+                showBatteryDialog = false
+            )
+        }
+        return true
+    }
+
+    /**
      * Предшаг «одной кнопки»: пользователь согласился снять рекомендации установщика.
      * Порядок обязателен: право на установку из неизвестных источников → копия сборки →
      * окно установщика → pending. pending ставится ТОЛЬКО после удачного открытия окна:
@@ -574,6 +630,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun onInstallerPreStepDisableNow() {
         AppLog.i(TAG, "installer pre-step: disable now")
         installerPermissionAttempts = 0
+        installerPreStepAsked = true
         update { it.copy(showInstallerPreStep = false, installerPreStepWaiting = true) }
         viewModelScope.launch { runInstallerPreStep() }
     }
@@ -659,11 +716,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (!started) AppLog.w(TAG, "installer pre-step: unknown sources settings not opened")
     }
 
-    /** Предшаг отклонён: обычный старт Простого режима, персист не трогаем. */
+    /**
+     * Предшаг отклонён: разрешения уже выданы, поэтому режим НЕ перезапускается — фаза
+     * разрешений доводится до батареи и шагов ([SimpleModeController.refresh]). Персист не
+     * трогаем.
+     */
     fun onInstallerPreStepSkip() {
         AppLog.i(TAG, "installer pre-step: skipped")
+        installerPreStepAsked = true
         update { it.copy(showInstallerPreStep = false) }
-        startSimpleMode()
+        if (_state.value.simpleModeActive) {
+            // Сначала синхронизируем разрешения в контроллере (он ещё не видел их выдачи — предшаг
+            // спросили раньше продвижения фазы), затем доводим фазу: батарея или шаги.
+            simpleController.updatePermissionStatuses(
+                _state.value.isAccessibilityEnabled,
+                _state.value.isOverlayGranted
+            )
+            simpleController.refresh()
+        } else {
+            startSimpleMode()
+        }
     }
 
     /** Возврат из установщика без переустановки: ждать больше нечего. */
@@ -881,6 +953,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             prefs.setPendingSimpleMode(true)
             failedSimpleStepIds.clear()
             stepAttempt = 1
+            // Предшаг уже отработан этим прогоном: после переустановки не спрашиваем снова.
+            installerPreStepAsked = true
             simpleController.start()
         }
     }

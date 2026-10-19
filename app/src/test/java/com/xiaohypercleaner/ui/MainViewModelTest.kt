@@ -153,23 +153,34 @@ class MainViewModelTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `confirmLevelStart asks about the installer before starting optimization`() = runTest {
+    fun `installer pre-step is asked after permissions, not before the start`() = runTest {
         vm.startFlow()
         vm.onLevelChosen(OptimizationMode.SIMPLE)
 
         vm.confirmLevelStart(OptimizationMode.SIMPLE)
 
-        // Предшаг «одной кнопки»: сначала вопрос про рекомендации установщика — окно
-        // установщика живёт только во время установки, после старта оптимизации его не поймать.
-        val state = vm.state.value
-        assertFalse("showLevelConfirm should be closed", state.showLevelConfirm)
-        assertTrue("installer pre-step should be shown", state.showInstallerPreStep)
-        assertFalse("optimization must not start before the choice", state.simpleModeActive)
+        // Сначала разрешения: до их выдачи уход в настройки гасит окно установщика, и предшаг
+        // приходилось запускать повторным кликом (прогон rmve63243).
+        assertFalse("showLevelConfirm should be closed", vm.state.value.showLevelConfirm)
+        assertTrue("simple mode starts right away", vm.state.value.simpleModeActive)
+        assertFalse(
+            "installer pre-step must not be shown before permissions",
+            vm.state.value.showInstallerPreStep
+        )
 
+        // Оба разрешения выданы → предшаг появляется до первого шага.
+        vm.applyPermissionStatuses(acc = true, overlay = true)
+        assertTrue(
+            "installer pre-step should be shown after permissions",
+            vm.state.value.showInstallerPreStep
+        )
+
+        // «Пропустить» → поток продолжается без перезапуска режима.
         vm.onInstallerPreStepSkip()
 
+        assertFalse("pre-step dialog should be closed", vm.state.value.showInstallerPreStep)
         assertTrue(
-            "simpleModeActive should be true after the pre-step is skipped",
+            "simple mode should continue after the pre-step is skipped",
             vm.state.value.simpleModeActive
         )
     }
