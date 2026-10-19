@@ -4,6 +4,7 @@ import com.xiaohypercleaner.data.SimpleSteps
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -289,19 +290,43 @@ class ReverseRollbackTest {
         )
     }
 
+    @Test
+    fun `neutral retries are gated by the budget reserve as in the early rule`() {
+        // §94 гейтила повтор входа остатком бюджета над резервом; после 64616d0/d0482ac гейт
+        // остался только у чужого окна, и нейтральные повторы жгли бюджет (дефект d0482ac:
+        // комментарий обещал «пока есть бюджет и потолок»). Теперь гейт общий для двух каналов,
+        // а немедленный вход от корня по-прежнему без гейта — решение d0482ac.
+        val noBudget = entryDecision(immediateEntryDone = true, budgetAboveReserveMs = -1L)
+        assertEquals(
+            "нейтральное окно без остатка над резервом: повтор не выдаётся",
+            ReverseEntryAction.CONTINUE_DRILL,
+            noBudget.action
+        )
+        assertEquals(ReverseExtras.REASON_BUDGET_BELOW_RESERVE, noBudget.stopReason)
+
+        val withBudget = entryDecision(immediateEntryDone = true)
+        assertEquals(ReverseEntryAction.RETRY_ENTRY, withBudget.action)
+        assertEquals("первый повтор", 1, withBudget.attempt)
+        assertNull("повторы не прекращались", withBudget.stopReason)
+
+        val ceiling = entryDecision(immediateEntryDone = true, maxAttempts = 0)
+        assertEquals(ReverseEntryAction.CONTINUE_DRILL, ceiling.action)
+        assertEquals(ReverseExtras.REASON_ATTEMPTS_EXHAUSTED, ceiling.stopReason)
+    }
+
     /**
      * Один оборот цикла входа в откате с настройками по умолчанию: интент есть, немедленный вход
      * ещё не сделан, попыток — до потолка, бюджет над резервом. Окно при [onStepScreen]=false и
      * [foreign]=false считается нейтральным. Здесь проверяется ПРАВИЛО; порядок
      * «вход → пересчёт → повторы» — в тестах цикла.
      */
-    private fun entryRule(
+    private fun entryDecision(
         onStepScreen: Boolean = false,
         foreign: Boolean = false,
         budgetAboveReserveMs: Long = 30_000L,
         maxAttempts: Int = 3,
         immediateEntryDone: Boolean = false
-    ): ReverseEntryAction = ReverseExtras.entryLoopDecision(
+    ): ReverseEntryDecision = ReverseExtras.entryLoopDecision(
         reverse = true,
         onStepScreen = { onStepScreen },
         foreignWindow = { foreign },
@@ -310,6 +335,21 @@ class ReverseRollbackTest {
         maxAttempts = maxAttempts,
         immediateEntryDone = immediateEntryDone,
         budgetAboveReserveMs = budgetAboveReserveMs
+    )
+
+    /** То же решение, но только действие — для проверок, которым причина останова не нужна. */
+    private fun entryRule(
+        onStepScreen: Boolean = false,
+        foreign: Boolean = false,
+        budgetAboveReserveMs: Long = 30_000L,
+        maxAttempts: Int = 3,
+        immediateEntryDone: Boolean = false
+    ): ReverseEntryAction = entryDecision(
+        onStepScreen = onStepScreen,
+        foreign = foreign,
+        budgetAboveReserveMs = budgetAboveReserveMs,
+        maxAttempts = maxAttempts,
+        immediateEntryDone = immediateEntryDone
     ).action
 
     @Test

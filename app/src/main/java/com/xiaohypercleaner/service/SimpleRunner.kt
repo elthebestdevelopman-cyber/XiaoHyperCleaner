@@ -1483,22 +1483,34 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 }
                 when (decision.action) {
                     ReverseEntryAction.CONTINUE_DRILL -> {
-                        if (attempts > 0) {
+                        if (attempts > 0 || decision.stopReason != null) {
+                            // Причина останова обязательна: без неё выход из цикла на первом же
+                            // обороте после немедленного входа был невидим в логе (rmve63243).
+                            val reason = decision.stopReason ?: "-"
                             AppLog.w(
                                 TAG,
-                                "reverse_drill_fallback attempts=$attempts " +
-                                    "screen=${activePackage() ?: "-"} step=${step.id}"
+                                "reverse_drill_fallback attempts=$attempts reason=$reason " +
+                                    "screen=${activePackage() ?: "-"} budget=${remainingBudgetMs()}ms " +
+                                    "reserve=${REENTRY_RESERVE_MS}ms step=${step.id}"
                             )
-                            StepDiagnostics.note(step.id, "DRILL", "reverse_drill_fallback attempts=$attempts")
+                            StepDiagnostics.note(
+                                step.id,
+                                "DRILL",
+                                "reverse_drill_fallback attempts=$attempts" +
+                                    (decision.stopReason?.let { " reason=$it" } ?: "")
+                            )
                         }
                         break
                     }
                     ReverseEntryAction.FAIL_SCREEN_NOT_REACHED -> {
-                        // Чужое окно: в него не возвращаемся и его не бурим.
+                        // Чужое окно: в него не возвращаемся и его не бурим. Причина в логе —
+                        // чего не хватило: потолка попыток или остатка над резервом.
                         AppLog.w(
                             TAG,
                             "reverse entry: ${step.id} screen not reached — foreign window " +
-                                "'${activePackage() ?: "-"}' after $attempts attempts"
+                                "'${activePackage() ?: "-"}' after $attempts attempts " +
+                                "reason=${decision.stopReason ?: "-"} budget=${remainingBudgetMs()}ms " +
+                                "reserve=${REENTRY_RESERVE_MS}ms"
                         )
                         StepDiagnostics.note(step.id, "DRILL", "screen_not_reached attempts=$attempts")
                         return Result(false, REVERSE_SCREEN_NOT_REACHED)

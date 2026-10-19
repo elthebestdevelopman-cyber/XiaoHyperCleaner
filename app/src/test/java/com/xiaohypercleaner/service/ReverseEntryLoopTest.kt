@@ -130,6 +130,31 @@ class ReverseEntryLoopTest {
     }
 
     @Test
+    fun `neutral window with exhausted budget drills instead of retrying`() {
+        // Остаток бюджета ниже резерва: немедленный вход ещё разрешён (решение d0482ac — один
+        // дешёвый вход), а повторы после него уже нет. Без гейта шаг тратил бы до трёх окон на
+        // повтор, хотя времени на само действие не осталось.
+        val outcome = runEntryLoop(List(5) { Window.NEUTRAL }, budgetAboveReserveMs = -1L)
+        assertEquals("немедленный вход всё равно один", 1, outcome.immediateEntries)
+        assertEquals("повторов нет", 0, outcome.retries)
+        assertEquals(ReverseEntryAction.CONTINUE_DRILL, outcome.action)
+        assertTrue("шаг бурит текущий экран", outcome.drilled)
+
+        // Причина останова едет в решении — по ней раннер пишет reason= в лог.
+        val decision = ReverseExtras.entryLoopDecision(
+            reverse = true,
+            onStepScreen = { false },
+            foreignWindow = { false },
+            hasIntents = true,
+            attempts = 0,
+            maxAttempts = 3,
+            immediateEntryDone = true,
+            budgetAboveReserveMs = -1L
+        )
+        assertEquals(ReverseExtras.REASON_BUDGET_BELOW_RESERVE, decision.stopReason)
+    }
+
+    @Test
     fun `step without intents gets no entry and no retries`() {
         val outcome = runEntryLoop(List(5) { Window.NEUTRAL }, hasIntents = false)
         assertEquals("входить нечем — входов нет", 0, outcome.immediateEntries)

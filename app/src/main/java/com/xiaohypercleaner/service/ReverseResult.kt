@@ -109,12 +109,15 @@ enum class ReverseEntryAction {
  *
  * [neutralWindow] — окно нейтральное (не своё и не чужое): вызывающий пишет
  * `reverse_drill_from_neutral` один раз на шаг. [attempt] — счётчик после решения (нужен логу
- * повтора); для действий без повтора остаётся прежним.
+ * повтора); для действий без повтора остаётся прежним. [stopReason] — причина, по которой
+ * повторы прекращены ([ReverseExtras.REASON_ATTEMPTS_EXHAUSTED] /
+ * [ReverseExtras.REASON_BUDGET_BELOW_RESERVE]); `null`, если повторы не прекращались.
  */
 data class ReverseEntryDecision(
     val action: ReverseEntryAction,
     val neutralWindow: Boolean,
-    val attempt: Int = 0
+    val attempt: Int = 0,
+    val stopReason: String? = null
 )
 
 /**
@@ -128,6 +131,15 @@ object ReverseExtras {
     const val REASON_NOT_TOGGLED_BY_US = "not_toggled_by_us"
     const val REASON_ALREADY_ORIGINAL = "already_original"
     const val REASON_ROW_ABSENT = "row_absent"
+
+    // Причины останова повторов входа (цикл drill-шага в откате): отдельная ось от причин
+    // исходов строк-целей выше — токены идут в лог `reverse_drill_fallback` и в
+    // `reverse entry: … screen not reached`.
+    /** Потолок попыток исчерпан: повтор не выдаётся, шаг бурит текущий экран. */
+    const val REASON_ATTEMPTS_EXHAUSTED = "attempts_exhausted"
+
+    /** Остаток бюджета ниже резерва на вход и тумблер: повтор съел бы время самого действия. */
+    const val REASON_BUDGET_BELOW_RESERVE = "budget_below_reserve"
 
     /**
      * Пока НЕДОСТИЖИМА в production: [SwitchFinder.isChecked] возвращает `Boolean`, поэтому
@@ -194,17 +206,24 @@ object ReverseExtras {
      * 2. окно НЕ чужое (нейтральное: Настройки, лаунчер, карточки приложения-цели): интентов
      *    нет — входить нечем, бурим текущий экран; иначе один
      *    [ReverseEntryAction.DRILL_FROM_NEUTRAL] (немедленный вход от КОРНЯ маршрута), затем
-     *    гейтовые повторы [ReverseEntryAction.RETRY_ENTRY] до потолка [maxAttempts], после —
-     *    бурение текущего экрана;
+     *    гейтовые повторы [ReverseEntryAction.RETRY_ENTRY], после — бурение текущего экрана;
      * 3. чужое окно, есть и бюджет, и попытки → [ReverseEntryAction.RETRY_ENTRY];
      * 4. чужое окно, повторов больше нет → [ReverseEntryAction.FAIL_SCREEN_NOT_REACHED].
      *
-     * Повтор на чужом окне ограничен двумя границами: остатком бюджета НАД резервом
-     * ([budgetAboveReserveMs] — вызывающий вычитает резерв на вход и на тумблер) и потолком
-     * попыток ([attempts] от нуля до [maxAttempts]). Одна попытка отдавала `screen_not_reached`
-     * при живом бюджете (прогон rmvb6atul: msa и ux_program — провал за 6,1 с при 23 с успеха в
-     * прямой фазе). Нейтральное окно повторов «на ожидание цели» не тратит: вход один и сразу,
-     * дальше тот же потолок, поэтому цикл не может крутиться бесконечно.
+     * Гейт повторов — инвариант ДВУХ каналов: каждый повтор входа (и на нейтральном, и на чужом
+     * окне) выдаётся только при остатке бюджета НАД резервом ([budgetAboveReserveMs] — вызывающий
+     * вычитает резерв на вход и на тумблер) И неисчерпанном потолке ([attempts] от нуля до
+     * [maxAttempts]). Одна попытка отдавала `screen_not_reached` при живом бюджете (прогон
+     * rmvb6atul: msa и ux_program — провал за 6,1 с при 23 с успеха в прямой фазе). Причина
+     * останова возвращается в [ReverseEntryDecision.stopReason]: без неё выход из цикла на первом
+     * обороте после входа был невидим в логе (прогон rmve63243).
+     *
+     * Решение `d0482ac`: НЕМЕДЛЕННЫЙ вход от корня бюджета не требует — это один дешёвый вход,
+     * который ставит приложение на ноги. Гейт на нём вернул бы `done 15/22`: в rmve63243 пять
+     * app-шагов падали сразу после обрыва цикла. Гейтятся только ПОВТОРЫ после него. Историческая
+     * справка: §94 гейтила первый повтор целиком; после `64616d0`/`d0482ac` первым действием стал
+     * немедленный вход, и гейт относится к повторам после него — это осознанное решение, а не
+     * недосмотр: без входа шаг бурит нейтральный экран и всё равно падает.
      */
     fun entryLoopDecision(
         reverse: Boolean,
@@ -228,9 +247,18 @@ object ReverseExtras {
             // (appvault_services ×3), а ожидание цели без входа жгло три полных окна.
             !immediateEntryDone ->
                 ReverseEntryDecision(ReverseEntryAction.DRILL_FROM_NEUTRAL, neutralWindow = true)
-            // Немедленный вход не помог: дальше обычные гейтовые повторы, пока живы попытки.
-            attempts >= maxAttempts ->
-                ReverseEntryDecision(ReverseEntryAction.CONTINUE_DRILL, neutralWindow = true)
+            // Немедленный вход не помог: дальше гейтовые повторы — потолок И остаток над резервом.
+            // Причина останова: сначала потолок, затем бюджет (детерминированно для лога).
+            attempts >= maxAttempts -> ReverseEntryDecision(
+                ReverseEntryAction.CONTINUE_DRILL,
+                neutralWindow = true,
+                stopReason = REASON_ATTEMPTS_EXHAUSTED
+            )
+            budgetAboveReserveMs <= 0 -> ReverseEntryDecision(
+                ReverseEntryAction.CONTINUE_DRILL,
+                neutralWindow = true,
+                stopReason = REASON_BUDGET_BELOW_RESERVE
+            )
             else -> ReverseEntryDecision(
                 ReverseEntryAction.RETRY_ENTRY,
                 neutralWindow = true,
@@ -244,9 +272,15 @@ object ReverseExtras {
             attempt = attempts + 1
         )
         // Чужое окно и повторов больше нет: честный провал шага вместо бурения чужого экрана.
+        // Причина — та же ось, что у нейтральной ветки: по логу видно, чего не хватило.
         else -> ReverseEntryDecision(
             ReverseEntryAction.FAIL_SCREEN_NOT_REACHED,
-            neutralWindow = false
+            neutralWindow = false,
+            stopReason = if (attempts >= maxAttempts) {
+                REASON_ATTEMPTS_EXHAUSTED
+            } else {
+                REASON_BUDGET_BELOW_RESERVE
+            }
         )
     }
 }
