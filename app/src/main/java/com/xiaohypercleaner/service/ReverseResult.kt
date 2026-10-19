@@ -104,6 +104,20 @@ enum class ReverseEntryAction {
 }
 
 /**
+ * Решение одного оборота цикла входа drill-шага в откате — см.
+ * [ReverseExtras.entryLoopDecision].
+ *
+ * [neutralWindow] — окно нейтральное (не своё и не чужое): вызывающий пишет
+ * `reverse_drill_from_neutral` один раз на шаг. [attempt] — счётчик после решения (нужен логу
+ * повтора); для действий без повтора остаётся прежним.
+ */
+data class ReverseEntryDecision(
+    val action: ReverseEntryAction,
+    val neutralWindow: Boolean,
+    val attempt: Int = 0
+)
+
+/**
  * Правила возврата строк-целей в откате, вынесенные из [SimpleRunner.toggleExtraRow]
  * как чистые решения: тест обязан падать на подмене значения, а не на формате ключа.
  */
@@ -162,9 +176,14 @@ object ReverseExtras {
     fun <T> orderFor(targets: List<T>, reverse: Boolean): List<T> =
         if (reverse) targets.reversed() else targets
     /**
-     * Вход drill-шага в откате: предыдущий шаг мог оставить своё окно, и бурение с чужого
+     * Цикл входа drill-шага в откате: предыдущий шаг мог оставить своё окно, и бурение с чужого
      * экрана даёт `low_confidence` вместо честного провала (прогон rmv5fd8wl: `carousel`
      * стартовал с `com.google.android.gms` и бурил Настройки).
+     *
+     * Один вызов = один оборот цикла: функция возвращает, что делать СЕЙЧАС, и с каким счётчиком
+     * продолжать ([ReverseEntryDecision.attempt]); вызывающий применяет решение и спрашивает
+     * заново. Именно поэтому порядок «немедленный вход → пересчёт → гейтовые повторы» проверяется
+     * тестом, а не чтением раннера.
      *
      * [onStepScreen] и [foreignWindow] — ленивые предикаты: в форварде они НЕ вызываются
      * (правило возвращает [ReverseEntryAction.CONTINUE_DRILL] первым же условием), поэтому
@@ -172,31 +191,62 @@ object ReverseExtras {
      *
      * Порядок решения (он же — приоритет сигналов):
      * 1. форвард или шаг на своём экране → [ReverseEntryAction.CONTINUE_DRILL];
-     * 2. окно НЕ чужое (нейтральное: Настройки, лаунчер, карточки приложения-цели) →
-     *    [ReverseEntryAction.DRILL_FROM_NEUTRAL] — бурим сразу, но от корня маршрута;
+     * 2. окно НЕ чужое (нейтральное: Настройки, лаунчер, карточки приложения-цели): интентов
+     *    нет — входить нечем, бурим текущий экран; иначе один
+     *    [ReverseEntryAction.DRILL_FROM_NEUTRAL] (немедленный вход от КОРНЯ маршрута), затем
+     *    гейтовые повторы [ReverseEntryAction.RETRY_ENTRY] до потолка [maxAttempts], после —
+     *    бурение текущего экрана;
      * 3. чужое окно, есть и бюджет, и попытки → [ReverseEntryAction.RETRY_ENTRY];
      * 4. чужое окно, повторов больше нет → [ReverseEntryAction.FAIL_SCREEN_NOT_REACHED].
      *
-     * Повтор ограничен двумя границами: остатком бюджета НАД резервом
+     * Повтор на чужом окне ограничен двумя границами: остатком бюджета НАД резервом
      * ([budgetAboveReserveMs] — вызывающий вычитает резерв на вход и на тумблер) и потолком
-     * попыток ([attemptsLeft]). Одна попытка отдавала `screen_not_reached` при живом бюджете
-     * (прогон rmvb6atul: msa и ux_program — провал за 6,1 с при 23 с успеха в прямой фазе).
+     * попыток ([attempts] от нуля до [maxAttempts]). Одна попытка отдавала `screen_not_reached`
+     * при живом бюджете (прогон rmvb6atul: msa и ux_program — провал за 6,1 с при 23 с успеха в
+     * прямой фазе). Нейтральное окно повторов «на ожидание цели» не тратит: вход один и сразу,
+     * дальше тот же потолок, поэтому цикл не может крутиться бесконечно.
      */
-    fun entryAction(
+    fun entryLoopDecision(
         reverse: Boolean,
         onStepScreen: () -> Boolean,
-        budgetAboveReserveMs: Long,
-        attemptsLeft: Int,
-        foreignWindow: () -> Boolean
-    ): ReverseEntryAction = when {
-        !reverse -> ReverseEntryAction.CONTINUE_DRILL
-        onStepScreen() -> ReverseEntryAction.CONTINUE_DRILL
-        // Нейтральное окно (Настройки, лаунчер, карточки приложения-цели): бурим сразу, но с
-        // КОРНЯ маршрута — ожидание и возврат в такое окно ничего не дают, а бурение с него
-        // уводит на соседний под-экран (carousel) и даёт confirm_miss (appvault_services).
-        !foreignWindow() -> ReverseEntryAction.DRILL_FROM_NEUTRAL
-        attemptsLeft > 0 && budgetAboveReserveMs > 0 -> ReverseEntryAction.RETRY_ENTRY
+        foreignWindow: () -> Boolean,
+        hasIntents: Boolean,
+        attempts: Int,
+        maxAttempts: Int,
+        immediateEntryDone: Boolean,
+        budgetAboveReserveMs: Long
+    ): ReverseEntryDecision = when {
+        !reverse || onStepScreen() ->
+            ReverseEntryDecision(ReverseEntryAction.CONTINUE_DRILL, neutralWindow = false)
+        !foreignWindow() -> when {
+            // Без интентов входить нечем: повтор ничего не изменит — бурим текущий экран.
+            !hasIntents ->
+                ReverseEntryDecision(ReverseEntryAction.CONTINUE_DRILL, neutralWindow = true)
+            // Нейтральное окно (Настройки, лаунчер, карточки цели): ОДИН немедленный вход от
+            // КОРНЯ маршрута. С текущего экрана drill уходил на соседний под-экран (carousel:
+            // «Блокировка экрана» вместо «Карусели обоев») и давал confirm_miss
+            // (appvault_services ×3), а ожидание цели без входа жгло три полных окна.
+            !immediateEntryDone ->
+                ReverseEntryDecision(ReverseEntryAction.DRILL_FROM_NEUTRAL, neutralWindow = true)
+            // Немедленный вход не помог: дальше обычные гейтовые повторы, пока живы попытки.
+            attempts >= maxAttempts ->
+                ReverseEntryDecision(ReverseEntryAction.CONTINUE_DRILL, neutralWindow = true)
+            else -> ReverseEntryDecision(
+                ReverseEntryAction.RETRY_ENTRY,
+                neutralWindow = true,
+                attempt = attempts + 1
+            )
+        }
+        // Чужое окно: повтор осмыслен только при остатке НАД резервом и живых попытках.
+        attempts < maxAttempts && budgetAboveReserveMs > 0 -> ReverseEntryDecision(
+            ReverseEntryAction.RETRY_ENTRY,
+            neutralWindow = false,
+            attempt = attempts + 1
+        )
         // Чужое окно и повторов больше нет: честный провал шага вместо бурения чужого экрана.
-        else -> ReverseEntryAction.FAIL_SCREEN_NOT_REACHED
+        else -> ReverseEntryDecision(
+            ReverseEntryAction.FAIL_SCREEN_NOT_REACHED,
+            neutralWindow = false
+        )
     }
 }

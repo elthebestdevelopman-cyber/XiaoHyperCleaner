@@ -239,52 +239,78 @@ class ReverseRollbackTest {
         var forwardReads = 0
         assertEquals(
             ReverseEntryAction.CONTINUE_DRILL,
-            ReverseExtras.entryAction(
+            ReverseExtras.entryLoopDecision(
                 reverse = false,
                 onStepScreen = { forwardReads++; false },
-                budgetAboveReserveMs = 30_000L,
-                attemptsLeft = 3,
-                foreignWindow = { forwardReads++; false }
-            )
+                foreignWindow = { forwardReads++; false },
+                hasIntents = true,
+                attempts = 0,
+                maxAttempts = 3,
+                immediateEntryDone = false,
+                budgetAboveReserveMs = 30_000L
+            ).action
         )
         assertEquals("форвард не платит за чтение экрана", 0, forwardReads)
 
         assertEquals(
             "откат: шаг на своём экране — бурим",
             ReverseEntryAction.CONTINUE_DRILL,
-            ReverseExtras.entryAction(true, { true }, 30_000L, 3, { false })
+            entryRule(onStepScreen = true)
         )
         assertEquals(
-            "откат: нейтральное окно (Настройки, лаунчер, карточки цели) — бурение от корня сразу",
+            "откат: нейтральное окно (Настройки, лаунчер, карточки цели) — вход от корня сразу",
             ReverseEntryAction.DRILL_FROM_NEUTRAL,
-            ReverseExtras.entryAction(true, { false }, 30_000L, 3, { false })
+            entryRule()
         )
         assertEquals(
-            "откат: нейтральное окно бурим и без бюджета с попытками",
+            "откат: нейтральное окно — вход и без бюджета, и с нулевым потолком попыток",
             ReverseEntryAction.DRILL_FROM_NEUTRAL,
-            ReverseExtras.entryAction(true, { false }, -1L, 0, { false })
+            entryRule(budgetAboveReserveMs = -1L, maxAttempts = 0)
         )
         assertEquals(
-            "откат: пустые интенты (attemptsLeft=0) на чужом окне — честный провал без цикла повторов",
+            "откат: пустые интенты (попыток нет) на чужом окне — честный провал без цикла повторов",
             ReverseEntryAction.FAIL_SCREEN_NOT_REACHED,
-            ReverseExtras.entryAction(true, { false }, 30_000L, 0, { true })
+            entryRule(foreign = true, maxAttempts = 0)
         )
         assertEquals(
             "откат: бюджет ниже резерва на вход и тумблер — повтор не выдаётся",
             ReverseEntryAction.FAIL_SCREEN_NOT_REACHED,
-            ReverseExtras.entryAction(true, { false }, -1L, 3, { true })
+            entryRule(foreign = true, budgetAboveReserveMs = -1L)
         )
         assertEquals(
             "откат: чужое окно при живом бюджете и попытках — повтор входа, а не провал",
             ReverseEntryAction.RETRY_ENTRY,
-            ReverseExtras.entryAction(true, { false }, 30_000L, 3, { true })
+            entryRule(foreign = true)
         )
         assertEquals(
             "откат: чужое окно — провал и без бюджета с попытками",
             ReverseEntryAction.FAIL_SCREEN_NOT_REACHED,
-            ReverseExtras.entryAction(true, { false }, -1L, 0, { true })
+            entryRule(foreign = true, budgetAboveReserveMs = -1L, maxAttempts = 0)
         )
     }
+
+    /**
+     * Один оборот цикла входа в откате с настройками по умолчанию: интент есть, немедленный вход
+     * ещё не сделан, попыток — до потолка, бюджет над резервом. Окно при [onStepScreen]=false и
+     * [foreign]=false считается нейтральным. Здесь проверяется ПРАВИЛО; порядок
+     * «вход → пересчёт → повторы» — в тестах цикла.
+     */
+    private fun entryRule(
+        onStepScreen: Boolean = false,
+        foreign: Boolean = false,
+        budgetAboveReserveMs: Long = 30_000L,
+        maxAttempts: Int = 3,
+        immediateEntryDone: Boolean = false
+    ): ReverseEntryAction = ReverseExtras.entryLoopDecision(
+        reverse = true,
+        onStepScreen = { onStepScreen },
+        foreignWindow = { foreign },
+        hasIntents = true,
+        attempts = 0,
+        maxAttempts = maxAttempts,
+        immediateEntryDone = immediateEntryDone,
+        budgetAboveReserveMs = budgetAboveReserveMs
+    ).action
 
     @Test
     fun `cancellation during rollback is not a failure and does not touch the snapshot`() {

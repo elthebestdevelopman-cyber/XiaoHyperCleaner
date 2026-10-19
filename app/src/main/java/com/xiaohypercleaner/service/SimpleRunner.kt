@@ -1461,15 +1461,27 @@ class SimpleRunner(private val service: AdbEnablerService) {
             var neutralLogged = false
             var immediateEntryDone = false
             while (true) {
-                val action = ReverseExtras.entryAction(
+                val decision = ReverseExtras.entryLoopDecision(
                     reverse = reverseCtx != null,
                     onStepScreen = onStepScreen,
-                    budgetAboveReserveMs = remainingBudgetMs() - REENTRY_RESERVE_MS,
-                    // Повтор входа без интентов ничего не изменит — попыток не выдаём вовсе.
-                    attemptsLeft = if (step.intents.isEmpty()) 0 else MAX_REENTRY_ATTEMPTS - attempts,
-                    foreignWindow = { isForeignWindowFor(step) }
+                    foreignWindow = { isForeignWindowFor(step) },
+                    // Повтор входа без интентов ничего не изменит — шаг сразу бурит текущий экран.
+                    hasIntents = step.intents.isNotEmpty(),
+                    attempts = attempts,
+                    maxAttempts = MAX_REENTRY_ATTEMPTS,
+                    immediateEntryDone = immediateEntryDone,
+                    budgetAboveReserveMs = remainingBudgetMs() - REENTRY_RESERVE_MS
                 )
-                when (action) {
+                // Нейтральное окно фиксируем один раз на шаг: причина видна и в логе, и в DIAG.
+                if (decision.neutralWindow && !neutralLogged) {
+                    neutralLogged = true
+                    AppLog.i(
+                        TAG,
+                        "reverse_drill_from_neutral screen=${activePackage() ?: "-"} step=${step.id}"
+                    )
+                    StepDiagnostics.note(step.id, "DRILL", "reverse_drill_from_neutral")
+                }
+                when (decision.action) {
                     ReverseEntryAction.CONTINUE_DRILL -> {
                         if (attempts > 0) {
                             AppLog.w(
@@ -1492,45 +1504,21 @@ class SimpleRunner(private val service: AdbEnablerService) {
                         return Result(false, REVERSE_SCREEN_NOT_REACHED)
                     }
                     ReverseEntryAction.DRILL_FROM_NEUTRAL -> {
-                        // Нейтральное окно (Настройки, лаунчер, карточки цели): ОДИН немедленный
-                        // вход без «трёх полных окон» — и правило пересчитывается заново, потому
-                        // что приложение могло подняться не сразу. Обрыв цикла после первого
-                        // входа ронял app-шаги в откате (прогон rmve63243: `done 15/22`,
-                        // `reverse_drill_from_neutral ok=false` ×5 у music_sys, security_sys,
-                        // downloads, mivideo, shareme).
-                        if (!neutralLogged) {
-                            neutralLogged = true
-                            AppLog.i(
-                                TAG,
-                                "reverse_drill_from_neutral screen=${activePackage() ?: "-"} step=${step.id}"
-                            )
-                            StepDiagnostics.note(step.id, "DRILL", "reverse_drill_from_neutral")
-                        }
-                        if (step.intents.isEmpty()) break
-                        if (!immediateEntryDone) {
-                            immediateEntryDone = true
-                            reEnterStepRoot(step)
-                        } else {
-                            // Немедленный вход не помог: дальше работают обычные гейтовые повторы
-                            // (они ждут пакет цели), пока есть бюджет и потолок попыток.
-                            if (attempts >= MAX_REENTRY_ATTEMPTS) break
-                            attempts++
-                            AppLog.w(
-                                TAG,
-                                "reverse entry: ${step.id} still neutral " +
-                                    "screen=${activePackage() ?: "-"} attempt=$attempts" +
-                                    "/$MAX_REENTRY_ATTEMPTS budget=${remainingBudgetMs()}ms " +
-                                    "reserve=${REENTRY_RESERVE_MS}ms"
-                            )
-                            StepDiagnostics.note(step.id, "DRILL", "reverse_reentry attempt=$attempts")
-                            retryEnterStep(step)
-                        }
+                        // Один немедленный вход от КОРНЯ маршрута — и правило пересчитывается
+                        // заново, потому что приложение могло подняться не сразу. Обрыв цикла
+                        // после первого входа ронял app-шаги в откате (прогон rmve63243:
+                        // `done 15/22`, `reverse_drill_from_neutral ok=false` ×5 у music_sys,
+                        // security_sys, downloads, mivideo, shareme).
+                        immediateEntryDone = true
+                        reEnterStepRoot(step)
                     }
                     ReverseEntryAction.RETRY_ENTRY -> {
-                        attempts++
+                        attempts = decision.attempt
+                        // Текст различает причину: цикл шёл через нейтральное окно или через чужое.
+                        val state = if (decision.neutralWindow) "still neutral" else "not on step screen"
                         AppLog.w(
                             TAG,
-                            "reverse entry: ${step.id} not on step screen " +
+                            "reverse entry: ${step.id} $state " +
                                 "screen=${activePackage() ?: "-"} attempt=$attempts" +
                                 "/$MAX_REENTRY_ATTEMPTS budget=${remainingBudgetMs()}ms " +
                                 "reserve=${REENTRY_RESERVE_MS}ms"
