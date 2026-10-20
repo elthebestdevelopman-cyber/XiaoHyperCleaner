@@ -28,6 +28,12 @@ data class RestoreSnapshot(
     val dnsMode: String?,
     val dnsHost: String?,
     val simpleToggleStates: Map<String, Boolean> = emptyMap(),
+    /**
+     * Шаги, которые тумблерили в этом прогоне. Признак ставится ДО тапа ([withSimpleToggle]):
+     * крах или непрочитанный вердикт между тапом и отчётом не выкидывают шаг из списка отката.
+     * Ложное срабатывание поглощается исходом `already_original`.
+     */
+    val simpleToggledSteps: Set<String> = emptySet(),
     val disabledPackages: List<String> = emptyList()
 ) {
     fun toJson(): String {
@@ -41,9 +47,32 @@ data class RestoreSnapshot(
         val toggles = JSONObject()
         simpleToggleStates.forEach { (k, v) -> toggles.put(k, v) }
         root.put("simpleToggleStates", toggles)
+        root.put("simpleToggledSteps", JSONArray(simpleToggledSteps.toList()))
         root.put("disabledPackages", JSONArray(disabledPackages))
         return root.toString()
     }
+
+    /**
+     * Запись факта тумблера (D2, прогон rmvgvhbzu).
+     *
+     * `checked_before` пишется ТОЛЬКО при отсутствии ключа: самое раннее исходное значение
+     * побеждает, поэтому повторный прогон не перезаписывает значение первого. Признак «шаг
+     * тумблерили» — объединение; ставится до тапа, чтобы вердикт не мог потерять шаг из отката.
+     * `markToggled = false` — для доп. целей (`<stepId>#extra:<подпись>`): это не шаги отката,
+     * они возвращаются внутри своего шага через `ReverseExtras`.
+     */
+    fun withSimpleToggle(
+        stepId: String,
+        checkedBefore: Boolean,
+        markToggled: Boolean = true
+    ): RestoreSnapshot = copy(
+        simpleToggleStates = if (stepId in simpleToggleStates) {
+            simpleToggleStates
+        } else {
+            simpleToggleStates + (stepId to checkedBefore)
+        },
+        simpleToggledSteps = if (markToggled) simpleToggledSteps + stepId else simpleToggledSteps
+    )
 
     companion object {
         fun fromJson(json: String): RestoreSnapshot? = try {
@@ -63,12 +92,19 @@ data class RestoreSnapshot(
                     arr.optString(i).takeIf { it.isNotBlank() }?.let { packages.add(it) }
                 }
             }
+            val toggledSteps = mutableSetOf<String>()
+            root.optJSONArray("simpleToggledSteps")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    arr.optString(i).takeIf { it.isNotBlank() }?.let { toggledSteps.add(it) }
+                }
+            }
             RestoreSnapshot(
                 settings = map,
                 dnsApplied = root.optBoolean("dnsApplied", false),
                 dnsMode = root.optString("dnsMode").takeIf { it.isNotEmpty() && it != "null" },
                 dnsHost = root.optString("dnsHost").takeIf { it.isNotEmpty() && it != "null" },
                 simpleToggleStates = toggles,
+                simpleToggledSteps = toggledSteps,
                 disabledPackages = packages
             )
         } catch (e: Exception) {

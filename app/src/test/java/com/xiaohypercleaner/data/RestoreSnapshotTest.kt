@@ -94,4 +94,68 @@ class RestoreSnapshotTest {
         )
         assertEquals(true, restored?.simpleToggleStates?.get("carousel"))
     }
+
+    @Test
+    fun `toggle record keeps the earliest checked_before and marks the step once`() {
+        // D2 (прогон rmvgvhbzu): msa переключился, но вердикт не прочитал состояние — шаг
+        // обязан остаться в списке отката, а checked_before первого прогона не перезаписываться.
+        val first = RestoreSnapshot(
+            settings = emptyMap(),
+            dnsApplied = false,
+            dnsMode = null,
+            dnsHost = null
+        ).withSimpleToggle("msa", checkedBefore = true)
+
+        val second = first.withSimpleToggle("msa", checkedBefore = false)
+
+        assertEquals("первое исходное значение побеждает", true, second.simpleToggleStates["msa"])
+        assertEquals("шаг помечен один раз", setOf("msa"), second.simpleToggledSteps)
+    }
+
+    @Test
+    fun `extra target records checked_before without joining the reverse list`() {
+        // Ключ `<stepId>#extra:<подпись>` не шаг отката: он возвращается внутри своего шага
+        // (ReverseExtras), поэтому в списке отката ему делать нечего.
+        val snapshot = RestoreSnapshot(
+            settings = emptyMap(),
+            dnsApplied = false,
+            dnsMode = null,
+            dnsHost = null
+        ).withSimpleToggle("carousel#extra:Реклама", checkedBefore = true, markToggled = false)
+
+        assertEquals(true, snapshot.simpleToggleStates["carousel#extra:Реклама"])
+        assertTrue("доп. цель не попадает в список отката", snapshot.simpleToggledSteps.isEmpty())
+    }
+
+    @Test
+    fun `simple toggled steps survive json round trip`() {
+        val snapshot = RestoreSnapshot(
+            settings = emptyMap(),
+            dnsApplied = false,
+            dnsMode = null,
+            dnsHost = null,
+            simpleToggleStates = mapOf("msa" to true),
+            simpleToggledSteps = setOf("msa", "carousel")
+        )
+
+        val restored = RestoreSnapshot.fromJson(snapshot.toJson())
+
+        assertEquals(snapshot, restored)
+        assertEquals(setOf("msa", "carousel"), restored?.simpleToggledSteps)
+    }
+
+    @Test
+    fun `legacy snapshot without toggled steps parses with empty set`() {
+        val legacy = """
+            {"settings":{},"dnsApplied":false,"dnsMode":null,"dnsHost":null,"simpleToggleStates":{"carousel":true}}
+        """.trimIndent()
+
+        val restored = RestoreSnapshot.fromJson(legacy)
+
+        assertTrue(
+            "старый снапшот: список отката берётся из легаси-ключа",
+            restored?.simpleToggledSteps?.isEmpty() == true
+        )
+        assertEquals("значения старого снапшота не теряются", true, restored?.simpleToggleStates?.get("carousel"))
+    }
 }

@@ -417,6 +417,9 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
      */
     private val simpleToggleMirror = ConcurrentHashMap<String, Boolean>()
 
+    /** In-memory зеркало «шаг тумблерили»: список отката не ждёт фоновой записи снапшота. */
+    private val simpleToggledMirror: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
     /** Фоновые записи зеркала: шаг не блокируют, ошибка только логируется. */
     private val mirrorWriteScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -426,13 +429,28 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
      * (его видит откат), затем фоном — снапшот отката. Если снапшота ещё не было,
      * создаётся пустой контейнер: состояние тумблеров переживает перезапуск.
      */
-    fun recordSimpleToggleState(stepId: String, checkedBefore: Boolean) {
-        simpleToggleMirror[stepId] = checkedBefore
-        AppLog.i(TAG, "recordSimpleToggleState: $stepId checked_before=$checkedBefore (mirror)")
-        mirrorWriteScope.launch { persistSimpleToggleState(stepId, checkedBefore) }
+    fun recordSimpleToggleState(
+        stepId: String,
+        checkedBefore: Boolean,
+        markToggled: Boolean = true
+    ) {
+        // Самое раннее значение побеждает: повторная запись того же шага не перезаписывает
+        // исходное состояние первого прогона (D2).
+        simpleToggleMirror.putIfAbsent(stepId, checkedBefore)
+        if (markToggled) simpleToggledMirror.add(stepId)
+        AppLog.i(
+            TAG,
+            "recordSimpleToggleState: $stepId checked_before=$checkedBefore " +
+                "markToggled=$markToggled (mirror)"
+        )
+        mirrorWriteScope.launch { persistSimpleToggleState(stepId, checkedBefore, markToggled) }
     }
 
-    private suspend fun persistSimpleToggleState(stepId: String, checkedBefore: Boolean) = runCatching {
+    private suspend fun persistSimpleToggleState(
+        stepId: String,
+        checkedBefore: Boolean,
+        markToggled: Boolean
+    ) = runCatching {
         context.dataStore.edit { prefs ->
             val current = prefs[RESTORE_SNAPSHOT_KEY]?.let { RestoreSnapshot.fromJson(it) }
                 ?: RestoreSnapshot(
@@ -441,10 +459,11 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
                     dnsMode = null,
                     dnsHost = null
                 )
-            val updated = current.copy(
-                simpleToggleStates = current.simpleToggleStates + (stepId to checkedBefore)
-            )
-            prefs[RESTORE_SNAPSHOT_KEY] = updated.toJson()
+            // Оба факта (checked_before + «шаг тумблерили») — одной записью: иначе крах между
+            // тапом и вердиктом снова терял бы шаг из отката (дефект D2, msa в rmvgvhbzu).
+            prefs[RESTORE_SNAPSHOT_KEY] = current
+                .withSimpleToggle(stepId, checkedBefore, markToggled)
+                .toJson()
         }
     }.onFailure { e ->
         AppLog.w(TAG, "recordSimpleToggleState($stepId) persist failed: ${e.message}")
@@ -459,7 +478,10 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
         val stored = runCatching {
             context.dataStore.data.first()[RESTORE_SNAPSHOT_KEY]
         }.getOrNull()?.let { RestoreSnapshot.fromJson(it)?.simpleToggleStates } ?: emptyMap()
-        return stored + simpleToggleMirror
+        // Приоритет у сохранённого снапшота, а не у зеркала: правило «первое исходное значение
+        // побеждает» держится записью только при отсутствии ключа (D2). Зеркало добавляет
+        // лишь то, что ещё не успело сохраниться.
+        return simpleToggleMirror + stored
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -575,20 +597,40 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
         }
     }
 
-    suspend fun getSimpleToggledSteps(): Set<String> = runCatching {
-        val raw = context.dataStore.data.first()[SIMPLE_TOGGLED_KEY].orEmpty()
-        raw.split(',').filter { it.isNotBlank() }.toSet()
-    }.getOrElse { emptySet() }
+    /**
+     * Шаги для отката: объединение нового множества снапшота, легаси-ключа и зеркала.
+     * Легаси-ключ остаётся источником для снапшотов старого формата (в них множества нет),
+     * поэтому объединение, а не замена (D2 п.4).
+     */
+    suspend fun getSimpleToggledSteps(): Set<String> {
+        val prefs = runCatching { context.dataStore.data.first() }.getOrNull()
+        val fromSnapshot = prefs?.get(RESTORE_SNAPSHOT_KEY)
+            ?.let { RestoreSnapshot.fromJson(it)?.simpleToggledSteps } ?: emptySet()
+        val legacy = prefs?.get(SIMPLE_TOGGLED_KEY).orEmpty()
+            .split(',').filter { it.isNotBlank() }.toSet()
+        return fromSnapshot + legacy + simpleToggledMirror
+    }
 
     suspend fun clearSimpleToggledSteps() = runCatching {
         context.dataStore.edit { prefs ->
             prefs.remove(SIMPLE_TOGGLED_KEY)
-            // checked_before больше не нужен: откат завершён (или отменён).
+            // Откат завершён (или отменён): оба представления в снапшоте снимаются одной
+            // записью, чтобы список отката не мог разъехаться с checked_before.
             val current = prefs[RESTORE_SNAPSHOT_KEY]?.let { RestoreSnapshot.fromJson(it) }
-            if (current != null && current.simpleToggleStates.isNotEmpty()) {
-                prefs[RESTORE_SNAPSHOT_KEY] = current.copy(simpleToggleStates = emptyMap()).toJson()
+            if (current != null && (
+                current.simpleToggleStates.isNotEmpty() || current.simpleToggledSteps.isNotEmpty()
+                )
+            ) {
+                prefs[RESTORE_SNAPSHOT_KEY] = current.copy(
+                    simpleToggleStates = emptyMap(),
+                    simpleToggledSteps = emptySet()
+                ).toJson()
             }
         }
+        // Зеркало чистим только после успешной записи: при сбое DataStore значения нужны
+        // следующей попытке отката.
+        simpleToggleMirror.clear()
+        simpleToggledMirror.clear()
     }
 
     /**

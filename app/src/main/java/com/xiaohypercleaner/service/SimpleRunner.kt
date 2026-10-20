@@ -3308,7 +3308,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // подстроки, а снимок хранил только главный тумблер). Строка, уже стоящая в
         // целевом состоянии, не пишется: откат её и не трогает. В САМОМ откате снапшот
         // не пишется вовсе: иначе возврат перезаписывает значение, по которому возвращает.
-        if (needed && rev == null) recordCheckedBefore(key, checked)
+        if (needed && rev == null) recordCheckedBefore(key, checked, markToggled = false)
         if (!needed) {
             // В откате недостижимо: [ReverseExtras.decide] уже вернул AlreadyOriginal.
             recycleNode(node); recycleNode(root)
@@ -7276,10 +7276,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
         "$stepId$EXTRA_KEY_MARKER$itemText"
 
     /** Фиксирует фактическое состояние тумблера (checked_before) в снапшоте отката.
-     *  Не блокирует шаг: запись неблокирующая (in-memory зеркало + фоновый persist). */
-    private fun recordCheckedBefore(stepId: String, checkedBefore: Boolean) {
+     *  Не блокирует шаг: запись неблокирующая (in-memory зеркало + фоновый persist).
+     *  Та же запись ставит признак «шаг тумблерили» для списка отката (D2): факт пишется ДО
+     *  тапа, поэтому вердикт шага больше не решает, попадёт ли шаг в откат.
+     *  `markToggled = false` — для доп. целей: ключ `<stepId>#extra:<подпись>` не шаг отката. */
+    private fun recordCheckedBefore(
+        stepId: String,
+        checkedBefore: Boolean,
+        markToggled: Boolean = true
+    ) {
         val store = prefs ?: return
-        runCatching { store.recordSimpleToggleState(stepId, checkedBefore) }
+        runCatching { store.recordSimpleToggleState(stepId, checkedBefore, markToggled) }
             .onFailure { AppLog.w(TAG, "recordCheckedBefore failed: ${it.message}") }
     }
 
