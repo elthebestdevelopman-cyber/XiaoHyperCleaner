@@ -65,6 +65,12 @@ class SimpleModeController(
         val appInfoAttempts: Int = 0,
         val showBatteryDialog: Boolean = false,
         val failedStepIds: List<String> = emptyList(),
+        /**
+         * Шаги, которые переключились, но состояние не прочиталось (`state_unreadable`):
+         * отдельное ведро отчёта — не провал и не успех. Пользователь видит «отработал,
+         * проверить не удалось»; в откат шаг попадёт по факту тапа (D2).
+         */
+        val unconfirmedStepIds: List<String> = emptyList(),
         val skippedStepIds: List<String> = emptyList(),
         /** Реально переключённые notif_*-шаги: список для экрана результатов (Аддендум C3). */
         val notifToggledStepIds: List<String> = emptyList(),
@@ -83,6 +89,7 @@ class SimpleModeController(
 
     val isActive: Boolean get() = state.active
     val failedStepIds: List<String> get() = state.failedStepIds
+    val unconfirmedStepIds: List<String> get() = state.unconfirmedStepIds
     val skippedStepIds: List<String> get() = state.skippedStepIds
 
     private fun checkAccessibility(): Boolean {
@@ -108,7 +115,10 @@ class SimpleModeController(
     private var notifTransparency: Boolean = true
 
     private var autoFlowJob: Job? = null
+    /** Сырой журнал провалов ДО фильтрации: пользовательское ведро — `failedStepIds` в состоянии. */
     private val failedIds: MutableList<String> = mutableListOf()
+    /** Сырой журнал «не подтверждено»: шаг мимо ведра провалов, но и не успех. */
+    private val unconfirmedIds: MutableList<String> = mutableListOf()
     private val skippedIds: MutableList<String> = mutableListOf()
     private val notifToggledIds: MutableList<String> = mutableListOf()
     private val alreadyOffIds: MutableList<String> = mutableListOf()
@@ -200,17 +210,22 @@ class SimpleModeController(
      * остановки (потеря разрешения оверлея) — иначе ветки разъезжаются при правке.
      */
     private fun publishResult() {
+        // «Не подтверждено» — отдельное ведро: шаг отработал, но проверить его нельзя.
+        // В провалы он не попадает, иначе пользователь видит его дважды и не понимает,
+        // что именно повторять (D1b, прогон rmvgvhbzu).
+        val reportedFailed = failedIds.filterNot { it in unconfirmedIds }
         OverlayController.showResult(
             context,
             state.completedCount,
             state.done?.second ?: 0,
-            failedIds.size,
+            reportedFailed.size,
             skippedIds.size,
             notifToggledIds.map { stepTitle(it) },
             alreadyOffIds.map { stepTitle(it) },
             // Провалившиеся шаги — списком: счётчик без имён не показывает, что осталось
             // включённым (F6, прогон rmvb6atul).
-            failedSteps = failedIds.map { stepTitle(it) }
+            failedSteps = reportedFailed.map { stepTitle(it) },
+            unconfirmedSteps = unconfirmedIds.map { stepTitle(it) }
         )
     }
 
@@ -264,6 +279,7 @@ class SimpleModeController(
         isAccessibilityEnabled = checkAccessibility()
         isOverlayGranted = checkOverlay()
         failedIds.clear()
+        unconfirmedIds.clear()
         skippedIds.clear()
         notifToggledIds.clear()
         alreadyOffIds.clear()
@@ -642,7 +658,9 @@ class SimpleModeController(
             if (!failedIds.contains(step.step.id)) failedIds.add(step.step.id)
             setState {
                 copy(
-                    failedStepIds = failedIds.toList(),
+                    // Ведро провалов исключает неподтверждённые. Решение принимается по
+                    // состоянию, а не по порядку вызовов: noteUnconfirmed ставит тот же фильтр.
+                    failedStepIds = failedIds.filterNot { it in unconfirmedIds },
                     step = step.copy(status = SimpleStepState.Status.FAILED, attempt = attempt)
                 )
             }
@@ -684,6 +702,26 @@ class SimpleModeController(
         alreadyOffIds.add(stepId)
         AppLog.i(TAG, "already off: step=$stepId total=${alreadyOffIds.size}")
         setState { copy(alreadyOffStepIds = alreadyOffIds.toList()) }
+    }
+
+    /**
+     * Регистрирует шаг, который переключился, но состояние прочитано не было
+     * (`state_unreadable`). Это не провал и не успех: отдельное ведро отчёта, чтобы
+     * пользователь видел «отработал, проверить не удалось», а не «не получилось».
+     *
+     * `failedStepIds` пересчитывается тем же фильтром, что и в [onStepResult]: инвариант
+     * «шаг ровно в одном ведре» не зависит от порядка вызовов.
+     */
+    fun noteUnconfirmed(stepId: String) {
+        if (unconfirmedIds.contains(stepId)) return
+        unconfirmedIds.add(stepId)
+        AppLog.i(TAG, "unconfirmed: step=$stepId total=${unconfirmedIds.size}")
+        setState {
+            copy(
+                unconfirmedStepIds = unconfirmedIds.toList(),
+                failedStepIds = failedIds.filterNot { it in unconfirmedIds }
+            )
+        }
     }
 
     private fun scheduleAdvance() {
@@ -889,6 +927,7 @@ class SimpleModeController(
         OverlayController.hide(context)
         releaseWakeLock()  // НОВОЕ (beta11): освобождаем wake lock
         failedIds.clear()
+        unconfirmedIds.clear()
         skippedIds.clear()
         notifToggledIds.clear()
         alreadyOffIds.clear()

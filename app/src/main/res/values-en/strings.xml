@@ -290,6 +290,9 @@
     <string name="result_skipped">Skipped (not on device): %d</string>
     <string name="result_failed">Couldn\'t complete (system-protected): %d</string>
     <string name="result_failed_list">Couldn\'t complete: %s</string>
+    <string name="result_unconfirmed">Not confirmed: %d</string>
+    <string name="result_unconfirmed_list">Not confirmed: %s</string>
+    <string name="result_unconfirmed_hint">The setting was switched, but its state could not be read: the screen was covered by a system dialog. The rollback restores it from the saved original value.</string>
     <string name="result_notif_title">Notifications turned off:</string>
     <string name="result_already_off_title">Already off (verified):</string>
     <string name="result_manual_title">For the best result, do manually</string>

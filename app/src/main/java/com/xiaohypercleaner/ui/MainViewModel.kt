@@ -774,8 +774,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Экономия: ~16с на каждый неудачный шаг.
      * При 7 фейлах из логов: 7 × 16с = ~112с (~2 минуты).
      */
-    fun onSimpleStepResult(success: Boolean) {
-        AppLog.i(TAG, "onSimpleStepResult: success=$success, attempt=$stepAttempt")
+    fun onSimpleStepResult(success: Boolean, unconfirmed: Boolean = false) {
+        AppLog.i(
+            TAG,
+            "onSimpleStepResult: success=$success, unconfirmed=$unconfirmed, attempt=$stepAttempt"
+        )
         val step = _state.value.simpleStep ?: return
         val attempt = stepAttempt
         stepAttempt = 1  // Сбрасываем сразу для следующего шага
@@ -786,8 +789,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // Без ретрая: сразу финальный фейл и переход к следующему шагу
-        AppLog.e(TAG, "onSimpleStepResult: step '${step.step.id}' failed, moving to next")
-        failedSimpleStepIds.add(step.step.id)
+        if (unconfirmed) {
+            // «Не подтверждено» — не провал: шаг отработал, но проверить его нельзя.
+            AppLog.w(TAG, "onSimpleStepResult: step '${step.step.id}' unconfirmed, moving to next")
+        } else {
+            AppLog.e(TAG, "onSimpleStepResult: step '${step.step.id}' failed, moving to next")
+            failedSimpleStepIds.add(step.step.id)
+        }
         simpleController.onStepResult(
             success = false,
             attempt = attempt,
@@ -818,7 +826,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (success && (reason == "already_off" || reason == "already_done")) {
             _state.value.simpleStep?.step?.id?.let { simpleController.noteAlreadyOff(it) }
         }
-        onSimpleStepResult(success)
+        // «Не подтверждено»: тумблер переключился, но состояние не прочиталось (экран был
+        // перекрыт диалогом прогресса). Это не провал — отдельное ведро отчёта. В откат
+        // шаг попадёт по факту тапа (D2), а не из этой причины вердикта.
+        val unconfirmed = !success && reason == SimpleRunner.REASON_STATE_UNREADABLE
+        if (unconfirmed) {
+            _state.value.simpleStep?.step?.id?.let { simpleController.noteUnconfirmed(it) }
+        }
+        onSimpleStepResult(success, unconfirmed = unconfirmed)
     }
 
     /**

@@ -3,11 +3,17 @@ package com.xiaohypercleaner.ui
 import androidx.test.core.app.ApplicationProvider
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationMode
+import com.xiaohypercleaner.data.PlanBuilder
 import com.xiaohypercleaner.data.SimpleModePhase
+import com.xiaohypercleaner.data.SimplePlan
+import com.xiaohypercleaner.data.SimpleSteps
+import com.xiaohypercleaner.service.SimpleRunner
+import com.xiaohypercleaner.service.SimpleStepBridge
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -195,5 +201,80 @@ class MainViewModelTest {
 
         val state = vm.state.value
         assertFalse("showLevelConfirm should be closed", state.showLevelConfirm)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Ведро «не подтверждено» (D1b, прогон rmvgvhbzu)
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `state_unreadable goes to the unconfirmed bucket, not to failures`() = runTest {
+        // Мост отдаёт причину строкой (AdbEnablerService:568), поэтому вход — литерал.
+        // Ожидание привязано к константе раннера: смена её значения уронит тест осознанно,
+        // потому что боевое сравнение в handleSimpleStepResult смотрит на константу.
+        val steps = SimpleSteps.ALL.take(3).map { PlanBuilder.PlanStep(it, null) }
+        SimplePlan.set(steps)
+        try {
+            vm.startFlow()
+            vm.onLevelChosen(OptimizationMode.SIMPLE)
+            vm.confirmLevelStart(OptimizationMode.SIMPLE)
+            vm.simpleController.nextStep()
+            val stepId = vm.state.value.simpleStep?.step?.id
+            assertNotNull("шаг плана должен быть активен", stepId)
+
+            SimpleStepBridge.onResult?.invoke(false, "state_unreadable")
+
+            assertEquals(
+                "литерал входа и токен раннера разошлись",
+                "state_unreadable",
+                SimpleRunner.REASON_STATE_UNREADABLE
+            )
+            assertEquals(
+                "ведро «не подтверждено» заполнено",
+                listOf(stepId),
+                vm.simpleController.snapshot.unconfirmedStepIds
+            )
+            assertFalse(
+                "неподтверждённый шаг не провал (состояние контроллера)",
+                vm.simpleController.snapshot.failedStepIds.contains(stepId)
+            )
+            assertFalse(
+                "неподтверждённый шаг не провал (журнал VM)",
+                vm.getFailedStepIds().contains(stepId)
+            )
+        } finally {
+            SimplePlan.reset()
+        }
+    }
+
+    @Test
+    fun `other failure reasons still land in the failed buckets`() = runTest {
+        // Контрпример: тот же путь моста, другой токен. `revoke_not_confirmed` — приватная
+        // константа раннера (SimpleRunner.REASON_REVOKE_NOT_CONFIRMED -> private), поэтому
+        // здесь литерал, как в SimpleRunnerMsaRevokeTest.
+        val steps = SimpleSteps.ALL.take(3).map { PlanBuilder.PlanStep(it, null) }
+        SimplePlan.set(steps)
+        try {
+            vm.startFlow()
+            vm.onLevelChosen(OptimizationMode.SIMPLE)
+            vm.confirmLevelStart(OptimizationMode.SIMPLE)
+            vm.simpleController.nextStep()
+            val stepId = vm.state.value.simpleStep?.step?.id
+            assertNotNull("шаг плана должен быть активен", stepId)
+
+            SimpleStepBridge.onResult?.invoke(false, "revoke_not_confirmed")
+
+            assertTrue(
+                "честный провал остаётся в ведре провалов",
+                vm.simpleController.snapshot.failedStepIds.contains(stepId)
+            )
+            assertTrue("журнал VM видит провал", vm.getFailedStepIds().contains(stepId))
+            assertFalse(
+                "в ведро «не подтверждено» провал не попадает",
+                vm.simpleController.snapshot.unconfirmedStepIds.contains(stepId)
+            )
+        } finally {
+            SimplePlan.reset()
+        }
     }
 }

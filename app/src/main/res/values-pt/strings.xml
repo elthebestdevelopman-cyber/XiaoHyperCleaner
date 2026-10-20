@@ -270,6 +270,9 @@
     <string name="result_skipped">Ignorados: %d</string>
     <string name="result_failed">Protegidos pelo sistema: %d</string>
     <string name="result_failed_list">Não foi possível: %s</string>
+    <string name="result_unconfirmed">Não confirmado: %d</string>
+    <string name="result_unconfirmed_list">Não confirmado: %s</string>
+    <string name="result_unconfirmed_hint">A definição foi alterada, mas o estado não pôde ser lido: o ecrã estava coberto por um diálogo do sistema. O rollback repõe-na pelo valor original guardado.</string>
     <string name="result_notif_title">Notificações desativadas:</string>
     <string name="result_already_off_title">Já estava desativado (verificado):</string>
     <string name="result_manual_title">Para o melhor resultado, faça manualmente</string>

@@ -300,6 +300,9 @@
     <string name="result_skipped">已跳过（设备上不存在）：%d</string>
     <string name="result_failed">无法完成（系统保护）：%d</string>
     <string name="result_failed_list">未能完成：%s</string>
+    <string name="result_unconfirmed">未确认：%d</string>
+    <string name="result_unconfirmed_list">未确认：%s</string>
+    <string name="result_unconfirmed_hint">设置已切换，但状态未能读取：屏幕被系统对话框遮挡。回滚将按已保存的原始值恢复。</string>
     <string name="result_notif_title">已关闭通知：</string>
     <string name="result_already_off_title">已经关闭（已验证）：</string>
     <string name="result_manual_title">为了最佳效果，请手动完成</string>

@@ -270,6 +270,9 @@
     <string name="result_skipped">Dilewati: %d</string>
     <string name="result_failed">Dilindungi sistem: %d</string>
     <string name="result_failed_list">Tidak berhasil: %s</string>
+    <string name="result_unconfirmed">Tidak terkonfirmasi: %d</string>
+    <string name="result_unconfirmed_list">Tidak terkonfirmasi: %s</string>
+    <string name="result_unconfirmed_hint">Pengaturan sudah diubah, tetapi statusnya tidak terbaca: layar tertutup dialog sistem. Rollback akan memulihkannya dari nilai asli yang tersimpan.</string>
     <string name="result_notif_title">Notifikasi dimatikan:</string>
     <string name="result_already_off_title">Sudah nonaktif (terverifikasi):</string>
     <string name="result_manual_title">Untuk hasil maksimal, lakukan manual</string>

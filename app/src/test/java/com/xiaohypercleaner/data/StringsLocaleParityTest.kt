@@ -75,6 +75,25 @@ class StringsLocaleParityTest {
     }
 
     @Test
+    fun `unconfirmed bucket strings are present in every locale`() {
+        // Ведро «не подтверждено» — третье состояние отчёта: строка без локали снова
+        // превратила бы шаг либо в провал, либо в невидимый (решение владельца по rmvgvhbzu).
+        val required = listOf(
+            "result_unconfirmed",
+            "result_unconfirmed_list",
+            "result_unconfirmed_hint"
+        )
+        val missing = locales.flatMap { locale ->
+            val keys = translatableKeys(resFile("$locale/strings.xml"))
+            required.filterNot { it in keys }.map { "$locale/$it" }
+        }
+        assertTrue(
+            "строка «не подтверждено» не покрыта локалями: $missing",
+            missing.isEmpty()
+        )
+    }
+
+    @Test
     fun `forbidden ad lexicon is absent from user-facing strings in every locale`() {
         // Нейтральная лексика: пользовательские строки не содержат токенов про рекламные
         // блокировщики и «уборку». Проверяем ЗНАЧЕНИЯ <string>, а не сырые строки файла:

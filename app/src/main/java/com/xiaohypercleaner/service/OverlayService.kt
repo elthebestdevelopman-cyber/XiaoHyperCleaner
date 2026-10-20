@@ -67,6 +67,9 @@ class OverlayService : Service() {
 
         /** Провалившиеся шаги прогона (перечень для экрана результата, F6). */
         const val EXTRA_FAILED_STEPS = "failed_steps"
+
+        /** Шаги «не подтверждено»: переключились, но состояние не прочиталось (D1b). */
+        const val EXTRA_UNCONFIRMED_STEPS = "unconfirmed_steps"
         const val EXTRA_RESTORE_APPLIED = "restore_applied"
         const val EXTRA_RESTORE_ALREADY_ORIGINAL = "restore_already_original"
         const val EXTRA_RESTORE_UNREADABLE = "restore_unreadable"
@@ -297,7 +300,8 @@ class OverlayService : Service() {
                 intent.getIntExtra(EXTRA_RESTORE_FAILED, 0),
                 intent.getStringExtra(EXTRA_RESTORE_UNREADABLE_STEPS).orEmpty(),
                 intent.getStringExtra(EXTRA_RESTORE_FAILED_STEPS).orEmpty(),
-                intent.getStringExtra(EXTRA_FAILED_STEPS).orEmpty()
+                intent.getStringExtra(EXTRA_FAILED_STEPS).orEmpty(),
+                intent.getStringExtra(EXTRA_UNCONFIRMED_STEPS).orEmpty()
             )
         }
         // Сервис мог быть убит MIUI и пересоздан этим startService: окна нет, а фаза идёт.
@@ -588,7 +592,8 @@ class OverlayService : Service() {
         restoreFailed: Int = 0,
         restoreUnreadableSteps: String = "",
         restoreFailedSteps: String = "",
-        failedSteps: String = ""
+        failedSteps: String = "",
+        unconfirmedSteps: String = ""
     ) {
         stopHeartbeat()
         hide()
@@ -686,6 +691,30 @@ class OverlayService : Service() {
                 llWrap().apply { topMargin = dp(2) }
             )
         }
+        // «Не подтверждено» — третье ведро: шаг переключился, но проверить его нельзя.
+        // Отдельный блок, чтобы пользователь не считал его провалом (D1b, прогон rmvgvhbzu).
+        val unconfirmedTitles =
+            unconfirmedSteps.split('\n').filter { it.isNotBlank() }.take(NOTIF_LIST_MAX)
+        if (!restore && unconfirmedTitles.isNotEmpty()) {
+            layout.addView(
+                bodyText(
+                    getString(R.string.result_unconfirmed, unconfirmedTitles.size),
+                    small = true
+                ),
+                llWrap().apply { topMargin = dp(4) }
+            )
+            layout.addView(
+                bodyText(
+                    getString(R.string.result_unconfirmed_list, unconfirmedTitles.joinToString(", ")),
+                    small = true
+                ),
+                llWrap().apply { topMargin = dp(2) }
+            )
+            layout.addView(
+                bodyText(getString(R.string.result_unconfirmed_hint), small = true),
+                llWrap().apply { topMargin = dp(2) }
+            )
+        }
         // Прозрачность notif_*: что именно отключено (Аддендум C3).
         val notifTitles = notifSteps.split('\n').filter { it.isNotBlank() }.take(NOTIF_LIST_MAX)
         if (!restore && notifTitles.isNotEmpty()) {
@@ -729,7 +758,7 @@ class OverlayService : Service() {
         AppLog.i(
             TAG,
             "result shown: $completed/$total, failed=$failed, skipped=$skipped " +
-                "notif=${notifTitles.size} manual=$manualShown"
+                "unconfirmed=${unconfirmedTitles.size} notif=${notifTitles.size} manual=$manualShown"
         )
     }
 

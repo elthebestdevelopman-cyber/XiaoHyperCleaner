@@ -299,6 +299,9 @@
     <string name="result_skipped">Omitidos (no en el dispositivo): %d</string>
     <string name="result_failed">No se pudo completar (protegido por el sistema): %d</string>
     <string name="result_failed_list">No se pudo: %s</string>
+    <string name="result_unconfirmed">Sin confirmar: %d</string>
+    <string name="result_unconfirmed_list">Sin confirmar: %s</string>
+    <string name="result_unconfirmed_hint">El ajuste se cambió, pero no se pudo leer su estado: la pantalla estaba tapada por un diálogo del sistema. El rollback lo restaurará desde el valor original guardado.</string>
     <string name="result_notif_title">Notificaciones desactivadas:</string>
     <string name="result_already_off_title">Ya estaba desactivado (verificado):</string>
     <string name="result_manual_title">Para un resultado máximo, hazlo a mano</string>

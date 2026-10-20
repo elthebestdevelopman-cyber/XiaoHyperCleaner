@@ -270,6 +270,9 @@
     <string name="result_skipped">छोड़ा गया: %d</string>
     <string name="result_failed">सिस्टम द्वारा संरक्षित: %d</string>
     <string name="result_failed_list">पूरा नहीं हुआ: %s</string>
+    <string name="result_unconfirmed">पुष्टि नहीं हुई: %d</string>
+    <string name="result_unconfirmed_list">पुष्टि नहीं हुई: %s</string>
+    <string name="result_unconfirmed_hint">सेटिंग बदल दी गई, लेकिन उसकी स्थिति पढ़ी नहीं जा सकी: स्क्रीन सिस्टम डायलॉग से ढकी थी। रोलबैक उसे सहेजे गए मूल मान से बहाल करेगा।</string>
     <string name="result_notif_title">सूचनाए\u0901 बंद कर दी गईं:</string>
     <string name="result_already_off_title">पहले से बंद (सत्यापित):</string>
     <string name="result_soft">यदि उपयोगी लगा — तो समीक्षा या समर्थन की सराहना की जाएगी।</string>
