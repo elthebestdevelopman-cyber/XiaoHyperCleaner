@@ -142,6 +142,14 @@ object ReverseExtras {
     const val REASON_BUDGET_BELOW_RESERVE = "budget_below_reserve"
 
     /**
+     * Вход нерезолвящийся: ни один кандидат шага не открывается на устройстве. Повтор бессмыслен
+     * (запускать нечего), поэтому нейтральное окно сразу уходит в бурение с корня, а чужое —
+     * в честный провал шага (прогон rmvgvhbzu: три попытки за 20 мс, каждая падала в
+     * `No Activity found` ещё до ожидания экрана).
+     */
+    const val REASON_ENTRY_UNRESOLVED = "entry_unresolved"
+
+    /**
      * Пока НЕДОСТИЖИМА в production: [SwitchFinder.isChecked] возвращает `Boolean`, поэтому
      * `checkedNow` не бывает `null` и «строки нет» с «состояние не прочитано» для вызывающего
      * кода неразличимы. Оставлена как задел на трёхзначное чтение состояния
@@ -205,10 +213,17 @@ object ReverseExtras {
      * 1. форвард или шаг на своём экране → [ReverseEntryAction.CONTINUE_DRILL];
      * 2. окно НЕ чужое (нейтральное: Настройки, лаунчер, карточки приложения-цели): интентов
      *    нет — входить нечем, бурим текущий экран; иначе один
-     *    [ReverseEntryAction.DRILL_FROM_NEUTRAL] (немедленный вход от КОРНЯ маршрута), затем
-     *    гейтовые повторы [ReverseEntryAction.RETRY_ENTRY], после — бурение текущего экрана;
-     * 3. чужое окно, есть и бюджет, и попытки → [ReverseEntryAction.RETRY_ENTRY];
-     * 4. чужое окно, повторов больше нет → [ReverseEntryAction.FAIL_SCREEN_NOT_REACHED].
+     *    [ReverseEntryAction.DRILL_FROM_NEUTRAL] (немедленный вход от КОРНЯ маршрута); если вход
+     *    нерезолвящийся ([entryResolvable] = false) — сразу бурение текущего экрана с причиной
+     *    [REASON_ENTRY_UNRESOLVED]; затем гейтовые повторы [ReverseEntryAction.RETRY_ENTRY],
+     *    после — бурение текущего экрана;
+     * 3. чужое окно, есть и бюджет, и попытки, и резолвящийся вход → [ReverseEntryAction.RETRY_ENTRY];
+     * 4. чужое окно, повторов больше нет → [ReverseEntryAction.FAIL_SCREEN_NOT_REACHED]
+     *    (причина: сначала нерезолвящийся вход, затем потолок, затем бюджет).
+     *
+     * [hasIntents] — статический признак плана (`step.intents` непустой), [entryResolvable] —
+     * результат рантайм-резолва кандидатов: источники разные, поэтому параметры живут раздельно.
+     * Ветка `!hasIntents` остаётся первой, иначе нейтральное окно потеряло бы токен причины.
      *
      * Гейт повторов — инвариант ДВУХ каналов: каждый повтор входа (и на нейтральном, и на чужом
      * окне) выдаётся только при остатке бюджета НАД резервом ([budgetAboveReserveMs] — вызывающий
@@ -233,7 +248,8 @@ object ReverseExtras {
         attempts: Int,
         maxAttempts: Int,
         immediateEntryDone: Boolean,
-        budgetAboveReserveMs: Long
+        budgetAboveReserveMs: Long,
+        entryResolvable: Boolean = true
     ): ReverseEntryDecision = when {
         !reverse || onStepScreen() ->
             ReverseEntryDecision(ReverseEntryAction.CONTINUE_DRILL, neutralWindow = false)
@@ -247,6 +263,12 @@ object ReverseExtras {
             // (appvault_services ×3), а ожидание цели без входа жгло три полных окна.
             !immediateEntryDone ->
                 ReverseEntryDecision(ReverseEntryAction.DRILL_FROM_NEUTRAL, neutralWindow = true)
+            // Вход нерезолвящийся — повторять нечего: бурение текущего экрана, причина в лог.
+            !entryResolvable -> ReverseEntryDecision(
+                ReverseEntryAction.CONTINUE_DRILL,
+                neutralWindow = true,
+                stopReason = REASON_ENTRY_UNRESOLVED
+            )
             // Немедленный вход не помог: дальше гейтовые повторы — потолок И остаток над резервом.
             // Причина останова: сначала потолок, затем бюджет (детерминированно для лога).
             attempts >= maxAttempts -> ReverseEntryDecision(
@@ -265,21 +287,22 @@ object ReverseExtras {
                 attempt = attempts + 1
             )
         }
-        // Чужое окно: повтор осмыслен только при остатке НАД резервом и живых попытках.
-        attempts < maxAttempts && budgetAboveReserveMs > 0 -> ReverseEntryDecision(
+        // Чужое окно: повтор осмыслен только при остатке НАД резервом, живых попытках и
+        // резолвящемся входе.
+        attempts < maxAttempts && budgetAboveReserveMs > 0 && entryResolvable -> ReverseEntryDecision(
             ReverseEntryAction.RETRY_ENTRY,
             neutralWindow = false,
             attempt = attempts + 1
         )
         // Чужое окно и повторов больше нет: честный провал шага вместо бурения чужого экрана.
-        // Причина — та же ось, что у нейтральной ветки: по логу видно, чего не хватило.
+        // Причина — корневая: нерезолвящийся вход важнее исчерпанного потолка и бюджета.
         else -> ReverseEntryDecision(
             ReverseEntryAction.FAIL_SCREEN_NOT_REACHED,
             neutralWindow = false,
-            stopReason = if (attempts >= maxAttempts) {
-                REASON_ATTEMPTS_EXHAUSTED
-            } else {
-                REASON_BUDGET_BELOW_RESERVE
+            stopReason = when {
+                !entryResolvable -> REASON_ENTRY_UNRESOLVED
+                attempts >= maxAttempts -> REASON_ATTEMPTS_EXHAUSTED
+                else -> REASON_BUDGET_BELOW_RESERVE
             }
         )
     }

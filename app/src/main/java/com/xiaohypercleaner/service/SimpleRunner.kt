@@ -730,6 +730,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
      */
     private var foreignRelaunchStepId: String? = null
 
+    /**
+     * Кандидаты повторного входа в приложение шага, зарезолвленные заранее (D3, прогон
+     * rmvgvhbzu): незарезолвленный интент не запускается вовсе, иначе попытка сгорает на
+     * `ActivityNotFoundException` ещё до ожидания экрана. Кэш — один слот на шаг,
+     * сбрасывается на входе в шаг.
+     */
+    private var entryCandidatesStepId: String? = null
+    private var entryCandidatesCache: List<Intent> = emptyList()
+
     /** Новый прогон — новый бюджет возврата в приложение шага. */
     internal fun resetForeignRelaunchBudget() {
         foreignRelaunchStepId = null
@@ -1102,6 +1111,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         lastReadSwitchState = null
         lastRevokeReason = REASON_REVOKE_NOT_CONFIRMED
         entryPackages.clear()
+        // Кандидаты входа резолвятся заново на каждый шаг: состав пакетов мог измениться.
+        entryCandidatesStepId = null
+        entryCandidatesCache = emptyList()
         romProfile = profile
         // Семантика шага (keywords/markers/consent) должна быть загружена.
         SemanticCatalog.ensureLoaded(service)
@@ -1612,6 +1624,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // нейтральным и требует возврата на корень маршрута.
         if (mergedDrillPath.isNotEmpty()) {
             val onStepScreen = { onTargetScreen(step) }
+            // Кандидаты входа резолвятся один раз на шаг (мемо внутри): в цикле только чтение.
+            val entryResolvable = reverseEntryCandidates(step).isNotEmpty()
             var attempts = 0
             var neutralLogged = false
             var immediateEntryDone = false
@@ -1625,7 +1639,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     attempts = attempts,
                     maxAttempts = MAX_REENTRY_ATTEMPTS,
                     immediateEntryDone = immediateEntryDone,
-                    budgetAboveReserveMs = remainingBudgetMs() - REENTRY_RESERVE_MS
+                    budgetAboveReserveMs = remainingBudgetMs() - REENTRY_RESERVE_MS,
+                    // Рантайм-резолв: нерезолвящийся вход не повторяется (D3, прогон rmvgvhbzu).
+                    entryResolvable = entryResolvable
                 )
                 // Нейтральное окно фиксируем один раз на шаг: причина видна и в логе, и в DIAG.
                 if (decision.neutralWindow && !neutralLogged) {
@@ -2469,12 +2485,57 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     /**
+     * Кандидаты повторного входа: интенты шага из кэша [DirectIntentNavigator] (уже отфильтрованы
+     * по доступности: `resolveActivity` / `queryIntentActivities` / `getLaunchIntentForPackage`)
+     * → launcher-интент пакета, только если он существует. Порядок и дедупликация —
+     * [entryCandidateOrder].
+     *
+     * Пустой список = входить нечем (`entry_unresolved`): нерезолвящийся интент не запускается,
+     * ни исключения, ни потраченной попытки. Раньше `step.intents.firstOrNull()` отдавал
+     * MAIN/LAUNCHER, который падал в `No Activity found` — три попытки за 20 мс (rmvgvhbzu:
+     * security_sys, downloads, shareme).
+     *
+     * Список мемоизируется на шаг: цикл входа спрашивает его на каждом обороте.
+     */
+    private fun reverseEntryCandidates(step: SimpleSteps.Step): List<Intent> {
+        if (entryCandidatesStepId == step.id) return entryCandidatesCache
+        // Вне шага (unit-тесты internal-функций) профиль не инициализирован: резолвить нечем —
+        // пустой список безопаснее падения, повторный вход просто не выполняется.
+        if (!::romProfile.isInitialized) return emptyList()
+        val cached = runCatching {
+            DirectIntentNavigator.buildIntentsForStep(service, step, step.launchPackage, romProfile)
+        }.getOrElse {
+            AppLog.w(TAG, "entry candidates for ${step.id}: intent build failed: ${it.message}")
+            emptyList()
+        }
+        val launch = step.launchPackage?.let { pkg ->
+            runCatching { service.packageManager.getLaunchIntentForPackage(pkg) }.getOrNull()
+        }
+        val result = entryCandidateOrder(cached, launch)
+        entryCandidatesStepId = step.id
+        entryCandidatesCache = result
+        AppLog.i(
+            TAG,
+            "entry candidates for ${step.id}: total=${result.size} " +
+                "cached=${cached.size} launch=${launch != null}"
+        )
+        return result
+    }
+
+    /**
      * Один повторный вход в приложение шага с ожиданием целевого окна: спасает шаг,
      * когда relaunch после стены согласия не поднял активность и автоматизация
      * искала тумблер в чужом окне (security_sys, прогон rmuwvcqiw).
      */
     private suspend fun retryEnterStep(step: SimpleSteps.Step): Boolean {
-        val intent = step.intents.firstOrNull() ?: return false
+        // Нерезолвящийся интент не запускается вовсе: исключение стоит целой попытки, а ожидание
+        // экрана после него бессмысленно (прогон rmvgvhbzu: 3 попытки за 20 мс).
+        val intent = reverseEntryCandidates(step).firstOrNull()
+        if (intent == null) {
+            AppLog.w(TAG, "re-entry skipped for ${step.id}: no resolvable entry candidate")
+            StepDiagnostics.note(step.id, "DRILL", "entry_unresolved candidates=0")
+            return false
+        }
         // Ждём пакет ЦЕЛИ ИНТЕНТА (resolveActivity), а не «любой пакет шага»: у
         // `settingsRoot()` = ACTION_SETTINGS нет ни component, ни package, и
         // `entryGatePackage` для него вернёт null — ожидание экрана тогда не подтверждалось.
@@ -7316,3 +7377,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return false
     }
 }
+
+/**
+ * Порядок кандидатов входа: сначала интенты шага (кэш [DirectIntentNavigator], уже отфильтрованные
+ * по доступности), затем launcher-интент пакета. Дубликаты снимаются по `toUri(0)`: сборщик уже
+ * ставит launcher-интент первым, и добавление его хвостом не должно растягивать цепочку.
+ *
+ * Чистая функция: тест проверяет порядок и дедупликацию без PackageManager.
+ */
+internal fun entryCandidateOrder(cached: List<Intent>, launchIntent: Intent?): List<Intent> =
+    (cached + listOfNotNull(launchIntent)).distinctBy { it.toUri(0) }

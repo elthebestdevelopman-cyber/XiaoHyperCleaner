@@ -1,5 +1,7 @@
 package com.xiaohypercleaner.service
 
+import android.content.Intent
+import android.provider.Settings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -43,7 +45,8 @@ class ReverseEntryLoopTest {
         windows: List<Window>,
         hasIntents: Boolean = true,
         maxAttempts: Int = 3,
-        budgetAboveReserveMs: Long = 20_000L
+        budgetAboveReserveMs: Long = 20_000L,
+        entryResolvable: Boolean = true
     ): LoopOutcome {
         var windowIndex = 0
         var attempts = 0
@@ -62,7 +65,8 @@ class ReverseEntryLoopTest {
                 attempts = attempts,
                 maxAttempts = maxAttempts,
                 immediateEntryDone = immediateEntryDone,
-                budgetAboveReserveMs = budgetAboveReserveMs
+                budgetAboveReserveMs = budgetAboveReserveMs,
+                entryResolvable = entryResolvable
             )
             when (decision.action) {
                 ReverseEntryAction.CONTINUE_DRILL ->
@@ -174,5 +178,94 @@ class ReverseEntryLoopTest {
         assertEquals(1, outcome.retries)
         assertEquals(ReverseEntryAction.FAIL_SCREEN_NOT_REACHED, outcome.action)
         assertFalse("чужое окно не бурится", outcome.drilled)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Нерезолвящийся вход (D3, прогон rmvgvhbzu: 3 попытки за 20 мс)
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `unresolvable entry gets no attempts and drills from the current screen`() {
+        // Немедленный оборот DRILL_FROM_NEUTRAL остаётся (решение d0482ac не меняется), но
+        // запускать нечего: retryEnterStep выходит без startActivity. Повторов нет — вход
+        // нерезолвящийся, и причина видна в решении.
+        val outcome = runEntryLoop(List(5) { Window.NEUTRAL }, entryResolvable = false)
+        assertEquals("немедленный вход остаётся один", 1, outcome.immediateEntries)
+        assertEquals("повторов ноль", 0, outcome.retries)
+        assertEquals(ReverseEntryAction.CONTINUE_DRILL, outcome.action)
+        assertTrue("шаг бурит текущий экран", outcome.drilled)
+
+        val decision = ReverseExtras.entryLoopDecision(
+            reverse = true,
+            onStepScreen = { false },
+            foreignWindow = { false },
+            hasIntents = true,
+            attempts = 0,
+            maxAttempts = 3,
+            immediateEntryDone = true,
+            budgetAboveReserveMs = 20_000L,
+            entryResolvable = false
+        )
+        assertEquals(ReverseEntryAction.CONTINUE_DRILL, decision.action)
+        assertEquals(ReverseExtras.REASON_ENTRY_UNRESOLVED, decision.stopReason)
+    }
+
+    @Test
+    fun `unresolvable entry on a foreign window fails without retries`() {
+        val outcome = runEntryLoop(listOf(Window.FOREIGN), entryResolvable = false)
+        assertEquals("повторов ноль", 0, outcome.retries)
+        assertEquals(ReverseEntryAction.FAIL_SCREEN_NOT_REACHED, outcome.action)
+        assertFalse("чужое окно не бурится", outcome.drilled)
+
+        // Приоритет корневой причины: нерезолвящийся вход важнее и бюджета, и потолка.
+        val noBudget = ReverseExtras.entryLoopDecision(
+            reverse = true,
+            onStepScreen = { false },
+            foreignWindow = { true },
+            hasIntents = true,
+            attempts = 0,
+            maxAttempts = 3,
+            immediateEntryDone = false,
+            budgetAboveReserveMs = -1L,
+            entryResolvable = false
+        )
+        assertEquals(ReverseExtras.REASON_ENTRY_UNRESOLVED, noBudget.stopReason)
+
+        val exhausted = ReverseExtras.entryLoopDecision(
+            reverse = true,
+            onStepScreen = { false },
+            foreignWindow = { true },
+            hasIntents = true,
+            attempts = 3,
+            maxAttempts = 3,
+            immediateEntryDone = false,
+            budgetAboveReserveMs = 20_000L,
+            entryResolvable = false
+        )
+        assertEquals(ReverseExtras.REASON_ENTRY_UNRESOLVED, exhausted.stopReason)
+    }
+
+    @Test
+    fun `entry candidates keep cached intents first and drop duplicates`() {
+        // Порядок контракта: интенты шага (кэш DirectIntentNav) → launcher-интент пакета.
+        val cached = Intent(Settings.ACTION_SETTINGS)
+        val launch = Intent(Intent.ACTION_MAIN)
+            .addCategory(Intent.CATEGORY_LAUNCHER)
+            .setPackage("com.miui.securitycenter")
+
+        assertEquals(
+            "сначала кэш, затем launcher-интент",
+            listOf(cached, launch),
+            entryCandidateOrder(listOf(cached), launch)
+        )
+        assertEquals(
+            "дубликат не растягивает цепочку",
+            listOf(cached),
+            entryCandidateOrder(listOf(cached), cached)
+        )
+        assertTrue(
+            "без кандидатов список пуст — входить нечем",
+            entryCandidateOrder(emptyList(), null).isEmpty()
+        )
     }
 }
