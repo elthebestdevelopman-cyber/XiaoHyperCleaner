@@ -25,7 +25,12 @@ internal data class StepRunReport(
 internal class ReverseToggleRunner(
     private val findStep: (String) -> SimpleSteps.Step?,
     private val runStep: suspend (SimpleSteps.Step, Boolean) -> StepRunReport,
-    private val log: (String) -> Unit
+    private val log: (String) -> Unit,
+    /**
+     * Индекс шага в плане прогона. Откат идёт по УБЫВАНИЮ индекса — зеркало форварда.
+     * Инжектируется для теста; `-1` = шаг вне плана (его относительный порядок сохраняется).
+     */
+    private val planIndex: (String) -> Int = { id -> SimpleSteps.ALL.indexOfFirst { it.id == id } }
 ) {
 
     /**
@@ -44,7 +49,7 @@ internal class ReverseToggleRunner(
     ): Boolean {
         if (stepIds.isEmpty()) return true
         var okCount = 0
-        val list = stepIds.toList()
+        val list = orderedForReverse(stepIds)
         list.forEachIndexed { i, id ->
             // Итог шага в UI: вердикт + прогресс. Шаг без значения снапшота до onStep
             // не доходит, поэтому счётчик и проценты считаются и в этом исходе.
@@ -114,6 +119,23 @@ internal class ReverseToggleRunner(
         log("reverseSimpleToggles done: $okCount/${list.size}")
         return okCount > 0
     }
+
+    /**
+     * Порядок отката — зеркало форварда: шаг, отключённый раньше, возвращается позже.
+     *
+     * Порядок берётся из плана (индекс шага), а не из порядка множества: список отката —
+     * объединение трёх источников (снапшот, легаси-ключ, зеркало), его порядок не авторитет.
+     * Прогон rmvh7h6xq: `folder_recommendations` (шаг 1 плана) возвращался ПЕРЕД `msa`
+     * (шаг 2), и рекомендации в папках падали `folder_section_vanished` — чекбоксы папок
+     * существуют только при включённом msa, поэтому в форварде папки идут первыми, а в
+     * откате обязаны идти последними. Зеркальный порядок воспроизводит условия форварда
+     * на каждом шаге отката.
+     *
+     * Шаги вне плана (`-1`) сохраняют относительный порядок (стабильная сортировка) и уходят
+     * в конец: раннер всё равно отчитывает их как `step_not_in_plan`.
+     */
+    internal fun orderedForReverse(stepIds: Collection<String>): List<String> =
+        stepIds.sortedByDescending { planIndex(it) }
 
     private fun outcomeOf(result: SimpleRunner.Result): ReverseOutcome = when {
         result.reason?.startsWith(REASON_UNREADABLE_PREFIX) == true -> ReverseOutcome.UNREADABLE

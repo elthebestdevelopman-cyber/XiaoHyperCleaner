@@ -110,6 +110,46 @@ class ReverseRollbackTest {
     }
 
     @Test
+    fun `rollback preserves the plan order in reverse and folders follow msa`() {
+        // Откат — зеркало форварда (D6, прогон rmvh7h6xq): чекбоксы рекомендаций в папках
+        // существуют только при включённом msa, поэтому в форварде папки идут первыми,
+        // а в откате обязаны идти последними. Порядок здесь — из настоящего каталога:
+        // фейковый planIndex не подставляется.
+        val ids = listOf("folder_recommendations", "msa", "sys_recommendations")
+        val h = Harness(ids.map { step(it, targetChecked = false) }) {
+            StepRunReport(SimpleRunner.Result(true, "toggled"))
+        }
+
+        h.run(ids.associateWith { true })
+
+        assertEquals(
+            "откат идёт по убыванию индекса плана",
+            listOf("sys_recommendations", "msa", "folder_recommendations"),
+            h.runCalls.map { it.id }
+        )
+        assertTrue(
+            "папки возвращаются ПОСЛЕ msa",
+            h.runCalls.map { it.id }.indexOf("folder_recommendations") >
+                h.runCalls.map { it.id }.indexOf("msa")
+        )
+    }
+
+    @Test
+    fun `steps outside the plan keep their relative order`() {
+        // Легаси-ключ и зеркало могут принести id, которых в плане нет. У них нет индекса,
+        // поэтому они сохраняют порядок входа и уходят в конец — отчёт всё равно
+        // `step_not_in_plan`, но порядок остальных шагов от них не зависит.
+        val ids = listOf("legacy_one", "legacy_two", "legacy_three")
+        val h = Harness(ids.map { step(it, targetChecked = false) }) {
+            StepRunReport(SimpleRunner.Result(true, "toggled"))
+        }
+
+        h.run(ids.associateWith { true })
+
+        assertEquals(ids, h.runCalls.map { it.id })
+    }
+
+    @Test
     fun `checked_before goes to the runner as the target state`() {
         val h = Harness(listOf(step("carousel", targetChecked = false))) {
             StepRunReport(SimpleRunner.Result(true, "toggled"))
