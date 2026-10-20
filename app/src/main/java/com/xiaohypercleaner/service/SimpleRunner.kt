@@ -329,6 +329,22 @@ class SimpleRunner(private val service: AdbEnablerService) {
         /** Потолок ожидания отзыва после подтверждения: завершать шаг с открытым диалогом нельзя — он уносит следующий (прогон rmuslthv7). */
         private const val MSA_REVOKE_SETTLE_MAX_MS = 7_000L
 
+        /**
+         * Потолок ожидания ЗАКРЫТИЯ диалога прогресса после тапа. Отзыв на MIUI идёт до ~7 с
+         * (прогон rmv5fd8wl: `revoke_settle elapsed=7202ms`), поэтому 7 с доказанно мало;
+         * 10 с — верхняя граница, сверху режется остатком бюджета над резервом.
+         */
+        private const val MSA_PROGRESS_CLOSE_MAX_MS = 10_000L
+
+        /** Причина: диалог прогресса отзыва не закрылся за окно settle (честный таймаут). */
+        private const val REASON_PROGRESS_DIALOG_TIMEOUT = "progress_dialog_timeout"
+
+        /** Токен вердикта: диалог ушёл, строка исчезла, состояние не читалось — «не подтверждено». */
+        internal const val REASON_STATE_UNREADABLE = "state_unreadable"
+
+        /** Обычный провал подтверждения отзыва. */
+        private const val REASON_REVOKE_NOT_CONFIRMED = "revoke_not_confirmed"
+
         /** Фолбэк-действие варианта: очистка данных + отклонение приветствия. */
         private const val FALLBACK_ACTION_CLEAR_DATA = "clear_data_decline"
 
@@ -677,6 +693,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
     internal var lastReadSwitchState: Boolean? = null
 
     /**
+     * Причина последнего вердикта отзыва msa: `revoke_not_confirmed` | `progress_dialog_timeout` |
+     * `state_unreadable`. Вызывающий берёт её как причину результата: третий токен — это
+     * «не подтверждено» (отдельное ведро отчёта), а не провал шага.
+     */
+    internal var lastRevokeReason: String = REASON_REVOKE_NOT_CONFIRMED
+
+    /**
      * Пакеты, окна которых для drilling ТЕКУЩЕГО шага свои. Всё остальное — чужое окно, по нему
      * дрил не тапает и не скроллит (P4, прогон rmuyfjtvk: промо-ссылка Mi Music открыла Google Play,
      * и автоматизация продолжила тапать магазин).
@@ -761,10 +784,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return minOf(requested, budgetAboveReserveMs.coerceAtLeast(0L))
     }
 
-    /** Окно SETTLE: не больше потолка [MSA_REVOKE_SETTLE_MAX_MS] и не больше остатка над резервом. */
+    /** Окно SETTLE: не больше [MSA_PROGRESS_CLOSE_MAX_MS] и не больше остатка над резервом. */
     internal fun msaSettleWindowMs(budgetAboveReserveMs: Long): Long {
-        if (budgetAboveReserveMs == Long.MAX_VALUE) return MSA_REVOKE_SETTLE_MAX_MS
-        return minOf(MSA_REVOKE_SETTLE_MAX_MS, budgetAboveReserveMs.coerceAtLeast(0L))
+        if (budgetAboveReserveMs == Long.MAX_VALUE) return MSA_PROGRESS_CLOSE_MAX_MS
+        return minOf(MSA_PROGRESS_CLOSE_MAX_MS, budgetAboveReserveMs.coerceAtLeast(0L))
     }
 
     /**
@@ -946,6 +969,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         currentStepId = step.id
         lastFailureReason = null
         lastReadSwitchState = null
+        lastRevokeReason = REASON_REVOKE_NOT_CONFIRMED
         entryPackages.clear()
         romProfile = profile
         // Семантика шага (keywords/markers/consent) должна быть загружена.
@@ -2571,6 +2595,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Верхняя граница окон — остаток бюджета НАД резервом на тумблер и verify; сам
         // бюджет шага не меняется.
         val budgetAboveReserve = budgetAboveReserveMs()
+        // Причина по умолчанию: обычный провал подтверждения. Ветки ниже её уточняют.
+        lastRevokeReason = REASON_REVOKE_NOT_CONFIRMED
 
         // Фаза 1: появление диалога отзыва (короткое окно с ранним выходом).
         val dialogAppeared = waitFor(
@@ -2698,7 +2724,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 break
             }
             val node = dialog.button
+            // Повтор тапа — только в окне фазы КНОПКИ: позже кнопка уже не отражает ход отзыва,
+            // а тап по ней перезапускает отсчёт.
             if (!retried && node != null &&
+                System.currentTimeMillis() - settleStart <= MSA_REVOKE_SETTLE_MAX_MS &&
                 System.currentTimeMillis() - lastTapAt >= MSA_SETTLE_RETRY_MIN_MS
             ) {
                 retried = true
@@ -2709,13 +2738,27 @@ class SimpleRunner(private val service: AdbEnablerService) {
             if (settleReads >= maxReads || System.currentTimeMillis() >= deadline) break
             delay(MSA_CONFIRM_POLL_MS)
         }
+        val settleElapsed = System.currentTimeMillis() - settleStart
         StepDiagnostics.wait(
             step.id,
             WAIT_REVOKE_SETTLE,
-            System.currentTimeMillis() - settleStart,
+            settleElapsed,
             presenceGone && progressGone,
             settleReads
         )
+        // Диалог не закрылся за окно: это таймаут ожидания, а не «состояние не подтвердилось».
+        // Проверять тумблер под живым диалогом бессмысленно — строка перекрыта.
+        if (!presenceGone) {
+            AppLog.w(
+                TAG,
+                "msa: progress dialog did not close within ${settleWindow}ms step=${step.id}"
+            )
+            StepDiagnostics.note(step.id, "DRILL", REASON_PROGRESS_DIALOG_TIMEOUT)
+            lastRevokeReason = REASON_PROGRESS_DIALOG_TIMEOUT
+            captureRevokeDialogSnapshot(step)
+            closeLeftoverDialog(step)
+            return false
+        }
         val switchOk = verifySwitchState(step, switchTexts)
         // Успех — ТОЛЬКО полный факт: ушли кнопка И прогресс, И тумблер в целевом состоянии
         // (два чтения подряд внутри verify). Прежняя ветка `dialogGone && onTargetScreen`
@@ -2725,16 +2768,19 @@ class SimpleRunner(private val service: AdbEnablerService) {
             AppLog.i(TAG, "msa: revoke confirmed step=${step.id}")
             return true
         }
+        // Третий исход: диалог ушёл, строки нет, фактическое состояние ни разу не прочиталось —
+        // это «не подтверждено», а не провал: на экране результата отдельное ведро.
+        lastRevokeReason =
+            if (lastReadSwitchState == null) REASON_STATE_UNREADABLE else REASON_REVOKE_NOT_CONFIRMED
         AppLog.w(
             TAG,
-            "msa: revoke NOT confirmed step=${step.id} button=${if (presenceGone) "нет" else "есть"} " +
+            "msa: revoke NOT confirmed step=${step.id} reason=$lastRevokeReason " +
+                "button=${if (presenceGone) "нет" else "есть"} " +
                 "progress=${if (progressGone) "нет" else "есть"} switch=${lastReadSwitchState}"
         )
-        // Дамп снимается ДО любого BACK: с уведённого экрана причина провала не читается
-        // (условие приёмки круга 18.10), а закрытие остаточного диалога меняет экран.
-        if (!presenceGone || !progressGone) {
-            captureRevokeDialogSnapshot(step)
-        }
+        // Дамп снимается ДО любого BACK: с уведённого экрана причина не читается, а закрытие
+        // остаточного диалога меняет экран (условие приёмки круга 18.10).
+        captureRevokeDialogSnapshot(step)
         // Незавершённое действие не должно утекать в следующий шаг: открытый диалог
         // отзыва перекрывал старт sys_recommendations (прогоны rmuslthv7, rmuvlyyor:
         // `skip foreign confirm dialog step=sys_recommendations owner=msa`).
@@ -2826,13 +2872,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
      */
     private inner class RevokeDialogSignals(
         val button: AccessibilityNodeInfo?,
-        val countdownLabel: String?
+        val countdownLabel: String?,
+        /** Узел фазы отзыва: прогресс-бар или подпись «Отзыв разрешения…». */
+        val progressNode: AccessibilityNodeInfo? = null
     ) {
-        /** Кнопка диалога в любом состоянии — диалог на экране. */
-        val present: Boolean get() = button != null || countdownLabel != null
+        /** Диалог на экране: кнопка, отсчёт ИЛИ прогресс отзыва — в любом состоянии. */
+        val present: Boolean get() = button != null || countdownLabel != null || progressNode != null
 
         fun recycle() {
             recycleNode(button)
+            recycleNode(progressNode)
         }
     }
 
@@ -2854,7 +2903,32 @@ class SimpleRunner(private val service: AdbEnablerService) {
         }).firstOrNull()
         val label = countdownNode?.let { buttonLabel(it) }
         recycleNode(countdownNode)
-        return RevokeDialogSignals(findDialogConfirmButton(root, confirmTexts), label)
+        // Фаза отзыва: у диалога прогресса НЕТ ни кнопки, ни отсчёта — прежний признак его не
+        // видел, settle выходил сразу и verify читал экран, перекрытый диалогом (прогон
+        // rmvgvhbzu: `revoke_settle elapsed=355ms hit=true` → ложный `revoke_not_confirmed`).
+        val progressNode = NodeTree.findAllInTree(root, predicate = { n ->
+            val cls = n.className?.toString().orEmpty()
+            val id = n.viewIdResourceName.orEmpty()
+            cls.contains("ProgressBar") || id.endsWith(":id/progress") ||
+                isRevokeProgressText(n.text?.toString(), confirmTexts)
+        }).firstOrNull()
+        return RevokeDialogSignals(findDialogConfirmButton(root, confirmTexts), label, progressNode)
+    }
+
+    /**
+     * Подпись фазы отзыва: начинается с текста подтверждения и заканчивается многоточием
+     * («Отзыв разрешения…»). Именно так MIUI подписывает ожидание; строка стоит в `confirmTexts`
+     * как заголовок, поэтому сравниваем по началу, а не по равенству.
+     */
+    private fun isRevokeProgressText(text: String?, confirmTexts: List<String>): Boolean {
+        val raw = text?.trim().orEmpty()
+        if (raw.isEmpty()) return false
+        if (!raw.endsWith("…") && !raw.endsWith("...")) return false
+        val normalized = TextMatcher.normalize(raw)
+        return confirmTexts.any { c ->
+            val marker = TextMatcher.normalize(c)
+            marker.isNotEmpty() && normalized.startsWith(marker)
+        }
     }
 
     /** Секунды из отсчётной подписи кнопки («Отозвать (9 с)» → 9); null — не разобрали. */
@@ -3797,7 +3871,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             // msa: кнопка отзыва активна только после отсчёта; verify внутри самого
             // подтверждения (по состоянию тумблера ИЛИ по закрытию диалога).
             if (!confirmDelayedRevoke(step, confirmTextsFor(step), texts)) {
-                return Result(false, "revoke_not_confirmed")
+                return Result(false, lastRevokeReason)
             }
             return null
         }

@@ -148,6 +148,36 @@ class SimpleRunnerMsaResumeTest {
     }
 
     @Test
+    fun `revoke is confirmed when the progress dialog closes and the row reads off`() = runTest {
+        // rmvgvhbzu: после тапа диалог прогресса остался на экране, settle вышел через 355 мс
+        // (признак прогресса не видел), verify читал перекрытый экран → ложный
+        // `revoke_not_confirmed`, хотя отзыв состоялся. Теперь settle ждёт ЗАКРЫТИЯ диалога
+        // и только потом читает строку: диалог → прогресс → список с выключенным тумблером.
+        val revoke = node(text = "Отозвать", clickable = true, enabled = true)
+        Mockito.`when`(revoke.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true)
+        val dialogRoot = node(className = "android.widget.FrameLayout", children = arrayOf(revoke))
+        val progressRoot = node(text = "Отзыв разрешения…")
+        val msaSwitch =
+            node(text = "msa", checked = false, checkable = true, className = "android.widget.Switch")
+        val listRoot = node(className = "android.widget.FrameLayout", children = arrayOf(msaSwitch))
+        Mockito.`when`(service.rootInActiveWindow)
+            .thenReturn(
+                dialogRoot, dialogRoot, dialogRoot,
+                progressRoot, progressRoot, progressRoot, progressRoot,
+                progressRoot, progressRoot, progressRoot, progressRoot,
+                listRoot
+            )
+
+        val confirmed = runner.confirmDelayedRevoke(
+            msaStep(),
+            listOf("Отозвать", "ОК", "Отзыв разрешения"),
+            listOf("msa")
+        )
+
+        assertTrue("диалог закрылся, тумблер off — отзыв подтверждён", confirmed)
+    }
+
+    @Test
     fun `revoke is not confirmed while the progress dialog is still on screen`() = runTest {
         // rmuslthv7: после тапа «Отозвать» MIUI показывает прогресс «Отзыв разрешения…»;
         // строка msa исчезла из дерева, и шаг объявлял успех через 480 мс, оставив
@@ -174,6 +204,27 @@ class SimpleRunnerMsaResumeTest {
             "прогресс на экране — отзыв не подтверждён, шаг обязан отдать fail",
             confirmed
         )
+    }
+
+    @Test
+    fun `progress dialog that never closes reports a timeout reason`() = runTest {
+        // Тап состоялся, но диалог прогресса не закрылся за окно: это честный таймаут
+        // (`progress_dialog_timeout`), а не «состояние не подтвердилось».
+        val revoke = node(text = "Отозвать", clickable = true, enabled = true)
+        Mockito.`when`(revoke.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true)
+        val dialogRoot = node(className = "android.widget.FrameLayout", children = arrayOf(revoke))
+        val progressRoot = node(text = "Отзыв разрешения…")
+        Mockito.`when`(service.rootInActiveWindow)
+            .thenReturn(dialogRoot, dialogRoot, dialogRoot, progressRoot)
+
+        val confirmed = runner.confirmDelayedRevoke(
+            msaStep(),
+            listOf("Отозвать", "ОК", "Отзыв разрешения"),
+            listOf("msa")
+        )
+
+        assertFalse("диалог не закрылся — подтверждения нет", confirmed)
+        assertEquals("progress_dialog_timeout", runner.lastRevokeReason)
     }
 
     @Test
