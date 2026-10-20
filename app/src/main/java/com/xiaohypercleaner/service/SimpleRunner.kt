@@ -2496,6 +2496,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * security_sys, downloads, shareme).
      *
      * Список мемоизируется на шаг: цикл входа спрашивает его на каждом обороте.
+     *
+     * Граница жизни мемо — шаг: слот сбрасывается на входе в шаг вместе с [lastReadSwitchState]
+     * (см. `SimpleRunner.run`), поэтому внутри одного шага список один и тот же. Если когда-нибудь
+     * понадобится пересобирать план ВНУТРИ шага, мемо останется от прежнего состава пакетов;
+     * сейчас такого пути нет — план строится один раз на фазу шагов.
      */
     private fun reverseEntryCandidates(step: SimpleSteps.Step): List<Intent> {
         if (entryCandidatesStepId == step.id) return entryCandidatesCache
