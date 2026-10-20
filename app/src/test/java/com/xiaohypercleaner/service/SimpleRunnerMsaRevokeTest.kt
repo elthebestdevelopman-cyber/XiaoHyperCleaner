@@ -171,6 +171,38 @@ class SimpleRunnerMsaRevokeTest {
     }
 
     @Test
+    fun `reverse msa asks for consent instead of the revoke dialog`() = runTest {
+        // Прогон rmvh7h6xq: откат msa ждал диалог отзыва с отсчётом и падал
+        // `revoke_not_confirmed`, хотя на экране уже была стена согласия
+        // («Предоставление разрешения … Политика конфиденциальности»). В откате цель —
+        // включение, поэтому подтверждение идёт через стену согласия, а причина провала
+        // называется отдельно: диалога отзыва в этом направлении не существует.
+        val message = node(
+            text = "Предоставление разрешения. Для использования основных функций сервиса вы " +
+                "должны согласиться с тем, что Xiaomi будет собирать и обрабатывать данные. " +
+                "Обратитесь к нашей Политике конфиденциальности.",
+            id = "android:id/message",
+            className = "android.widget.TextView"
+        )
+        val agree = node(
+            text = "Согласен",
+            id = "android:id/button2",
+            className = "android.widget.Button",
+            clickable = true
+        )
+        val root = node(className = "android.widget.FrameLayout", children = arrayOf(message, agree))
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
+
+        val result = runner.postToggleConfirm(msaStep(), listOf("msa"), reverse = true)
+
+        assertEquals(
+            "откат подтверждается стеной согласия, а не диалогом отзыва",
+            "consent_not_confirmed",
+            result?.reason
+        )
+    }
+
+    @Test
     fun `plain toggle step is not routed into the delayed revoke path`() = runTest {
         // Не-DELAYED шаг не должен попадать в revoke-путь msa: его пост-тап путь
         // остаётся прежним (подтверждение → verify) и завершается успешно.

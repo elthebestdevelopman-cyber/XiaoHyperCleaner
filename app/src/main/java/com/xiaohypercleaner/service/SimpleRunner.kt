@@ -354,6 +354,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
         /** Обычный провал подтверждения отзыва. */
         private const val REASON_REVOKE_NOT_CONFIRMED = "revoke_not_confirmed"
 
+        /** В откате не подтвердилась повторная авторизация msa (стена согласия). */
+        internal const val REASON_CONSENT_NOT_CONFIRMED = "consent_not_confirmed"
+
+        /** Попытки принять стену согласия при возврате msa (инвариант welcome-стен: не больше 3). */
+        private const val REVERSE_CONSENT_ATTEMPTS = 3
+
+        /** Пауза между попытками: MIUI рисует стену согласия уже после тапа по тумблеру. */
+        private const val REVERSE_CONSENT_SETTLE_MS = 1_200L
+
+        /** Финальное ожидание целевого состояния тумблера после принятия стены. */
+        private const val REVERSE_CONSENT_STATE_WAIT_MS = 1_500L
+
         /** Фолбэк-действие варианта: очистка данных + отклонение приветствия. */
         private const val FALLBACK_ACTION_CLEAR_DATA = "clear_data_decline"
 
@@ -4098,6 +4110,38 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     /**
+     * Подтверждение повторной авторизации msa в откате.
+     *
+     * Стена согласия принимается штатным обработчиком [handleConsentWalls]: тап согласия —
+     * именно то, чего требует возврат; в форварде этот же тап включил бы msa против цели шага,
+     * поэтому ветка существует только для отката. Успех — исключительно фактическое целевое
+     * состояние тумблера: «диалог закрылся» доказательством не считается (см.
+     * [confirmDelayedRevoke]). Не приняли — честный [REASON_CONSENT_NOT_CONFIRMED], а не
+     * `revoke_not_confirmed`: диалога отзыва в этом направлении не существует.
+     */
+    private suspend fun confirmReverseConsent(
+        step: SimpleSteps.Step,
+        switchTexts: List<String>
+    ): Boolean {
+        repeat(REVERSE_CONSENT_ATTEMPTS) { attempt ->
+            if (cancelled) return false
+            if (msaSwitchInTargetState(step, switchTexts)) return true
+            val walls = handleConsentWalls(step)
+            StepDiagnostics.note(
+                step.id,
+                "CONSENT",
+                "reverse_consent attempt=${attempt + 1} walls=$walls"
+            )
+            delay(REVERSE_CONSENT_SETTLE_MS)
+        }
+        return msaSwitchInTargetState(
+            step,
+            switchTexts,
+            timeoutMs = REVERSE_CONSENT_STATE_WAIT_MS
+        )
+    }
+
+    /**
      * Пост-тап подтверждение переключения. Для DELAYED_CONFIRM (msa) диалог отсчёта
      * перекрывает экран, тумблер исчезает из дерева, а правило честности verify
      * («узла нет» при видимом confirm-тексте = провал) роняло шаг `verify_failed`
@@ -4108,11 +4152,27 @@ class SimpleRunner(private val service: AdbEnablerService) {
      */
     internal suspend fun postToggleConfirm(
         step: SimpleSteps.Step,
-        texts: List<String>
+        texts: List<String>,
+        /**
+         * Направление прогона. В откате msa идёт к включению: там стена согласия, а не диалог
+         * отзыва. Параметр открыт для теста обеих ветвей; продакшн-вызовы используют умолчание.
+         */
+        reverse: Boolean = reverseCtx != null
     ): Result? {
         if (SemanticCatalog.sequenceKind(step.id) == SemanticCatalog.SequenceKind.DELAYED_CONFIRM) {
             // msa: кнопка отзыва активна только после отсчёта; verify внутри самого
             // подтверждения (по состоянию тумблера ИЛИ по закрытию диалога).
+            if (reverse) {
+                // Откат: диалога отзыва с отсчётом не существует — MIUI просит согласие
+                // («Предоставление разрешения … Политика конфиденциальности»). Прогон
+                // rmvh7h6xq: 12 с ожидания диалога отзыва и `revoke_not_confirmed` при
+                // стене согласия на экране.
+                return if (confirmReverseConsent(step, texts)) {
+                    null
+                } else {
+                    Result(false, REASON_CONSENT_NOT_CONFIRMED)
+                }
+            }
             if (!confirmDelayedRevoke(step, confirmTextsFor(step), texts)) {
                 return Result(false, lastRevokeReason)
             }
