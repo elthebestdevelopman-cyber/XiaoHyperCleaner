@@ -280,6 +280,8 @@
     <string name="result_support">समर्थन</string>
     <string name="result_share_log">लॉग साझा करें</string>
     <string name="result_close">ऐप खोलें</string>
+    <string name="result_repeat">दोहराएँ</string>
+    <string name="btn_repeat_optimization">अनुकूलन दोहराएँ</string>
     <string name="result_manual_title">अधिकतम परिणाम के लिए यह मैन्युअल करें</string>
     <string name="result_manual_expand">दिखाएँ</string>
     <string name="result_manual_collapse">छिपाएँ</string>

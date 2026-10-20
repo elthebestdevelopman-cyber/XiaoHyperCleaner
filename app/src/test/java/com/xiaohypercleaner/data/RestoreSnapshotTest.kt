@@ -158,4 +158,43 @@ class RestoreSnapshotTest {
         )
         assertEquals("значения старого снапшота не теряются", true, restored?.simpleToggleStates?.get("carousel"))
     }
+
+    @Test
+    fun `steps toggled in different runs are united in the rollback list`() {
+        // Слияние прогонов (D2/D5): шаг, переключённый в первом прогоне, остаётся в списке
+        // отката и после второго прогона, а шаг, который в первом прогоне был already_off,
+        // попадает в список, когда его всё-таки переключили.
+        val empty = RestoreSnapshot(emptyMap(), false, null, null)
+
+        // Прогон 1: msa тумблерили (запись идёт ДО тапа), folder был already_off — записи нет.
+        val afterFirst = empty.withSimpleToggle("msa", checkedBefore = true)
+
+        // Прогон 2: folder теперь тумблерили, msa уже в целевом состоянии (already_off,
+        // записи нет) — факт первого прогона не теряется объединением.
+        val afterSecond = afterFirst.withSimpleToggle("folder", checkedBefore = true)
+
+        assertEquals(
+            "в списке отката оба шага",
+            setOf("msa", "folder"),
+            afterSecond.simpleToggledSteps
+        )
+        assertEquals(
+            "checked_before первого прогона сохранён",
+            mapOf("msa" to true, "folder" to true),
+            afterSecond.simpleToggleStates
+        )
+    }
+
+    @Test
+    fun `step already off in the first run joins the rollback list when toggled later`() {
+        val empty = RestoreSnapshot(emptyMap(), false, null, null)
+        // Прогон 1: тумблер уже стоял в целевом состоянии — шаг не помечен (already_off).
+        assertTrue("пустой прогон ничего не помечает", empty.simpleToggledSteps.isEmpty())
+
+        // Прогон 2: тот же шаг реально выключили — он обязан попасть в откат.
+        val second = empty.withSimpleToggle("msa", checkedBefore = false)
+
+        assertTrue("шаг попал в список отката", "msa" in second.simpleToggledSteps)
+        assertEquals("значение взято на момент тумблера", false, second.simpleToggleStates["msa"])
+    }
 }

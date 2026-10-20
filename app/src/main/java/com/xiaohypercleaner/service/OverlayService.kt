@@ -753,6 +753,21 @@ class OverlayService : Service() {
         row2.addView(textBtn(getString(R.string.result_close)) { hide(); returnToApp(); OverlayController.triggerResultClose() }, btnParams())
         layout.addView(row1, llWrap().apply { topMargin = dp(10) })
         layout.addView(row2, llWrap().apply { topMargin = dp(4) })
+        // Повтор прогона: только на экране оптимизации (в откате повторять нечего).
+        // Ряд отдельный, чтобы две существующие кнопки не сжимались на узких экранах.
+        if (!restore) {
+            val row3 = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+            }
+            row3.addView(
+                textBtn(getString(R.string.result_repeat)) {
+                    hide(); returnToApp(); OverlayController.triggerRepeatOptimization()
+                },
+                btnParams()
+            )
+            layout.addView(row3, llWrap().apply { topMargin = dp(4) })
+        }
         returnToApp()
         addRoot(touchable = true, fullScreen = true).apply { addView(layout, flParams(Gravity.CENTER)) }
         AppLog.i(

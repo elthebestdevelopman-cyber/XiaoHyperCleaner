@@ -25,6 +25,7 @@ object OverlayController {
 
     private var onCancel: (() -> Unit)? = null
     private var onResultClose: (() -> Unit)? = null
+    private var onRepeatOptimization: (() -> Unit)? = null
     private var onRestoreCancel: (() -> Unit)? = null
 
     /** Флаг прикреплённости окна. Обновляется из OverlayService. */
@@ -231,6 +232,19 @@ object OverlayController {
 
     fun triggerResultClose() {
         onResultClose?.invoke()
+    }
+
+    /**
+     * Повтор оптимизации из окна результата. Слушатель живёт до [OverlayController] сброса
+     * в `onCleared` — окно результата показывается повторно (после отката), и снимать
+     * обработчик на закрытии окна значило бы оставить следующий показ без кнопки.
+     */
+    fun setOnRepeatOptimization(listener: (() -> Unit)?) {
+        onRepeatOptimization = listener
+    }
+
+    fun triggerRepeatOptimization() {
+        onRepeatOptimization?.invoke()
     }
 
     /**

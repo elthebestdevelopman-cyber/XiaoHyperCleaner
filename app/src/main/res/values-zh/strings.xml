@@ -314,6 +314,8 @@
     <string name="result_support">支持</string>
     <string name="result_share_log">分享日志</string>
     <string name="result_close">关闭</string>
+    <string name="result_repeat">再次优化</string>
+    <string name="btn_repeat_optimization">再次优化</string>
     <string name="progress_format">%1$d%%</string>
     <string name="mock_notifications_label">通知</string>
     <string name="overlay_recovering">正在恢复悬浮窗…</string>

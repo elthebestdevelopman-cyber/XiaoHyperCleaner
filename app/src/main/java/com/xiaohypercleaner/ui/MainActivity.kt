@@ -403,6 +403,10 @@ private fun MainContent(
                             MainActivity.TAG,
                             "reboot button clicked"
                         ); vm.requestReboot()
+                    },
+                    onRepeat = {
+                        AppLog.i(MainActivity.TAG, "repeat optimization button clicked")
+                        vm.repeatOptimization()
                     }
                 )
             }

@@ -284,6 +284,8 @@
     <string name="result_support">Apoiar</string>
     <string name="result_share_log">Compartilhar registro</string>
     <string name="result_close">Abrir app</string>
+    <string name="result_repeat">Repetir</string>
+    <string name="btn_repeat_optimization">Repetir otimização</string>
     <string name="progress_format">%1$d%%</string>
     <string name="mock_notifications_label">Notificações</string>
     <string name="overlay_recovering">Restaurando a sobreposição…</string>

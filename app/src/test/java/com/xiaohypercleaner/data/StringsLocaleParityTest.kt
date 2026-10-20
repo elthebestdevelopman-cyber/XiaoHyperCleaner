@@ -94,6 +94,21 @@ class StringsLocaleParityTest {
     }
 
     @Test
+    fun `repeat optimization strings are present in every locale`() {
+        // Повтор оптимизации — кнопка на карточке результата и в окне результата: без строки
+        // в локали пользователь увидит либо пустую кнопку, либо откат к русскому тексту.
+        val required = listOf("result_repeat", "btn_repeat_optimization")
+        val missing = locales.flatMap { locale ->
+            val keys = translatableKeys(resFile("$locale/strings.xml"))
+            required.filterNot { it in keys }.map { "$locale/$it" }
+        }
+        assertTrue(
+            "строки повтора оптимизации не покрыты локалями: $missing",
+            missing.isEmpty()
+        )
+    }
+
+    @Test
     fun `forbidden ad lexicon is absent from user-facing strings in every locale`() {
         // Нейтральная лексика: пользовательские строки не содержат токенов про рекламные
         // блокировщики и «уборку». Проверяем ЗНАЧЕНИЯ <string>, а не сырые строки файла:

@@ -313,6 +313,8 @@
     <string name="result_support">Apoyar</string>
     <string name="result_share_log">Compartir registro</string>
     <string name="result_close">Cerrar</string>
+    <string name="result_repeat">Repetir</string>
+    <string name="btn_repeat_optimization">Repetir optimización</string>
     <string name="progress_format">%1$d%%</string>
     <string name="mock_notifications_label">Notificaciones</string>
     <string name="overlay_recovering">Restaurando la superposición…</string>

@@ -162,7 +162,8 @@ fun OptimizationCard(
     state: MainUiState,
     onOptimize: () -> Unit,
     onRestore: () -> Unit,
-    onReboot: () -> Unit
+    onReboot: () -> Unit,
+    onRepeat: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -196,6 +197,7 @@ fun OptimizationCard(
                     OptimizationStage.DONE -> DoneView(
                         onRestore = onRestore,
                         onReboot = onReboot,
+                        onRepeat = onRepeat,
                         canAutoReboot = state.canAutoReboot
                     )
                     OptimizationStage.READY -> ReadyView(onOptimize)
@@ -269,6 +271,7 @@ private fun WorkingView(progress: Float) {
 private fun DoneView(
     onRestore: () -> Unit,
     onReboot: () -> Unit,
+    onRepeat: () -> Unit,
     canAutoReboot: Boolean
 ) {
     // AnimatedContent кладёт детей в Box — без единого Column кнопка и подсказка накладываются.
@@ -303,6 +306,19 @@ private fun DoneView(
             shape = RoundedCornerShape(16.dp)
         ) {
             Text(stringResource(R.string.btn_restore))
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Повтор прогона: состояние восстановления при этом не сбрасывается — откат после
+        // повтора вернёт исходные настройки (см. MainViewModel.repeatOptimization).
+        OutlinedButton(
+            onClick = onRepeat,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Text(stringResource(R.string.btn_repeat_optimization))
         }
         Spacer(modifier = Modifier.height(12.dp))
 

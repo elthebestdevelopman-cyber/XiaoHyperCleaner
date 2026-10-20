@@ -284,6 +284,8 @@
     <string name="result_support">Dukung</string>
     <string name="result_share_log">Bagikan log</string>
     <string name="result_close">Buka aplikasi</string>
+    <string name="result_repeat">Ulangi</string>
+    <string name="btn_repeat_optimization">Ulangi optimasi</string>
     <string name="progress_format">%1$d%%</string>
     <string name="mock_notifications_label">Notifikasi</string>
     <string name="overlay_recovering">Memulihkan overlay…</string>

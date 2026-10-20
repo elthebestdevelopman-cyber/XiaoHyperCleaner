@@ -170,6 +170,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             closeSimpleMode()
         }
 
+        OverlayController.setOnRepeatOptimization {
+            AppLog.i(TAG, "result overlay: repeat optimization requested")
+            repeatOptimization()
+        }
+
         viewModelScope.launch {
             prefs.isHiddenSettingsApplied.collect { applied ->
                 AppLog.i(TAG, "isHiddenSettingsApplied changed to $applied")
@@ -273,6 +278,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         OverlayController.setOnCancel(null)
         OverlayController.setOnResultClose(null)
+        OverlayController.setOnRepeatOptimization(null)
         OverlayController.hide(app)
         cancelPreStepGuard()
         simpleController.destroy()
@@ -642,10 +648,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun startPreStepGuard() {
         preStepGuardJob?.cancel()
         val startedAt = SystemClock.elapsedRealtime()
-        // Главный диспетчер: решения пользователя приходят туда же, гонки за флаги нет.
-        preStepGuardJob = viewModelScope.launch(Dispatchers.Main.immediate) {
+        // Долгое ожидание — на Default, решение — на главном диспетчере (как и решения
+        // пользователя): десятиминутная задача не должна висеть в очереди главного лупера
+        // (Robolectric-тестам это ломает проход по DataStore).
+        preStepGuardJob = viewModelScope.launch(Dispatchers.Default) {
             delay(PRE_STEP_GUARD_MS)
-            continueAfterPreStepGuard(startedAt)
+            withContext(Dispatchers.Main.immediate) { continueAfterPreStepGuard(startedAt) }
         }
     }
 
@@ -966,6 +974,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 showBatteryDialog = false
             )
         }
+    }
+
+    /**
+     * Повтор оптимизации из результата — без отката и без нового «запуска режима».
+     *
+     * Отдельный путь, а не [startFlow]: у запуска свой контракт (сброс предшага и старт с
+     * нуля), а повтор — «продолжить работу с уже сохранённым состоянием восстановления».
+     * Поэтому сбрасывается ТОЛЬКО отчёт нового прогона ([failedSimpleStepIds], [stepAttempt]);
+     * снапшот восстановления, `simpleToggleStates`, `simpleToggledSteps` и легаси-ключ отката
+     * не трогаются, `clearSimpleToggledSteps()` не вызывается ни на одном
+     * пути повтора, а `checked_before` первого прогона сохраняется (правило «первое значение
+     * побеждает»), поэтому откат после повтора вернёт исходное состояние устройства.
+     *
+     * Гейт доступности живёт здесь, а не только в видимости кнопки: сигнал из оверлея может
+     * прийти в любой момент. Повтор запрещён во время шагов, во время отката и при уже
+     * запущенном повторе — второй раннер и второе окно не создаются.
+     */
+    fun repeatOptimization() {
+        if (_state.value.isWorking) {
+            AppLog.i(TAG, "repeatOptimization: run or restore in progress — signal ignored")
+            return
+        }
+        if (_state.value.simpleModeActive &&
+            _state.value.simpleModePhase != SimpleModePhase.DONE
+        ) {
+            AppLog.i(TAG, "repeatOptimization: simple mode not finished — signal ignored")
+            return
+        }
+        val runnerBusy = AdbEnablerService.instance?.let { SimpleRunner.isRunning } == true
+        if (runnerBusy) {
+            AppLog.i(TAG, "repeatOptimization: runner busy — signal ignored")
+            return
+        }
+        AppLog.i(TAG, "repeatOptimization: repeating the run without rollback")
+        // Состояние прогона сбрасывается, состояние восстановления — нет.
+        closeSimpleMode()
+        failedSimpleStepIds.clear()
+        stepAttempt = 1
+        // Предшаг установщика в этом сеансе уже решён: повтор не спрашивает его снова.
+        installerPreStepAsked = true
+        installerPreStepDecided = true
+        cancelPreStepGuard()
+        simpleController.start()
     }
 
     /**

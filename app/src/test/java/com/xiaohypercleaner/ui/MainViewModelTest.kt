@@ -230,6 +230,31 @@ class MainViewModelTest {
     }
 
     @Test
+    fun `repeat starts a new run and ignores a second signal`() = runTest {
+        // Повтор идёт своим путём (не через startFlow) и не требует отката: после сигнала
+        // режим снова активен и стоит в фазе разрешений. Снапшот восстановления при этом не
+        // трогается — это проверяет RestoreSnapshotTest на чистой модели (DataStore в
+        // runTest тянет реальные записи и подвешивает тело теста).
+        vm.repeatOptimization()
+
+        assertTrue("повтор стартует новый прогон", vm.state.value.simpleModeActive)
+        assertEquals(
+            "новый прогон идёт с фазы разрешений",
+            SimpleModePhase.PERMISSIONS,
+            vm.state.value.simpleModePhase
+        )
+
+        // Повторный сигнал во время нового прогона не запускает второй раннер.
+        vm.repeatOptimization()
+        assertEquals(
+            "второй сигнал не перезапускает режим",
+            SimpleModePhase.PERMISSIONS,
+            vm.state.value.simpleModePhase
+        )
+        assertTrue("режим остаётся активным", vm.state.value.simpleModeActive)
+    }
+
+    @Test
     fun `pre-step guard is due only after ten minutes with a hanging dialog`() {
         assertFalse(
             "9:59 — сторож молчит",

@@ -291,6 +291,8 @@
     <string name="result_support">Поддержать</string>
     <string name="result_share_log">Отправить лог</string>
     <string name="result_close">В приложение</string>
+    <string name="result_repeat">Повторить</string>
+    <string name="btn_repeat_optimization">Повторить оптимизацию</string>
 
     <!-- ========== НЕПЕРЕВОДИМЫЕ СИМВОЛЫ UI ========== -->
     <string name="back_arrow" translatable="false">←</string>
