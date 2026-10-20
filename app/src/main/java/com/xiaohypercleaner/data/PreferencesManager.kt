@@ -420,6 +420,14 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
     /** In-memory зеркало «шаг тумблерили»: список отката не ждёт фоновой записи снапшота. */
     private val simpleToggledMirror: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
+    /** Снимок зеркала checked_before. internal — для тестируемости порядка записи. */
+    internal val toggleStateMirrorSnapshot: Map<String, Boolean>
+        get() = simpleToggleMirror.toMap()
+
+    /** Снимок зеркала «шаг тумблерили». internal — для тестируемости. */
+    internal val toggledMirrorSnapshot: Set<String>
+        get() = simpleToggledMirror.toSet()
+
     /** Фоновые записи зеркала: шаг не блокируют, ошибка только логируется. */
     private val mirrorWriteScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -446,7 +454,9 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
         mirrorWriteScope.launch { persistSimpleToggleState(stepId, checkedBefore, markToggled) }
     }
 
-    private suspend fun persistSimpleToggleState(
+    // internal — для тестируемости (PreferencesManagerSnapshotTest): детерминированная запись
+    // снапшота вместо ожидания фонового IO за `recordSimpleToggleState`.
+    internal suspend fun persistSimpleToggleState(
         stepId: String,
         checkedBefore: Boolean,
         markToggled: Boolean
@@ -612,25 +622,40 @@ class PreferencesManager(private val context: Context) : RestoreSnapshotStore, A
     }
 
     suspend fun clearSimpleToggledSteps() = runCatching {
-        context.dataStore.edit { prefs ->
-            prefs.remove(SIMPLE_TOGGLED_KEY)
-            // Откат завершён (или отменён): оба представления в снапшоте снимаются одной
-            // записью, чтобы список отката не мог разъехаться с checked_before.
-            val current = prefs[RESTORE_SNAPSHOT_KEY]?.let { RestoreSnapshot.fromJson(it) }
-            if (current != null && (
-                current.simpleToggleStates.isNotEmpty() || current.simpleToggledSteps.isNotEmpty()
-                )
-            ) {
-                prefs[RESTORE_SNAPSHOT_KEY] = current.copy(
-                    simpleToggleStates = emptyMap(),
-                    simpleToggledSteps = emptySet()
-                ).toJson()
+        clearToggledState {
+            context.dataStore.edit { prefs ->
+                prefs.remove(SIMPLE_TOGGLED_KEY)
+                // Откат завершён (или отменён): оба представления в снапшоте снимаются одной
+                // записью, чтобы список отката не мог разъехаться с checked_before.
+                val current = prefs[RESTORE_SNAPSHOT_KEY]?.let { RestoreSnapshot.fromJson(it) }
+                if (current != null && (
+                    current.simpleToggleStates.isNotEmpty() || current.simpleToggledSteps.isNotEmpty()
+                    )
+                ) {
+                    prefs[RESTORE_SNAPSHOT_KEY] = current.copy(
+                        simpleToggleStates = emptyMap(),
+                        simpleToggledSteps = emptySet()
+                    ).toJson()
+                }
             }
+            true
         }
-        // Зеркало чистим только после успешной записи: при сбое DataStore значения нужны
-        // следующей попытке отката.
-        simpleToggleMirror.clear()
-        simpleToggledMirror.clear()
+    }
+
+    /**
+     * Снятие состояния отката: зеркало чистится ТОЛЬКО после успешной записи — при сбое
+     * DataStore значения нужны следующей попытке отката (инвариант целостности).
+     * [writeStore] возвращает true, если состояние снято в хранилище; исключение внутри
+     * пробрасывается, и тогда зеркало тоже не чистится.
+     * internal — для тестируемости (PreferencesManagerSnapshotTest).
+     */
+    internal suspend fun clearToggledState(writeStore: suspend () -> Boolean): Boolean {
+        val written = writeStore()
+        if (written) {
+            simpleToggleMirror.clear()
+            simpleToggledMirror.clear()
+        }
+        return written
     }
 
     /**
