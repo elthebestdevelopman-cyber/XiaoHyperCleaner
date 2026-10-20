@@ -29,6 +29,99 @@ object UiWait {
     data class Outcome(val hit: Boolean, val elapsedMs: Long, val reads: Int)
 
     /**
+     * Итог ожидания СТАБИЛЬНОГО значения: то же, что [Outcome], плюс само значение и последнее
+     * наблюдение. Механизм общий — смысл значения определяет вызывающий, [UiWait] его не
+     * интерпретирует.
+     *
+     * @param value стабильное значение, подтверждённое `confirmations` чтениями подряд; null —
+     *   окно истекло, ожидание отменено или значение так и не стало стабильным
+     * @param lastSignal последнее сырое наблюдение (включая null): вызывающему нужно отличать
+     *   «значение не стабилизировалось» от «последнее чтение было неизвестным»
+     * @param limitMs фактически данное окно (запрошенное, урезанное вызывающим по бюджету)
+     */
+    data class StableOutcome<T>(
+        val value: T?,
+        val hit: Boolean,
+        val elapsedMs: Long,
+        val reads: Int,
+        val lastSignal: T?,
+        val limitMs: Long
+    )
+
+    /**
+     * Ждёт, пока одно и то же НЕНУЛЕВОЕ значение придёт [confirmations] чтений подряд.
+     *
+     * Серия сбрасывается на `null` (состояние неизвестно) и на смене значения: «мигнувшее»
+     * чтение подтверждением не считается. Политика лимита та же, что у [until]: первое чтение до
+     * первой паузы, жёсткий потолок и по числу чтений, и по настенным часам.
+     */
+    suspend fun <T : Any> untilStable(
+        timeoutMs: Long,
+        pollMs: Long = POLL_MS,
+        confirmations: Int = 1,
+        isCancelled: () -> Boolean = { false },
+        signal: suspend () -> T?
+    ): StableOutcome<T> {
+        val started = System.currentTimeMillis()
+        val limit = timeoutMs.coerceAtLeast(0L)
+        val step = pollMs.coerceAtLeast(1L)
+        val needed = confirmations.coerceAtLeast(1)
+        val maxReads = (limit / step).toInt() + 1
+        var stable: T? = null
+        var streak = 0
+        var reads = 0
+        var last: T? = null
+        while (true) {
+            if (isCancelled()) {
+                return StableOutcome(
+                    value = null,
+                    hit = false,
+                    elapsedMs = System.currentTimeMillis() - started,
+                    reads = reads,
+                    lastSignal = last,
+                    limitMs = limit
+                )
+            }
+            reads++
+            val value = signal()
+            last = value
+            when {
+                value == null -> {
+                    stable = null
+                    streak = 0
+                }
+                value == stable -> streak++
+                else -> {
+                    stable = value
+                    streak = 1
+                }
+            }
+            if (stable != null && streak >= needed) {
+                return StableOutcome(
+                    value = stable,
+                    hit = true,
+                    elapsedMs = System.currentTimeMillis() - started,
+                    reads = reads,
+                    lastSignal = last,
+                    limitMs = limit
+                )
+            }
+            val wall = System.currentTimeMillis() - started
+            if (reads >= maxReads || wall >= limit) {
+                return StableOutcome(
+                    value = null,
+                    hit = false,
+                    elapsedMs = wall,
+                    reads = reads,
+                    lastSignal = last,
+                    limitMs = limit
+                )
+            }
+            delay(step)
+        }
+    }
+
+    /**
      * Ждёт выполнения [condition] не дольше [timeoutMs].
      *
      * @param confirmations сколько чтений подряд должно подтвердить условие;

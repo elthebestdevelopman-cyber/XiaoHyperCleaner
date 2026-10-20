@@ -342,6 +342,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
         /** Токен вердикта: диалог ушёл, строка исчезла, состояние не читалось — «не подтверждено». */
         internal const val REASON_STATE_UNREADABLE = "state_unreadable"
 
+        /** Токен: корень окна недоступен или дерево пустое всю фазу — состояние НЕИЗВЕСТНО. */
+        private const val REASON_NO_ROOT_WINDOW = "no_root_window"
+
+        /** Токен: бюджет срезал окно ожидания до нуля — ожидания и повтора не было вовсе. */
+        private const val REASON_SETTLE_WINDOW_ZERO = "settle_window_zero"
+
+        /** Диагностическая фаза: второй заход ожидания после повторного тапа. */
+        private const val WAIT_REVOKE_SETTLE_RETRY = "revoke_settle_retry"
+
         /** Обычный провал подтверждения отзыва. */
         private const val REASON_REVOKE_NOT_CONFIRMED = "revoke_not_confirmed"
 
@@ -700,6 +709,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
     internal var lastRevokeReason: String = REASON_REVOKE_NOT_CONFIRMED
 
     /**
+     * Фактическое состояние строки, прочитанное ПОСЛЕ тапа отзыва (null — не читалось ни разу).
+     * Отдельно от [lastReadSwitchState], потому что тот пишет и дотаповое чтение: доказательством
+     * пост-тапового состояния он быть не может. Сбрасывается в начале [confirmDelayedRevoke].
+     */
+    internal var revokeStateReadAfterTap: Boolean? = null
+
+    /**
      * Пакеты, окна которых для drilling ТЕКУЩЕГО шага свои. Всё остальное — чужое окно, по нему
      * дрил не тапает и не скроллит (P4, прогон rmuyfjtvk: промо-ссылка Mi Music открыла Google Play,
      * и автоматизация продолжила тапать магазин).
@@ -788,6 +804,121 @@ class SimpleRunner(private val service: AdbEnablerService) {
     internal fun msaSettleWindowMs(budgetAboveReserveMs: Long): Long {
         if (budgetAboveReserveMs == Long.MAX_VALUE) return MSA_PROGRESS_CLOSE_MAX_MS
         return minOf(MSA_PROGRESS_CLOSE_MAX_MS, budgetAboveReserveMs.coerceAtLeast(0L))
+    }
+
+    /**
+     * Решение о повторе тапа в фазе settle — ЧИСТАЯ функция: время приходит уже посчитанным,
+     * системных часов внутри нет (иначе в `runTest` виртуальное время не двигает настенное и
+     * решение непроверяемо).
+     *
+     * Повтор запрещён, если остаток фазового окна меньше одного опроса: вторая фаза получила бы
+     * нулевое окно и дала `settle_window_zero`, хотя практического смысла у повтора уже нет.
+     * В фазе прогресса кнопки нет по построению, поэтому прогресс запрещает повтор явно.
+     */
+    internal fun msaRetryDecision(
+        alreadyRetried: Boolean,
+        buttonPresent: Boolean,
+        progressPresent: Boolean,
+        elapsedSinceTapMs: Long,
+        elapsedSincePhaseStartMs: Long,
+        remainingPhaseMs: Long
+    ): Boolean = !alreadyRetried &&
+        buttonPresent &&
+        !progressPresent &&
+        elapsedSinceTapMs >= MSA_SETTLE_RETRY_MIN_MS &&
+        elapsedSincePhaseStartMs <= MSA_REVOKE_SETTLE_MAX_MS &&
+        remainingPhaseMs >= MSA_CONFIRM_POLL_MS
+
+    /** Сигнал завершения отзыва: диалог подтверждённо ушёл ИЛИ строка читается в цели. */
+    private enum class RevokeSettleSignal { DIALOG_GONE, ROW_IN_TARGET }
+
+    /**
+     * Одно наблюдение фазы settle. `signal = null` — подтверждения нет: диалог на экране
+     * ([dialogPresent]) либо состояние неизвестно ([unknown], корень недоступен/дерево пустое).
+     */
+    private data class RevokeSettleObservation(
+        val signal: RevokeSettleSignal?,
+        val dialogPresent: Boolean,
+        val unknown: Boolean,
+        val buttonPresent: Boolean,
+        val progressPresent: Boolean,
+        val rowChecked: Boolean?
+    )
+
+    /**
+     * Одно чтение для фазы settle. Побочных эффектов нет: только чтение дерева и recycle узлов.
+     * Пустой корень — НЕИЗВЕСТНОЕ состояние, а не отсутствие диалога: иначе два пустых чтения
+     * при переходе окон подтверждали бы «диалог ушёл» и обрывали ожидание.
+     */
+    private fun readRevokeObservation(
+        confirmTexts: List<String>,
+        step: SimpleSteps.Step,
+        switchTexts: List<String>
+    ): RevokeSettleObservation {
+        val root = service.rootInActiveWindow ?: return RevokeSettleObservation(
+            signal = null,
+            dialogPresent = false,
+            unknown = true,
+            buttonPresent = false,
+            progressPresent = false,
+            rowChecked = null
+        )
+        try {
+            val dialog = readRevokeDialog(confirmTexts, root)
+            try {
+                if (dialog.present) {
+                    return RevokeSettleObservation(
+                        signal = null,
+                        dialogPresent = true,
+                        unknown = false,
+                        buttonPresent = dialog.button != null,
+                        progressPresent = dialog.progressNode != null,
+                        rowChecked = null
+                    )
+                }
+                if (root.childCount == 0) {
+                    return RevokeSettleObservation(null, false, true, false, false, null)
+                }
+                val node = findSwitchByText(root, switchTexts)
+                val checked = node?.let { SwitchFinder.isChecked(it) }
+                recycleNode(node)
+                val signal = if (checked == step.targetChecked) RevokeSettleSignal.ROW_IN_TARGET
+                else RevokeSettleSignal.DIALOG_GONE
+                return RevokeSettleObservation(signal, false, false, false, false, checked)
+            } finally {
+                dialog.recycle()
+            }
+        } finally {
+            recycleNode(root)
+        }
+    }
+
+    /**
+     * Тот же путь, что [waitFor], но для стабильного значения: урезает окно остатком бюджета,
+     * пишет диагностику и метрику ИЗ OUTCOME (ручных счётчиков нет) и отдаёт последнее
+     * наблюдение — по нему вызывающий различает «не стабилизировалось» и «неизвестно».
+     */
+    private suspend fun <T : Any> waitForStable(
+        stepId: String,
+        reason: String,
+        timeoutMs: Long,
+        pollMs: Long = WAIT_POLL_MS,
+        confirmations: Int = 1,
+        signal: suspend () -> T?
+    ): UiWait.StableOutcome<T> {
+        val budget = remainingBudgetMs()
+        val limit = if (budget == Long.MAX_VALUE) timeoutMs
+        else minOf(timeoutMs, budget.coerceAtLeast(0L))
+        val outcome = UiWait.untilStable(
+            timeoutMs = limit,
+            pollMs = pollMs,
+            confirmations = confirmations,
+            isCancelled = { cancelled },
+            signal = signal
+        )
+        StepDiagnostics.wait(stepId, reason, outcome.elapsedMs, outcome.hit, outcome.reads)
+        stepMetrics.recordWait(outcome.elapsedMs, outcome.hit, outcome.reads)
+        return outcome
     }
 
     /**
@@ -2597,6 +2728,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val budgetAboveReserve = budgetAboveReserveMs()
         // Причина по умолчанию: обычный провал подтверждения. Ветки ниже её уточняют.
         lastRevokeReason = REASON_REVOKE_NOT_CONFIRMED
+        // Пост-таповое состояние строки не наследуется: сбрасывается на входе в отзыв.
+        revokeStateReadAfterTap = null
 
         // Фаза 1: появление диалога отзыва (короткое окно с ранним выходом).
         val dialogAppeared = waitFor(
@@ -2698,85 +2831,129 @@ class SimpleRunner(private val service: AdbEnablerService) {
             closeLeftoverDialog(step)
             return false
         }
+        val settleCap = MSA_PROGRESS_CLOSE_MAX_MS
+        // Лог приёмки: виден и запрошенный потолок, и фактически данное окно — иначе «медленная
+        // прошивка» и «недоделанный бюджет» на приёмке неразличимы.
         val settleWindow = msaSettleWindowMs(budgetAboveReserve)
-        AppLog.i(TAG, "msa: revoke tapped, settle window=${settleWindow}ms")
+        AppLog.i(
+            TAG,
+            "msa: revoke tapped, settle window=${settleWindow}ms cap=${settleCap}ms " +
+                "budget=${remainingBudgetMs()}ms reserve=${REENTRY_RESERVE_MS}ms " +
+                "truncated=${settleWindow < settleCap}"
+        )
+        if (settleWindow <= 0L) {
+            AppLog.w(TAG, "msa: settle window is zero — budget exhausted step=${step.id}")
+            StepDiagnostics.note(step.id, "DRILL", REASON_SETTLE_WINDOW_ZERO)
+            lastRevokeReason = REASON_SETTLE_WINDOW_ZERO
+            return false
+        }
 
-        // Фаза 3: settle. Первая проверка идёт СРАЗУ (диалог мог закрыться мгновенно), ранний
-        // выход — как только ушли И кнопка, И прогресс. Повтор тапа — только по СНОВА
-        // кликабельной кнопке и не раньше [MSA_SETTLE_RETRY_MIN_MS]: прежний повтор бил по
-        // только что нажатой кнопке через 140 мс (прогон rmvcp6zzq).
-        var presenceGone = false
-        var progressGone = false
+        // Фаза 3: settle через ЕДИНУЮ политику ожидания ([UiWait.untilStable]). Подтверждение —
+        // ДВА одинаковых сигнала подряд: диалог подтверждённо ушёл ИЛИ строка читается в цели.
+        // Мигнувшее чтение, смена сигнала и пустой корень серию сбрасывают.
+        val phaseStart = System.currentTimeMillis()
+        val deadline = phaseStart + settleWindow
         var retried = false
-        val settleStart = System.currentTimeMillis()
-        val deadline = settleStart + settleWindow
-        // Лимит по числу чтений — жёсткий и детерминированный (медленное чтение дерева
-        // не растягивает settle, как и в [UiWait]).
-        val maxReads = (settleWindow / MSA_CONFIRM_POLL_MS).toInt() + 1
-        var settleReads = 0
-        while (!cancelled) {
-            settleReads++
-            val dialog = readRevokeDialog(confirmTexts)
-            if (!dialog.present) {
-                presenceGone = true
-                progressGone = true
-                dialog.recycle()
-                break
-            }
-            val node = dialog.button
-            // Повтор тапа — только в окне фазы КНОПКИ: позже кнопка уже не отражает ход отзыва,
-            // а тап по ней перезапускает отсчёт.
-            if (!retried && node != null &&
-                System.currentTimeMillis() - settleStart <= MSA_REVOKE_SETTLE_MAX_MS &&
-                System.currentTimeMillis() - lastTapAt >= MSA_SETTLE_RETRY_MIN_MS
-            ) {
+        var outcome = waitForStable(
+            stepId = step.id,
+            reason = WAIT_REVOKE_SETTLE,
+            timeoutMs = settleWindow,
+            pollMs = MSA_CONFIRM_POLL_MS,
+            confirmations = 2
+        ) { readRevokeObservation(confirmTexts, step, switchTexts).signal }
+
+        // Отмена ≠ провал: финальное чтение и дамп при отмене не выполняются вовсе.
+        if (cancelled) {
+            lastRevokeReason = REASON_CANCELLED
+            AppLog.i(TAG, "msa: settle cancelled step=${step.id}")
+            return false
+        }
+
+        // Повтор тапа — ПОСЛЕ исхода ожидания: решение принимает чистая функция, повтор внутри
+        // предиката запрещён (предикат обязан быть без побочных эффектов).
+        if (!outcome.hit) {
+            val observation = readRevokeObservation(confirmTexts, step, switchTexts)
+            val now = System.currentTimeMillis()
+            val retryAllowed = msaRetryDecision(
+                alreadyRetried = retried,
+                buttonPresent = observation.buttonPresent,
+                progressPresent = observation.progressPresent,
+                elapsedSinceTapMs = now - lastTapAt,
+                elapsedSincePhaseStartMs = now - phaseStart,
+                remainingPhaseMs = deadline - now
+            )
+            if (retryAllowed) {
                 retried = true
                 AppLog.i(TAG, "msa: диалог не закрылся — повторный тап подтверждения")
-                tapNode(node)
+                val dialog = readRevokeDialog(confirmTexts)
+                val node = dialog.button
+                if (node != null) tapNode(node)
+                dialog.recycle()
+                val remaining = (deadline - System.currentTimeMillis()).coerceAtLeast(0L)
+                outcome = waitForStable(
+                    stepId = step.id,
+                    reason = WAIT_REVOKE_SETTLE_RETRY,
+                    timeoutMs = remaining,
+                    pollMs = MSA_CONFIRM_POLL_MS,
+                    confirmations = 2
+                ) { readRevokeObservation(confirmTexts, step, switchTexts).signal }
+                if (cancelled) {
+                    lastRevokeReason = REASON_CANCELLED
+                    AppLog.i(TAG, "msa: settle cancelled step=${step.id}")
+                    return false
+                }
             }
-            dialog.recycle()
-            if (settleReads >= maxReads || System.currentTimeMillis() >= deadline) break
-            delay(MSA_CONFIRM_POLL_MS)
         }
-        val settleElapsed = System.currentTimeMillis() - settleStart
-        StepDiagnostics.wait(
-            step.id,
-            WAIT_REVOKE_SETTLE,
-            settleElapsed,
-            presenceGone && progressGone,
-            settleReads
-        )
-        // Диалог не закрылся за окно: это таймаут ожидания, а не «состояние не подтвердилось».
-        // Проверять тумблер под живым диалогом бессмысленно — строка перекрыта.
-        if (!presenceGone) {
+
+        // Финальная классификация: ОДНО чтение вне предиката. Оно же — единственный источник
+        // пост-тапового состояния строки: lastReadSwitchState доказательством пост-тапового
+        // чтения не является (его пишет и дотаповый путь).
+        val final = readRevokeObservation(confirmTexts, step, switchTexts)
+        if (final.rowChecked != null) revokeStateReadAfterTap = final.rowChecked
+        val settleElapsed = System.currentTimeMillis() - phaseStart
+        val stopReason = when {
+            final.dialogPresent -> REASON_PROGRESS_DIALOG_TIMEOUT
+            final.unknown -> REASON_NO_ROOT_WINDOW
+            else -> null
+        }
+        if (stopReason != null) {
             AppLog.w(
                 TAG,
-                "msa: progress dialog did not close within ${settleWindow}ms step=${step.id}"
+                "msa: settle finished without signal reason=$stopReason " +
+                    "elapsed=${settleElapsed}ms window=${settleWindow}ms step=${step.id}"
             )
-            StepDiagnostics.note(step.id, "DRILL", REASON_PROGRESS_DIALOG_TIMEOUT)
-            lastRevokeReason = REASON_PROGRESS_DIALOG_TIMEOUT
+            StepDiagnostics.note(step.id, "DRILL", stopReason)
+            lastRevokeReason = stopReason
             captureRevokeDialogSnapshot(step)
             closeLeftoverDialog(step)
             return false
         }
+
         val switchOk = verifySwitchState(step, switchTexts)
-        // Успех — ТОЛЬКО полный факт: ушли кнопка И прогресс, И тумблер в целевом состоянии
-        // (два чтения подряд внутри verify). Прежняя ветка `dialogGone && onTargetScreen`
-        // давала «успех» при живом чекбоксе, когда диалог ушёл сам (прогон rmuvlyyor,
-        // скриншот diag-dumps/after/screenshot_msa_*.png).
-        if (presenceGone && progressGone && switchOk) {
+        // Успех — ТОЛЬКО полный факт: подтверждённый сигнал (диалог ушёл ИЛИ строка в цели) И
+        // verify прочитал целевое состояние дважды подряд. Прежняя ветка `dialogGone &&
+        // onTargetScreen` давала «успех» при живом чекбоксе (прогон rmuvlyyor).
+        if (outcome.hit && switchOk) {
             AppLog.i(TAG, "msa: revoke confirmed step=${step.id}")
             return true
         }
-        // Третий исход: диалог ушёл, строки нет, фактическое состояние ни разу не прочиталось —
-        // это «не подтверждено», а не провал: на экране результата отдельное ведро.
-        lastRevokeReason =
-            if (lastReadSwitchState == null) REASON_STATE_UNREADABLE else REASON_REVOKE_NOT_CONFIRMED
+        // Строка не в цели: состояние считается прочитанным только при ПОСТ-ТАПОВОМ чтении
+        // ([revokeStateReadAfterTap]); lastReadSwitchState доказательством не является.
+        if (revokeStateReadAfterTap == null) {
+            readSwitchState(step)?.let { revokeStateReadAfterTap = it }
+        }
+        lastRevokeReason = if (revokeStateReadAfterTap == null) {
+            REASON_STATE_UNREADABLE
+        } else {
+            REASON_REVOKE_NOT_CONFIRMED
+        }
         AppLog.w(
             TAG,
             "msa: revoke NOT confirmed step=${step.id} reason=$lastRevokeReason " +
-                "button=${if (presenceGone) "нет" else "есть"} " +
-                "progress=${if (progressGone) "нет" else "есть"} switch=${lastReadSwitchState}"
+                "signal=${outcome.value} elapsed=${settleElapsed}ms " +
+                "button=${if (final.buttonPresent) "есть" else "нет"} " +
+                "progress=${if (final.progressPresent) "есть" else "нет"} " +
+                "switch=${revokeStateReadAfterTap}"
         )
         // Дамп снимается ДО любого BACK: с уведённого экрана причина не читается, а закрытие
         // остаточного диалога меняет экран (условие приёмки круга 18.10).

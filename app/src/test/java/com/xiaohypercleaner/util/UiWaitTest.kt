@@ -35,6 +35,67 @@ class UiWaitTest {
         assertEquals("первое чтение идёт сразу", 1, outcome.reads)
     }
 
+    // ═══ untilStable: ожидание СТАБИЛЬНОГО значения ═══
+
+    @Test
+    fun `stable value needs two identical readings in a row`() = runTest {
+        var reads = 0
+        val outcome = UiWait.untilStable(5_000L, 200L, 2) { reads++; "A" }
+
+        assertTrue("два одинаковых значения подряд — стабильность", outcome.hit)
+        assertEquals("A", outcome.value)
+        assertEquals(2, outcome.reads)
+    }
+
+    @Test
+    fun `null resets the streak`() = runTest {
+        var reads = 0
+        val samples = listOf("A", null, "A", "A")
+        val outcome = UiWait.untilStable(5_000L, 200L, 2) { samples.getOrElse(reads++) { null } }
+
+        assertTrue("null между подтверждениями сбрасывает серию", outcome.hit)
+        assertEquals("A", outcome.value)
+        assertEquals("подтверждение только на четвёртом чтении", 4, outcome.reads)
+    }
+
+    @Test
+    fun `changing value resets the streak`() = runTest {
+        var reads = 0
+        val samples = listOf("A", "B", "B")
+        val outcome = UiWait.untilStable(5_000L, 200L, 2) { samples.getOrElse(reads++) { null } }
+
+        assertTrue("смена значения начинает новую серию", outcome.hit)
+        assertEquals("B", outcome.value)
+        assertEquals(3, outcome.reads)
+    }
+
+    @Test
+    fun `timeout returns the last observed signal`() = runTest {
+        var reads = 0
+        val outcome = UiWait.untilStable(1_000L, 200L, 3) {
+            reads++
+            if (reads < 3) "A" else null
+        }
+
+        assertFalse(outcome.hit)
+        assertEquals("последнее наблюдение — неизвестно", null, outcome.lastSignal)
+        assertEquals("лимит 1000/200 + 1 чтение", 6, outcome.reads)
+        assertEquals("фактически данное окно", 1_000L, outcome.limitMs)
+    }
+
+    @Test
+    fun `cancellation is not a timeout`() = runTest {
+        var reads = 0
+        val outcome = UiWait.untilStable(5_000L, 200L, 2, isCancelled = { reads >= 1 }) {
+            reads++
+            "A"
+        }
+
+        assertFalse("отмена не даёт hit", outcome.hit)
+        assertEquals(1, outcome.reads)
+        assertEquals("A", outcome.lastSignal)
+    }
+
     @Test
     fun `important state requires two confirming reads in a row`() = runTest {
         var reads = 0

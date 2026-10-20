@@ -228,6 +228,177 @@ class SimpleRunnerMsaResumeTest {
     }
 
     @Test
+    fun `single flickering signal does not end the settle`() = runTest {
+        // Одинокая «диалог ушёл» между двумя «диалог жив» — не подтверждение: нужен второй
+        // такой же сигнал подряд. Без confirmations=2 ожидание обрывалось бы на первом.
+        val revoke = node(text = "Отозвать", clickable = true, enabled = true)
+        Mockito.`when`(revoke.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true)
+        val dialogRoot = node(className = "android.widget.FrameLayout", children = arrayOf(revoke))
+        val progressRoot = node(text = "Отзыв разрешения…")
+        val msaSwitch =
+            node(text = "msa", checked = false, checkable = true, className = "android.widget.Switch")
+        val listRoot = node(className = "android.widget.FrameLayout", children = arrayOf(msaSwitch))
+        Mockito.`when`(service.rootInActiveWindow)
+            .thenReturn(dialogRoot, dialogRoot, dialogRoot, listRoot, progressRoot, listRoot, listRoot)
+
+        val confirmed = runner.confirmDelayedRevoke(
+            msaStep(),
+            listOf("Отозвать", "ОК", "Отзыв разрешения"),
+            listOf("msa")
+        )
+
+        assertTrue("мигнувший сигнал не обрывает ожидание — отзыв подтверждён", confirmed)
+    }
+
+    @Test
+    fun `retry decision needs all six conditions`() {
+        assertTrue(
+            "все условия выполнены",
+            runner.msaRetryDecision(false, true, false, 2_500L, 3_000L, 4_000L)
+        )
+        assertFalse(
+            "пол 2 с не пройден",
+            runner.msaRetryDecision(false, true, false, 1_500L, 3_000L, 4_000L)
+        )
+        assertFalse(
+            "окно фазы кнопки исчерпано",
+            runner.msaRetryDecision(false, true, false, 8_000L, 8_000L, 2_000L)
+        )
+        assertFalse(
+            "остаток окна меньше опроса",
+            runner.msaRetryDecision(false, true, false, 2_500L, 3_000L, 100L)
+        )
+        assertFalse(
+            "на экране прогресс — повтор запрещён",
+            runner.msaRetryDecision(false, true, true, 2_500L, 3_000L, 4_000L)
+        )
+        assertFalse(
+            "уже повторяли",
+            runner.msaRetryDecision(true, true, false, 2_500L, 3_000L, 4_000L)
+        )
+        assertFalse(
+            "кнопки нет",
+            runner.msaRetryDecision(false, false, false, 2_500L, 3_000L, 4_000L)
+        )
+    }
+
+    @Test
+    fun `progress phase never re-taps the revoke button`() = runTest {
+        val revoke = node(text = "Отозвать", clickable = true, enabled = true)
+        Mockito.`when`(revoke.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true)
+        val dialogRoot = node(className = "android.widget.FrameLayout", children = arrayOf(revoke))
+        val progressRoot = node(text = "Отзыв разрешения…")
+        Mockito.`when`(service.rootInActiveWindow)
+            .thenReturn(dialogRoot, dialogRoot, dialogRoot, progressRoot)
+
+        val confirmed = runner.confirmDelayedRevoke(
+            msaStep(),
+            listOf("Отозвать", "ОК", "Отзыв разрешения"),
+            listOf("msa")
+        )
+
+        assertFalse("диалог не закрылся — подтверждения нет", confirmed)
+        Mockito.verify(revoke, Mockito.times(1)).performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        assertEquals("progress_dialog_timeout", runner.lastRevokeReason)
+    }
+
+    @Test
+    fun `empty root alone does not prove the dialog is gone`() = runTest {
+        // Два пустых чтения подряд — НЕ подтверждение «диалог ушёл»: это неизвестное состояние.
+        // Иначе settle обрывался бы на переходе окон и verify читал бы прогресс-диалог.
+        val revoke = node(text = "Отозвать", clickable = true, enabled = true)
+        Mockito.`when`(revoke.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true)
+        val dialogRoot = node(className = "android.widget.FrameLayout", children = arrayOf(revoke))
+        val progressRoot = node(text = "Отзыв разрешения…")
+        val msaSwitch =
+            node(text = "msa", checked = false, checkable = true, className = "android.widget.Switch")
+        val listRoot = node(className = "android.widget.FrameLayout", children = arrayOf(msaSwitch))
+        Mockito.`when`(service.rootInActiveWindow)
+            .thenReturn(
+                dialogRoot, dialogRoot, dialogRoot,
+                null, null, progressRoot, progressRoot,
+                listRoot
+            )
+
+        val confirmed = runner.confirmDelayedRevoke(
+            msaStep(),
+            listOf("Отозвать", "ОК", "Отзыв разрешения"),
+            listOf("msa")
+        )
+
+        assertTrue("пустые чтения не обрывают ожидание — отзыв подтверждён по строке", confirmed)
+    }
+
+    @Test
+    fun `persistent unknown root reports no_root_window`() = runTest {
+        val revoke = node(text = "Отозвать", clickable = true, enabled = true)
+        Mockito.`when`(revoke.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true)
+        val dialogRoot = node(className = "android.widget.FrameLayout", children = arrayOf(revoke))
+        Mockito.`when`(service.rootInActiveWindow)
+            .thenReturn(dialogRoot, dialogRoot, dialogRoot, null)
+
+        val confirmed = runner.confirmDelayedRevoke(
+            msaStep(),
+            listOf("Отозвать", "ОК", "Отзыв разрешения"),
+            listOf("msa")
+        )
+
+        assertFalse("подтверждения нет", confirmed)
+        assertEquals("no_root_window", runner.lastRevokeReason)
+    }
+
+    @Test
+    fun `cancellation during settle is not a timeout`() = runTest {
+        val revoke = node(text = "Отозвать", clickable = true, enabled = true)
+        Mockito.`when`(revoke.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true)
+        val dialogRoot = node(className = "android.widget.FrameLayout", children = arrayOf(revoke))
+        var reads = 0
+        Mockito.`when`(service.rootInActiveWindow).thenAnswer {
+            reads++
+            if (reads > 3) {
+                runner.cancel()
+                null
+            } else {
+                dialogRoot
+            }
+        }
+
+        val confirmed = runner.confirmDelayedRevoke(
+            msaStep(),
+            listOf("Отозвать", "ОК", "Отзыв разрешения"),
+            listOf("msa")
+        )
+
+        assertFalse("отмена не подтверждает отзыв", confirmed)
+        assertEquals("отмена — это не таймаут", "cancelled", runner.lastRevokeReason)
+    }
+
+    @Test
+    fun `pre-tap checked_before does not prove the post-tap state`() = runTest {
+        // Строка исчезла, пост-тапового чтения не было: доказательства нет → «не подтверждено»,
+        // а не «провал». Дотаповое знание состояния сюда не подставляется.
+        val revoke = node(text = "Отозвать", clickable = true, enabled = true)
+        Mockito.`when`(revoke.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true)
+        val dialogRoot = node(className = "android.widget.FrameLayout", children = arrayOf(revoke))
+        val otherScreen = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(node(text = "Пароли и безопасность"))
+        )
+        Mockito.`when`(service.rootInActiveWindow)
+            .thenReturn(dialogRoot, dialogRoot, dialogRoot, otherScreen)
+
+        val confirmed = runner.confirmDelayedRevoke(
+            msaStep(),
+            listOf("Отозвать", "ОК", "Отзыв разрешения"),
+            listOf("msa")
+        )
+
+        assertFalse("строки нет — подтверждения нет", confirmed)
+        assertEquals("пост-тапового чтения не было", null, runner.revokeStateReadAfterTap)
+        assertEquals("state_unreadable", runner.lastRevokeReason)
+    }
+
+    @Test
     fun `msa revoke is confirmed after countdown button and settle pause`() = runTest {
         val revoke = node(text = "Отозвать", clickable = true, enabled = true)
         Mockito.`when`(revoke.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true)
