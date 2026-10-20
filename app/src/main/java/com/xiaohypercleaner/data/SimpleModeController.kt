@@ -37,6 +37,12 @@ import kotlin.time.Duration.Companion.milliseconds
 class SimpleModeController(
     private val context: Context,
     private val permissionFlow: PermissionFlowManager,
+    /**
+     * Гейт предшага: `true` — шаги начинать можно. Обязательный параметр конструктора:
+     * «забыл назначить» становится ошибкой компиляции, а не тихим проходом в шаги
+     * без решения пользователя. ViewModel отвечает на него показом предшага установщика.
+     */
+    private val preStepsGate: () -> Boolean,
     private val onStateChanged: (SimpleModeState) -> Unit
 ) {
     companion object {
@@ -409,7 +415,7 @@ class SimpleModeController(
             AppLog.w(TAG, "onBatteryDialogSkipped: already in STEPS/DONE, ignoring")
             return
         }
-        goSteps()
+        if (!goSteps()) return
         nextStep(autoStart = true)
     }
 
@@ -428,14 +434,9 @@ class SimpleModeController(
 
         if (ignoring) {
             if (state.phase != SimpleModePhase.STEPS) {
-                setState {
-                    copy(
-                        phase = SimpleModePhase.STEPS,
-                        permissionSubPhase = PermissionSubPhase.DONE,
-                        showBatteryDialog = false
-                    )
-                }
-                goSteps()
+                // Фазу переводит сам goSteps: гейт предшага обязан проверяться ДО неё,
+                // иначе закрытый гейт оставил бы режим в STEPS без плана и без шага.
+                if (!goSteps()) return
                 nextStep(autoStart = true)
             }
         } else if (batteryDialogAlreadyShown) {
@@ -443,7 +444,7 @@ class SimpleModeController(
             // БЕЗ включения — НЕ показываем повторно, сразу идём к STEPS.
             // Это решает проблему MIUI, где isIgnoring всегда false.
             AppLog.i(TAG, "onBatteryReturn: already shown dialog, advancing to STEPS")
-            goSteps()
+            if (!goSteps()) return
             nextStep(autoStart = true)
         }
     }
@@ -457,7 +458,7 @@ class SimpleModeController(
         }
         if (batteryDialogAlreadyShown) {
             AppLog.i(TAG, "reshowBatteryDialog: already shown, advancing to STEPS once")
-            goSteps()
+            if (!goSteps()) return
             nextStep(autoStart = true)
             return
         }
@@ -473,11 +474,39 @@ class SimpleModeController(
             AppLog.w(TAG, "continueToSteps: already in STEPS/DONE, ignoring")
             return
         }
-        goSteps()
+        // Гейт предшага закрыт — выходим до nextStep: шаг без решения пользователя не начинается.
+        if (!goSteps()) return
         nextStep(autoStart = true)
     }
 
-    private fun goSteps() {
+    /**
+     * Гейт предшага: `true` — шаги начинать можно.
+     *
+     * Предикат назначается ViewModel обязательным параметром конструктора, поэтому
+     * «неназначенного» гейта не существует. Единственная точка проверки — [goSteps]:
+     * в шаги ведут пять дверей ([advance] по разрешениям, [continueToSteps], решения
+     * по батарее в [onBatteryDialogSkipped]/[onBatteryReturn]/[reshowBatteryDialog]),
+     * и своё условие в каждой разошлось бы при первой же правке.
+     */
+    internal fun preStepsGateOpen(): Boolean {
+        val open = preStepsGate()
+        if (!open) AppLog.i(TAG, "preStepsGateOpen: pre-step pending, steps not started")
+        return open
+    }
+
+    /**
+     * Единственная точка входа в шаги.
+     *
+     * @return false — шаги НЕ стартовали (гейт предшага закрыт или префлайт не прошёл):
+     * вызывающий обязан выйти, не вызывая [nextStep].
+     */
+    private fun goSteps(): Boolean {
+        // Гейт — до любых побочных эффектов: снятия pending-флага, префлайта, сборки плана.
+        if (!preStepsGateOpen()) {
+            // Вопрос батареи к этому моменту уже решён — диалог не должен висеть поверх предшага.
+            if (state.showBatteryDialog) setState { copy(showBatteryDialog = false) }
+            return false
+        }
         autoFlowJob?.cancel()
         // Не возобновлять Simple Mode после смерти процесса посреди шагов
         scope.launch {
@@ -525,7 +554,7 @@ class SimpleModeController(
                     )
                 }
             }
-            return
+            return false
         }
         OverlayController.clearPermissionLost()
 
@@ -540,6 +569,7 @@ class SimpleModeController(
                 showBatteryDialog = false
             )
         }
+        return true
     }
 
     /** Прозрачность уведомлений (Аддендум C4): OFF исключает notif_* из плана. */
@@ -879,7 +909,7 @@ class SimpleModeController(
                     AppLog.i(TAG, "advance: already STEPS, skip re-entry")
                     return
                 }
-                goSteps()
+                if (!goSteps()) return
                 nextStep(autoStart = true)
             }
         }

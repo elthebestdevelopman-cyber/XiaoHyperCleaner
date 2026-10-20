@@ -57,7 +57,7 @@ class SimpleModeControllerReportTest {
         SimplePlan.set(steps)
         assertEquals("нужны пять разных шагов плана", 5, steps.map { it.id }.distinct().size)
 
-        val controller = SimpleModeController(app, PermissionFlowManager(app)) { }
+        val controller = SimpleModeController(app, PermissionFlowManager(app), { true }) { }
         controller.start()
         // start() останавливается на разрешениях: в фазу шагов тест входит явно.
         controller.nextStep()
@@ -121,7 +121,7 @@ class SimpleModeControllerReportTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val steps = SimpleSteps.ALL.take(2).map { PlanBuilder.PlanStep(it, null) }
         SimplePlan.set(steps)
-        val controller = SimpleModeController(app, PermissionFlowManager(app)) { }
+        val controller = SimpleModeController(app, PermissionFlowManager(app), { true }) { }
         controller.start()
         controller.nextStep()
 
@@ -142,7 +142,7 @@ class SimpleModeControllerReportTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val steps = SimpleSteps.ALL.take(2).map { PlanBuilder.PlanStep(it, null) }
         SimplePlan.set(steps)
-        val controller = SimpleModeController(app, PermissionFlowManager(app)) { }
+        val controller = SimpleModeController(app, PermissionFlowManager(app), { true }) { }
         controller.start()
         controller.nextStep()
 

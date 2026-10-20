@@ -14,6 +14,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -159,14 +160,14 @@ class MainViewModelTest {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    fun `installer pre-step is asked after permissions, not before the start`() = runTest {
+    fun `installer pre-step is asked after permissions and battery, not before the start`() = runTest {
         vm.startFlow()
         vm.onLevelChosen(OptimizationMode.SIMPLE)
 
         vm.confirmLevelStart(OptimizationMode.SIMPLE)
 
-        // Сначала разрешения: до их выдачи уход в настройки гасит окно установщика, и предшаг
-        // приходилось запускать повторным кликом (прогон rmve63243).
+        // Регрессия прежнего контракта сохранена: до выдачи разрешений предшаг не спрашивается
+        // (уход в настройки гасил окно установщика, прогон rmve63243).
         assertFalse("showLevelConfirm should be closed", vm.state.value.showLevelConfirm)
         assertTrue("simple mode starts right away", vm.state.value.simpleModeActive)
         assertFalse(
@@ -174,12 +175,26 @@ class MainViewModelTest {
             vm.state.value.showInstallerPreStep
         )
 
-        // Оба разрешения выданы → предшаг появляется до первого шага.
+        // Контракт изменён по решению владельца (план Б): между acc+overlay и предшагом теперь
+        // стоит диалог батареи — предшаг больше не опережает вопрос, который задаётся раньше.
         vm.applyPermissionStatuses(acc = true, overlay = true)
-        assertTrue(
-            "installer pre-step should be shown after permissions",
+        assertFalse(
+            "installer pre-step must wait for the battery decision",
             vm.state.value.showInstallerPreStep
         )
+
+        // Дверь «решение по батарее» доводит фазу до гейта предшага.
+        vm.onBatteryDialogSkipped()
+        assertTrue(
+            "installer pre-step comes after the battery decision",
+            vm.state.value.showInstallerPreStep
+        )
+        assertEquals(
+            "steps must not start before the pre-step decision",
+            SimpleModePhase.PERMISSIONS,
+            vm.state.value.simpleModePhase
+        )
+        assertNull("no step is started while the gate is closed", vm.state.value.simpleStep)
 
         // «Пропустить» → поток продолжается без перезапуска режима.
         vm.onInstallerPreStepSkip()
@@ -188,6 +203,78 @@ class MainViewModelTest {
         assertTrue(
             "simple mode should continue after the pre-step is skipped",
             vm.state.value.simpleModeActive
+        )
+    }
+
+    @Test
+    fun `continueToSteps also waits for the pre-step decision`() = runTest {
+        // Вторая дверь в шаги: подтверждение уровня при активном режиме. Она обязана упираться
+        // в тот же гейт, иначе шаги стартовали бы в обход предшага.
+        vm.startFlow()
+        vm.onLevelChosen(OptimizationMode.SIMPLE)
+        vm.confirmLevelStart(OptimizationMode.SIMPLE)
+        vm.applyPermissionStatuses(acc = true, overlay = true)
+
+        vm.simpleController.continueToSteps()
+
+        assertTrue(
+            "предшаг спрашивается и на двери continueToSteps",
+            vm.state.value.showInstallerPreStep
+        )
+        assertNull("шаг не стартует до решения пользователя", vm.state.value.simpleStep)
+        assertEquals(
+            "фаза остаётся разрешениями, пока гейт закрыт",
+            SimpleModePhase.PERMISSIONS,
+            vm.state.value.simpleModePhase
+        )
+    }
+
+    @Test
+    fun `pre-step guard is due only after ten minutes with a hanging dialog`() {
+        assertFalse(
+            "9:59 — сторож молчит",
+            installerPreStepGuardDue(
+                elapsedMs = PRE_STEP_GUARD_MS - 1,
+                dialogShown = true,
+                decided = false,
+                phaseActive = true
+            )
+        )
+        assertTrue(
+            "10:00 — сторож продолжает режим",
+            installerPreStepGuardDue(
+                elapsedMs = PRE_STEP_GUARD_MS,
+                dialogShown = true,
+                decided = false,
+                phaseActive = true
+            )
+        )
+        assertFalse(
+            "решение пользователя побеждает",
+            installerPreStepGuardDue(
+                elapsedMs = PRE_STEP_GUARD_MS * 2,
+                dialogShown = true,
+                decided = true,
+                phaseActive = true
+            )
+        )
+        assertFalse(
+            "закрытый диалог означает принятое решение",
+            installerPreStepGuardDue(
+                elapsedMs = PRE_STEP_GUARD_MS * 2,
+                dialogShown = false,
+                decided = false,
+                phaseActive = true
+            )
+        )
+        assertFalse(
+            "остановленный режим не получает продолжение шагов",
+            installerPreStepGuardDue(
+                elapsedMs = PRE_STEP_GUARD_MS * 2,
+                dialogShown = true,
+                decided = false,
+                phaseActive = false
+            )
         )
     }
 

@@ -41,7 +41,7 @@ class SimpleModeControllerOverlayTest {
         SimplePlan.set(steps)
 
         val states = mutableListOf<SimpleModeController.SimpleModeState>()
-        val controller = SimpleModeController(app, PermissionFlowManager(app)) { states.add(it) }
+        val controller = SimpleModeController(app, PermissionFlowManager(app), { true }) { states.add(it) }
 
         controller.start()
         assertTrue("прогон активен", controller.isActive)
@@ -63,7 +63,7 @@ class SimpleModeControllerOverlayTest {
     @Test
     fun `overlay loss on an inactive controller changes nothing`() {
         val states = mutableListOf<SimpleModeController.SimpleModeState>()
-        val controller = SimpleModeController(app, PermissionFlowManager(app)) { states.add(it) }
+        val controller = SimpleModeController(app, PermissionFlowManager(app), { true }) { states.add(it) }
 
         controller.onOverlayPermissionLost()
 

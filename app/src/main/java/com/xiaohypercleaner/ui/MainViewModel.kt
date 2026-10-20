@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.AndroidViewModel
@@ -90,8 +91,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun update(transform: (MainUiState) -> MainUiState) = _state.update(transform)
 
-    val simpleController: SimpleModeController =
-        SimpleModeController(app, permissionFlow) { mergeSimpleState(it) }
+    val simpleController: SimpleModeController = SimpleModeController(
+        app,
+        permissionFlow,
+        // Гейт предшага назначается при конструировании: к любому входу в шаги он уже есть,
+        // и «забыть» его нельзя — параметр обязательный.
+        { installerPreStepGateOpen() }
+    ) { mergeSimpleState(it) }
 
     private val shizuku: ShizukuUiController = ShizukuUiController(app, ::update)
 
@@ -268,6 +274,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         OverlayController.setOnCancel(null)
         OverlayController.setOnResultClose(null)
         OverlayController.hide(app)
+        cancelPreStepGuard()
         simpleController.destroy()
         autoFlowJob?.cancel()
     }
@@ -338,9 +345,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         shizuku.consumePendingSourceSuggestion()
-        // Предшаг спрашивается ДО продвижения фазы: иначе поверх него успел бы открыться
-        // диалог батареи, а шаги стартовали бы раньше решения пользователя.
-        if (askInstallerPreStepIfNeeded(acc, overlay)) return
+        // Порядок «разрешения → батарея → предшаг → шаги» держит контроллер: предшаг
+        // спрашивается его гейтом ([installerPreStepGateOpen]) перед стартом шагов, а не
+        // здесь. Иначе диалог предшага опережал батарею (решение владельца 21.10, план Б).
         simpleController.updatePermissionStatuses(acc, overlay)
 
         if (_state.value.simpleModeActive) {
@@ -501,6 +508,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         // Новый прогон: предшаг спрашивается заново.
         installerPreStepAsked = false
+        installerPreStepDecided = false
+        cancelPreStepGuard()
 
         val profile = RomProfile.detect(app)
         if (profile.optimizationScope == OptimizationScope.PRE_OPTIMIZED_EEA && !eeaNoticeAcknowledged) {
@@ -586,35 +595,97 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var installerPreStepAsked: Boolean = false
 
     /**
-     * Предшаг установщика после выдачи разрешений — замечание владельца 19.10 по прогону
-     * rmve63243: пока Accessibility и оверлей не выданы, уход в настройки гасит окно
-     * установщика (в логе: настройки 01:32:42 → ожидание снято по BACK 01:35:43 → повторный
-     * клик 01:36:29 → установщик открылся). Шаги стартуют позже (батарея → `goSteps`),
-     * поэтому диалог успевает до первого шага.
-     *
-     * Возвращает `true`, если диалог показан на этом обороте: вызывающий не продвигает фазу,
-     * иначе поверх предшага открылся бы следующий диалог.
+     * Решение по предшагу принято: пользователь ответил («Снять сейчас» / «Пропустить»),
+     * предшаг отработал переустановкой или его поглотил сторож. Отдельно от
+     * [installerPreStepAsked]: «спросили» и «ответили» — разные факты, и на втором держится
+     * гейт старта шагов.
      */
-    private fun askInstallerPreStepIfNeeded(acc: Boolean, overlay: Boolean): Boolean {
-        if (!acc || !overlay) return false
-        if (!_state.value.simpleModeActive) return false
-        if (_state.value.simpleModePhase != SimpleModePhase.PERMISSIONS) return false
-        if (installerPreStepAsked) return false
-        if (_state.value.showInstallerPreStep || _state.value.installerPreStepWaiting) return false
-        installerPreStepAsked = true
-        AppLog.i(TAG, "installer pre-step: asking after permissions granted")
-        // Диалоги разрешений и батареи поверх предшага не держим: фаза продвинется после
-        // решения пользователя ([onInstallerPreStepSkip] → refresh).
-        update {
-            it.copy(
-                showInstallerPreStep = true,
-                showOverlayDialog = false,
-                showAccessibilityDialog = false,
-                showRestrictedSettingsScreen = false,
-                showBatteryDialog = false
-            )
+    private var installerPreStepDecided: Boolean = false
+
+    /** Корутина сторожа предшага: снимается любым решением пользователя и закрытием режима. */
+    private var preStepGuardJob: Job? = null
+
+    /**
+     * Гейт предшага для контроллера: `false` — предшаг ещё не решён, шаги не стартуют.
+     *
+     * Порядок «разрешения → батарея → предшаг → шаги» (план Б, решение владельца 21.10)
+     * держится здесь: контроллер спрашивает гейт в единственной точке входа в шаги
+     * ([SimpleModeController.preStepsGateOpen] → `goSteps`), то есть уже после того, как
+     * разрешения выданы и вопрос батареи закрыт. Прежний порядок спрашивал предшаг раньше
+     * батареи и до её решения.
+     */
+    private fun installerPreStepGateOpen(): Boolean {
+        if (!_state.value.simpleModeActive) return true
+        if (installerPreStepDecided) return true
+        // Не фаза разрешений — предшаг к ней отношения не имеет (повторные двери в шаги).
+        if (_state.value.simpleModePhase != SimpleModePhase.PERMISSIONS) return true
+        if (!installerPreStepAsked) {
+            installerPreStepAsked = true
+            AppLog.i(TAG, "installer pre-step: asking before steps (battery decided)")
+            // Диалоги разрешений и батареи поверх предшага не держим: фаза продвинется
+            // после решения пользователя ([onInstallerPreStepSkip] → refresh).
+            update {
+                it.copy(
+                    showInstallerPreStep = true,
+                    showOverlayDialog = false,
+                    showAccessibilityDialog = false,
+                    showRestrictedSettingsScreen = false,
+                    showBatteryDialog = false
+                )
+            }
+            startPreStepGuard()
         }
-        return true
+        return false
+    }
+
+    /** Сторож предшага: без ответа режим не должен висеть навсегда. */
+    private fun startPreStepGuard() {
+        preStepGuardJob?.cancel()
+        val startedAt = SystemClock.elapsedRealtime()
+        // Главный диспетчер: решения пользователя приходят туда же, гонки за флаги нет.
+        preStepGuardJob = viewModelScope.launch(Dispatchers.Main.immediate) {
+            delay(PRE_STEP_GUARD_MS)
+            continueAfterPreStepGuard(startedAt)
+        }
+    }
+
+    /** Снятие сторожа на любом решении пользователя и при закрытии режима. */
+    private fun cancelPreStepGuard() {
+        if (preStepGuardJob != null) AppLog.i(TAG, "installer pre-step: guard cancelled")
+        preStepGuardJob?.cancel()
+        preStepGuardJob = null
+    }
+
+    /**
+     * Продолжение по сторожу. Решение пользователя побеждает: если он успел ответить или
+     * режим закрыт, сторож молча выходит — второго `updatePermissionStatuses` + refresh
+     * не будет. Иначе ставится тот же флаг решения, что и у «Пропустить», и фаза доводится
+     * тем же путём.
+     */
+    private fun continueAfterPreStepGuard(startedAt: Long) {
+        val due = installerPreStepGuardDue(
+            elapsedMs = SystemClock.elapsedRealtime() - startedAt,
+            dialogShown = _state.value.showInstallerPreStep || _state.value.installerPreStepWaiting,
+            decided = installerPreStepDecided,
+            phaseActive = _state.value.simpleModeActive &&
+                _state.value.simpleModePhase == SimpleModePhase.PERMISSIONS
+        )
+        if (!due) {
+            AppLog.i(TAG, "installer pre-step: guard skipped — user decided or mode closed")
+            return
+        }
+        installerPreStepDecided = true
+        preStepGuardJob = null
+        AppLog.i(
+            TAG,
+            "installer pre-step: guard timeout after 10min, continuing without user decision"
+        )
+        update { it.copy(showInstallerPreStep = false, installerPreStepWaiting = false) }
+        simpleController.updatePermissionStatuses(
+            _state.value.isAccessibilityEnabled,
+            _state.value.isOverlayGranted
+        )
+        simpleController.refresh()
     }
 
     /**
@@ -631,6 +702,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i(TAG, "installer pre-step: disable now")
         installerPermissionAttempts = 0
         installerPreStepAsked = true
+        installerPreStepDecided = true
+        cancelPreStepGuard()
         update { it.copy(showInstallerPreStep = false, installerPreStepWaiting = true) }
         viewModelScope.launch { runInstallerPreStep() }
     }
@@ -724,6 +797,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun onInstallerPreStepSkip() {
         AppLog.i(TAG, "installer pre-step: skipped")
         installerPreStepAsked = true
+        installerPreStepDecided = true
+        cancelPreStepGuard()
         update { it.copy(showInstallerPreStep = false) }
         if (_state.value.simpleModeActive) {
             // Сначала синхронизируем разрешения в контроллере (он ещё не видел их выдачи — предшаг
@@ -741,6 +816,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Возврат из установщика без переустановки: ждать больше нечего. */
     fun onInstallerPreStepWaitingSkip() {
         AppLog.i(TAG, "installer pre-step: waiting cancelled")
+        installerPreStepDecided = true
+        cancelPreStepGuard()
         update { it.copy(installerPreStepWaiting = false) }
         startSimpleMode()
     }
@@ -862,6 +939,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun closeSimpleMode() {
         AppLog.i(TAG, "closeSimpleMode")
+        // Режим закрыт — сторож предшага не должен доводить шаги в остановленном контроллере.
+        cancelPreStepGuard()
         autoFlowJob?.cancel()
         AdbEnablerService.instance?.cancelRunner()
         simpleController.cancelAndReset()
@@ -970,6 +1049,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             stepAttempt = 1
             // Предшаг уже отработан этим прогоном: после переустановки не спрашиваем снова.
             installerPreStepAsked = true
+            installerPreStepDecided = true
+            cancelPreStepGuard()
             simpleController.start()
         }
     }
@@ -1179,3 +1260,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         permissionFlow.openAccessibilityWithHint()
     }
 }
+
+/** Потолок ожидания решения по предшагу: дальше режим не должен висеть навсегда. */
+internal const val PRE_STEP_GUARD_MS: Long = 600_000L
+
+/**
+ * Решение сторожа предшага — чистая функция: время приходит готовым (`elapsedRealtime`),
+ * часы она не читает, поэтому перевод часов и смена пояса её не ломают.
+ *
+ * Сторож нужен только пока диалог висит, решения нет и фаза жива. В остальных случаях он
+ * обязан молчать: решение пользователя побеждает, а закрытый режим не должен получать
+ * продолжение шагов.
+ */
+internal fun installerPreStepGuardDue(
+    elapsedMs: Long,
+    dialogShown: Boolean,
+    decided: Boolean,
+    phaseActive: Boolean
+): Boolean = elapsedMs >= PRE_STEP_GUARD_MS && dialogShown && !decided && phaseActive
