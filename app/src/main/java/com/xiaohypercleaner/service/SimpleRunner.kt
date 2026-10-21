@@ -167,6 +167,21 @@ class SimpleRunner(private val service: AdbEnablerService) {
             "Больше опций", "Дополнительно", "Дополнительные настройки"
         )
 
+        /**
+         * Подписи «выход/удаление»: такие узлы drill-поиском не выбираются НИКОГДА.
+         *
+         * Прогон rmvimewq4 (music_sys): стена согласия без живой кнопки, уровень «Показать
+         * меню» не подтвердился, поиск ушёл в позиционный fallback и тапнул `tv_quit`
+         * («Выход») — приложение закрылось, шаг бурил системные Настройки и упал
+         * `markers_mismatch`. Тот же класс guard-ов, что «install-тексты не тапаются
+         * никогда» у ловца установщика.
+         */
+        private val EXIT_TEXTS = listOf(
+            "Выход", "Выйти", "Выход из аккаунта", "Закрыть приложение", "Удалить", "Сбросить",
+            "Отписаться", "Exit", "Quit", "Close app", "Sign out", "Log out",
+            "Delete", "Remove", "Reset"
+        )
+
         private val OVERFLOW_GESTURE_POINTS = listOf(
             Pair(0.96f, 0.06f), Pair(0.90f, 0.06f),
             Pair(0.96f, 0.12f), Pair(0.90f, 0.12f)
@@ -2504,12 +2519,21 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // (`web_view_lazy_load_wrapper`) условие не выполняет.
         if (readyIds.isNotEmpty() && awaitEntryReadyId(step.id, readyIds, timeoutMs)) return true
         if (levelTexts.isEmpty()) {
+            // Стена согласия могла подняться уже после старта входа: последняя проверка
+            // перед слепым бурением. Прогон rmvimewq4 (music_sys): стена ещё висела, drill
+            // ушёл в угловой fallback и тапнул «Выход».
+            if (handleConsentWalls(step) > 0 && awaitEntryReadyId(step.id, readyIds, timeoutMs)) {
+                return true
+            }
             AppLog.w(TAG, "app entry: ready ids $readyIds not visible after ${timeoutMs}ms — drilling anyway")
             StepDiagnostics.note(step.id, "ENTRY", "reason=timeout ids=$readyIds")
             return false
         }
         val window = if (foreground) minOf(timeoutMs, APP_SCREEN_WAIT_FOREGROUND_MS) else timeoutMs
         if (awaitScreenTexts(step.id, levelTexts, window)) return true
+        // Вторая попытка — после обработки стены: она закрывает экран, и маркер уровня
+        // появляется только после согласия (прогон rmvimewq4, music_sys).
+        if (handleConsentWalls(step) > 0 && awaitScreenTexts(step.id, levelTexts, window)) return true
         AppLog.w(
             TAG,
             "app entry: '${levelTexts.first()}' not visible after ${window}ms — drilling anyway"
@@ -4890,7 +4914,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
             val id = node.viewIdResourceName.orEmpty()
             val desc = node.contentDescription?.toString().orEmpty()
             if (id.endsWith("item_menu")) return@findInTree false
-            desc.isNotBlank() && HEADER_MENU_TEXTS.any { TextMatcher.normalizedContains(desc, it) }
+            desc.isNotBlank() && HEADER_MENU_TEXTS.any { TextMatcher.normalizedContains(desc, it) } &&
+                !isForbiddenTapTarget(node)
         }
 
     private fun findOverflowByContentDescription(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
@@ -4898,7 +4923,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         fun walk(node: AccessibilityNodeInfo?, depth: Int) {
             if (node == null || depth > 20) return
             val desc = node.contentDescription?.toString() ?: ""
-            if (desc.isNotBlank() && OVERFLOW_TEXTS.any { TextMatcher.normalizedContains(desc, it) }) {
+            if (desc.isNotBlank() && OVERFLOW_TEXTS.any { TextMatcher.normalizedContains(desc, it) } &&
+                !isForbiddenTapTarget(node)
+            ) {
                 result.add(node); return
             }
             for (i in 0 until node.childCount) walk(node.getChild(i), depth + 1)
@@ -4928,7 +4955,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 node.getBoundsInScreen(rect)
                 // Вырожденные bounds (MIUI: top>bottom) дают центр за пределами дисплея.
                 if (rect.width() > 0 && rect.height() > 0 &&
-                    rect.centerX() >= xMin && rect.centerY() <= yMax
+                    rect.centerX() >= xMin && rect.centerY() <= yMax &&
+                    !isForbiddenTapTarget(node)
                 ) {
                     candidates.add(node)
                 }
@@ -4952,13 +4980,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
         val allowed = runCatching {
             val root = service.rootInActiveWindow
             try {
-                positionalTapAllowed(root)
+                positionalTapAllowed(root) &&
+                    !(root != null && cornerHasForbiddenTarget(root))
             } finally {
                 root?.let { recycleNode(it) }
             }
         }.getOrDefault(false)
         if (!allowed) {
-            AppLog.i(TAG, "overflow gesture: alert dialog on screen — gesture skipped")
+            AppLog.i(TAG, "overflow gesture skipped (alert dialog or exit control in corner)")
             return false
         }
         val dm = service.resources.displayMetrics
@@ -7127,9 +7156,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
             texts.any { t ->
                 t.isNotBlank() &&
                     (TextMatcher.normalizedEquals(text, t) || TextMatcher.normalizedEquals(desc, t))
-            } && clickableAncestorOrSelf(n) != null
+            } && clickableAncestorOrSelf(n) != null && !isForbiddenTapTarget(n)
         }
-        return node?.let { clickableAncestorOrSelf(it) }
+        return node?.let { clickableAncestorOrSelf(it) }?.takeIf { !isForbiddenTapTarget(it) }
     }
 
     private fun findClickableByText(
@@ -7137,8 +7166,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
         texts: List<String>
     ): AccessibilityNodeInfo? {
         root ?: return null
-        return findInTree(root) { matchesAny(it, texts) && clickableAncestorOrSelf(it) != null }
-            ?.let { clickableAncestorOrSelf(it) }
+        return findInTree(root) {
+            matchesAny(it, texts) &&
+                clickableAncestorOrSelf(it) != null &&
+                !isForbiddenTapTarget(it)
+        }?.let { clickableAncestorOrSelf(it) }?.takeIf { !isForbiddenTapTarget(it) }
     }
 
     // internal — для тестируемости (SimpleRunnerScrollTest: строка ниже сгиба).
@@ -7392,6 +7424,44 @@ class SimpleRunner(private val service: AdbEnablerService) {
      */
     internal fun positionalTapAllowed(root: AccessibilityNodeInfo?): Boolean =
         root != null && !ConsentWallHandler.isAlertDialog(root)
+
+    /** Узел с подписью «выход/удаление»: drill-поиск его не выбирает (см. [EXIT_TEXTS]). */
+    private fun isForbiddenTapTarget(node: AccessibilityNodeInfo): Boolean {
+        val text = node.text?.toString().orEmpty()
+        val desc = node.contentDescription?.toString().orEmpty()
+        if (text.isBlank() && desc.isBlank()) return false
+        return EXIT_TEXTS.any { token ->
+            TextMatcher.normalizedContains(text, token) ||
+                TextMatcher.normalizedContains(desc, token)
+        }
+    }
+
+    /**
+     * В правом верхнем углу (куда бьёт слепой overflow-жест) стоит узел «выход/удаление».
+     * Тогда жест не выполняем: координатный тап попадёт ровно в него (прогон rmvimewq4:
+     * `touch/ACTION_CLICK` по «Выход» закрывал приложение).
+     */
+    private fun cornerHasForbiddenTarget(root: AccessibilityNodeInfo): Boolean {
+        val dm = service.resources.displayMetrics
+        val xMin = (dm.widthPixels * 0.85f).toInt()
+        val yMax = (dm.heightPixels * 0.15f).toInt()
+        var found = false
+        fun walk(node: AccessibilityNodeInfo?, depth: Int) {
+            if (found || node == null || depth > 20) return
+            val rect = Rect()
+            node.getBoundsInScreen(rect)
+            if (rect.width() > 0 && rect.height() > 0 &&
+                rect.centerX() >= xMin && rect.centerY() <= yMax &&
+                isForbiddenTapTarget(node)
+            ) {
+                found = true
+                return
+            }
+            for (i in 0 until node.childCount) walk(node.getChild(i), depth + 1)
+        }
+        walk(root, 0)
+        return found
+    }
 
     /** Bounds пригодны для координатного тапа: непустые и центр в пределах дисплея. */
     internal fun hasTappableBounds(rect: Rect): Boolean {

@@ -495,4 +495,44 @@ class SimpleRunnerDrillTest {
             runner.hasTappableBounds(android.graphics.Rect(0, 0, 100, 200))
         )
     }
+
+    @Test
+    fun `exit control in the corner is never tapped by drill`() = runTest {
+        // Прогон rmvimewq4 (music_sys): уровень «Показать меню» не подтвердился, угловой
+        // fallback тапнул `tv_quit` («Выход») — приложение закрылось, шаг бурил системные
+        // Настройки и упал `markers_mismatch`. «Выход» исключён из drill-поиска, слепой
+        // жест по такому углу не выполняется.
+        val quit = node(text = "Выход", clickable = true, className = "android.widget.TextView")
+        Mockito.doAnswer {
+            (it.arguments[0] as android.graphics.Rect).set(873, 91, 1025, 186)
+            null
+        }.`when`(quit).getBoundsInScreen(Mockito.any(android.graphics.Rect::class.java))
+        var taps = 0
+        Mockito.`when`(quit.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenAnswer {
+            taps++
+            true
+        }
+        val screen = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(quit, node(text = "Музыка"))
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(screen)
+        captureGestures()
+
+        val path = listOf(listOf("☰", "Показать меню"), listOf("Настройки"))
+        val advanced = runner.drillIntoLevel(step("music_sys"), 0, path[0], path)
+
+        assertFalse("уровень не подтверждён", advanced)
+        assertTrue("тап по «Выход» не отправлялся", taps == 0)
+        // Слепой overflow-жест бьёт в правый верхний угол; прокрутка экрана — в центр,
+        // поэтому проверяем именно угловые жесты, а не «любые».
+        val dm = RuntimeEnvironment.getApplication().resources.displayMetrics
+        val cornerGestures = gestureCenters.count {
+            it.first >= dm.widthPixels * 0.85f && it.second <= dm.heightPixels * 0.15f
+        }
+        assertTrue(
+            "слепой жест по углу с «Выход» не выполнялся: $gestureCenters",
+            cornerGestures == 0
+        )
+    }
 }

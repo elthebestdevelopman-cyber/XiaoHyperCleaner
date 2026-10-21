@@ -41,6 +41,13 @@ object ConsentWallHandler {
     /** Поллинг проверки «экран изменился»: ранний выход, а не фиксированная пауза. */
     private const val VERIFY_POLL_MS = 100L
 
+    /**
+     * Повтор поиска кнопки согласия после отметки чекбоксов: на стене Mi Music кнопка
+     * становится доступной не мгновенно (прогон rmvimewq4: через 0,45 с её ещё не было,
+     * в предыдущем прогоне находилась через 0,1 с). Слепых тапов по стене не делаем.
+     */
+    private const val WELCOME_ACCEPT_RETRY_MS = 400L
+
     /** Максимальное число попыток закрытия видеорекламы при запуске приложения. */
     private const val MAX_AD_DISMISS_ATTEMPTS = 3
 
@@ -317,6 +324,7 @@ object ConsentWallHandler {
         }
         recycle(root)
 
+        var checkboxMarked = false
         if (action.kind == "welcome") {
             // Чекбоксы персонализации снимаем ДО тапа согласия: на стенах Mi Браузера
             // и Тём они отмечены по умолчанию, и согласие «как есть» включало бы сбор.
@@ -335,10 +343,20 @@ object ConsentWallHandler {
             val checkboxVisible = checkboxTexts.isNotEmpty() &&
                 checkboxTexts.any { TextMatcher.normalizedContains(screenText, it) }
             if (checkboxVisible && bridge.tapByTexts(checkboxTexts)) {
+                checkboxMarked = true
                 AppLog.i(TAG, "consent: kind=welcome decision=checkbox_marked step=$stepId")
             }
         }
-        val dispatched = dispatch(bridge, action)
+        var dispatched = dispatch(bridge, action)
+        if (!dispatched && action.kind == "welcome" && checkboxMarked) {
+            // Кнопка согласия включается с задержкой после отметки: один короткий повтор
+            // расширенным набором вместо честного not_found (см. WELCOME_ACCEPT_RETRY_MS).
+            delay(WELCOME_ACCEPT_RETRY_MS)
+            dispatched = dispatch(bridge, action)
+            if (dispatched) {
+                AppLog.i(TAG, "consent: welcome accept retry succeeded step=$stepId")
+            }
+        }
         if (!dispatched) {
             log(stepId, action, owner, verified = false, decision = "not_found", screenText = screenText)
             return Outcome(false, action.kind, action.decision, safeToContinue = false)
