@@ -1167,9 +1167,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         job = scope.launch {
             val start = System.currentTimeMillis()
-            // Размер плана (префильтр) в диагностике: total на оверлее = размер плана.
-            val planTotal = SimplePlan.total().takeIf { it > 0 } ?: SimpleSteps.ALL.size
-            StepDiagnostics.stepStart(step.id, 0, planTotal, null, profile)
+            // START печатает сервис (`runSimpleStep`) с РЕАЛЬНЫМ индексом шага; дубль от
+            // раннера всегда давал `idx=1/N` и путал разбор прогона (rmvimewq4).
 
             val result = try {
                 val r = withTimeoutOrNull(timeout) { runInternal(step, profile) } ?: Result(

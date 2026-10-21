@@ -46,7 +46,7 @@ object StepDiagnostics {
                 "pkg=${resolvedPkg ?: "-"} region=${profile.region} " +
                 "miui=${profile.miuiVersion} hyper=${profile.hyperOsHint} " +
                 "rom=${profile.family}/${profile.uiVersion ?: "unknown"} " +
-                "sdk=${Build.VERSION.SDK_INT} model=${Build.MODEL}"
+                "sdk=${Build.VERSION.SDK_INT} model=${Build.MODEL} ts=${System.currentTimeMillis()}"
         )
     }
 
@@ -68,7 +68,7 @@ object StepDiagnostics {
             TAG,
             "DIAG run=$runId step=$stepId event=$event reason=$reason " +
                 "elapsed=${elapsedMs}ms ${metrics.formatFields()} " +
-                "pkg=$pkg windows=$windows screen=[$screen]"
+                "pkg=$pkg windows=$windows screen=[$screen] ts=${System.currentTimeMillis()}"
         )
     }
 
