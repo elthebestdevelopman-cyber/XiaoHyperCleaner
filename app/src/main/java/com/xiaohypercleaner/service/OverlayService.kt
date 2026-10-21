@@ -107,6 +107,14 @@ class OverlayService : Service() {
          * (прогон rmv16fbxe: `reverseSimpleToggles done: 0/20`).
          */
         private const val RECOVERY_GRACE_MS = 800L
+
+    /**
+     * Окно «привыкания» после старта фазы: касание по «Отменить» в первые секунды — почти
+     * всегда случайный тап по центру экрана (прогон rmvimewq4: оба повторных прогона умерли
+     * на шаге 1 через 1–2 с после старта, `touch intercepted` рядом нет — событие съедала
+     * сама кнопка).
+     */
+    internal const val CANCEL_SETTLE_MS = 3000L
     }
 
     enum class PointerMode { TOP_RIGHT, BOTTOM_LIST, SWITCH_RIGHT, LIST_ITEM_CENTER, GENERIC_BOTTOM }
@@ -426,6 +434,14 @@ class OverlayService : Service() {
             LinearLayout.LayoutParams.MATCH_PARENT, dp(44)
         ).apply { topMargin = dp(12) })
         cancel.setOnClickListener {
+            // Окно «привыкания»: в первые секунды фазы отмена игнорируется — иначе случайный
+            // тап по центру экрана убивает прогон на первом шаге (см. [CANCEL_SETTLE_MS]).
+            val sinceStart = System.currentTimeMillis() - automationStartedAt
+            if (cancelSettleActive(System.currentTimeMillis(), automationStartedAt)) {
+                AppLog.i(TAG, "automation cancel ignored: phase settling (${sinceStart}ms)")
+                return@setOnClickListener
+            }
+            AppLog.i(TAG, "overlay control touched: cancel (${sinceStart}ms into phase)")
             // Сторож ±500 мс вокруг наших жестов (S4): жест мог ещё не дойти до
             // приложения, и тап по кнопке отменял прогон случайно (прогон rmuh2vb1r:
             // `automation cancelled by user` на шаге 27/28 без действий владельца).
@@ -487,12 +503,14 @@ class OverlayService : Service() {
         val btnParams = {
             LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
+        // «Продолжить» слева: подтверждение отмены — не то действие, которое должно
+        // ловить первый случайный тап по панели (прогон rmvimewq4).
         row.addView(
-            textBtn(getString(R.string.automation_cancel_confirm_yes)) { confirmCancel() },
+            textBtn(getString(R.string.automation_cancel_confirm_no)) { dismissCancelConfirm() },
             btnParams()
         )
         row.addView(
-            textBtn(getString(R.string.automation_cancel_confirm_no)) { dismissCancelConfirm() },
+            textBtn(getString(R.string.automation_cancel_confirm_yes)) { confirmCancel() },
             btnParams()
         )
         panel.addView(row, llWrap().apply { topMargin = dp(10) })
@@ -504,6 +522,7 @@ class OverlayService : Service() {
 
     /** «Продолжить»: диалог снимается, панель возвращается к обычному виду, прогон идёт. */
     private fun dismissCancelConfirm() {
+        AppLog.i(TAG, "overlay control touched: confirm_no — run continues")
         val panel = cancelConfirmPanel
         cancelConfirmPanel = null
         if (panel != null) (root as? FrameLayout)?.removeView(panel)
@@ -513,6 +532,7 @@ class OverlayService : Service() {
 
     /** «Отменить оптимизацию»: прогон прерывается осознанно — результат частичный. */
     private fun confirmCancel() {
+        AppLog.i(TAG, "overlay control touched: confirm_yes — cancelling")
         if (OverlayController.isGestureGuardActive()) {
             AppLog.w(TAG, "automation cancel confirm ignored: gesture guard active")
             return
@@ -1234,3 +1254,12 @@ class OverlayService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 }
+
+/**
+ * Окно «привыкания» отмены: в первые [OverlayService.CANCEL_SETTLE_MS] после старта фазы
+ * касание по «Отменить» игнорируется. Прогон rmvimewq4: оба повторных прогона умерли на
+ * первом шаге через 1–2 с после старта, при этом `touch intercepted` рядом не было —
+ * событие потребляла сама кнопка оверлея.
+ */
+internal fun cancelSettleActive(nowMs: Long, startedMs: Long): Boolean =
+    nowMs - startedMs < OverlayService.CANCEL_SETTLE_MS
