@@ -535,4 +535,40 @@ class SimpleRunnerDrillTest {
             cornerGestures == 0
         )
     }
+
+    @Test
+    fun `labelled control wins over generic container in drill`() = runTest {
+        // Прогон rmvimewq4 (security_sys): drill тапнул безымянную карточку `FrameLayout`
+        // вместо кнопки ⚙ с описанием «Настройки» — шаг ушёл на другой экран приложения
+        // и упал `markers_mismatch`. Помеченный контрол важнее контейнера.
+        val card = node(text = "Настройки", clickable = true, className = "android.widget.FrameLayout")
+        val gear = node(description = "Настройки", clickable = true, className = "android.widget.Button")
+        var cardTaps = 0
+        var gearTaps = 0
+        val settingsScreen = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(node(text = "Разрешения"))
+        )
+        var current: AccessibilityNodeInfo = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(card, gear)
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenAnswer { current }
+        Mockito.`when`(card.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenAnswer {
+            cardTaps++
+            true
+        }
+        Mockito.`when`(gear.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenAnswer {
+            gearTaps++
+            current = settingsScreen
+            true
+        }
+
+        val path = listOf(listOf("⚙", "Настройки"), listOf("Разрешения"))
+        val passed = runner.drillIntoLevel(step("security_sys"), 0, path[0], path)
+
+        assertTrue("уровень пройден кнопкой ⚙", passed)
+        assertTrue("кнопка ⚙ тапнута один раз: $gearTaps", gearTaps == 1)
+        assertTrue("карточка не тапалась: $cardTaps", cardTaps == 0)
+    }
 }

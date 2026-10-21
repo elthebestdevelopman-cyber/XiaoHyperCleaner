@@ -1915,7 +1915,22 @@ class SimpleRunner(private val service: AdbEnablerService) {
             return Result(false, NOT_APPLICABLE)
         }
 
-        val result = if (drillFailure != null) {
+        // D7 (прогон rmvgvhbzu): последний уровень маршрута не найден, но целевая строка может
+        // жить на предыдущем экране ниже сгиба (плеер: третий уровень «Расширенные настройки»
+        // есть не во всех версиях). Ограниченный скролл-поиск снимает drill-провал, если цель
+        // нашлась: уровень маршрута необязателен.
+        var drillFailureResolved = drillFailure
+        if (drillFailure != null && lastDrillLevelNotFound && drillFailure != FOREIGN_WINDOW &&
+            scrollUntilScreenHasAny(verifyTexts)
+        ) {
+            AppLog.i(
+                TAG,
+                "step ${step.id}: цель найдена скроллом — уровень маршрута необязателен"
+            )
+            StepDiagnostics.note(step.id, "APPLICABILITY", "target_found_by_scroll")
+            drillFailureResolved = null
+        }
+        val result = if (drillFailureResolved != null) {
             if (drillFailure == FOREIGN_WINDOW) {
                 // P4: дрил остановлен на чужом окне без единого действия по чужому приложению.
                 AppLog.w(TAG, "step ${step.id}: чужое окно — шаг остановлен (foreign_window)")
@@ -3843,6 +3858,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
             ) {
                 recovered = awaitScreen(mergedSearchTexts) ||
                     scrollUntilScreenHasAny(mergedSearchTexts + markers)
+                // Критерий «экран найден» обязан совпадать с гейтом уверенности по маркерам:
+                // иначе шаг заявлял «нашёл» там, где гейт потом давал markers_mismatch
+                // (прогон rmvimewq4, security_sys: 26 с на чужом экране).
+                recovered = recovered && (markers.isEmpty() || screenHasAny(markers))
                 if (recovered) {
                     AppLog.i(TAG, "step ${step.id}: target screen found after re-entry")
                     StepDiagnostics.note(step.id, "APPLICABILITY", "recovered_after_reentry")
@@ -7150,15 +7169,40 @@ class SimpleRunner(private val service: AdbEnablerService) {
         root: AccessibilityNodeInfo,
         texts: List<String>
     ): AccessibilityNodeInfo? {
-        val node = NodeTree.findInTree(root) { n ->
-            val text = n.text?.toString()
-            val desc = n.contentDescription?.toString()
-            texts.any { t ->
+        val matches = mutableListOf<AccessibilityNodeInfo>()
+        fun walk(node: AccessibilityNodeInfo?, depth: Int) {
+            if (node == null || depth > 20) return
+            val text = node.text?.toString()
+            val desc = node.contentDescription?.toString()
+            val hit = texts.any { t ->
                 t.isNotBlank() &&
                     (TextMatcher.normalizedEquals(text, t) || TextMatcher.normalizedEquals(desc, t))
-            } && clickableAncestorOrSelf(n) != null && !isForbiddenTapTarget(n)
+            }
+            if (hit && !isForbiddenTapTarget(node)) {
+                clickableAncestorOrSelf(node)?.let { target ->
+                    if (!isForbiddenTapTarget(target)) matches.add(target)
+                }
+            }
+            for (i in 0 until node.childCount) walk(node.getChild(i), depth + 1)
         }
-        return node?.let { clickableAncestorOrSelf(it) }?.takeIf { !isForbiddenTapTarget(it) }
+        walk(root, 0)
+        return pickBestDrillCandidate(matches)
+    }
+
+    /**
+     * Выбор цели drill из нескольких совпадений: помеченный контрол (Button/ImageView/
+     * ImageButton с подписью или описанием) важнее безымянного кликабельного контейнера.
+     * Прогон rmvimewq4 (`security_sys`): drill тапнул безымянную карточку `FrameLayout`,
+     * хотя на экране была кнопка ⚙ `id=settings` — шаг ушёл на другой экран приложения.
+     */
+    private fun pickBestDrillCandidate(
+        candidates: List<AccessibilityNodeInfo>
+    ): AccessibilityNodeInfo? = candidates.maxByOrNull { node ->
+        val cls = node.className?.toString().orEmpty()
+        val labelled = !node.text?.toString().isNullOrBlank() ||
+            !node.contentDescription?.toString().isNullOrBlank()
+        val controlClass = cls.contains("Button") || cls.contains("ImageView")
+        (if (controlClass) 2 else 0) + (if (labelled) 1 else 0) + (if (node.isClickable) 1 else 0)
     }
 
     private fun findClickableByText(
@@ -7166,11 +7210,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
         texts: List<String>
     ): AccessibilityNodeInfo? {
         root ?: return null
-        return findInTree(root) {
-            matchesAny(it, texts) &&
-                clickableAncestorOrSelf(it) != null &&
-                !isForbiddenTapTarget(it)
-        }?.let { clickableAncestorOrSelf(it) }?.takeIf { !isForbiddenTapTarget(it) }
+        val matches = mutableListOf<AccessibilityNodeInfo>()
+        fun walk(node: AccessibilityNodeInfo?, depth: Int) {
+            if (node == null || depth > 20) return
+            if (matchesAny(node, texts) && !isForbiddenTapTarget(node)) {
+                clickableAncestorOrSelf(node)?.let { target ->
+                    if (!isForbiddenTapTarget(target)) matches.add(target)
+                }
+            }
+            for (i in 0 until node.childCount) walk(node.getChild(i), depth + 1)
+        }
+        walk(root, 0)
+        return pickBestDrillCandidate(matches)
     }
 
     // internal — для тестируемости (SimpleRunnerScrollTest: строка ниже сгиба).
