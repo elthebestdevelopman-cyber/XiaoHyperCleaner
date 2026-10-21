@@ -611,6 +611,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Корутина сторожа предшага: снимается любым решением пользователя и закрытием режима. */
     private var preStepGuardJob: Job? = null
 
+    /** Лог «предшаг идёт» печатается один раз на ожидание, а не на каждую дверь. */
+    private var preStepWaitingLogged: Boolean = false
+
     /**
      * Гейт предшага для контроллера: `false` — предшаг ещё не решён, шаги не стартуют.
      *
@@ -625,6 +628,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (installerPreStepDecided) return true
         // Не фаза разрешений — предшаг к ней отношения не имеет (повторные двери в шаги).
         if (_state.value.simpleModePhase != SimpleModePhase.PERMISSIONS) return true
+        // Предшаг УЖЕ идёт (открыт установщик/настройки права): шаги ждут его завершения.
+        // Прежний контракт открывал гейт по самому клику «Отключить сейчас», и возврат с
+        // батареи стартовал прогон мимо предшага — установщик не открывался, «Получать
+        // рекомендации» не снималось (прогон rmvgvhbzu §97, повтор rmvimewq4).
+        if (_state.value.installerPreStepWaiting) {
+            if (!preStepWaitingLogged) {
+                preStepWaitingLogged = true
+                AppLog.i(TAG, "preStepsGateOpen: pre-step in progress (waiting), steps not started")
+            }
+            return false
+        }
         if (!installerPreStepAsked) {
             installerPreStepAsked = true
             AppLog.i(TAG, "installer pre-step: asking before steps (battery decided)")
@@ -713,7 +727,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i(TAG, "installer pre-step: disable now")
         installerPermissionAttempts = 0
         installerPreStepAsked = true
-        installerPreStepDecided = true
+        // Гейт НЕ открываем: «решено» = предшаг завершён (окно установщика открыто и возврат
+        // обработан либо честный отказ), а не клик по кнопке. Иначе возврат с батареи
+        // запускал прогон мимо предшага (прогон rmvgvhbzu §97, повтор rmvimewq4).
+        preStepWaitingLogged = false
         cancelPreStepGuard()
         update { it.copy(showInstallerPreStep = false, installerPreStepWaiting = true) }
         viewModelScope.launch { runInstallerPreStep() }
@@ -727,6 +744,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Право так и не выдали: держать пользователя в цикле настроек нельзя.
                 // Копии ещё нет, pending не выставлен — идём обычным стартом.
                 AppLog.w(TAG, "installer pre-step: unknown sources not granted — обычный старт")
+                installerPreStepDecided = true
                 update { it.copy(installerPreStepWaiting = false) }
                 startSimpleMode()
                 return
@@ -742,6 +760,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val apk = withContext(Dispatchers.IO) { SelfApkExporter.copyToCache(app) }
         if (apk == null) {
             AppLog.w(TAG, "installer pre-step: apk copy failed — обычный старт")
+            installerPreStepDecided = true
             update { it.copy(installerPreStepWaiting = false) }
             startSimpleMode()
             return
@@ -758,6 +777,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Установщик не открылся — ни ожидания, ни копии быть не должно.
             clearInstallerPreStepState()
             withContext(Dispatchers.IO) { SelfApkExporter.purge(app) }
+            installerPreStepDecided = true
             update { it.copy(installerPreStepWaiting = false) }
             startSimpleMode()
             return
@@ -1063,9 +1083,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         "lastUpdateAfterOpenSec=${(lastUpdate - openedAt) / 1000}"
                 )
                 if (!installed) {
-                    // Установки не было — предшаг не подтверждён: ожидание снимается, старта нет.
+                    // Установки не было — предшаг не подтверждён, но и ожидания больше нет:
+                    // решение считается принятым, режим идёт обычным стартом (иначе гейт
+                    // предшага держал бы шаги закрытыми навсегда).
+                    AppLog.i(TAG, "installer pre-step: install not happened — обычный старт")
+                    installerPreStepDecided = true
                     update { it.copy(installerPreStepWaiting = false) }
                     clearInstallerPreStepState()
+                    if (_state.value.simpleModeActive) {
+                        simpleController.updatePermissionStatuses(
+                            _state.value.isAccessibilityEnabled,
+                            _state.value.isOverlayGranted
+                        )
+                        simpleController.refresh()
+                    }
                     return@launch
                 }
             }

@@ -207,6 +207,31 @@ class MainViewModelTest {
     }
 
     @Test
+    fun `pre-step in progress keeps the steps gate closed`() = runTest {
+        // §97 / rmvimewq4: клик «Отключить сейчас» сразу открывал гейт, и возврат с батареи
+        // стартовал прогон, пока предшаг ждал права «неизвестные источники»: установщик не
+        // открывался, «Получать рекомендации» не снималось. Пока предшаг идёт — гейт закрыт.
+        vm.startFlow()
+        vm.onLevelChosen(OptimizationMode.SIMPLE)
+        vm.confirmLevelStart(OptimizationMode.SIMPLE)
+        vm.applyPermissionStatuses(acc = true, overlay = true)
+        vm.onBatteryDialogSkipped()
+        assertTrue("предшаг спрошен", vm.state.value.showInstallerPreStep)
+
+        vm.onInstallerPreStepDisableNow()
+        assertTrue("предшаг в ожидании", vm.state.value.installerPreStepWaiting)
+        assertNull("шаг не стартует, пока предшаг идёт", vm.state.value.simpleStep)
+
+        // Возврат с батареи во время предшага шагов не запускает.
+        vm.onBatteryDialogSkipped()
+        assertNull("дверь батареи не открывает шаги во время предшага", vm.state.value.simpleStep)
+
+        // Пользователь отказался ждать — предшаг решён, режим продолжается.
+        vm.onInstallerPreStepWaitingSkip()
+        assertFalse("ожидание снято", vm.state.value.installerPreStepWaiting)
+    }
+
+    @Test
     fun `continueToSteps also waits for the pre-step decision`() = runTest {
         // Вторая дверь в шаги: подтверждение уровня при активном режиме. Она обязана упираться
         // в тот же гейт, иначе шаги стартовали бы в обход предшага.
