@@ -671,6 +671,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * тем же путём.
      */
     private fun continueAfterPreStepGuard(startedAt: Long) {
+        // Задание сторожа завершено в ОБЕИХ ветках: ссылку не держим, новая точка показа
+        // создаст своё. Зануление только в ветке «сработал» оставляло бы ссылку на
+        // завершённую джобу.
+        preStepGuardJob = null
         val due = installerPreStepGuardDue(
             elapsedMs = SystemClock.elapsedRealtime() - startedAt,
             dialogShown = _state.value.showInstallerPreStep || _state.value.installerPreStepWaiting,
@@ -683,7 +687,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         installerPreStepDecided = true
-        preStepGuardJob = null
         AppLog.i(
             TAG,
             "installer pre-step: guard timeout after 10min, continuing without user decision"
