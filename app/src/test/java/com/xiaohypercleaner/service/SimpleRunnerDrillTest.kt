@@ -445,4 +445,54 @@ class SimpleRunnerDrillTest {
             gestureCenters.isEmpty()
         )
     }
+
+    @Test
+    fun `positional overflow tap is blocked while an alert dialog is up`() {
+        // Прогон rmvikvzqm (Загрузки): стена PrivacyGrantDialog висит, слепой тап в правый
+        // верхний угол попадает по dim-фону ([0,0][1080,2179], clickable) и ЗАКРЫВАЕТ диалог
+        // отменой — согласие не нажато, шаг упал по timeout и не восстановился.
+        val title = node(text = "Условия использования", className = "android.widget.TextView")
+        Mockito.`when`(title.viewIdResourceName).thenReturn("com.android.settings:id/alertTitle")
+        val cancel = node(text = "Отмена", clickable = true, className = "android.widget.Button")
+        Mockito.`when`(cancel.viewIdResourceName).thenReturn("android:id/button2")
+        val agree = node(text = "Согласен", clickable = true, className = "android.widget.Button")
+        Mockito.`when`(agree.viewIdResourceName).thenReturn("android:id/button1")
+        val dialog = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(title, cancel, agree)
+        )
+
+        assertFalse(
+            "при открытом диалоге позиционный тап запрещён",
+            runner.positionalTapAllowed(dialog)
+        )
+        assertFalse("без окна тапать некуда", runner.positionalTapAllowed(null))
+        assertTrue(
+            "обычный экран без диалога позиционный тап разрешает",
+            runner.positionalTapAllowed(node(className = "android.widget.FrameLayout"))
+        )
+    }
+
+    @Test
+    fun `degenerate bounds are not tapped`() {
+        // MIUI отдаёт кнопку диалога с bounds [559,2524][1000,2400] (top>bottom): центр
+        // (779,2462) за пределами дисплея, а прежний код сообщал ok=true о промахе —
+        // диалог отзыва согласия оставался, шаг добирал ожидания (прогон rmvikvzqm).
+        assertFalse(
+            "вырожденные bounds не тапаем",
+            runner.hasTappableBounds(android.graphics.Rect(559, 2524, 1000, 2400))
+        )
+        assertFalse(
+            "пустые bounds не тапаем",
+            runner.hasTappableBounds(android.graphics.Rect(0, 0, 0, 0))
+        )
+        assertFalse(
+            "центр за пределами дисплея не тапаем",
+            runner.hasTappableBounds(android.graphics.Rect(5000, 5000, 5100, 5100))
+        )
+        assertTrue(
+            "обычная кнопка в пределах дисплея тапается",
+            runner.hasTappableBounds(android.graphics.Rect(0, 0, 100, 200))
+        )
+    }
 }

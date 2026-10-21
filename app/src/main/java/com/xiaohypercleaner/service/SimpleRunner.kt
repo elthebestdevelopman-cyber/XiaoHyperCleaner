@@ -654,6 +654,16 @@ class SimpleRunner(private val service: AdbEnablerService) {
         /** Потолок повторов входа на шаг: каждый повтор стоит до [APP_SCREEN_WAIT_MS]. */
         private const val MAX_REENTRY_ATTEMPTS = 3
 
+        /** Сколько стен согласия принимаем в цикле обратного входа (страховка от вечной стены). */
+        private const val MAX_REENTRY_WALLS = 2
+
+        /**
+         * Стена согласия принимается ПЕРЕД повторным входом только в откате и не больше
+         * [MAX_REENTRY_WALLS] раз на шаг: вечная стена не должна крутить цикл.
+         */
+        internal fun shouldHandleWallBeforeEntry(reverse: Boolean, wallsHandled: Int): Boolean =
+            reverse && wallsHandled < MAX_REENTRY_WALLS
+
         /** Сколько ждать появления диалога подтверждения (confirmTexts) после тумблера. */
         /** Пауза после тапа подтверждения: проверяем, что диалог действительно закрылся. */
         private const val CONFIRM_SETTLE_MS = 400L
@@ -1641,7 +1651,27 @@ class SimpleRunner(private val service: AdbEnablerService) {
             var attempts = 0
             var neutralLogged = false
             var immediateEntryDone = false
+            var wallsHandled = 0
             while (true) {
+                // Стена согласия над целевым приложением (PrivacyGrantDialog Загрузок поднимает
+                // com.android.settings) выглядит «нейтральным окном»: без принятия цикл повторяет
+                // вход, бюджет кончается, а слепой drill гасит диалог тапом по dim-фону = отказ
+                // (прогон rmvikvzqm: downloads FAIL timeout, шаг не восстановлен). Принимаем стену
+                // и пересчитываем решение; число принятий ограничено, чтобы вечная стена не крутила
+                // цикл. Только откат: форвардный путь зовёт обработчик стен до входа.
+                if (shouldHandleWallBeforeEntry(reverseCtx != null, wallsHandled)) {
+                    val walls = handleConsentWalls(step)
+                    if (walls > 0) {
+                        wallsHandled++
+                        AppLog.i(
+                            TAG,
+                            "reverse entry: ${step.id} consent walls=$walls handled before entry " +
+                                "(wall=$wallsHandled/$MAX_REENTRY_WALLS)"
+                        )
+                        StepDiagnostics.note(step.id, "CONSENT", "reverse_wall_handled=$walls")
+                        continue
+                    }
+                }
                 val decision = ReverseExtras.entryLoopDecision(
                     reverse = reverseCtx != null,
                     onStepScreen = onStepScreen,
@@ -4878,6 +4908,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     private fun findOverflowByPosition(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        // Диалог на экране: позиционный тап в правый верхний угол попадает по dim-фону
+        // (у PrivacyGrantDialog Загрузок он clickable на весь экран) и ЗАКРЫВАЕТ диалог
+        // отменой вместо согласия. Стену обязан принимать ConsentWallHandler, а не слепой
+        // fallback (прогон rmvikvzqm: согласие не нажато, downloads упал по timeout).
+        if (!positionalTapAllowed(root)) {
+            AppLog.i(TAG, "overflow by position: alert dialog on screen — positional tap skipped")
+            return null
+        }
         val dm = service.resources.displayMetrics
         val xMin = (dm.widthPixels * 0.85f).toInt()
         val yMax = (dm.heightPixels * 0.15f).toInt()
@@ -4888,7 +4926,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
             if (node.isClickable) {
                 val rect = Rect()
                 node.getBoundsInScreen(rect)
-                if (rect.centerX() >= xMin && rect.centerY() <= yMax) candidates.add(node)
+                // Вырожденные bounds (MIUI: top>bottom) дают центр за пределами дисплея.
+                if (rect.width() > 0 && rect.height() > 0 &&
+                    rect.centerX() >= xMin && rect.centerY() <= yMax
+                ) {
+                    candidates.add(node)
+                }
             }
             for (i in 0 until node.childCount) walk(node.getChild(i), depth + 1)
         }
@@ -4905,6 +4948,19 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * вместо ложной работы в другом приложении.
      */
     private suspend fun performOverflowGesture(stayInPackage: String? = null): Boolean {
+        // Слепой позиционный жест по открытому диалогу = отмена согласия: не жмём.
+        val allowed = runCatching {
+            val root = service.rootInActiveWindow
+            try {
+                positionalTapAllowed(root)
+            } finally {
+                root?.let { recycleNode(it) }
+            }
+        }.getOrDefault(false)
+        if (!allowed) {
+            AppLog.i(TAG, "overflow gesture: alert dialog on screen — gesture skipped")
+            return false
+        }
         val dm = service.resources.displayMetrics
         for ((fx, fy) in OVERFLOW_GESTURE_POINTS) {
             if (cancelled) return false
@@ -7295,6 +7351,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // ACTION_CLICK не сработал: координатный повтор ТОГО ЖЕ узла — строго внутри
         // passthrough-окна. Прежний порядок (сначала жест, окно позже) давал
         // `touch intercepted` и потерю тапа (прогон rmumuqr53).
+        // Вырожденные bounds (MIUI: [559,2524][1000,2400], top>bottom) не тапаем: центр за
+        // пределами дисплея, а прежний код сообщал ok=true о промахе (прогон rmvikvzqm:
+        // диалог отзыва согласия остался, шаг добирал wait_miss_ms).
+        if (!hasTappableBounds(rect)) {
+            AppLog.w(TAG, "tap: $cls id=$id bounds=$bounds degenerate — coordinate tap skipped")
+            return false
+        }
         val retried = withOverlayPassthrough { tapAtRaw(rect.centerX(), rect.centerY()) }
         if (retried) {
             AppLog.i(
@@ -7319,6 +7382,23 @@ class SimpleRunner(private val service: AdbEnablerService) {
         )
         if (byGesture) stepMetrics.recordTap()
         return byGesture
+    }
+
+    /**
+     * Позиционный тап (правый верхний угол) разрешён только когда на экране НЕТ диалога:
+     * у PrivacyGrantDialog Загрузок dim-фон кликабелен на весь экран, и такой тап гасит
+     * диалог отменой вместо согласия (прогон rmvikvzqm: downloads FAIL timeout в откате,
+     * шаг не восстановлен). Стену обязан принимать ConsentWallHandler.
+     */
+    internal fun positionalTapAllowed(root: AccessibilityNodeInfo?): Boolean =
+        root != null && !ConsentWallHandler.isAlertDialog(root)
+
+    /** Bounds пригодны для координатного тапа: непустые и центр в пределах дисплея. */
+    internal fun hasTappableBounds(rect: Rect): Boolean {
+        if (rect.width() <= 0 || rect.height() <= 0) return false
+        val dm = service.resources.displayMetrics
+        return rect.centerX() in 0 until dm.widthPixels &&
+            rect.centerY() in 0 until dm.heightPixels
     }
 
     /** Жест с временно снятым поглощением тапов оверлеем (см. [withOverlayPassthrough]). */

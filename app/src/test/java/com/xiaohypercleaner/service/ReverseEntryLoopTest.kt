@@ -268,4 +268,28 @@ class ReverseEntryLoopTest {
             entryCandidateOrder(emptyList(), null).isEmpty()
         )
     }
+
+    @Test
+    fun `consent wall is handled before re-entry only in reverse and bounded`() {
+        // Прогон rmvikvzqm: PrivacyGrantDialog Загрузок поднимает com.android.settings, и без
+        // принятия стены цикл повторного входа считал окно нейтральным, выжигал бюджет, а
+        // drill гасил диалог отменой — шаг не восстановился. Принятие ограничено: вечная
+        // стена не должна крутить цикл.
+        assertFalse(
+            "форвард стену здесь не принимает",
+            SimpleRunner.shouldHandleWallBeforeEntry(reverse = false, wallsHandled = 0)
+        )
+        assertTrue(
+            "откат: первая стена принимается",
+            SimpleRunner.shouldHandleWallBeforeEntry(reverse = true, wallsHandled = 0)
+        )
+        assertTrue(
+            "откат: вторая стена принимается",
+            SimpleRunner.shouldHandleWallBeforeEntry(reverse = true, wallsHandled = 1)
+        )
+        assertFalse(
+            "потолок принятий исчерпан — цикл не крутится",
+            SimpleRunner.shouldHandleWallBeforeEntry(reverse = true, wallsHandled = 2)
+        )
+    }
 }

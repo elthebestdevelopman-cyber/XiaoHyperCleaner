@@ -175,6 +175,59 @@ class ConsentWallTest {
     }
 
     @Test
+    fun `target rows on screen are not a welcome wall`() = runTest {
+        // Прогон rmvikvzqm: в настройках Загрузок строка «Политика конфиденциальности» —
+        // это целевой экран шага, а не стена. Ветка app_owned принимала её и дважды за шаг
+        // писала skipped_no_button, добавляя ожидания (12,9 с при wait_ms 8,9 с).
+        withLocale("ru") {
+            val action = ConsentWallHandler.classify(
+                screenText = "Настройки Настройки Получать рекомендации Отзыв согласия " +
+                    "Переводя выключатель в положение \"Выкл.\", вы отзываете свое согласие " +
+                    "с Политикой конфиденциальности приложения \"Загрузки\". " +
+                    "Политика конфиденциальности О приложении Версия",
+                ownerPackage = "com.android.providers.downloads.ui",
+                stepPackages = listOf("com.android.providers.downloads.ui"),
+                stepId = "downloads",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = emptyList(),
+                alertDialog = false
+            )
+            assertTrue(
+                "целевой экран Загрузок не считается welcome-стеной: kind=${action?.kind}",
+                action == null || action.kind != "welcome"
+            )
+        }
+    }
+
+    @Test
+    fun `privacy grant dialog of downloads is accepted with its own button`() = runTest {
+        // Дамп diag-dumps/fresh2/g_downloads_wall.xml: PrivacyGrantDialog
+        // com.android.settings с кнопками «Отмена» (button2) и «Согласен» (button1).
+        // Стену обязан принимать обработчик: слепой drill гасил её отменой по dim-фону.
+        withLocale("ru") {
+            val action = ConsentWallHandler.classify(
+                screenText = "Условия использования Добро пожаловать в Загрузки! Вы можете " +
+                    "использовать это приложение для загрузки файлов. Перед началом " +
+                    "использования приложения Загрузки, ознакомьтесь и согласитесь с нашими " +
+                    "Условиями использования и Политикой конфиденциальности. Отмена Согласен",
+                ownerPackage = "com.android.settings",
+                stepPackages = listOf("com.android.providers.downloads.ui"),
+                stepId = "downloads",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = emptyList(),
+                alertDialog = true,
+                confirmButtonTexts = listOf("Отмена", "Согласен")
+            )
+            assertEquals("стена распознана как welcome", "welcome", action?.kind)
+            assertEquals("принимается, а не отклоняется", "accepted", action?.decision)
+            assertTrue(
+                "согласие ищется по подписи «Согласен»: ${action?.texts}",
+                action!!.texts.any { it.equals("Согласен", ignoreCase = true) }
+            )
+        }
+    }
+
+    @Test
     fun `no dialog leads to no action`() = runTest {
         val node = screen("Настройки Отпечатки")
         Mockito.`when`(service.rootInActiveWindow).thenReturn(node)

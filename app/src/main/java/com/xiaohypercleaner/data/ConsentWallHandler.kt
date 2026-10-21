@@ -569,12 +569,20 @@ object ConsentWallHandler {
             .distinct()
             .filterNot { candidate -> skipBlocked.any { it.equals(candidate, ignoreCase = true) } }
 
+        // Целевые строки шага на экране: «Политика конфиденциальности» в настройках Загрузок —
+        // это цель шага, а не стена. Guard нужен ОБЕИМ welcome-ветками (4 и 5): без него
+        // app_owned давал ложную стену skipped_no_button дважды за шаг и лишние ожидания
+        // (прогон rmvikvzqm, downloads: 12,9 с при wait_ms 8,9 с).
+        val targetRows = SemanticCatalog.itemTexts(stepId)
+        val onTargetRows = targetRows.isNotEmpty() &&
+            targetRows.any { TextMatcher.normalizedContains(screenText, it) }
+
         // 4. Диалог принадлежит приложению шага: «Отмена» на нём означает, что
         //    приложение не открылось, — соглашаемся (Проводник, Музыка, Браузер).
         //    Welcome-ветка отключается для шагов с RouteScript (allowWelcome=false):
         //    на их рабочих экранах «Еще»/«Настройки» из welcomeActions давали ложные стены.
         if (appOwned && (welcomeHit || permissionHit) && (allowWelcome || permissionHit) &&
-            SemanticCatalog.appOwnedDecision() == "accept"
+            SemanticCatalog.appOwnedDecision() == "accept" && (permissionHit || !onTargetRows)
         ) {
             return if (permissionHit && !welcomeHit) {
                 DialogAction(
@@ -602,9 +610,6 @@ object ConsentWallHandler {
         //    Но НЕ когда на экране лежит САМА ЦЕЛЬ шага: в настройках Загрузок строка
         //    «Политика конфиденциальности» (маркер welcomeMarkers) — это целевой экран,
         //    а не стена (прогон rmuvlyyor: ложная стена skipped_no_button на downloads).
-        val targetRows = SemanticCatalog.itemTexts(stepId)
-        val onTargetRows = targetRows.isNotEmpty() &&
-            targetRows.any { TextMatcher.normalizedContains(screenText, it) }
         if ((allowWelcome || restrictedWall) && (stepAcceptsWall || !onTargetScreen) &&
             !onTargetRows && welcomeHit
         ) {
