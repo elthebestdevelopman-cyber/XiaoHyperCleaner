@@ -99,6 +99,19 @@ class AdbEnablerService : AccessibilityService() {
         var instance: AdbEnablerService? = null
             private set
 
+        /**
+         * Живость сервиса для префлайта: объект подключён И реально читает окна.
+         * Проверка `Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES` отвечает только
+         * «включён в настройках»: после смерти процесса сервис может быть не подключён,
+         * и прогон шёл слепым (`PERCEPTION windows=0`, откат невозможен — rmvikvzqm).
+         */
+        fun isLive(): Boolean {
+            val svc = instance ?: return false
+            return runCatching {
+                svc.windows.isNotEmpty() || svc.rootInActiveWindow != null
+            }.getOrDefault(false)
+        }
+
         // ── PRO-цепочка: тексты для watchdog ──
         private val DEV_OPTIONS_TEXTS: Array<String> = arrayOf(
             "Developer options", "Параметры разработчика", "Для разработчиков",
@@ -382,6 +395,14 @@ class AdbEnablerService : AccessibilityService() {
     // ═══════════════════════════════════════════════════════════════
 
     private suspend fun runSimpleStep(index: Int, total: Int, expectedStepId: String) {
+        // Сервис, поднятый `startService` без подключения к accessibility, окна не видит:
+        // шаг честно падает сразу, а не бурит вслепую (прогон rmvikvzqm: 35 шагов
+        // windows=0 и откат, который некому выполнить).
+        if (instance !== this) {
+            AppLog.w(TAG, "runSimpleStep: accessibility not connected — step rejected")
+            SimpleStepBridge.onResult?.invoke(false, "service_not_connected")
+            return
+        }
         try {
             // Шаг из активного плана (PlanBuilder); fallback — legacy-порядок.
             val step: SimpleSteps.Step = SimplePlan.stepAt(index)?.step

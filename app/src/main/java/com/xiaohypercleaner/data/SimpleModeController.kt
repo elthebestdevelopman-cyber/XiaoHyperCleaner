@@ -43,6 +43,14 @@ class SimpleModeController(
      * без решения пользователя. ViewModel отвечает на него показом предшага установщика.
      */
     private val preStepsGate: () -> Boolean,
+    /**
+     * Живость сервиса доступности: `true` — сервис подключён и читает окна. Обязательный
+     * параметр по тому же правилу, что [preStepsGate]: «забыл назначить» становится ошибкой
+     * компиляции, а не слепым прогоном. Прогон rmvikvzqm: `Settings.Secure` говорил
+     * «включён», сервис был не подключён — 35 шагов `PERCEPTION windows=0`, откат потом
+     * невозможен (`accessibility offline, skip simple reverse`).
+     */
+    private val accessibilityLive: () -> Boolean,
     private val onStateChanged: (SimpleModeState) -> Unit
 ) {
     companion object {
@@ -104,6 +112,19 @@ class SimpleModeController(
             context.contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         )?.contains(component) == true
+    }
+
+    /** Возврат к разрешению доступности: шаги не начинаются без живого сервиса. */
+    private fun backToAccessibilityPermission() {
+        setState {
+            copy(
+                phase = SimpleModePhase.PERMISSIONS,
+                permissionSubPhase = PermissionSubPhase.ACCESSIBILITY,
+                showAccessibilityDialog = true,
+                showOverlayDialog = false,
+                showBatteryDialog = false
+            )
+        }
     }
 
     private fun checkOverlay(): Boolean = Settings.canDrawOverlays(context)
@@ -524,12 +545,31 @@ class SimpleModeController(
         val overlayPreflight = OverlayPermissionProbe.isGranted(context)
         isOverlayGranted = overlayPreflight
         isAccessibilityEnabled = checkAccessibility()
+        val accessibilityOnline = accessibilityLive()
         val batteryPreflight = permissionFlow.isIgnoringBatteryOptimizations()
         AppLog.i(
             TAG,
             "preflight: overlay=$overlayPreflight (${OverlayPermissionProbe.describe(context)}) " +
-                "accessibility=$isAccessibilityEnabled battery=$batteryPreflight"
+                "accessibility=$isAccessibilityEnabled" +
+                (if (isAccessibilityEnabled && !accessibilityOnline) " live=false" else "") +
+                " battery=$batteryPreflight"
         )
+        if (isAccessibilityEnabled && !accessibilityOnline) {
+            // Включён в настройках, но сервис не отвечает: шаги шли слепыми (windows=0),
+            // результат — мусорные провалы и невозможный откат. Возвращаемся к разрешению:
+            // пользователю нужно выключить и включить сервис заново.
+            AppLog.w(
+                TAG,
+                "preflight: accessibility enabled but service offline — back to permission phase"
+            )
+            backToAccessibilityPermission()
+            return false
+        }
+        if (!isAccessibilityEnabled) {
+            AppLog.w(TAG, "preflight: accessibility disabled — back to permission phase")
+            backToAccessibilityPermission()
+            return false
+        }
         if (!overlayPreflight) {
             // Шаги без окна автоматизации — это «слепая» автоматизация: возвращаемся к
             // диалогу разрешения, а не стартуем цепочку.

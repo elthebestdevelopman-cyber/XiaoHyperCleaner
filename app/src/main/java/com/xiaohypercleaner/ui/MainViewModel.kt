@@ -96,7 +96,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         permissionFlow,
         // Гейт предшага назначается при конструировании: к любому входу в шаги он уже есть,
         // и «забыть» его нельзя — параметр обязательный.
-        { installerPreStepGateOpen() }
+        { installerPreStepGateOpen() },
+        // Живость сервиса: «включён в настройках» ≠ «подключён» (иначе слепой прогон).
+        { AdbEnablerService.isLive() }
     ) { mergeSimpleState(it) }
 
     private val shizuku: ShizukuUiController = ShizukuUiController(app, ::update)

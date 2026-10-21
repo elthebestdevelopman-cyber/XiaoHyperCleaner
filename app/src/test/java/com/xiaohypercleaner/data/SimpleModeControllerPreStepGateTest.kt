@@ -1,6 +1,9 @@
 package com.xiaohypercleaner.data
 
 import android.app.Application
+import android.content.ComponentName
+import android.provider.Settings
+import com.xiaohypercleaner.service.AdbEnablerService
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -57,12 +60,20 @@ class SimpleModeControllerPreStepGateTest {
     }
 
     private fun newController(): SimpleModeController =
-        SimpleModeController(app, PermissionFlowManager(app), { gateCalls++; gateOpen }) { }
+        SimpleModeController(app, PermissionFlowManager(app), { gateCalls++; gateOpen }, { true }) { }
 
     /** Разрешения выданы: фаза доходит до батареи, а не до диалогов разрешений. */
     private fun grantPermissions(controller: SimpleModeController) {
         controller.start()
         controller.updatePermissionStatuses(accEnabled = true, overlayGranted = true)
+        // Префлайт перечитывает доступность из Settings.Secure «здесь и сейчас»: в тестовом
+        // окружении сервис надо включить там, иначе гейт живости (W4.1) возвращает в фазу
+        // разрешений и шаги не стартуют.
+        Settings.Secure.putString(
+            app.contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+            ComponentName(app, AdbEnablerService::class.java).flattenToString()
+        )
     }
 
     /** Батарея «уже решена» — условие ветки 5 `advance()` и дверей отката по батарее. */
