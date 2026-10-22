@@ -134,7 +134,9 @@ class SimpleRunnerVerifyTest {
 
     @Test
     fun `vanished row on the clean target screen is success`() = runTest {
-        val root = node(text = "Карусель обоев")
+        // Экран приложения «Карусель обоев» (подпись из прогона rmvjqdfrt): строка-цель ушла,
+        // маркеры экрана на месте.
+        val root = node(text = "Захватывающий способ разблокировки телефона")
         Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
 
         val carousel = SimpleSteps.ALL.first { it.id == "carousel" }
@@ -165,7 +167,7 @@ class SimpleRunnerVerifyTest {
         assertEquals(false, runner.lastReadSwitchState)
 
         // 2) строка ушла из дерева (настройка применена), маркеры экрана на месте, диалога нет.
-        val cleanRoot = node(text = "Карусель обоев")
+        val cleanRoot = node(text = "Захватывающий способ разблокировки телефона")
         Mockito.`when`(service.rootInActiveWindow).thenReturn(cleanRoot)
         assertTrue(runner.verifySwitchState(step, listOf("Карусель экрана блокировки")))
         assertEquals(
@@ -238,7 +240,7 @@ class SimpleRunnerVerifyTest {
      */
     @Test
     fun `vanished row needs two confirming reads`() = runTest {
-        val root = node(text = "Карусель обоев")
+        val root = node(text = "Захватывающий способ разблокировки телефона")
         Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
 
         val carousel = SimpleSteps.ALL.first { it.id == "carousel" }

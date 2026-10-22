@@ -1,5 +1,6 @@
 package com.xiaohypercleaner.data
 
+import com.xiaohypercleaner.util.TextMatcher
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -212,13 +213,16 @@ class SemanticCatalogTest {
             "маркеры экрана — строки устройства: ${variant.screenMarkers["ru"]}",
             variant.screenMarkers["ru"].orEmpty().containsAll(
                 listOf(
-                    "Карусель обоев",
-                    "Карусель экрана блокировки",
-                    "Дополнительные настройки",
-                    "Предпочтения",
-                    "Политика конфиденциальности"
+                    "Захватывающий способ разблокировки",
+                    "Карусель экрана блокировки"
                 )
             )
+        )
+        // Прогон rmvjqdfrt (откат): «Карусель обоев» — строка системного экрана «Блокировка
+        // экрана»; с ней маркеры подтверждали список Настроек, и переключатель искали не там.
+        assertFalse(
+            "строка системного списка не подтверждает целевой экран",
+            variant.screenMarkers["ru"].orEmpty().contains("Карусель обоев")
         )
 
         assertTrue("до главного тумблера — все зависимые строки", variant.extraTargets.all { it.beforeMain })
@@ -531,18 +535,20 @@ class SemanticCatalogTest {
                 "com.android.browser.OPEN_SETTINGS",
                 route.first().fallbackIntent
             )
-            // Маркеры сняты с устройства: owner_recon/browser_settings.xml («Основные настройки»,
-            // «Браузер по умолчанию») и owner_recon/browser_security.xml (раздел «Безопасность»,
-            // «Сохранять пароли») — браузер может открыться на любой из этих страниц.
+            // Маркеры сняты с устройства: owner_recon/browser_settings.xml — корень настроек браузера
+            // («Основные настройки», «Браузер по умолчанию»). Маркеры ВЛОЖЕННОГО раздела
+            // «Безопасность» (owner_recon/browser_security.xml) сюда не входят: прогон rmvjqdfrt
+            // показал, что с ними интент «подтверждал» под-экран, и пункт «Дополнительные
+            // настройки» искали на экране «Безопасность» (not_applicable в форварде и в откате).
             val browserMarkers = route.first().confirmMarkers
             assertTrue(
-                "маркеры раздела «Основные настройки»: $browserMarkers",
+                "маркеры корня настроек: $browserMarkers",
                 browserMarkers.contains("Основные настройки") &&
                     browserMarkers.contains("Браузер по умолчанию")
             )
-            assertTrue(
-                "маркеры раздела «Безопасность»: $browserMarkers",
-                browserMarkers.contains("Безопасность") && browserMarkers.contains("Сохранять пароли")
+            assertFalse(
+                "маркеры вложенного раздела не подтверждают корень: $browserMarkers",
+                browserMarkers.contains("Безопасность") || browserMarkers.contains("Сохранять пароли")
             )
             val routeWhat = route.map { it.intent ?: it.tapText ?: it.tapDesc ?: it.tapId ?: "scroll" }
             val routeScroll = route.any { it.scroll }
@@ -872,5 +878,71 @@ class SemanticCatalogTest {
             "соседний шаг прогрева не объявляет",
             SemanticCatalog.warmUp("appvault_about")
         )
+    }
+
+    /**
+     * Прогон rmvjqdfrt (откат carousel): на системном экране «Блокировка экрана» есть пункт
+     * «Карусель обоев» — прежние маркеры шага совпадали с ним, `resumeDrillIndex` считал цель
+     * достигнутой и отменял бурение, а переключатель искали на экране Настроек
+     * (`switch_not_found`, шаг не восстановлен). Маркеры обязаны принадлежать экрану
+     * приложения «Карусель обоев», а не списку Настроек.
+     */
+    @Test
+    fun `carousel markers match the app screen and not the settings list`() {
+        SemanticCatalog.selectVariant(
+            RomProfile(
+                region = RomRegion.GLOBAL,
+                miuiVersion = "V130",
+                hyperOsHint = false,
+                isTablet = false,
+                family = RomFamily.MIUI,
+                uiVersion = "13"
+            )
+        )
+        val originalLocale = Locale.getDefault()
+        Locale.setDefault(Locale.forLanguageTag("ru"))
+        val markers = try {
+            SemanticCatalog.screenMarkers("carousel")
+        } finally {
+            Locale.setDefault(originalLocale)
+        }
+        assertTrue("маркеры объявлены вариантом", markers.isNotEmpty())
+
+        // Экран системных Настроек (подпись из лога прогона rmvjqdfrt, шаг carousel в откате).
+        val settingsScreen = "Назад Блокировка экрана Карусель обоев Ежедневная подборка " +
+            "потрясающих изображений и историй. Стиль часов экрана блокировки " +
+            "Этот параметр несовместим со сторонними темами. Анимация зарядки после разблокировки"
+        assertFalse(
+            "маркеры шага не подтверждают системный экран «Блокировка экрана»",
+            markers.any { TextMatcher.normalizedContains(settingsScreen, it) }
+        )
+
+        // Экран приложения (подпись из лога прогона rmvjqdfrt, шаг carousel в форварде).
+        val appScreen = "Назад Карусель обоев Карусель обоев Включить Захватывающий способ " +
+            "разблокировки телефона. Политика конфиденциальности Условия использования Отзыв"
+        assertTrue(
+            "экран приложения «Карусель обоев» маркерами подтверждается",
+            markers.any { TextMatcher.normalizedContains(appScreen, it) }
+        )
+    }
+
+    /**
+     * Прогон rmvjqdfrt (appvault_services): `route_confirm` подтвердил экран вкладки
+     * «Рекомендуемое» за 3 мс — у тап-шага не было пакета-владельца, и маркеры проверялись
+     * на экране Настроек Ленты. Пакет объявлен вариантом вместе с маркерами целевого экрана.
+     */
+    @Test
+    fun `appvault recommendations tab declares its owner package`() {
+        val route = SemanticCatalog.step("appvault_services")?.variants
+            .orEmpty()
+            .first { it.id == "miui12_14" }
+            .route
+        val tab = route.firstOrNull { it.tapId == "rl_home_tab" }
+        assertNotNull("тап по вкладке «Рекомендуемое» объявлен маршрутом", tab)
+        assertEquals(
+            listOf("com.mi.android.globalminusscreen"),
+            tab?.confirmPackage
+        )
+        assertEquals(listOf("Рекомендации приложений", "Уже добавлено"), tab?.confirmMarkers)
     }
 }

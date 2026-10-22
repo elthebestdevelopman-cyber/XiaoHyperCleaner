@@ -1019,7 +1019,7 @@
             ["Блокировка экрана", "Lock screen"],
             ["Карусель обоев", "Wallpaper Carousel"]
           ],
-          "screenMarkers": { "ru": ["Карусель обоев", "Карусель экрана блокировки", "Дополнительные настройки", "Предпочтения", "Политика конфиденциальности"], "en": ["Wallpaper Carousel", "Lock screen carousel", "Additional settings", "Preferences", "Privacy policy"], "zh": ["壁纸轮播"] },
+          "screenMarkers": { "ru": ["Захватывающий способ разблокировки", "Карусель экрана блокировки"], "en": ["Exciting way to unlock", "Lock screen carousel"], "zh": ["壁纸轮播"] },
           "itemTexts": {
             "ru": ["Карусель экрана блокировки"],
             "en": ["Lock screen carousel"]
@@ -1439,7 +1439,7 @@
           "os": { "family": "miui", "uiMin": 12, "uiMax": 14 },
           "fallback": true,
           "route": [
-            { "intent": "com.mi.globalbrowser/com.android.browser.BrowserSettingsActivity", "fallbackIntent": "com.android.browser.OPEN_SETTINGS", "confirmMarkers": ["Основные настройки", "Браузер по умолчанию", "Безопасность", "Сохранять пароли"], "waitMs": 1500 },
+            { "intent": "com.mi.globalbrowser/com.android.browser.BrowserSettingsActivity", "fallbackIntent": "com.android.browser.OPEN_SETTINGS", "confirmMarkers": ["Основные настройки", "Браузер по умолчанию"], "waitMs": 1500 },
             { "scroll": true, "waitMs": 700 },
             { "tapText": "Дополнительные настройки", "waitMs": 1000 }
           ],
@@ -2912,7 +2912,7 @@
           "control": "toggle",
           "route": [
             { "intent": "com.mi.android.globalminusscreen/com.mi.android.globalminusscreen.tab.TabSettingActivity", "waitMs": 2500, "confirmPackage": ["com.mi.android.globalminusscreen"], "confirmMarkers": ["Лента виджетов", "Рекомендуемое"] },
-            { "tapId": "rl_home_tab", "fallbackDesc": "Рекомендуемое", "waitMs": 2000, "confirmMarkers": ["Рекомендации приложений", "Уже добавлено"] }
+            { "tapId": "rl_home_tab", "fallbackDesc": "Рекомендуемое", "waitMs": 2000, "confirmPackage": ["com.mi.android.globalminusscreen"], "confirmMarkers": ["Рекомендации приложений", "Уже добавлено"] }
           ],
           "drillPath": [
             ["Рекомендуемое", "Recommended"]
