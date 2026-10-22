@@ -430,9 +430,17 @@ class OverlayService : Service() {
             setTextColor(0xFF64B5F6.toInt())
             setBackgroundColor(Color.TRANSPARENT)
         }
+        // Кнопка не во всю ширину и не по центру панели: случайный тап по центру экрана
+        // (самая частая зона касания) не должен попадать по «Отменить» — прогон rmvimewq4
+        // умер именно так на первом шаге обоих повторов.
+        cancel.setPadding(dp(20), 0, dp(20), 0)
         layout.addView(cancel, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dp(44)
-        ).apply { topMargin = dp(12) })
+            LinearLayout.LayoutParams.WRAP_CONTENT, dp(44)
+        ).apply {
+            topMargin = dp(12)
+            gravity = Gravity.END
+            marginEnd = dp(12)
+        })
         cancel.setOnClickListener {
             // Окно «привыкания»: в первые секунды фазы отмена игнорируется — иначе случайный
             // тап по центру экрана убивает прогон на первом шаге (см. [CANCEL_SETTLE_MS]).
