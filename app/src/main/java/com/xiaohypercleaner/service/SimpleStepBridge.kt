@@ -12,6 +12,16 @@ object SimpleStepBridge {
      */
     const val REASON_OVERLAY_PERMISSION_LOST: String = "overlay_permission_lost"
 
+    /** Сервис доступности не подключён ДО старта шага: шаг не начинался вовсе. */
+    const val REASON_SERVICE_NOT_CONNECTED: String = "service_not_connected"
+
+    /**
+     * Сервис отвалился ВО ВРЕМЯ шага: провал — следствие слепоты (windows=0), а не
+     * состояния устройства. Отчёту это различие нужно: «робот ослеп» и «настройки нет» —
+     * разные вещи (прогон rmvikvzqm: 35 слепых шагов подряд).
+     */
+    const val REASON_SERVICE_LOST: String = "service_lost_during_step"
+
     /** Результат шага: success + reason (toggled/already_off/already_done/…) */
     var onResult: ((success: Boolean, reason: String) -> Unit)? = null
 

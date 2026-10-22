@@ -400,7 +400,7 @@ class AdbEnablerService : AccessibilityService() {
         // windows=0 и откат, который некому выполнить).
         if (instance !== this) {
             AppLog.w(TAG, "runSimpleStep: accessibility not connected — step rejected")
-            SimpleStepBridge.onResult?.invoke(false, "service_not_connected")
+            SimpleStepBridge.onResult?.invoke(false, SimpleStepBridge.REASON_SERVICE_NOT_CONNECTED)
             return
         }
         try {
@@ -586,7 +586,21 @@ class AdbEnablerService : AccessibilityService() {
                     // ИСПРАВЛЕНО (строка 316): result.reason это String?,
                     // а StepDiagnostics/StepBridge ждёт String. Используем ?: "unknown"
                     // ═══════════════════════════════════════════════════════════════
-                    SimpleStepBridge.onResult?.invoke(result.success, result.reason ?: "unknown")
+                    // Сервис мог потерять подключение уже ПОСЛЕ старта шага: тогда провал —
+                    // следствие слепоты, а не состояние устройства (W4.1: до старта —
+                    // service_not_connected, во время шага — service_lost_during_step).
+                    val stepReason = result.reason ?: "unknown"
+                    val reportedReason = if (!result.success && instance !== this) {
+                        AppLog.w(
+                            TAG,
+                            "runSimpleStep: step ${step.id} failed while accessibility was " +
+                                "disconnected (step reason=$stepReason) — service_lost_during_step"
+                        )
+                        SimpleStepBridge.REASON_SERVICE_LOST
+                    } else {
+                        stepReason
+                    }
+                    SimpleStepBridge.onResult?.invoke(result.success, reportedReason)
                 }
             }
 
