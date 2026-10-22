@@ -262,6 +262,42 @@ class ConsentWallTest {
     }
 
     @Test
+    fun `welcome accept is retried after remarking the checkbox`() = runTest {
+        // Прогон rmvimewq4 (Mi Music): первый тап по «Выбрать все» мог снять уже выставленную
+        // отметку — кнопка согласия осталась неактивной, стена ушла в not_found. Один обратный
+        // тап возвращает отметку, и поиск кнопки повторяется.
+        withLocale("ru") {
+            val node = wallScreen(
+                "Условия использования Добро пожаловать в Музыку! Выбрать все Согласиться",
+                "Согласиться"
+            )
+            Mockito.`when`(service.rootInActiveWindow).thenReturn(node)
+            var acceptCalls = 0
+            var checkboxTaps = 0
+            val remarkBridge = object : ConsentWallHandler.TapBridge {
+                override suspend fun tapByTexts(texts: List<String>): Boolean {
+                    checkboxTaps++
+                    return true
+                }
+
+                override suspend fun tapEnabledDialogButtonByTexts(
+                    texts: List<String>,
+                    avoidTexts: List<String>
+                ): Boolean {
+                    acceptCalls++
+                    return acceptCalls > 2
+                }
+            }
+
+            val outcome = ConsentWallHandler.handleOnce(service, remarkBridge, "music_sys")
+
+            assertTrue("стена принята после обратного тапа", outcome.handled)
+            assertEquals("«Выбрать все» нажата дважды (отметка + возврат)", 2, checkboxTaps)
+            assertEquals("согласие искали трижды", 3, acceptCalls)
+        }
+    }
+
+    @Test
     fun `no dialog leads to no action`() = runTest {
         val node = screen("Настройки Отпечатки")
         Mockito.`when`(service.rootInActiveWindow).thenReturn(node)

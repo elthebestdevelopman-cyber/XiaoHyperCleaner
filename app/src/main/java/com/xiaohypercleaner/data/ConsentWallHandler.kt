@@ -325,6 +325,7 @@ object ConsentWallHandler {
         recycle(root)
 
         var checkboxMarked = false
+        val checkboxTexts = SemanticCatalog.checkboxTexts()
         if (action.kind == "welcome") {
             // Чекбоксы персонализации снимаем ДО тапа согласия: на стенах Mi Браузера
             // и Тём они отмечены по умолчанию, и согласие «как есть» включало бы сбор.
@@ -339,7 +340,6 @@ object ConsentWallHandler {
             }
             // Стена с чекбоксами: сначала отмечаем «Выбрать все»/обязательные
             // пункты, затем жмём кнопку (до отметки она неактивна).
-            val checkboxTexts = SemanticCatalog.checkboxTexts()
             val checkboxVisible = checkboxTexts.isNotEmpty() &&
                 checkboxTexts.any { TextMatcher.normalizedContains(screenText, it) }
             if (checkboxVisible && bridge.tapByTexts(checkboxTexts)) {
@@ -353,6 +353,14 @@ object ConsentWallHandler {
             // расширенным набором вместо честного not_found (см. WELCOME_ACCEPT_RETRY_MS).
             delay(WELCOME_ACCEPT_RETRY_MS)
             dispatched = dispatch(bridge, action)
+            if (!dispatched && bridge.tapByTexts(checkboxTexts)) {
+                // Первый тап по «Выбрать все» мог снять уже выставленную отметку — тогда
+                // кнопка согласия так и останется неактивной. Один обратный тап возвращает
+                // отметку, после чего поиск кнопки повторяется (W3, прогон rmvimewq4).
+                AppLog.i(TAG, "consent: kind=welcome decision=checkbox_remarked step=$stepId")
+                delay(WELCOME_ACCEPT_RETRY_MS)
+                dispatched = dispatch(bridge, action)
+            }
             if (dispatched) {
                 AppLog.i(TAG, "consent: welcome accept retry succeeded step=$stepId")
             }
