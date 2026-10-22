@@ -46,7 +46,8 @@ class ReverseEntryLoopTest {
         hasIntents: Boolean = true,
         maxAttempts: Int = 3,
         budgetAboveReserveMs: Long = 20_000L,
-        entryResolvable: Boolean = true
+        entryResolvable: Boolean = true,
+        entryLeadsToNeutral: Boolean = false
     ): LoopOutcome {
         var windowIndex = 0
         var attempts = 0
@@ -66,7 +67,8 @@ class ReverseEntryLoopTest {
                 maxAttempts = maxAttempts,
                 immediateEntryDone = immediateEntryDone,
                 budgetAboveReserveMs = budgetAboveReserveMs,
-                entryResolvable = entryResolvable
+                entryResolvable = entryResolvable,
+                entryLeadsToNeutral = entryLeadsToNeutral
             )
             when (decision.action) {
                 ReverseEntryAction.CONTINUE_DRILL ->
@@ -243,6 +245,32 @@ class ReverseEntryLoopTest {
             entryResolvable = false
         )
         assertEquals(ReverseExtras.REASON_ENTRY_UNRESOLVED, exhausted.stopReason)
+    }
+
+    @Test
+    fun `neutral entry target skips retries and drills from the current screen`() {
+        // Прогон rmvjqdfrt (carousel): вход резолвится в Настройки — «пакет в фокусе» истинно
+        // ещё ДО запуска, три повтора сгорели за 300 мс, шаг ушёл в слепые тапы по Настройкам.
+        // Повтор входа в нейтральное окно не выдаётся: экран шага так не открыть.
+        val outcome = runEntryLoop(List(10) { Window.NEUTRAL }, entryLeadsToNeutral = true)
+        assertEquals("немедленный вход ровно один", 1, outcome.immediateEntries)
+        assertEquals("повторов ноль", 0, outcome.retries)
+        assertEquals(ReverseEntryAction.CONTINUE_DRILL, outcome.action)
+        assertTrue("шаг дошёл до бурения drillPath", outcome.drilled)
+
+        val decision = ReverseExtras.entryLoopDecision(
+            reverse = true,
+            onStepScreen = { false },
+            foreignWindow = { false },
+            hasIntents = true,
+            attempts = 0,
+            maxAttempts = 3,
+            immediateEntryDone = true,
+            budgetAboveReserveMs = 20_000L,
+            entryLeadsToNeutral = true
+        )
+        assertEquals(ReverseEntryAction.CONTINUE_DRILL, decision.action)
+        assertEquals(ReverseExtras.REASON_ENTRY_NEUTRAL, decision.stopReason)
     }
 
     @Test

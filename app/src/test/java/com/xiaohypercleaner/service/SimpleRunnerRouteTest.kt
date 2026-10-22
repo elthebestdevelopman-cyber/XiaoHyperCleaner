@@ -3,6 +3,7 @@ package com.xiaohypercleaner.service
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
+import android.accessibilityservice.AccessibilityService
 import android.net.Uri
 import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.data.AdaptiveCatalog
@@ -169,6 +170,51 @@ class SimpleRunnerRouteTest {
             "компонента не открылась — маршрут обязан отдать false, а не «подтвердить» чужой экран",
             reached
         )
+    }
+
+    @Test
+    fun `missing route item on a sub screen is restored with one back`() = runTest {
+        // Прогон rmvjqdfrt: Mi Браузер открывается на вложенном экране «Безопасность»,
+        // пункта «Дополнительные настройки» там нет, список не скроллится — шаг объявлялся
+        // неприменимым и в форварде, и в откате. Один BACK поднимает к корню настроек,
+        // после чего пункт ищется заново.
+        val subScreen = node(
+            pkg = "com.mi.globalbrowser",
+            className = "android.widget.FrameLayout",
+            children = arrayOf(
+                node(text = "Безопасность", pkg = "com.mi.globalbrowser"),
+                node(text = "Сохранять пароли", pkg = "com.mi.globalbrowser")
+            )
+        )
+        var backPressed = false
+        val advanced = node(
+            text = "Дополнительные настройки",
+            pkg = "com.mi.globalbrowser",
+            className = "android.widget.TextView"
+        )
+        Mockito.`when`(advanced.isClickable).thenReturn(true)
+        var advancedTapped = false
+        Mockito.`when`(advanced.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenAnswer {
+            advancedTapped = true
+            true
+        }
+        val settingsRoot = node(
+            pkg = "com.mi.globalbrowser",
+            className = "android.widget.FrameLayout",
+            children = arrayOf(node(text = "Основные настройки"), advanced)
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenAnswer { if (backPressed) settingsRoot else subScreen }
+        Mockito.`when`(service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK))
+            .thenAnswer { backPressed = true; true }
+
+        val reached = runner.executeRouteScript(
+            SimpleSteps.ALL.first { it.id == "browser_sys" },
+            listOf(SemanticCatalog.RouteItem(tapText = "Дополнительные настройки", waitMs = 100L))
+        )
+
+        assertTrue("подъём к корню выполнен ровно одним BACK", backPressed)
+        assertTrue("пункт маршрута найден и нажат после восстановления уровня", advancedTapped)
+        assertTrue("маршрут дошёл до целевого экрана", reached)
     }
 
     @Test

@@ -1315,11 +1315,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     fun cancel() {
+        // cancel() зовётся перед стартом КАЖДОГО шага: лог только при живой фазе, иначе
+        // 141 строка «cancellation requested» маскирует настоящие отмены (прогон rmvjqdfrt).
+        val wasRunning = isRunning
         cancelled = true
         job?.cancel()
         isRunning = false
         currentStepId = null
-        AppLog.i(TAG, "Runner cancellation requested")
+        if (wasRunning) AppLog.i(TAG, "Runner cancellation requested")
     }
 
     // ─── Internal execution ───────────────────────────────────────────────
@@ -1662,6 +1665,13 @@ class SimpleRunner(private val service: AdbEnablerService) {
             val onStepScreen = { onTargetScreen(step) }
             // Кандидаты входа резолвятся один раз на шаг (мемо внутри): в цикле только чтение.
             val entryResolvable = reverseEntryCandidates(step).isNotEmpty()
+            // Вход, который резолвится в нейтральное окно (Настройки/лаунчер), не доказывает,
+            // что шаг на своём экране: условие «пакет в фокусе» истинно ещё ДО запуска, и
+            // попытка сгорает за 15 мс, а шаг уходит в слепой drill (прогон rmvjqdfrt:
+            // carousel — три повтора за 300 мс, бурение «Блокировки экрана» вместо приложения).
+            val entryLeadsToNeutral = reverseEntryCandidates(step).firstOrNull()
+                ?.let { intentTargetPackage(it) }
+                ?.let { isNeutralEntryPackage(it) } == true
             var attempts = 0
             var neutralLogged = false
             var immediateEntryDone = false
@@ -1697,7 +1707,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     immediateEntryDone = immediateEntryDone,
                     budgetAboveReserveMs = remainingBudgetMs() - REENTRY_RESERVE_MS,
                     // Рантайм-резолв: нерезолвящийся вход не повторяется (D3, прогон rmvgvhbzu).
-                    entryResolvable = entryResolvable
+                    entryResolvable = entryResolvable,
+                    // Вход в нейтральное окно: повтор не меняет экран (см. выше).
+                    entryLeadsToNeutral = entryLeadsToNeutral
                 )
                 // Нейтральное окно фиксируем один раз на шаг: причина видна и в логе, и в DIAG.
                 if (decision.neutralWindow && !neutralLogged) {
@@ -2730,17 +2742,23 @@ class SimpleRunner(private val service: AdbEnablerService) {
             return false
         }
         val ids = warmUp.confirmIds.ifEmpty { APP_VAULT_ID_HINTS }
-        val appeared = UiWait.until(
-            timeoutMs = WARMUP_FEED_WAIT_MS,
-            pollMs = WAIT_POLL_FAST_MS,
-            confirmations = WAIT_CONFIRM_READS,
-            isCancelled = { cancelled }
-        ) { isAppVaultVisible(ids) }.hit
-        StepDiagnostics.note(
-            step.id,
-            "WARMUP",
-            "feed_appear hit=$appeared ids=${ids.joinToString("|")}"
-        )
+        var appeared = awaitFeedAppeared(step.id, ids, WARMUP_FEED_WAIT_MS)
+        if (!appeared && !cancelled) {
+            // После сброса лента строится при первом открытии: одного свайпа мало (дампы
+            // fresh_appvault_feed.xml — окно лаунчера без строк ленты, fresh_appvault_feed2.xml —
+            // «Рекомендуемое» на месте; прогоны rldnxnq9b/rmvimewq4/rmvjqdfrt — feed_appear
+            // hit=false). Второй проход один: свайп → ожидание → маршрут повторяется выше.
+            AppLog.i(TAG, "warmUp: feed not opened on first swipe — second pass step=${step.id}")
+            StepDiagnostics.note(step.id, "WARMUP", "feed_second_swipe")
+            if (!awaitOverlayReadyOrPause()) return false
+            if (isAppVaultVisible(ids)) {
+                // Лента открылась, но строки не подтвердились в первом окне: даём контенту
+                // догрузиться, не уходя со страницы.
+                appeared = awaitFeedAppeared(step.id, ids, WARMUP_FEED_WAIT_MS)
+            } else if (swipeHomePage(forward = false)) {
+                appeared = awaitFeedAppeared(step.id, ids, WARMUP_FEED_WAIT_MS)
+            }
+        }
         // Контенту карточек нужно время: без выдержки список отдаётся без строки-цели.
         if (appeared) delay(warmUp.settleMs.coerceIn(0L, WARMUP_SETTLE_MAX_MS))
         if (cancelled) return false
@@ -2750,6 +2768,25 @@ class SimpleRunner(private val service: AdbEnablerService) {
         AppLog.i(TAG, "warmUp: ${warmUp.kind} done appeared=$appeared step=${step.id}")
         return appeared
     }
+    /**
+     * Появление ленты: опрос по resource-id с подтверждением чтений; строка `feed_appear`
+     * в диагностике пишется на каждый проход (первый свайп и повтор после сброса).
+     */
+    private suspend fun awaitFeedAppeared(stepId: String, ids: List<String>, timeoutMs: Long): Boolean {
+        val appeared = UiWait.until(
+            timeoutMs = timeoutMs,
+            pollMs = WAIT_POLL_FAST_MS,
+            confirmations = WAIT_CONFIRM_READS,
+            isCancelled = { cancelled }
+        ) { isAppVaultVisible(ids) }.hit
+        StepDiagnostics.note(
+            stepId,
+            "WARMUP",
+            "feed_appear hit=$appeared ids=${ids.joinToString("|")}"
+        )
+        return appeared
+    }
+
     /**
      * Ожидание узла готовности по resource-id (опрос с ранним выходом).
      */
@@ -5381,6 +5418,15 @@ class SimpleRunner(private val service: AdbEnablerService) {
     private fun isLauncherPackage(pkg: String): Boolean =
         LAUNCHER_PACKAGES.any { it.equals(pkg, ignoreCase = true) }
 
+    /**
+     * Пакет входа нейтрален для шага: Настройки, лаунчер и системные поверхности. Вход в них
+     * не подтверждает экран шага — повтор такой попытки ничего не меняет (цикл входа отката).
+     */
+    private fun isNeutralEntryPackage(pkg: String): Boolean =
+        pkg.equals(SETTINGS_PACKAGE, ignoreCase = true) ||
+            isLauncherPackage(pkg) ||
+            SYSTEM_SURFACE_PACKAGES.any { it.equals(pkg, ignoreCase = true) }
+
     private fun scanHomeRoot(
         predicate: (AccessibilityNodeInfo) -> Boolean
     ): List<AccessibilityNodeInfo> {
@@ -6482,6 +6528,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         if (readyIds.isNotEmpty()) {
             awaitEntryReadyId(step.id, readyIds, ROUTE_ENTRY_READY_WAIT_MS)
         }
+        // Один BACK на маршрут: подъём вложенного экрана к корню — восстановление уровня,
+        // а не навигация; повторные BACK внутри одного маршрута запрещены.
+        var backUsed = false
         for ((index, item) in route.withIndex()) {
             if (cancelled) return false
             if (!awaitOverlayReadyOrPause()) return false
@@ -6544,20 +6593,55 @@ class SimpleRunner(private val service: AdbEnablerService) {
             } else {
                 false
             }
-            val resolvedOk = finalOk || fallbackOk
+            // Вложенный экран вместо корня: Mi Браузер открывается на последнем под-экране
+            // («Безопасность»), пункт маршрута там отсутствует, а список не скроллится
+            // (прогон rmvjqdfrt: browser_sys not_applicable и в форварде, и в откате).
+            // Один BACK поднимает к корню; пункт после него ищется заново.
+            val restoredOk = if (!finalOk && !fallbackOk && !backUsed && item.intent == null &&
+                !onTargetScreen(step) && isForegroundStepPackage(step)
+            ) {
+                backUsed = true
+                AppLog.i(
+                    TAG,
+                    "route ${step.id}: ${index + 1}/${route.size} item missing on sub-screen — back to root"
+                )
+                StepDiagnostics.note(step.id, "ROUTE", "level_restore step=${index + 1}")
+                pressBack()
+                waitFor(
+                    stepId = step.id,
+                    reason = WAIT_UI_SETTLE,
+                    timeoutMs = ROUTE_TAP_RETRY_WAIT_MS,
+                    pollMs = WAIT_POLL_FAST_MS
+                ) { routeNodePresent(item) }
+                val retapped = when {
+                    item.tapText != null -> tapRouteNode(step, text = item.tapText)
+                    item.tapDesc != null -> tapRouteNode(step, desc = item.tapDesc)
+                    item.tapId != null ->
+                        tapRouteNode(step, id = item.tapId, idIndex = item.tapIdIndex, routeIndex = index + 1)
+                    else -> false
+                }
+                if (retapped) {
+                    AppLog.i(TAG, "route ${step.id}: level restored after back step=${index + 1}")
+                }
+                retapped
+            } else {
+                false
+            }
+            val resolvedOk = finalOk || fallbackOk || restoredOk
             val what = item.intent ?: item.tapText ?: item.tapDesc ?: item.tapId ?: "scroll"
+            val via = buildString {
+                if (retried) append(" retry=true")
+                if (fallbackOk) append(" fallback=desc")
+                if (restoredOk) append(" restored=back")
+            }
             AppLog.i(
                 TAG,
-                "route ${step.id}: ${index + 1}/${route.size} '$what' ok=$resolvedOk" +
-                    if (retried) " retry=true" else "" +
-                        if (fallbackOk) " fallback=desc" else ""
+                "route ${step.id}: ${index + 1}/${route.size} '$what' ok=$resolvedOk$via"
             )
             StepDiagnostics.note(
                 step.id,
                 "ROUTE",
-                "step=${index + 1} what='$what' ok=$resolvedOk" +
-                    if (retried) " retry=true" else "" +
-                        if (fallbackOk) " fallback=desc" else ""
+                "step=${index + 1} what='$what' ok=$resolvedOk$via"
             )
             // R2-2: intent-шаг обязан открыться. Не открылся (ActivityNotFound на чужой
             // сборке: карусель без fashiongallery) — на чужом экране тумблер не ищем:

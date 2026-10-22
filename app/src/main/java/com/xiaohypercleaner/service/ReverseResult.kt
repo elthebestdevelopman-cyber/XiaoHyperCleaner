@@ -150,6 +150,13 @@ object ReverseExtras {
     const val REASON_ENTRY_UNRESOLVED = "entry_unresolved"
 
     /**
+     * Вход резолвится в нейтральное окно (Настройки, лаунчер, системные поверхности): экран
+     * шага так не открыть, повтор заново запускал бы тот же нейтральный экран. Бурение идёт
+     * с текущего экрана по `drillPath` (прогон rmvjqdfrt: carousel — три повтора за 300 мс).
+     */
+    const val REASON_ENTRY_NEUTRAL = "entry_neutral"
+
+    /**
      * Пока НЕДОСТИЖИМА в production: [SwitchFinder.isChecked] возвращает `Boolean`, поэтому
      * `checkedNow` не бывает `null` и «строки нет» с «состояние не прочитано» для вызывающего
      * кода неразличимы. Оставлена как задел на трёхзначное чтение состояния
@@ -249,7 +256,8 @@ object ReverseExtras {
         maxAttempts: Int,
         immediateEntryDone: Boolean,
         budgetAboveReserveMs: Long,
-        entryResolvable: Boolean = true
+        entryResolvable: Boolean = true,
+        entryLeadsToNeutral: Boolean = false
     ): ReverseEntryDecision = when {
         !reverse || onStepScreen() ->
             ReverseEntryDecision(ReverseEntryAction.CONTINUE_DRILL, neutralWindow = false)
@@ -268,6 +276,15 @@ object ReverseExtras {
                 ReverseEntryAction.CONTINUE_DRILL,
                 neutralWindow = true,
                 stopReason = REASON_ENTRY_UNRESOLVED
+            )
+            // Вход резолвится в нейтральное окно (Настройки, лаунчер): экран шага так не
+            // открыть, повтор лишь заново запускает тот же нейтральный экран. Бурение с
+            // текущего экрана — по drillPath, с причиной в логе (прогон rmvjqdfrt: carousel —
+            // три повтора за 300 мс и слепые тапы вместо уровня «Карусель обоев»).
+            entryLeadsToNeutral -> ReverseEntryDecision(
+                ReverseEntryAction.CONTINUE_DRILL,
+                neutralWindow = true,
+                stopReason = REASON_ENTRY_NEUTRAL
             )
             // Немедленный вход не помог: дальше гейтовые повторы — потолок И остаток над резервом.
             // Причина останова: сначала потолок, затем бюджет (детерминированно для лога).
