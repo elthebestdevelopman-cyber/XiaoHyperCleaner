@@ -261,9 +261,6 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(lifecycle) {
                         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                             vm.refreshStatuses()
-                            // wasStopped смотрим ДО сброса в onResume: ложный resume
-                            // (без onStop) не должен снимать ожидание предшага установщика.
-                            vm.tryResumePendingSimpleMode(wasStopped)
                         }
                     }
                     MainContent(
@@ -316,6 +313,12 @@ class MainActivity : ComponentActivity() {
                 vm.onBatteryOptimizationReturn()
             }
         }
+        // Возврат из «Установки неизвестных приложений» обязан довести проход предшага
+        // (право выдано → копия сборки → окно установщика). Флаг читается ЗДЕСЬ и до сброса:
+        // прежний вызов из Compose-эффекта RESUMED исполнялся уже после onResume, всегда
+        // получал wasStopped=false и удерживал ожидание — установщик не открывался ни разу,
+        // экран «Ожидаем установку» висел без установки.
+        vm.tryResumePendingSimpleMode(wasStopped)
         wasStopped = false
     }
 
