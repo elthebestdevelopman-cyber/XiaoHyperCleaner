@@ -1999,6 +1999,29 @@ class SimpleRunner(private val service: AdbEnablerService) {
             // «Обновлять через мобильный интернет» исчезает, как только карусель выключена
             // (дамп carousel_optout_wait), и после главного тумблера её уже нет.
             runPreMainExtras(step)
+            // Доп. цели с `back` могут увести из приложения в системные Настройки: главный
+            // тумблер тогда ищем не там (прогон 23–24.10, carousel в откате). Проверка экрана —
+            // обязательная: совпали маркеры — ничего не делаем.
+            if (reverseCtx != null && SemanticCatalog.extraTargetsBeforeMain(step.id).isNotEmpty()) {
+                when (ReverseExtras.extraReanchorAction(onTargetScreen(step), isForegroundStepPackage(step))) {
+                    ExtraReanchorAction.NONE -> Unit
+                    ExtraReanchorAction.REANCHOR -> {
+                        AppLog.i(TAG, "extras left the step screen — one re-anchor step=${step.id}")
+                        StepDiagnostics.note(step.id, "EXTRA", "reanchor")
+                        reEnterStepRoot(step)
+                    }
+                    ExtraReanchorAction.SCREEN_NOT_REACHED -> {
+                        AppLog.w(
+                            TAG,
+                            "extras left the step app: fg=${activePackage() ?: "-"} — screen_not_reached"
+                        )
+                        StepDiagnostics.note(
+                            step.id, "EXTRA", "reanchor_foreign fg=${activePackage() ?: "-"}"
+                        )
+                        return Result(false, REVERSE_SCREEN_NOT_REACHED)
+                    }
+                }
+            }
             findAndToggleSwitch(step)
         }
         // Фолбэк варианта (Проводник: основной путь через меню не найден → CLEAR_DATA_DECLINE).
@@ -2198,22 +2221,47 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // прежний возврат true сразу после тапа продолжал маршрут с закрытого меню.
         if (isMenuLevel(levelTexts)) {
             var tapPoint: Pair<Int, Int>? = null
+            // Подпись экрана ДО тапа: меню считается открытым только при её смене. Следующий
+            // пункт может уже быть на текущем экране (Музыка: «Настройки» в главном списке), и
+            // проверка «текст виден» пропускала уровень с НЕОТКРЫТЫМ меню — дальше drill бил по
+            // ложному узлу и шаг падал drill_failed (прогон 23–24.10, music_sys в откате).
+            val beforeMenuText = currentScreenText()
             if (!findAndTapOverflow(levelTexts, { x, y -> tapPoint = x to y })) return false
-            if (nextTexts.isEmpty() || awaitScreen(nextTexts)) return true
+            if (nextTexts.isEmpty() || (awaitScreen(nextTexts) && screenChangedSince(beforeMenuText))) {
+                return true
+            }
+            // Повтор узлового тапа: первый ACTION_CLICK по кнопке шапки MIUI иногда проглатывает
+            // (прогон 23–24.10, music_sys: меню не открылось с первого раза, и drill ушёл в
+            // ложный узел «Настройки» на главном экране). Повтор — один.
+            if (findAndTapOverflow(levelTexts) && nextTexts.isNotEmpty() &&
+                awaitScreen(nextTexts) && screenChangedSince(beforeMenuText)
+            ) {
+                return true
+            }
             // Уровень-меню открывает список, а следующий пункт бывает НИЖЕ сгиба (Mi Браузер:
             // «Дополнительные настройки» лежат в разделе «Прочее» под лентой настроек — прогон
             // rmuef7nbf: awaitScreen пункт не видел, drill уходил в слепые тапы по позиции,
             // которые открыли чужое приложение). Прокрутку пробуем только на экране со
             // списком: на поповере прокручивать нечего.
-            if (hasScrollableScreen() && scrollUntilScreenHasAny(nextTexts)) return true
+            if (hasScrollableScreen() && scrollUntilScreenHasAny(nextTexts) &&
+                screenChangedSince(beforeMenuText)
+            ) {
+                return true
+            }
             // MIUI не всегда реагирует на ACTION_CLICK: шестерёнка Mi Браузера открывает
             // настройки только тапом по центру узла (проверено на устройстве), а слепой тап
             // угла уходил в голосовой ввод (прогоны rmuef7nbf, rmuei6lp7).
             tapPoint?.let { (x, y) ->
                 if (tapAt(x, y)) {
                     delay(UI_SETTLE_DELAY_MS)
-                    if (nextTexts.isEmpty() || awaitScreen(nextTexts)) return true
-                    if (hasScrollableScreen() && scrollUntilScreenHasAny(nextTexts)) return true
+                    if (nextTexts.isEmpty() || (awaitScreen(nextTexts) && screenChangedSince(beforeMenuText))) {
+                        return true
+                    }
+                    if (hasScrollableScreen() && scrollUntilScreenHasAny(nextTexts) &&
+                        screenChangedSince(beforeMenuText)
+                    ) {
+                        return true
+                    }
                 }
             }
             val packageBeforeGesture = activePackage()

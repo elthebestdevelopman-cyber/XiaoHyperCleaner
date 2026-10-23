@@ -188,6 +188,68 @@ class SimpleRunnerDrillTest {
     }
 
     @Test
+    fun `menu level is not passed when the next title is already on the main screen`() = runTest {
+        // Прогон 23–24.10 (music_sys в откате): меню шапки не открылось, но «Настройки» уже
+        // было на главном экране — проверка «текст виден» объявляла уровень пройденным, drill
+        // бил по ложному узлу и шаг падал drill_failed. Меню подтверждается только сменой экрана.
+        val header = node(description = "Показать меню", clickable = true, className = "android.widget.ImageView")
+        val main = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(
+                header,
+                node(text = "Поиск треков, плейлистов и артистов"),
+                node(text = "Настройки")
+            )
+        )
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(main)
+        Mockito.`when`(header.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true)
+
+        val path = listOf(
+            listOf("☰", "Показать меню", "Ещё", "More", "Больше"),
+            listOf("Настройки", "Settings")
+        )
+
+        assertFalse(
+            "меню не открылось — уровень не пройден, даже если текст следующего уровня виден",
+            runner.drillIntoLevel(step("music_sys"), 0, path[0], path)
+        )
+    }
+
+    @Test
+    fun `menu level opens on the repeated tap when the first click was swallowed`() = runTest {
+        // Тот же прогон: MIUI иногда проглатывает первый ACTION_CLICK по кнопке шапки. Второй
+        // узловой тап открывает меню — уровень обязан пройти, а не уйти в ложный узел.
+        val header = node(description = "Показать меню", clickable = true, className = "android.widget.ImageView")
+        val main = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(header, node(text = "Поиск треков, плейлистов и артистов"))
+        )
+        val drawer = node(
+            className = "android.widget.FrameLayout",
+            children = arrayOf(node(text = "Аккаунт и настройки"), node(text = "Настройки"))
+        )
+        var taps = 0
+        var current: AccessibilityNodeInfo = main
+        Mockito.`when`(service.rootInActiveWindow).thenAnswer { current }
+        Mockito.`when`(header.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenAnswer {
+            taps++
+            if (taps > 1) current = drawer
+            true
+        }
+
+        val path = listOf(
+            listOf("☰", "Показать меню", "Ещё", "More", "Больше"),
+            listOf("Настройки", "Settings")
+        )
+
+        assertTrue(
+            "второй тап открыл меню — уровень пройден",
+            runner.drillIntoLevel(step("music_sys"), 0, path[0], path)
+        )
+        assertTrue("первый тап был проглочен, понадобился повтор", taps >= 2)
+    }
+
+    @Test
     fun `level already passed when its label and the next level are on screen`() = runTest {
         val title = node(text = "Приложения", className = "android.widget.TextView")
         val row = node(text = "Все приложения", clickable = true)

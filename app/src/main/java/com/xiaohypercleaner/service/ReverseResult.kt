@@ -104,6 +104,22 @@ enum class ReverseEntryAction {
 }
 
 /**
+ * Что делать с шагом после группы доп. целей перед главным тумблером (только откат).
+ * Доп. цели с `back` уводят из приложения в системные Настройки — главный тумблер тогда искали
+ * не там (прогон 23–24.10: carousel в откате, `markers_mismatch` на «Блокировке экрана»).
+ */
+enum class ExtraReanchorAction {
+    /** Экран шага на месте — ничего не делаем. */
+    NONE,
+
+    /** Приложение шага в фокусе, но экран не подтверждён: один возврат к корню маршрута. */
+    REANCHOR,
+
+    /** В фокусе чужое окно: слепых действий нет — честный `screen_not_reached`. */
+    SCREEN_NOT_REACHED
+}
+
+/**
  * Решение одного оборота цикла входа drill-шага в откате — см.
  * [ReverseExtras.entryLoopDecision].
  *
@@ -155,6 +171,18 @@ object ReverseExtras {
      * с текущего экрана по `drillPath` (прогон rmvjqdfrt: carousel — три повтора за 300 мс).
      */
     const val REASON_ENTRY_NEUTRAL = "entry_neutral"
+
+    /**
+     * Решение «нужен ли возврат к экрану шага после доп. целей»: экран подтверждён — не нужен;
+     * приложение шага в фокусе — один возврат к корню; чужое окно — честный провал шага.
+     * Чистая функция: тест падает на подмене значения, а не на порядке вызовов.
+     */
+    fun extraReanchorAction(onTargetScreen: Boolean, ownPackage: Boolean): ExtraReanchorAction =
+        when {
+            onTargetScreen -> ExtraReanchorAction.NONE
+            ownPackage -> ExtraReanchorAction.REANCHOR
+            else -> ExtraReanchorAction.SCREEN_NOT_REACHED
+        }
 
     /**
      * Пока НЕДОСТИЖИМА в production: [SwitchFinder.isChecked] возвращает `Boolean`, поэтому

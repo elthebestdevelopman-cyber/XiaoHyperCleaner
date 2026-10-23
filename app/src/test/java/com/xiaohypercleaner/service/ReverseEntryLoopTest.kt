@@ -274,6 +274,25 @@ class ReverseEntryLoopTest {
     }
 
     @Test
+    fun `extra reanchor decision follows the screen and package`() {
+        // Прогон 23–24.10 (carousel в откате): доп. цели с `back` увели из приложения, главный
+        // тумблер искали на «Блокировке экрана» (markers_mismatch). Решение — чистая функция:
+        // экран подтверждён → ничего; свой пакет → один возврат к корню; чужое окно → провал.
+        assertEquals(
+            ExtraReanchorAction.NONE,
+            ReverseExtras.extraReanchorAction(onTargetScreen = true, ownPackage = true)
+        )
+        assertEquals(
+            ExtraReanchorAction.REANCHOR,
+            ReverseExtras.extraReanchorAction(onTargetScreen = false, ownPackage = true)
+        )
+        assertEquals(
+            ExtraReanchorAction.SCREEN_NOT_REACHED,
+            ReverseExtras.extraReanchorAction(onTargetScreen = false, ownPackage = false)
+        )
+    }
+
+    @Test
     fun `entry candidates keep cached intents first and drop duplicates`() {
         // Порядок контракта: интенты шага (кэш DirectIntentNav) → launcher-интент пакета.
         val cached = Intent(Settings.ACTION_SETTINGS)
