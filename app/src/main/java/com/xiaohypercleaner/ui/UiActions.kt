@@ -68,6 +68,9 @@ fun openUrl(context: Context, url: String) {
  */
 fun shareLog(context: Context) {
     AppLog.i(TAG, "shareLog: запрошен шаринг лога")
+    // Барьер записи: лог пишется своим потоком, и без дренажа хвост очереди (включая эту
+    // строку и последние строки фазы) не попадёт в копию — а он и нужен для разбора провала.
+    AppLog.flushPending()
 
     // ═══════════════════════════════════════════════════════════════
     // Шаг 1: Получаем лог-файл
@@ -241,6 +244,8 @@ fun shareLog(context: Context) {
  * @param file Лог-файл для отправки
  */
 private fun shareLogAsText(context: Context, file: File) {
+    // Fallback читает файл заново: дренируем очередь и здесь, иначе текст уйдёт без хвоста.
+    AppLog.flushPending()
     try {
         val maxBytes = 100 * 1024L
         val content = if (file.length() > maxBytes) {

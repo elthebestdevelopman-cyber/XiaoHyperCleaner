@@ -12,6 +12,8 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 
 /**
  * Собственный логгер проекта (НЕ Timber).
@@ -55,6 +57,9 @@ object AppLog {
 
     /** Учёт объёма без `file.length()` на каждую строку (это тоже syscall). */
     private var bytesWritten = 0L
+
+    /** Задержка записи в тестах барьера (как displayBoundsOverride и alertNegativeTextsForTest). */
+    internal var writeDelayMsForTest = 0L
 
     /**
      * Инициализация логгера. Вызывать в Application.onCreate() или в первой активности.
@@ -161,6 +166,8 @@ object AppLog {
 
     /** Фактическая запись строки в файл (поток [writeExecutor]). */
     private fun writeNow(level: String, tag: String, msg: String, throwable: Throwable?) {
+        val delayMs = writeDelayMsForTest
+        if (delayMs > 0L) runCatching { Thread.sleep(delayMs) }
         synchronized(lock) {
             try {
                 if (writer == null) return
@@ -205,6 +212,25 @@ object AppLog {
         }
     }
 
+    /**
+     * Барьер записи: дожидается, пока все ранее поставленные строки ушли в файл и сброшены.
+     * Обязателен перед копированием лога для шаринга: очередь пишется своим потоком, и без
+     * барьера хвост (включая строку самого запроса) в копию не попадает.
+     *
+     * @return true — очередь дренирована; false — истёк [timeoutMs] (вызывающий продолжает
+     *   работу: неполный лог с пометкой лучше блокировки шаринга).
+     */
+    fun flushPending(timeoutMs: Long = 500L): Boolean {
+        if (!logToFile || writer == null) return true
+        return try {
+            writeExecutor.submit(Runnable { }).get(timeoutMs, TimeUnit.MILLISECONDS)
+            true
+        } catch (_: Exception) {
+            val pending = (writeExecutor as? ThreadPoolExecutor)?.queue?.size ?: -1
+            w(TAG, "log drain timeout after ${timeoutMs}ms pending=$pending")
+            false
+        }
+    }
     /**
      * Возвращает все лог-файлы (включая ротированные).
      * Используется для экспорта логов.
