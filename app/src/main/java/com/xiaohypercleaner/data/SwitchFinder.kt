@@ -156,7 +156,7 @@ object SwitchFinder {
             if (switches.size > 1) {
                 val sameRow = switches.filter { sharesRow(it, labelBounds) }
                 if (sameRow.isNotEmpty()) return pickNearest(sameRow, labelBounds, texts)
-                AppLog.w(TAG, "ambiguous row: switches=${switches.size} — switch_not_found")
+                AppLog.d(TAG, "ambiguous row: switches=${switches.size} — switch_not_found")
                 return null
             }
             switches.firstOrNull()?.let { candidate ->
@@ -245,7 +245,7 @@ object SwitchFinder {
     ): AccessibilityNodeInfo? {
         val switchRow = NodeTree.clickableAncestorOrSelf(switchNode)
         if (switchRow == null || switchRow === row) return switchNode
-        AppLog.w(TAG, "switch belongs to another row — switch_not_found")
+        AppLog.d(TAG, "switch belongs to another row — switch_not_found")
         return null
     }
 
