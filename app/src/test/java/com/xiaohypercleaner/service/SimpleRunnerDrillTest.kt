@@ -44,6 +44,15 @@ class SimpleRunnerDrillTest {
     private lateinit var service: AdbEnablerService
     private lateinit var runner: SimpleRunner
     private val originalLocale = Locale.getDefault()
+    /** Профиль GLOBAL/MIUI13: тот же, что в setUp для выбора варианта каталога. */
+    private val romProfile = RomProfile(
+        region = RomRegion.GLOBAL,
+        miuiVersion = "V130",
+        hyperOsHint = false,
+        isTablet = false,
+        family = RomFamily.MIUI,
+        uiVersion = "13"
+    )
 
     @Before
     fun setUp() {
@@ -51,16 +60,7 @@ class SimpleRunnerDrillTest {
         AdaptiveCatalog.resetForTest()
         SemanticCatalog.resetForTest()
         SemanticCatalog.ensureLoaded(RuntimeEnvironment.getApplication())
-        SemanticCatalog.selectVariant(
-            RomProfile(
-                region = RomRegion.GLOBAL,
-                miuiVersion = "V130",
-                hyperOsHint = false,
-                isTablet = false,
-                family = RomFamily.MIUI,
-                uiVersion = "13"
-            )
-        )
+        SemanticCatalog.selectVariant(romProfile)
         service = Mockito.mock(AdbEnablerService::class.java)
         runner = SimpleRunner(service)
         // performOverflowGesture/swipeUp читают displayMetrics сервиса.
@@ -138,14 +138,27 @@ class SimpleRunnerDrillTest {
     fun `wall polling stops after empty reads`() {
         // Прогон 23–24.10: обработчик стен зовётся на шаге до 20 раз, и каждый пустой
         // опрос стоил ~0,9 с (dismiss-стена cause=network держала browser_sys 9 с).
-        repeat(3) { runner.registerWallPollResult("browser_sys", 0) }
-        assertFalse(
-            "после трех пустых чтений опрос шага прекращается",
-            runner.wallPollAllowed("browser_sys")
-        )
-        assertTrue("другой шаг опрашивается независимо", runner.wallPollAllowed("carousel"))
-        runner.registerWallPollResult("browser_sys", 1)
-        assertTrue("найденная стена сбрасывает счетчик шага", runner.wallPollAllowed("browser_sys"))
+        repeat(3) { runner.registerWallPollResult(0) }
+        assertFalse("после трех пустых чтений опрос шага прекращается", runner.wallPollAllowed())
+        runner.registerWallPollResult(1)
+        assertTrue("найденная стена сбрасывает счетчик", runner.wallPollAllowed())
+    }
+
+    @Test
+    fun `wall poll limit is per step execution, not per run`() {
+        // SimpleRunner — один экземпляр на сервис: без сброса в начале исполнения шага
+        // исчерпанный в форварде лимит переносился в откат, и стены там не опрашивались
+        // вовсе (а откат — дорогое место: browser_sys 9 с по walls_recon.md).
+        repeat(3) { runner.registerWallPollResult(0) }
+        assertFalse("лимит исчерпан в предыдущем исполнении", runner.wallPollAllowed())
+
+        // run() начинается со сброса лимита; поведение шага на моках не важно —
+        // проверяется инвариант «лимит на исполнение шага».
+        runCatching {
+            runner.run(step("browser_sys"), romProfile, requireOverlay = false) { }
+        }
+        assertTrue("новое исполнение шага начинает счетчик с нуля", runner.wallPollAllowed())
+        runner.cancel()
     }
     @Test
     fun `header menu wins over list item menu`() = runTest {

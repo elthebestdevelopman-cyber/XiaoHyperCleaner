@@ -1138,6 +1138,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
     ) {
         cancel()
         cancelled = false
+        // Новое исполнение шага — свой лимит опросов стен (см. [onStepExecutionStart]).
+        onStepExecutionStart()
         reverseCtx = reverse
         // Экран-старт отката: предыдущий шаг мог оставить своё приложение, и маршрут
         // следующего шага не подтверждался. Пишем фактический старт, чтобы приёмка видела
@@ -6139,24 +6141,58 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * зовётся до 20 раз за шаг, и каждый вызов на экране без стены стоил ~0,9 с —
      * dismiss-стена `cause=network` держала browser_sys 9 с в откате (прогон 23–24.10).
      */
-    private val wallMisses = HashMap<String, Int>()
+    /** Пустые опросы стен в ТЕКУЩЕМ исполнении шага. */
+    private var wallMissesForStep = 0
 
-    /** Разрешён ли опрос стен на шаге: лимит пустых чтений. internal — для тестов. */
-    internal fun wallPollAllowed(stepId: String): Boolean =
-        (wallMisses[stepId] ?: 0) < MAX_WALL_MISSES_PER_STEP
+    /** Нота о пропуске опроса — один раз на исполнение шага. */
+    private var wallSkipNotedForStep = false
 
-    /** Учёт опроса: находка сбрасывает счётчик шага, пустое чтение копит. */
-    internal fun registerWallPollResult(stepId: String, handled: Int) {
-        if (handled > 0) {
-            wallMisses.remove(stepId)
-        } else {
-            wallMisses[stepId] = (wallMisses[stepId] ?: 0) + 1
-        }
+    /**
+     * Начало исполнения шага: лимит стен действует на ИСПОЛНЕНИЕ шага, не на прогон и не
+     * на фазу. SimpleRunner — один экземпляр на сервис, поэтому без сброса шаг, исчерпавший
+     * лимит в форварде, в откате не получил бы ни одного опроса (а стены в откате дороги).
+     */
+    internal fun onStepExecutionStart() {
+        wallMissesForStep = 0
+        wallSkipNotedForStep = false
+    }
+
+    /** Разрешён ли опрос стен: лимит пустых чтений на исполнение шага. internal — для тестов. */
+    internal fun wallPollAllowed(): Boolean = wallMissesForStep < MAX_WALL_MISSES_PER_STEP
+
+    /** Учёт опроса: находка сбрасывает счётчик, пустое чтение копит. */
+    internal fun registerWallPollResult(handled: Int) {
+        if (handled > 0) wallMissesForStep = 0 else wallMissesForStep++
+    }
+
+    /**
+     * Нота о пропуске опроса — один раз на исполнение шага: обработчик зовётся до ~20 раз,
+     * и повторная запись давала бы столько же одинаковых строк. `markers` отвечает на вопрос
+     * «видна ли стена уже сейчас»: одно чтение текста экрана при первом пропуске.
+     */
+    private fun noteWallPollSkipped(stepId: String) {
+        if (wallSkipNotedForStep) return
+        wallSkipNotedForStep = true
+        val markers = wallMarkerHits()
+        StepDiagnostics.note(
+            stepId,
+            "CONSENT",
+            "wall_poll_skipped skipped=$wallMissesForStep markers=$markers " +
+                "screen=${activePackage() ?: "-"}"
+        )
+    }
+
+    /** Сколько маркеров стен из каталога видно на экране (включая popup-окна). */
+    private fun wallMarkerHits(): Int {
+        val text = currentScreenText()
+        if (text.isBlank()) return 0
+        val markers = SemanticCatalog.welcomeMarkers() + SemanticCatalog.permissionMarkers()
+        return markers.count { TextMatcher.normalizedContains(text, it) }
     }
 
     private suspend fun handleConsentWalls(step: SimpleSteps.Step): Int {
-        if (!wallPollAllowed(step.id)) {
-            StepDiagnostics.note(step.id, "CONSENT", "wall_poll_skipped")
+        if (!wallPollAllowed()) {
+            noteWallPollSkipped(step.id)
             return 0
         }
         val handled = ConsentWallHandler.handleUntilSettled(
@@ -6182,7 +6218,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             ),
             isCancelled = { cancelled }
         )
-        registerWallPollResult(step.id, handled)
+        registerWallPollResult(handled)
         if (handled > 0) {
             // Стена только что закрыта: короткий опрос вместо фиксированной паузы —
             // как только рекламного/диалогового экрана нет, идём дальше.
