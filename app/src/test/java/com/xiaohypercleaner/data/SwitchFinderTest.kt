@@ -239,6 +239,38 @@ class SwitchFinderTest {
     }
 
     @Test
+    fun `switch row is found above a multi-switch ancestor that is not the row`() {
+        // Прогон 25.10 (music_sys): нижний таб-бар плеера — два checkable Button в общем
+        // предке; поиск сдавался на нём (`ambiguous row: switches=2`) и не поднимался к
+        // настоящей строке, шаг уходил в timeout.
+        val label = node("android.widget.TextView", text = "Показывать рекламу")
+        withBounds(label, 80, 500, 800, 600)
+
+        val tabA = node("android.widget.Button", checkable = true, checked = false)
+        withBounds(tabA, 0, 2100, 540, 2270)
+        val tabB = node("android.widget.Button", checkable = true, checked = false)
+        withBounds(tabB, 540, 2100, 1080, 2270)
+
+        val group = node("android.widget.LinearLayout", children = arrayOf(label, tabA, tabB))
+        link(group, label, tabA, tabB)
+
+        val toggle = node("android.widget.Switch", checkable = true, checked = true)
+        withBounds(toggle, 866, 500, 1000, 600)
+
+        val row = node("android.widget.LinearLayout", children = arrayOf(group, toggle))
+        link(row, group, toggle)
+
+        val screen = node("android.widget.FrameLayout", children = arrayOf(row))
+        link(screen, row)
+
+        assertEquals(
+            "тумблер своей строки находится выше общего предка с двумя тумблерами",
+            toggle,
+            SwitchFinder.findSwitch(screen, listOf("Показывать рекламу"))
+        )
+    }
+
+    @Test
     fun `describe captures checked_before label and bounds`() {
         val switch = node("android.widget.Switch", checked = false, text = "Карусель", checkable = true)
         Mockito.doAnswer { invocation ->

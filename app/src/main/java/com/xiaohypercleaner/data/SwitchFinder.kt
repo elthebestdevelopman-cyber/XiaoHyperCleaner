@@ -156,8 +156,14 @@ object SwitchFinder {
             if (switches.size > 1) {
                 val sameRow = switches.filter { sharesRow(it, labelBounds) }
                 if (sameRow.isNotEmpty()) return pickNearest(sameRow, labelBounds, texts)
-                AppLog.d(TAG, "ambiguous row: switches=${switches.size} — switch_not_found")
-                return null
+                // Первый много-тумблерный предок бывает общим контейнером списка или таб-бара
+                // (плеер: два checkable Button нижней панели делали «ambiguous» любую подпись,
+                // и тумблер настоящей строки не находился — прогон 25.10, music_sys).
+                // Не сдаёмся здесь: поднимаемся выше и принимаем только тумблеры СВОЕЙ строки.
+                AppLog.d(TAG, "ambiguous row: switches=${switches.size} — предок не строка, идём выше")
+                current = current.parent
+                depth++
+                continue
             }
             switches.firstOrNull()?.let { candidate ->
                 val row = current
@@ -170,8 +176,9 @@ object SwitchFinder {
                     AppLog.i(TAG, "switch accepted below label (row-like container)")
                     return candidate
                 }
-                // Без геометрии действует прежний структурный контракт.
-                return acceptIfSameRow(candidate, row)
+                // Без геометрии действует прежний структурный контракт; отказ — тоже повод
+                // подняться выше: настоящая строка может быть у следующего предка.
+                acceptIfSameRow(candidate, row)?.let { return it }
             }
             current = current.parent
             depth++
