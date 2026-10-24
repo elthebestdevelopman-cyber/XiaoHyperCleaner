@@ -108,6 +108,7 @@
     <string name="final_dialog_title">Результат оптимизации</string>
     <string name="final_dialog_success_text">Оптимизация успешно завершена. Настройки приватности применены.</string>
     <string name="final_dialog_failed_text">Оптимизация завершилась с ошибками. Пожалуйста, отправьте лог разработчику.</string>
+    <string name="final_dialog_failure_adb">Pro-настройки не восстановлены: ADB недоступен. Включите отладку по Wi-Fi и повторите откат.</string>
     <string name="final_dialog_rate">Оценить приложение</string>
     <string name="final_dialog_send_log">Отправить лог</string>
 

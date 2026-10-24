@@ -106,6 +106,7 @@
     <string name="final_dialog_title">Resultado da otimização</string>
     <string name="final_dialog_success_text">Otimização concluída com sucesso. Ajustes de privacidade aplicados.</string>
     <string name="final_dialog_failed_text">A otimização terminou com erros. Por favor, envie o registro ao desenvolvedor.</string>
+    <string name="final_dialog_failure_adb">As configurações Pro não foram restauradas: o ADB não está disponível. Ative a depuração sem fio e repita a restauração.</string>
     <string name="final_dialog_rate">Avaliar o app</string>
     <string name="final_dialog_send_log">Enviar registro</string>
 

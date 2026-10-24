@@ -9,6 +9,7 @@ import android.provider.Settings
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
 import com.xiaohypercleaner.data.OptimizationMode
 import com.xiaohypercleaner.data.OptimizationScope
@@ -34,6 +35,7 @@ import com.xiaohypercleaner.util.DiagnosticSnapshotManager
 import com.xiaohypercleaner.util.OptimizationNotifier
 import com.xiaohypercleaner.util.ShizukuHelper
 import com.xiaohypercleaner.util.SelfApkExporter
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -90,6 +92,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val state: StateFlow<MainUiState> = _state.asStateFlow()
 
     private fun update(transform: (MainUiState) -> MainUiState) = _state.update(transform)
+
+    /**
+     * Текст финального диалога из ресурсов: движок отдаёт машинные токены (`connect_failed`)
+     * и русские диагностические строки, которые нельзя показывать как UI-текст в 7 локалях.
+     */
+    private fun failureText(result: OptimizationNotifier.Result.Failure): String =
+        if (result.failedActions.any { it.contains("connect_failed") }) {
+            app.getString(R.string.final_dialog_failure_adb)
+        } else {
+            app.getString(R.string.final_dialog_failed_text)
+        }
 
     val simpleController: SimpleModeController = SimpleModeController(
         app,
@@ -178,7 +191,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch {
-            prefs.isHiddenSettingsApplied.collect { applied ->
+            // distinctUntilChanged: DataStore перечитывает файл на каждое обращение, и без
+            // этой оси каждый шаг прогона давал четыре «changed»-строки (368 за прогон
+            // 23–24.10), а состояние UI при этом не менялось.
+            prefs.isHiddenSettingsApplied.distinctUntilChanged().collect { applied ->
                 AppLog.i(TAG, "isHiddenSettingsApplied changed to $applied")
                 update { it.copy(isOptimized = applied) }
             }
@@ -195,14 +211,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch {
-            prefs.dnsFilterEnabled.collect { enabled ->
+            prefs.dnsFilterEnabled.distinctUntilChanged().collect { enabled ->
                 AppLog.i(TAG, "dnsFilterEnabled changed to $enabled")
                 update { it.copy(dnsFilterEnabled = enabled) }
             }
         }
 
         viewModelScope.launch {
-            prefs.notifTransparency.collect { enabled ->
+            prefs.notifTransparency.distinctUntilChanged().collect { enabled ->
                 AppLog.i(TAG, "notifTransparency changed to $enabled")
                 update { it.copy(notifTransparency = enabled) }
                 simpleController.setNotifTransparency(enabled)
@@ -219,7 +235,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         // Уровень диагностики: release-дефолт задаёт приложение, override — 7 тапов.
         viewModelScope.launch {
-            prefs.diagLevelOverride.collect { raw ->
+            prefs.diagLevelOverride.distinctUntilChanged().collect { raw ->
                 val parsed = DiagnosticSnapshotManager.parseLevel(raw)
                 AppLog.i(TAG, "diagLevelOverride=$raw parsed=${parsed?.name}")
                 if (parsed != null) {
@@ -253,7 +269,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 isOptimized = false,
                                 showFinalDialog = true,
                                 optimizationSuccess = false,
-                                finalReport = result.details
+                                finalReport = failureText(result)
                             )
                         }
                         OptimizationNotifier.reset()

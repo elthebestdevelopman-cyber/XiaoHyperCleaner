@@ -403,7 +403,15 @@ class OptimizationEngine(
     suspend fun hasPendingRestore(): Boolean =
         runCatching { snapshotStore?.load() != null }.getOrDefault(false)
 
-    suspend fun restore(callbacks: Callbacks = Callbacks()): Boolean {
+    /**
+     * @param notifyFailure false — провал не поднимает нотификатор: канал отката сам
+     *   отчитывается своим экраном результата, а финальный диалог посреди отката
+     *   показывал «провал» после успешно возвращённых тумблеров (прогон 23–24.10).
+     */
+    suspend fun restore(
+        callbacks: Callbacks = Callbacks(),
+        notifyFailure: Boolean = true
+    ): Boolean {
         AppLog.i(TAG, "Запуск восстановления")
         OptimizationNotifier.setRunning()
 
@@ -413,10 +421,12 @@ class OptimizationEngine(
         if (!connect()) {
             callbacks.onError("connect_failed")
             callbacks.onProgress(AppConstants.PROGRESS_FAIL)
-            OptimizationNotifier.setFailure(
-                listOf("connect_failed"),
-                "Не удалось подключиться для восстановления"
-            )
+            if (notifyFailure) {
+                OptimizationNotifier.setFailure(
+                    listOf("connect_failed"),
+                    "Не удалось подключиться для восстановления"
+                )
+            }
             return false
         }
 
@@ -457,7 +467,9 @@ class OptimizationEngine(
             AppLog.w(TAG, "Восстановление завершено с ошибками: $failedActions")
             callbacks.onError("restore_verification_failed")
             callbacks.onProgress(AppConstants.PROGRESS_FAIL)
+            if (notifyFailure) {
             OptimizationNotifier.setFailure(failedActions, "Восстановление завершено с ошибками")
+        }
             return false
         }
 

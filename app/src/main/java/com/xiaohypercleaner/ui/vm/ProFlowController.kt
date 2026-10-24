@@ -533,9 +533,21 @@ class ProFlowController(
                             engine.restore(
                                 OptimizationEngine.Callbacks(
                                     onProgress = { p: Float -> update { it.copy(progress = p * 0.4f) } }
-                                )
+                                ),
+                                // Провал Pro-канала не поднимает финальный диалог: откат сам
+                                // отчитывается экраном результата, а диалог «провал» посреди
+                                // отката появлялся после успешно возвращённых тумблеров
+                                // (прогон 23–24.10).
+                                notifyFailure = false
                             )
                         }.getOrDefault(false)
+                        if (!adbOk) {
+                            AppLog.w(
+                                TAG,
+                                "restoreOptimization: pro channel not restored " +
+                                    "(ADB/Shizuku unavailable, snapshot kept)"
+                            )
+                        }
                     } else {
                         AppLog.i(TAG, "restoreOptimization: pro channel not needed (no pending snapshot)")
                     }

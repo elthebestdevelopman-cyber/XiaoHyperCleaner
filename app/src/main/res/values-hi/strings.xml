@@ -106,6 +106,7 @@
     <string name="final_dialog_title">ऑप्टिमाइज़ेशन परिणाम</string>
     <string name="final_dialog_success_text">ऑप्टिमाइज़ेशन सफलतापूर्वक पूर्ण हुआ। गोपनीयता सेटिंग्स लागू की गईं।</string>
     <string name="final_dialog_failed_text">ऑप्टिमाइज़ेशन त्रुटियों के साथ समाप्त हुआ। कृपया डेवलपर को लॉग भेजें।</string>
+    <string name="final_dialog_failure_adb">प्रो सेटिंग्स बहाल नहीं हुईं: ADB उपलब्ध नहीं है। वायरलेस डिबगिंग चालू करें और पुनर्स्थापना दोहराएँ।</string>
     <string name="final_dialog_rate">ऐप रेट करें</string>
     <string name="final_dialog_send_log">लॉग भेजें</string>
 

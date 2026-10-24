@@ -106,6 +106,7 @@
     <string name="final_dialog_title">Hasil pengoptimalan</string>
     <string name="final_dialog_success_text">Pengoptimalan berhasil diselesaikan. Setelan privasi diterapkan.</string>
     <string name="final_dialog_failed_text">Pengoptimalan selesai dengan kesalahan. Silakan kirim log ke pengembang.</string>
+    <string name="final_dialog_failure_adb">Pengaturan Pro tidak dipulihkan: ADB tidak tersedia. Aktifkan debugging nirkabel dan ulangi pemulihan.</string>
     <string name="final_dialog_rate">Beri nilai aplikasi</string>
     <string name="final_dialog_send_log">Kirim log</string>
 

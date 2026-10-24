@@ -131,6 +131,7 @@
     <string name="final_dialog_title">优化结果</string>
     <string name="final_dialog_success_text">优化成功完成。隐私设置已应用。</string>
     <string name="final_dialog_failed_text">优化完成但出现错误。请将日志发送给开发者。</string>
+    <string name="final_dialog_failure_adb">Pro 设置未恢复：ADB 不可用。请开启无线调试后重新执行还原。</string>
     <string name="final_dialog_rate">评价应用</string>
     <string name="final_dialog_send_log">发送日志</string>
 

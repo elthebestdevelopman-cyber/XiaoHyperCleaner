@@ -121,6 +121,7 @@
     <string name="final_dialog_title">Optimization result</string>
     <string name="final_dialog_success_text">Optimization completed successfully. Privacy settings applied.</string>
     <string name="final_dialog_failed_text">Optimization finished with errors. Please send the log to the developer.</string>
+    <string name="final_dialog_failure_adb">Pro settings were not restored: ADB is unavailable. Enable wireless debugging and run the restore again.</string>
     <string name="final_dialog_rate">Rate the app</string>
     <string name="final_dialog_send_log">Send log</string>
 
