@@ -145,6 +145,50 @@ class SimpleRunnerDrillTest {
     }
 
     @Test
+    fun `structural dialog is polled even when the empty-read limit is spent`() {
+        // Откат msa (25.10): три пустых опроса навигации съели лимит, и стена согласия,
+        // вставшая ПОСЛЕ тапа по тумблеру, не классифицировалась вовсе —
+        // `reverse_consent attempt=1..3 walls=0` → consent_not_confirmed. Структурный
+        // диалог обязан опрашиваться независимо от лимита пустых чтений.
+        repeat(3) { runner.registerWallPollResult(0) }
+        assertFalse("лимит пустых чтений исчерпан", runner.wallPollAllowed())
+        assertTrue("диалог на экране — опрос обязателен", runner.shouldPollWalls(structuralDialog = true))
+        assertFalse("без диалога лимит действует", runner.shouldPollWalls(structuralDialog = false))
+    }
+
+    @Test
+    fun `last drill level is retried only when the target did not open`() {
+        // Откат carousel (25.10): уровень «Карусель обоев» засчитан по смене экрана, но
+        // целевого экрана не было (тап по переехавшей строке): строка уровня осталась на
+        // месте, extras ушли в чужой пакет → screen_not_reached. Повтор — только для
+        // последнего уровня и только при «строку видно, цели нет».
+        assertTrue(
+            "последний уровень, цель не открылась, строка на месте — повтор",
+            runner.shouldRetryLastLevel(
+                levelOk = true, isLastLevel = true, targetPresent = false, levelStillVisible = true
+            )
+        )
+        assertFalse(
+            "цель на экране — повтор не нужен",
+            runner.shouldRetryLastLevel(
+                levelOk = true, isLastLevel = true, targetPresent = true, levelStillVisible = true
+            )
+        )
+        assertFalse(
+            "экран сменился (строки нет) — это переход, а не промах",
+            runner.shouldRetryLastLevel(
+                levelOk = true, isLastLevel = true, targetPresent = false, levelStillVisible = false
+            )
+        )
+        assertFalse(
+            "промежуточный уровень повторяется через levelLanded, не здесь",
+            runner.shouldRetryLastLevel(
+                levelOk = true, isLastLevel = false, targetPresent = false, levelStillVisible = true
+            )
+        )
+    }
+
+    @Test
     fun `wall poll limit is per step execution, not per run`() {
         // SimpleRunner — один экземпляр на сервис: без сброса в начале исполнения шага
         // исчерпанный в форварде лимит переносился в откат, и стены там не опрашивались

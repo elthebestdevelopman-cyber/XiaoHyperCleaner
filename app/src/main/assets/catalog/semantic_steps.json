@@ -458,6 +458,15 @@
           "OK"
         ]
       },
+      "reverseConsentTexts": {
+        "ru": ["Согласен", "Согласиться", "Принимаю", "Принять"],
+        "en": ["Agree", "I agree", "Accept", "Continue"],
+        "es": ["Acepto", "Aceptar", "De acuerdo"],
+        "zh": ["同意", "接受", "我同意"],
+        "hi": ["सहमत", "सहमत हूँ", "स्वीकार करें"],
+        "pt": ["Concordo", "Aceitar", "Aceito"],
+        "id": ["Setuju", "Saya setuju", "Terima"]
+      },
       "safe": true,
       "localeCoverage": [
         "ru",

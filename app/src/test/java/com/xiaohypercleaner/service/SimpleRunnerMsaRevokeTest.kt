@@ -442,4 +442,33 @@ class SimpleRunnerMsaRevokeTest {
         Mockito.verify(service, Mockito.times(1))
             .performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
     }
+
+    @Test
+    fun `reverse consent accepts the affirmative button of the msa wall`() {
+        // Откат msa (25.10, дамп diagnostic_snapshot_msa_1792866661796): стена
+        // «Предоставление разрешения» с кнопками «Выход»/«Согласен». Каталог обязан нести
+        // положительную кнопку, а поиск — выбрать её, а не «Выход»: иначе откат закрывает
+        // согласие и msa остаётся выключенным (consent_not_confirmed).
+        val acceptTexts = SemanticCatalog.reverseConsentTexts("msa")
+        assertTrue("каталог объявляет кнопку согласия для msa", acceptTexts.isNotEmpty())
+        assertTrue("в наборе есть точная строка устройства", acceptTexts.contains("Согласен"))
+
+        val exit = node(
+            text = "Выход",
+            id = "android:id/button2",
+            className = "android.widget.Button",
+            clickable = true
+        )
+        val agree = node(
+            text = "Согласен",
+            id = "android:id/button1",
+            className = "android.widget.Button",
+            clickable = true
+        )
+        val root = node(className = "android.widget.FrameLayout", children = arrayOf(exit, agree))
+
+        val found = runner.findDialogConfirmButton(root, acceptTexts)
+
+        assertEquals("нажимается кнопка согласия, а не «Выход»", agree, found)
+    }
 }

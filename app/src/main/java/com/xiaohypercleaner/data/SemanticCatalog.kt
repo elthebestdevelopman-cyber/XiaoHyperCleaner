@@ -106,7 +106,14 @@ object SemanticCatalog {
          * Destructive-действие шага (disable/uninstall/clear_data/force_stop)
          * для гейта красного списка neverTouchPackages.
          */
-        val destructiveAction: String? = null
+        val destructiveAction: String? = null,
+        /**
+         * Кнопки согласия для ОТКАТА: возврат доступа требует ПРИНЯТЬ согласие на обработку
+         * данных (msa: MIUI показывает «Предоставление разрешения» с кнопками
+         * «Выход»/«Согласен», прогон 25.10). Вперёд не читается — forward-политика
+         * согласие на обработку данных не нажимает.
+         */
+        val reverseConsentTexts: Map<String, List<String>> = emptyMap()
     )
 
     /**
@@ -656,6 +663,10 @@ object SemanticCatalog {
     fun consentTexts(id: String): List<String> =
         merge(localizedTexts(selection(id)?.variant?.consentTexts), localizedTexts(step(id)?.consentTexts))
 
+    /** Кнопки согласия стены в ОТКАТЕ (пусто — шаг таких стен не принимает). */
+    fun reverseConsentTexts(id: String): List<String> =
+        localizedTexts(step(id)?.reverseConsentTexts)
+
     fun overflowMenuLabels(id: String): List<String> = localizedTexts(step(id)?.overflowMenuLabels)
 
     fun title(id: String, fallback: String): String {
@@ -873,6 +884,7 @@ object SemanticCatalog {
         welcomeDecision = o.optString("welcomeDecision").takeIf { it.isNotEmpty() }.orEmpty(),
         welcomeAcceptTexts = parseListMap(o.optJSONObject("welcomeAcceptTexts")),
         welcomeSkipTexts = parseListMap(o.optJSONObject("welcomeSkipTexts")),
+        reverseConsentTexts = parseListMap(o.optJSONObject("reverseConsentTexts")),
         muteMediaOnLaunch = o.optBoolean("muteMediaOnLaunch", false),
         safe = o.optBoolean("safe", true),
         localeCoverage = parseStringArray(o.optJSONArray("localeCoverage")),

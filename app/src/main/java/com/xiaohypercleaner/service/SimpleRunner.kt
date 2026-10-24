@@ -1851,6 +1851,26 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     break
                 }
                 var levelOk = drillIntoLevel(step, levelIndex, mergedDrillPath[levelIndex])
+                // Последний уровень: drill считает переход состоявшимся по смене экрана, но
+                // цель могла не открыться — тап пришёлся по переехавшей строке анимируемого
+                // списка MIUI (откат carousel 25.10: экран «Блокировка экрана», строка
+                // «Карусель обоев» на месте, цели нет, extras ушли в чужой экран →
+                // screen_not_reached). Повтор один и не отменяет засчитанный переход.
+                if (shouldRetryLastLevel(
+                        levelOk = levelOk,
+                        isLastLevel = levelIndex == mergedDrillPath.lastIndex,
+                        targetPresent = onTargetScreen(step) || screenHasAny(verifyTexts),
+                        levelStillVisible = screenHasAny(mergedDrillPath[levelIndex])
+                    )
+                ) {
+                    AppLog.w(
+                        TAG,
+                        "drill: level '${mergedDrillPath[levelIndex].firstOrNull()}' did not " +
+                            "open the target for ${step.id} — retry level"
+                    )
+                    StepDiagnostics.note(step.id, "DRILL", "last_level_retry level=$levelIndex")
+                    drillIntoLevel(step, levelIndex, mergedDrillPath[levelIndex])
+                }
                 if (!levelOk) {
                     // Поверх навигации мог встать диалог (runtime-permission целевого
                     // приложения: Mi Браузер уперся в «Разрешить доступ к фото…»,
@@ -2361,6 +2381,19 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     /**
+     * Нужен ли повтор последнего уровня drill: переход засчитан, но цель шага на экране
+     * отсутствует, а подпись уровня всё ещё видна — значит, экран не сменился и тап пришёлся
+     * по переехавшей строке. Для не-последних уровней повтора нет: там переход проверяет
+     * [levelLanded] по следующему уровню. internal — для тестов.
+     */
+    internal fun shouldRetryLastLevel(
+        levelOk: Boolean,
+        isLastLevel: Boolean,
+        targetPresent: Boolean,
+        levelStillVisible: Boolean
+    ): Boolean = levelOk && isLastLevel && !targetPresent && levelStillVisible
+
+    /**
      * Уровень пройден: виден следующий уровень ЛИБО экран фактически сменился.
      *
      * Оба признака проверяются В ОДНОМ опросе: раньше сначала полностью выжидался
@@ -2816,6 +2849,22 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 // догрузиться, не уходя со страницы.
                 appeared = awaitFeedAppeared(step.id, ids, WARMUP_FEED_WAIT_MS)
             } else if (swipeHomePage(forward = false)) {
+                appeared = awaitFeedAppeared(step.id, ids, WARMUP_FEED_WAIT_MS)
+            }
+        }
+        if (!appeared && !cancelled) {
+            // HOME мог вернуть в ЯЩИК ПРИЛОЖЕНИЙ: POCO launcher помнит последнюю
+            // поверхность, `isLauncherDesktop()` считает ящик рабочим столом, и свайп шёл
+            // по drawer — ленты там нет (прогон 25.10: feed_appear hit=false ×2, шаг
+            // appvault_services ушёл в low_confidence на экране ящика). BACK закрывает
+            // ящик, затем тот же свайп к ленте повторяется один раз.
+            AppLog.i(TAG, "warmUp: leaving launcher drawer and retrying swipe step=${step.id}")
+            StepDiagnostics.note(step.id, "WARMUP", "drawer_exit_retry")
+            if (!awaitOverlayReadyOrPause()) return false
+            service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+            delay(UI_SETTLE_DELAY_MS)
+            if (!awaitOverlayReadyOrPause()) return false
+            if (swipeHomePage(forward = false)) {
                 appeared = awaitFeedAppeared(step.id, ids, WARMUP_FEED_WAIT_MS)
             }
         }
@@ -4328,11 +4377,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
         repeat(REVERSE_CONSENT_ATTEMPTS) { attempt ->
             if (cancelled) return false
             if (msaSwitchInTargetState(step, switchTexts)) return true
-            val walls = handleConsentWalls(step)
+            // Адресное согласие ДО generic-обработчика: MIUI показывает диалог
+            // «Предоставление разрешения» с кнопками «Выход»/«Согласен», а generic-политика
+            // жмёт отрицательную кнопку (для неё это закрытие чужого диалога). В откате
+            // нужен именно положительный ответ — иначе msa остаётся выключенным
+            // (прогон 25.10: откат msa → consent_not_confirmed → каскад
+            // folder_recommendations).
+            val accepted = tapReverseConsentAccept(step)
+            val walls = if (accepted) 0 else handleConsentWalls(step)
             StepDiagnostics.note(
                 step.id,
                 "CONSENT",
-                "reverse_consent attempt=${attempt + 1} walls=$walls"
+                "reverse_consent attempt=${attempt + 1} accepted=$accepted walls=$walls"
             )
             delay(REVERSE_CONSENT_SETTLE_MS)
         }
@@ -4341,6 +4397,30 @@ class SimpleRunner(private val service: AdbEnablerService) {
             switchTexts,
             timeoutMs = REVERSE_CONSENT_STATE_WAIT_MS
         )
+    }
+
+    /**
+     * Кнопка согласия стены в ОТКАТЕ (msa: возврат доступа, а не отзыв).
+     *
+     * Набор кнопок — данные варианта ([SemanticCatalog.reverseConsentTexts]); тап делается
+     * только когда на экране диалог и найдена именно КНОПКА (см. [findDialogConfirmButton]).
+     * Успех тапа ничего не доказывает: вызывающий подтверждает целевое состояние тумблера.
+     */
+    private suspend fun tapReverseConsentAccept(step: SimpleSteps.Step): Boolean {
+        val texts = SemanticCatalog.reverseConsentTexts(step.id)
+        if (texts.isEmpty()) return false
+        val root = runCatching { service.rootInActiveWindow }.getOrNull() ?: return false
+        val isDialog = runCatching { ConsentWallHandler.isAlertDialog(root) }.getOrDefault(false)
+        val button = if (isDialog) findDialogConfirmButton(root, texts) else null
+        val tapped = button != null && tapNode(button)
+        recycleNode(button)
+        recycleNode(root)
+        if (tapped) {
+            AppLog.i(TAG, "reverse consent: accepted for ${step.id}")
+            StepDiagnostics.note(step.id, "CONSENT", "reverse_consent_accept tapped")
+            delay(REVERSE_CONSENT_SETTLE_MS)
+        }
+        return tapped
     }
 
     /**
@@ -6193,6 +6273,19 @@ class SimpleRunner(private val service: AdbEnablerService) {
     /** Разрешён ли опрос стен: лимит пустых чтений на исполнение шага. internal — для тестов. */
     internal fun wallPollAllowed(): Boolean = wallMissesForStep < MAX_WALL_MISSES_PER_STEP
 
+    /**
+     * Опрос стен разрешён, если на экране СТРУКТУРНЫЙ диалог — даже когда лимит пустых
+     * чтений исчерпан.
+     *
+     * Лимит экономит бюджет шага на экранах без стены, но стена появляется ПОСЛЕ нашего
+     * тапа: в откате msa три пустых опроса навигации съедали лимит, и стена согласия
+     * («Предоставление разрешения», кнопки «Выход»/«Согласен») не классифицировалась —
+     * шаг падал `consent_not_confirmed` вместо восстановления (прогон 25.10,
+     * `reverse_consent attempt=1..3 walls=0`). internal — для тестов.
+     */
+    internal fun shouldPollWalls(structuralDialog: Boolean): Boolean =
+        structuralDialog || wallPollAllowed()
+
     /** Учёт опроса: находка сбрасывает счётчик, пустое чтение копит. */
     internal fun registerWallPollResult(handled: Int) {
         if (handled > 0) wallMissesForStep = 0 else wallMissesForStep++
@@ -6239,7 +6332,11 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     private suspend fun handleConsentWalls(step: SimpleSteps.Step): Int {
-        if (!wallPollAllowed()) {
+        // Структурный диалог опрашиваем ВСЕГДА: лимит пустых чтений экономит бюджет шага на
+        // экранах БЕЗ стены, а стена появляется после нашего тапа — когда лимит уже
+        // израсходован навигацией (see [shouldPollWalls]).
+        val structural = wallDialogNow()
+        if (!shouldPollWalls(structural)) {
             noteWallPollSkipped(step.id)
             return 0
         }
@@ -6266,7 +6363,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
             ),
             isCancelled = { cancelled }
         )
-        registerWallPollResult(handled)
+        // Пустой структурный опрос лимит не копит: диалог на экране — не «пустое чтение»
+        // (иначе чужая стена, которую политика не трогает, съедала бы бюджет шага).
+        if (!structural) registerWallPollResult(handled)
         if (handled > 0) {
             // Стена только что закрыта: короткий опрос вместо фиксированной паузы —
             // как только рекламного/диалогового экрана нет, идём дальше.
