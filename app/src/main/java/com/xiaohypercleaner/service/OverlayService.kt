@@ -15,6 +15,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.animation.LinearInterpolator
@@ -1107,14 +1108,49 @@ class OverlayService : Service() {
         // Тапы поглощаем по всей площади, включая системные панели: пользовательские
         // Back/Home не должны прерывать автоматизацию.
         if (touchable) {
+            var passthroughGestures = 0
+            var interceptedGestures = 0
             v.setOnTouchListener { _, event ->
                 // Пассивное окно passthrough вокруг наших жестов: касание не поглощаем —
                 // оно уходит приложению под оверлеем. Флаг окна не трогаем (см. setPassthrough).
+                // Координаты КАЖДОГО MotionEvent не логируем: это десятки строк в секунду из
+                // main thread (прогон 23–24.10 — 334 строки), и каждая строка писалась в файл
+                // с flush. В лог идут счётчик жестов и крайние точки.
                 if (System.currentTimeMillis() < passthroughUntilMs) {
-                    AppLog.d(TAG, "touch passed through: x=${event.x}, y=${event.y}")
+                    if (event.actionMasked == MotionEvent.ACTION_UP) {
+                        passthroughGestures++
+                        AppLog.d(
+
+
+                            TAG,
+
+
+                            "touch passed through: gesture=$passthroughGestures " +
+
+
+                                "end=(${event.x.toInt()},${event.y.toInt()})"
+
+
+                        )
+                    }
                     false
                 } else {
-                    AppLog.d(TAG, "touch intercepted: x=${event.x}, y=${event.y}")
+                    if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                        interceptedGestures++
+                        AppLog.d(
+
+
+                            TAG,
+
+
+                            "touch intercepted: gesture=$interceptedGestures " +
+
+
+                                "at=(${event.x.toInt()},${event.y.toInt()})"
+
+
+                        )
+                    }
                     true
                 }
             }

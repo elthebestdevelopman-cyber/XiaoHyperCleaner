@@ -10,6 +10,8 @@ import java.io.PrintWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /**
  * Собственный логгер проекта (НЕ Timber).
@@ -43,6 +45,18 @@ object AppLog {
     private val logToFile = true
 
     /**
+     * Файловый I/O — только на своём потоке: логирование идёт из main thread сервисов
+     * (оверлей: касания и heartbeat), а flush на каждую строку в потоке вызывающего
+     * давал jank прогона 23–24.10.
+     */
+    private val writeExecutor: ExecutorService by lazy {
+        Executors.newSingleThreadExecutor { r -> Thread(r, "AppLogWriter").apply { isDaemon = true } }
+    }
+
+    /** Учёт объёма без `file.length()` на каждую строку (это тоже syscall). */
+    private var bytesWritten = 0L
+
+    /**
      * Инициализация логгера. Вызывать в Application.onCreate() или в первой активности.
      * После инициализации все вызовы i/w/e/d пишут в файл.
      */
@@ -59,8 +73,7 @@ object AppLog {
 
                 rotateLogsIfNeeded()
 
-                // BufferedWriter для лучшей производительности при частых логах
-                writer = PrintWriter(BufferedWriter(FileWriter(file, true)), true)
+                reopenWriter()
 
                 i(TAG, "========================================")
                 i(TAG, "Логгирование запущено, $LOG_VERSION")
@@ -104,24 +117,11 @@ object AppLog {
         }
     }
 
-    /**
-     * Проверка размера и ротация перед записью.
-     * Вызывается при каждом логировании, чтобы не превышать лимит.
-     */
-    private fun checkSizeAndRotateIfNeeded() {
-        if (!logToFile || writer == null) return
-
-        try {
-            if ((file?.length() ?: 0L) > MAX_LOG_SIZE) {
-                closeWriter()
-                rotateLogsIfNeeded()
-                file?.let { f ->
-                    writer = PrintWriter(BufferedWriter(FileWriter(f, true)), true)
-                }
-            }
-        } catch (e: Exception) {
-            // Игнорируем ошибки ротации — логгирование не должно ронять приложение
-        }
+    /** Открывает файл заново и подхватывает фактический размер (вызывать под [lock]). */
+    private fun reopenWriter() {
+        val f = file ?: return
+        writer = PrintWriter(BufferedWriter(FileWriter(f, true)), true)
+        bytesWritten = f.length()
     }
 
     fun d(tag: String, msg: String, throwable: Throwable? = null) {
@@ -145,35 +145,51 @@ object AppLog {
     }
 
     /**
-     * Запись в файл. Потокобезопасная, с проверкой размера.
+     * Ставит строку в очередь записи. Файловый I/O и flush — на потоке [writeExecutor]:
+     * в прогоне 23–24.10 оверлей логировал каждое касание из main thread, и каждая строка
+     * уходила в файл с flush в потоке вызывающего.
      */
     private fun writeToFile(level: String, tag: String, msg: String, throwable: Throwable?) {
         if (!logToFile) return
+        if (writer == null) return
+        try {
+            writeExecutor.execute { writeNow(level, tag, msg, throwable) }
+        } catch (_: Exception) {
+            // Логгирование не должно ронять приложение (в т.ч. при shutdown пула)
+        }
+    }
 
+    /** Фактическая запись строки в файл (поток [writeExecutor]). */
+    private fun writeNow(level: String, tag: String, msg: String, throwable: Throwable?) {
         synchronized(lock) {
             try {
-                // Проверяем размер и ротируем при необходимости
-                checkSizeAndRotateIfNeeded()
-
                 if (writer == null) return
-
                 val timestamp = dateFormat.format(Date())
                 // Централизованная маскировка чувствительных данных в файловом логе.
                 // Файл экспортируется/шарится через UiActions.shareLog — основная точка утечки.
                 // Logcat намеренно не маскируется, чтобы не мешать отладке.
-                writer?.println("$timestamp $level/$tag: ${LogMasker.mask(msg)}")
-
+                val lines = ArrayList<String>(4)
+                lines.add("$timestamp $level/$tag: ${LogMasker.mask(msg)}")
                 throwable?.let { t ->
-                    writer?.println("$timestamp $level/$tag: ${t.javaClass.simpleName}: ${LogMasker.mask(t.message ?: "")}")
+                    lines.add("$timestamp $level/$tag: ${t.javaClass.simpleName}: ${LogMasker.mask(t.message ?: "")}")
                     t.stackTrace.take(10).forEach { element ->
-                        writer?.println("$timestamp $level/$tag:     at $element")
+                        lines.add("$timestamp $level/$tag:     at $element")
                     }
                 }
-
-                writer?.flush()
-            } catch (e: Exception) {
-                // Игнорируем ошибки записи в лог-файл
-                // Логгирование не должно ронять приложение
+                val size = lines.sumOf { it.toByteArray(Charsets.UTF_8).size.toLong() + 1 }
+                if (bytesWritten + size > MAX_LOG_SIZE) {
+                    closeWriter()
+                    rotateLogsIfNeeded()
+                    reopenWriter()
+                }
+                val w = writer ?: return
+                lines.forEach { w.println(it) }
+                // flush на каждую строку оставляем: буфер терялся бы при убийстве процесса,
+                // но теперь он вне потока вызывающего.
+                w.flush()
+                bytesWritten += size
+            } catch (_: Exception) {
+                // Игнорируем ошибки записи в лог-файл: логгирование не должно ронять приложение
             }
         }
     }
@@ -221,7 +237,7 @@ object AppLog {
 
                 // Пересоздаём пустой файл
                 file = File(logDir, LOG_FILE_NAME)
-                writer = PrintWriter(BufferedWriter(FileWriter(file, true)), true)
+                reopenWriter()
 
                 i(TAG, "Все логи очищены")
             } catch (e: Exception) {
@@ -248,6 +264,7 @@ object AppLog {
             closeWriter()
             file = null
             contextRef = null
+            bytesWritten = 0L
         }
     }
 
