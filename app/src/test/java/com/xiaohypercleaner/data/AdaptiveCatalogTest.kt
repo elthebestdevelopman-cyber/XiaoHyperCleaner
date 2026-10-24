@@ -86,6 +86,61 @@ class AdaptiveCatalogTest {
     }
 
     @Test
+    fun `added levels keep only genuinely new route levels`() {
+        // uiSteps зеркалит семантический маршрут: тот же уровень, описанный другим набором
+        // подписей, второй раз не нужен (иначе шаг ждёт уже пройденный уровень).
+        val base = listOf(listOf("Настройки", "Settings"))
+        val catalog = listOf(
+            listOf("Настройки", "Settings", "设置"),
+            listOf("Расширенные настройки", "Advanced settings")
+        )
+
+        val added = AdaptiveCatalog.addedLevels(base, catalog)
+
+        assertEquals(1, added.size)
+        assertTrue(added[0].contains("Расширенные настройки"))
+    }
+
+    @Test
+    fun `drill path does not mirror semantic levels for global ru`() {
+        // Прогон 25.10: для global_ru uiSteps падает на cn_hyperos, и маршрут складывался
+        // дважды — mivideo 4 уровня вместо 2 (после шестерёнки ждал «Профиль» → drill_failed),
+        // music_sys 6 вместо 3.
+        AdaptiveCatalog.resetForTest()
+        AdaptiveCatalog.selectVariant(context, globalProfile())
+        val videoBase = listOf(
+            listOf("Профиль", "Profile", "我的", "Perfil"),
+            listOf("", "⚙️", "Настройки", "Settings")
+        )
+        val video = AdaptiveCatalog.mergeDrillPath(context, "mivideo", videoBase)
+        assertEquals("маршрут mivideo не дублируется", 2, video.size)
+
+        AdaptiveCatalog.resetForTest()
+        AdaptiveCatalog.selectVariant(context, globalProfile())
+        val musicBase = listOf(
+            listOf("☰", "Показать меню", "Ещё", "More", "Больше"),
+            listOf("Настройки", "Settings", "设置"),
+            listOf("Расширенные настройки", "Advanced settings")
+        )
+        val music = AdaptiveCatalog.mergeDrillPath(context, "music_sys", musicBase)
+        assertEquals("маршрут music_sys не дублируется", 3, music.size)
+    }
+
+    @Test
+    fun `catalog mirror never grows the merged route`() {
+        for (stepId in listOf("msa", "music_sys", "mivideo", "themes", "shareme")) {
+            AdaptiveCatalog.resetForTest()
+            AdaptiveCatalog.selectVariant(context, globalProfile())
+            val catalog = AdaptiveCatalog.mergeDrillPath(context, stepId, emptyList())
+            if (catalog.isEmpty()) continue
+            AdaptiveCatalog.resetForTest()
+            AdaptiveCatalog.selectVariant(context, globalProfile())
+            val merged = AdaptiveCatalog.mergeDrillPath(context, stepId, catalog)
+            assertEquals("зеркало не растёт для $stepId", catalog.size, merged.size)
+        }
+    }
+
+    @Test
     fun `additional toggles merge base and catalog`() {
         val merged = AdaptiveCatalog.mergeAdditionalToggles(context, "themes", listOf("BASE"))
 

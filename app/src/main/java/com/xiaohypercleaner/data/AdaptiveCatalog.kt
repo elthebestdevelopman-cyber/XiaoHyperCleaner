@@ -164,6 +164,31 @@ object AdaptiveCatalog {
     }
 
     /** Флаг replaceDrillPath: каталог заменяет drillPath шага вместо мерджа. */
+    /**
+     * Уровни каталога, которых ещё нет в базовом маршруте.
+     *
+     * `uiSteps` — миграционный артефакт: для большинства шагов он зеркалит семантический
+     * маршрут, а пошаговый фолбэк [variantStepObj] на `cn_hyperos` добавляет это зеркало и в
+     * `global_ru`. Без отсечения маршрут дублировался: mivideo получал 4 уровня вместо 2 и
+     * после шестерёнки ждал «Профиль» (drill_failed), music_sys — 6 вместо 3 (прогон 25.10).
+     * Дубль определяем по общему нормализованному тексту уровня: тот же уровень, описанный
+     * другим набором подписей, второй раз не нужен.
+     */
+    internal fun addedLevels(
+        defaults: List<List<String>>,
+        catalog: List<List<String>>
+    ): List<List<String>> {
+        val base = defaults.map { level -> level.mapNotNull { normalizeLevel(it) }.filter { it.isNotEmpty() } }
+        return catalog.filter { level ->
+            val texts = level.mapNotNull { normalizeLevel(it) }.filter { it.isNotEmpty() }
+            texts.isNotEmpty() && base.none { existing -> existing.any { it in texts } }
+        }
+    }
+
+    /** Нормализация подписи уровня для сравнения: регистр, пробелы, вариационный селектор. */
+    private fun normalizeLevel(text: String): String? =
+        text.replace("\uFE0F", "").trim().lowercase(Locale.ROOT).takeIf { it.isNotEmpty() }
+
     private fun isReplaceDrillPath(stepId: String): Boolean =
         variantStepObj("uiSteps", stepId)?.optBoolean("replaceDrillPath", false) ?: false
 
@@ -286,11 +311,20 @@ object AdaptiveCatalog {
         drillPathCache[cacheKey]?.let { return it }
 
         val catalogDrill: List<List<String>> = getCatalogDrillPath(stepId)
-        val merged: List<List<String>> = when {
-            catalogDrill.isEmpty() -> defaults
-            isReplaceDrillPath(stepId) -> catalogDrill
-            else -> defaults + catalogDrill
+        val replace = catalogDrill.isNotEmpty() && isReplaceDrillPath(stepId)
+        val extra: List<List<String>> = when {
+            catalogDrill.isEmpty() -> emptyList()
+            replace -> catalogDrill
+            else -> addedLevels(defaults, catalogDrill)
         }
+        val merged: List<List<String>> = if (replace) catalogDrill else defaults + extra
+        // Наблюдаемость: видно, сколько уровней каталога реально добавлено и не раздуло ли
+        // маршрут зеркалом (прогон 25.10: mivideo получал 4 уровня вместо 2).
+        AppLog.i(
+            TAG,
+            "drill path merged: base=${defaults.size} catalog=${catalogDrill.size} " +
+                "kept=${extra.size} step=$stepId"
+        )
         drillPathCache[cacheKey] = merged
         return merged
     }
