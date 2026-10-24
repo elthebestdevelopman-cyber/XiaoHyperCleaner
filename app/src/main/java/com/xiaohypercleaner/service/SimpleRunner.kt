@@ -6207,12 +6207,27 @@ class SimpleRunner(private val service: AdbEnablerService) {
         if (wallSkipNotedForStep) return
         wallSkipNotedForStep = true
         val markers = wallMarkerHits()
+        // Структурный признак обязателен: маркеры лексикона встречаются и в тексте целевых
+        // экранов (drawer/настройки содержат «Условия использования»), поэтому по ним одним
+        // нельзя судить, была ли стена (carousel: markers=3 и при этом OK toggled, 25.10).
+        val dialog = wallDialogNow()
         StepDiagnostics.note(
             stepId,
             "CONSENT",
-            "wall_poll_skipped skipped=$wallMissesForStep markers=$markers " +
+            "wall_poll_skipped skipped=$wallMissesForStep markers=$markers dialog=$dialog " +
                 "screen=${activePackage() ?: "-"}"
         )
+    }
+
+    /** Экран структурно диалог или рекламная стена (а не просто текст с теми же словами). */
+    private fun wallDialogNow(): Boolean {
+        if (runCatching { ConsentWallHandler.isAdScreenNow(service) }.getOrDefault(false)) {
+            return true
+        }
+        val root = runCatching { service.rootInActiveWindow }.getOrNull() ?: return false
+        val isDialog = runCatching { ConsentWallHandler.isAlertDialog(root) }.getOrDefault(false)
+        recycleNode(root)
+        return isDialog
     }
 
     /** Сколько маркеров стен из каталога видно на экране (включая popup-окна). */
