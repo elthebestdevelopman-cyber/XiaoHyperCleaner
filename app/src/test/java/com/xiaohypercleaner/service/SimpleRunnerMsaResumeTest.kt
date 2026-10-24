@@ -126,7 +126,19 @@ class SimpleRunnerMsaResumeTest {
             text = "msa Доступ к личным данным",
             className = "android.widget.TextView"
         )
-        val root = node(className = "android.widget.FrameLayout", children = arrayOf(text))
+        // Целевой экран TOGGLE-шага подтверждается строкой с тумблером (гейт уверенности):
+        // подпись без переключателя — заголовок, а не строка настройки.
+        Mockito.doAnswer {
+            (it.arguments[0] as android.graphics.Rect).set(80, 300, 800, 400)
+            null
+        }.`when`(text).getBoundsInScreen(Mockito.any(android.graphics.Rect::class.java))
+        val toggle = node(className = "android.widget.Switch", clickable = true, checkable = true)
+        Mockito.doAnswer {
+            (it.arguments[0] as android.graphics.Rect).set(866, 300, 1000, 400)
+            null
+        }.`when`(toggle).getBoundsInScreen(Mockito.any(android.graphics.Rect::class.java))
+        val row = node(className = "android.widget.LinearLayout", children = arrayOf(text, toggle))
+        val root = node(className = "android.widget.FrameLayout", children = arrayOf(row))
         Mockito.`when`(service.rootInActiveWindow).thenReturn(root)
 
         val path = listOf(listOf("Пароли и безопасность"), listOf("Доступ к личным данным"))

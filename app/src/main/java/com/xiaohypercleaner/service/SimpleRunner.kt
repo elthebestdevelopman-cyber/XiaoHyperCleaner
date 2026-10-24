@@ -1940,7 +1940,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // нашлась: уровень маршрута необязателен.
         var drillFailureResolved = drillFailure
         if (drillFailure != null && lastDrillLevelNotFound && drillFailure != FOREIGN_WINDOW &&
-            scrollUntilScreenHasAny(verifyTexts)
+            scrollUntilScreenHasAny(verifyTexts) && targetRowConfirmed(step, verifyTexts)
         ) {
             AppLog.i(
                 TAG,
@@ -2927,16 +2927,49 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     /** Экран уже совпал с целью шага: keyword-match И screenMarkers (как в resume). */
-    private fun onTargetScreen(step: SimpleSteps.Step): Boolean {
+    internal fun onTargetScreen(step: SimpleSteps.Step): Boolean {
         val root = service.rootInActiveWindow ?: return false
         val screenText = collectBodyText(root)
-        recycleNode(root)
         val targets = searchTextsFor(step)
-        if (targets.isEmpty() || !targets.any { TextMatcher.normalizedContains(screenText, it) }) {
-            return false
-        }
+        val textHit = targets.isNotEmpty() &&
+            targets.any { TextMatcher.normalizedContains(screenText, it) }
         val markers = SemanticCatalog.screenMarkers(step.id)
-        return markers.isEmpty() || markers.any { TextMatcher.normalizedContains(screenText, it) }
+        val markersHit = textHit &&
+            (markers.isEmpty() || markers.any { TextMatcher.normalizedContains(screenText, it) })
+        // TOGGLE-шаг подтверждается ТУМБЛЕРОМ у найденной строки: одноимённый заголовок
+        // ленты/раздела принимался за целевой экран, уровень маршрута пропускался, и шаг
+        // затем искал тумблер на чужом экране (music_sys → 20 с скроллов и timeout, 25.10).
+        val switchHit = !markersHit || !isToggleStep(step) || hasSwitchRow(root, targets)
+        recycleNode(root)
+        if (markersHit && !switchHit) {
+            AppLog.i(TAG, "target screen rejected: no switch row for '${step.id}'")
+        }
+        return markersHit && switchHit
+    }
+
+    /** Шаг переключает тумблер (TOGGLE): экран подтверждается строкой-переключателем. */
+    private fun isToggleStep(step: SimpleSteps.Step): Boolean =
+        SemanticCatalog.variantControl(step.id) == SemanticCatalog.ActionType.TOGGLE ||
+            step.actionType == SimpleSteps.ActionType.TOGGLE
+
+    /** Тумблер в строке найденной подписи (с геометрией СВОЕЙ строки). */
+    private fun hasSwitchRow(root: AccessibilityNodeInfo, texts: List<String>): Boolean =
+        SwitchFinder.findSwitch(root, texts) != null
+
+    /**
+     * Строка цели подтверждена переключателем: для TOGGLE-шага одного текста мало —
+     * заголовок ленты с теми же словами объявлял шаг применимым, и тумблер искался на
+     * чужом экране (music_sys, прогон 25.10).
+     */
+    private fun targetRowConfirmed(step: SimpleSteps.Step, texts: List<String>): Boolean {
+        if (!isToggleStep(step)) return true
+        val root = service.rootInActiveWindow ?: return false
+        val found = SwitchFinder.findSwitch(root, texts) != null
+        recycleNode(root)
+        if (!found) {
+            AppLog.i(TAG, "target text without switch — screen not confirmed (${step.id})")
+        }
+        return found
     }
 
     /**

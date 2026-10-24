@@ -161,6 +161,39 @@ class SimpleRunnerDrillTest {
         runner.cancel()
     }
     @Test
+    fun `target screen is not confirmed by a text without a switch`() {
+        // music_sys (25.10): «Персональные рекомендации» — заголовок ленты плеера, а не строка
+        // настройки; экран объявлялся целевым, уровень маршрута «Расширенные настройки»
+        // пропускался, и тумблер искался на чужом экране (20 с + timeout).
+        val feedTitle = node(text = "Персональные рекомендации")
+        val feed = node(className = "android.widget.FrameLayout", children = arrayOf(feedTitle))
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(feed)
+
+        assertFalse(
+            "текст без тумблера не подтверждает целевой экран",
+            runner.onTargetScreen(step("music_sys"))
+        )
+
+        Mockito.doAnswer {
+            (it.arguments[0] as android.graphics.Rect).set(80, 300, 800, 400)
+            null
+        }.`when`(feedTitle).getBoundsInScreen(Mockito.any(android.graphics.Rect::class.java))
+        val toggle = node(clickable = true, className = "android.widget.Switch")
+        Mockito.doAnswer {
+            (it.arguments[0] as android.graphics.Rect).set(866, 300, 1000, 400)
+            null
+        }.`when`(toggle).getBoundsInScreen(Mockito.any(android.graphics.Rect::class.java))
+        val row = node(className = "android.widget.LinearLayout", children = arrayOf(feedTitle, toggle))
+        val screen = node(className = "android.widget.FrameLayout", children = arrayOf(row))
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(screen)
+
+        assertTrue(
+            "тумблер в строке подтверждает целевой экран",
+            runner.onTargetScreen(step("music_sys"))
+        )
+    }
+
+    @Test
     fun `header menu wins over list item menu`() = runTest {
         // Музыка: `item_menu desc='Больше меню'` у каждой строки списка перехватывал тап
         // раньше кнопки шапки `header_menu desc='Показать меню'` — меню не открывалось,
@@ -540,10 +573,25 @@ class SimpleRunnerDrillTest {
         // когда бурение ещё ищет уровень «Блокировка экрана». Прежний код докручивал
         // уже открытый целевой экран до конца и ронял шаг в drill_failed.
         val title = node(text = "Карусель обоев", className = "android.widget.TextView")
-        val row = node(text = "Карусель экрана блокировки", className = "android.widget.TextView")
+        val rowLabel = node(text = "Карусель экрана блокировки", className = "android.widget.TextView")
+        // Целевой экран подтверждается СТРОКОЙ С ТУМБЛЕРОМ (гейт уверенности): подпись без
+        // переключателя — это заголовок ленты, а не строка настройки (прогон 25.10, music_sys).
+        val toggle = node(className = "android.widget.Switch", clickable = true)
+        Mockito.doAnswer {
+            (it.arguments[0] as android.graphics.Rect).set(80, 300, 800, 400)
+            null
+        }.`when`(rowLabel).getBoundsInScreen(Mockito.any(android.graphics.Rect::class.java))
+        Mockito.doAnswer {
+            (it.arguments[0] as android.graphics.Rect).set(866, 300, 1000, 400)
+            null
+        }.`when`(toggle).getBoundsInScreen(Mockito.any(android.graphics.Rect::class.java))
+        val rowContainer = node(
+            className = "android.widget.LinearLayout",
+            children = arrayOf(rowLabel, toggle)
+        )
         val settings = node(
             className = "android.widget.FrameLayout",
-            children = arrayOf(title, row)
+            children = arrayOf(title, rowContainer)
         )
         Mockito.`when`(service.rootInActiveWindow).thenReturn(settings)
         captureGestures()
