@@ -135,6 +135,19 @@ class SimpleRunnerDrillTest {
         )
     }
     @Test
+    fun `wall polling stops after empty reads`() {
+        // Прогон 23–24.10: обработчик стен зовётся на шаге до 20 раз, и каждый пустой
+        // опрос стоил ~0,9 с (dismiss-стена cause=network держала browser_sys 9 с).
+        repeat(3) { runner.registerWallPollResult("browser_sys", 0) }
+        assertFalse(
+            "после трех пустых чтений опрос шага прекращается",
+            runner.wallPollAllowed("browser_sys")
+        )
+        assertTrue("другой шаг опрашивается независимо", runner.wallPollAllowed("carousel"))
+        runner.registerWallPollResult("browser_sys", 1)
+        assertTrue("найденная стена сбрасывает счетчик шага", runner.wallPollAllowed("browser_sys"))
+    }
+    @Test
     fun `header menu wins over list item menu`() = runTest {
         // Музыка: `item_menu desc='Больше меню'` у каждой строки списка перехватывал тап
         // раньше кнопки шапки `header_menu desc='Показать меню'` — меню не открывалось,

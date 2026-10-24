@@ -675,6 +675,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
         /** Сколько стен согласия принимаем в цикле обратного входа (страховка от вечной стены). */
         private const val MAX_REENTRY_WALLS = 2
 
+    /** Пустых опросов стен на шаг: дальше обработчик не поднимается (экран без стены). */
+    private const val MAX_WALL_MISSES_PER_STEP = 3
+
         /**
          * Стена согласия принимается ПЕРЕД повторным входом только в откате и не больше
          * [MAX_REENTRY_WALLS] раз на шаг: вечная стена не должна крутить цикл.
@@ -6131,8 +6134,31 @@ class SimpleRunner(private val service: AdbEnablerService) {
     /**
      * Единая точка входа для системных диалогов: welcome-стены и
      * runtime-permission запросы по consentPolicy (deny по умолчанию).
+     *
+     * Опрос ограничен [MAX_WALL_MISSES_PER_STEP] пустыми чтениями на шаг: обработчик
+     * зовётся до 20 раз за шаг, и каждый вызов на экране без стены стоил ~0,9 с —
+     * dismiss-стена `cause=network` держала browser_sys 9 с в откате (прогон 23–24.10).
      */
+    private val wallMisses = HashMap<String, Int>()
+
+    /** Разрешён ли опрос стен на шаге: лимит пустых чтений. internal — для тестов. */
+    internal fun wallPollAllowed(stepId: String): Boolean =
+        (wallMisses[stepId] ?: 0) < MAX_WALL_MISSES_PER_STEP
+
+    /** Учёт опроса: находка сбрасывает счётчик шага, пустое чтение копит. */
+    internal fun registerWallPollResult(stepId: String, handled: Int) {
+        if (handled > 0) {
+            wallMisses.remove(stepId)
+        } else {
+            wallMisses[stepId] = (wallMisses[stepId] ?: 0) + 1
+        }
+    }
+
     private suspend fun handleConsentWalls(step: SimpleSteps.Step): Int {
+        if (!wallPollAllowed(step.id)) {
+            StepDiagnostics.note(step.id, "CONSENT", "wall_poll_skipped")
+            return 0
+        }
         val handled = ConsentWallHandler.handleUntilSettled(
             service = service,
             bridge = consentTapBridge,
@@ -6156,6 +6182,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
             ),
             isCancelled = { cancelled }
         )
+        registerWallPollResult(step.id, handled)
         if (handled > 0) {
             // Стена только что закрыта: короткий опрос вместо фиксированной паузы —
             // как только рекламного/диалогового экрана нет, идём дальше.
