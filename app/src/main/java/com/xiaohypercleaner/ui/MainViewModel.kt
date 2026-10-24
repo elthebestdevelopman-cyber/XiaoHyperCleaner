@@ -1060,6 +1060,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 AppLog.i(TAG, "installer pre-step: waiting kept on false resume")
                 return@launch
             }
+            // Живое ожидание предшага важнее pending: pending ставится ещё на старте режима
+            // (восстановление после рестарта), а до окна установщика предшаг не дошёл —
+            // openedAt == 0. Без этой проверки возврат из настроек попадал в ветку «режим
+            // уже активен», гасил ожидание БЕЗ решения, и гейт шагов оставался закрытым
+            // навсегда (прогон 24.10: стандартная оптимизация не стартовала).
+            val openedAt = prefs.getSelfApkOpenedAt()
+            if (waiting && openedAt == 0L) {
+                AppLog.i(TAG, "installer pre-step: retry after return (installer not opened)")
+                runInstallerPreStep()
+                return@launch
+            }
             if (!prefs.getPendingSimpleMode()) {
                 // Ожидание живо, а pending нет: право на установку выдавали в настройках —
                 // предшаг не доведён. Повторяем проход по реальному возврату.
@@ -1073,7 +1084,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // ФАКТИЧЕСКИ состоялась (lastUpdateTime пакета новее момента открытия установщика).
             // openedAt == 0 — штатный старт: он возобновляется как раньше, иначе рестарт
             // посреди прогона перестал бы восстанавливаться.
-            val openedAt = prefs.getSelfApkOpenedAt()
             if (openedAt > 0L) {
                 val lastUpdate = SelfApkExporter.lastUpdateTimeMs(app)
                 val installed = SelfApkExporter.installHappenedAfterOpened(lastUpdate, openedAt)
@@ -1107,6 +1117,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // состояния: ветка срабатывает на КАЖДОМ возврате в приложение во время прогона.
                 if (_state.value.installerPreStepWaiting) {
                     AppLog.i(TAG, "installer pre-step: waiting cancelled on resume")
+                    // Ожидание закрыто — гейт предшага обязан открыться, иначе шаги не стартуют.
+                    installerPreStepDecided = true
                 }
                 update { it.copy(installerPreStepWaiting = false) }
                 return@launch

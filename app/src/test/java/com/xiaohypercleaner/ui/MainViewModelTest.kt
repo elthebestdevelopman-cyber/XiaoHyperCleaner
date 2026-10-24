@@ -232,6 +232,34 @@ class MainViewModelTest {
     }
 
     @Test
+    fun `return from unknown sources repeats the pre-step pass instead of cancelling the wait`() = runTest {
+        // Прогон 24.10: pending ставится ещё на старте режима, и возврат из настроек с
+        // wasStopped=true попадал в ветку «режим уже активен»: ожидание гасло БЕЗ решения,
+        // гейт шагов оставался закрытым навсегда — стандартная оптимизация не стартовала.
+        vm.startFlow()
+        vm.onLevelChosen(OptimizationMode.SIMPLE)
+        vm.confirmLevelStart(OptimizationMode.SIMPLE)
+        vm.applyPermissionStatuses(acc = true, overlay = true)
+        vm.onBatteryDialogSkipped()
+        vm.onInstallerPreStepDisableNow()
+        assertTrue("предшаг ждёт право установки", vm.state.value.installerPreStepWaiting)
+
+        // Реальный возврат в приложение: проход предшага повторяется, ожидание живо.
+        vm.tryResumePendingSimpleMode(wasStopped = true)
+
+        assertTrue("ожидание не снято возвратом", vm.state.value.installerPreStepWaiting)
+        assertFalse("диалог предшага не показан", vm.state.value.showInstallerPreStep)
+        assertNull("шаги не стартуют до решения", vm.state.value.simpleStep)
+
+        // Ложный возврат (системный диалог поверх настроек) ожидание сохраняет.
+        vm.tryResumePendingSimpleMode(wasStopped = false)
+        assertTrue("ложный возврат не снимает ожидание", vm.state.value.installerPreStepWaiting)
+
+        // Отказ ждать — решение принято, гейт открывается.
+        vm.onInstallerPreStepWaitingSkip()
+        assertFalse("ожидание снято решением", vm.state.value.installerPreStepWaiting)
+    }
+    @Test
     fun `continueToSteps also waits for the pre-step decision`() = runTest {
         // Вторая дверь в шаги: подтверждение уровня при активном режиме. Она обязана упираться
         // в тот же гейт, иначе шаги стартовали бы в обход предшага.
