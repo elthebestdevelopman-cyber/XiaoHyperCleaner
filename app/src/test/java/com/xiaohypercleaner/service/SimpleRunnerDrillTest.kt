@@ -106,6 +106,35 @@ class SimpleRunnerDrillTest {
     )
 
     @Test
+    fun `menu item in a popup window is found for the drill level`() {
+        // Прогон 23–24.10 (shareme): меню «Ещё» открывается отдельным popup-окном, а
+        // «О приложении» в rootInActiveWindow отсутствует — уровень-меню считался пустым,
+        // drill падал drill_failed (recon after/shareme_more.xml).
+        val active = node(className = "android.widget.FrameLayout", children = arrayOf(node(text = "ПЕРЕДАЧА")))
+        val item = node(text = "О приложении", clickable = true, className = "android.widget.TextView")
+        Mockito.`when`(service.rootInActiveWindow).thenReturn(active)
+        runner.popupRootsOverride = listOf(item)
+
+        assertTrue(
+            "текст popup-окна входит в текст экрана",
+            runner.currentScreenText().contains("О приложении")
+        )
+        assertTrue(
+            "пункт меню из popup-окна доступен для тапа",
+            runner.findClickableByText(texts = listOf("О приложении")) === item
+        )
+
+        runner.popupRootsOverride = null
+        assertFalse(
+            "без popup-окна пункт меню не находится",
+            runner.currentScreenText().contains("О приложении")
+        )
+        assertTrue(
+            "и тапать нечего",
+            runner.findClickableByText(texts = listOf("О приложении")) == null
+        )
+    }
+    @Test
     fun `header menu wins over list item menu`() = runTest {
         // Музыка: `item_menu desc='Больше меню'` у каждой строки списка перехватывал тап
         // раньше кнопки шапки `header_menu desc='Показать меню'` — меню не открывалось,
@@ -558,6 +587,23 @@ class SimpleRunnerDrillTest {
         )
     }
 
+    @Test
+    fun `bottom-edge node inside the real display is tappable`() {
+        // Прогон 23–24.10 (mivideo): bounds [565,2116,809,2270] при дисплее 1080x2400 —
+        // центр (687,2193) внутри экрана, но `resources.displayMetrics` контекста сервиса
+        // системные вставки вычитает, и тап отклонялся как вырожденный: шаг уезжал в чужое
+        // приложение (FAIL not_applicable, в screen — экран Mi Браузера).
+        runner.displayBoundsOverride = android.graphics.Rect(0, 0, 1080, 2400)
+
+        assertTrue(
+            "узел у нижней кромки внутри реального дисплея тапается",
+            runner.hasTappableBounds(android.graphics.Rect(565, 2116, 809, 2270))
+        )
+        assertFalse(
+            "центр за пределами реального дисплея по-прежнему не тапаем",
+            runner.hasTappableBounds(android.graphics.Rect(5000, 5000, 5100, 5100))
+        )
+    }
     @Test
     fun `exit control in the corner is never tapped by drill`() = runTest {
         // Прогон rmvimewq4 (music_sys): уровень «Показать меню» не подтвердился, угловой

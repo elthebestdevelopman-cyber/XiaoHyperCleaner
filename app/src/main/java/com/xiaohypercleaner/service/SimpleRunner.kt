@@ -3,6 +3,7 @@ package com.xiaohypercleaner.service
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Path
@@ -10,6 +11,8 @@ import android.graphics.Rect
 import android.media.AudioManager
 import android.os.Build
 import android.provider.Settings
+import android.view.WindowManager
+import android.view.accessibility.AccessibilityWindowInfo
 import android.view.accessibility.AccessibilityNodeInfo
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.XiaoHyperApp
@@ -2389,10 +2392,17 @@ class SimpleRunner(private val service: AdbEnablerService) {
             abort = abort
         ) ?: if (abort?.invoke() == true) null else findAfterHorizontalScroll(levelTexts)
         val root = service.rootInActiveWindow ?: return listOfNotNull(primary)
-        val all = NodeTree.findAllInTree(root = root, predicate = { node ->
+        val predicate: (AccessibilityNodeInfo) -> Boolean = { node ->
             node.isClickable && NodeTree.matchesAny(node, levelTexts)
-        })
+        }
+        val all = NodeTree.findAllInTree(root = root, predicate = predicate).toMutableList()
         recycleNode(root)
+        // Пункты меню MIUI живут в отдельном popup-окне (ShareMe «Ещё» → «О приложении»):
+        // без этой оси уровень не проходил (прогон 23–24.10).
+        for (popup in popupRoots(root.packageName?.toString())) {
+            all.addAll(NodeTree.findAllInTree(root = popup, predicate = predicate))
+            recycleNode(popup)
+        }
         val result = ArrayList<AccessibilityNodeInfo>(DRILL_LEVEL_ATTEMPTS)
         if (primary != null) result.add(primary)
         for (node in all) {
@@ -2417,9 +2427,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     /** Экран изменился с момента снятия подписи [before] (для подтверждения уровня). */
     private fun screenChangedSince(before: String): Boolean {
-        val root = service.rootInActiveWindow ?: return false
-        val now = collectAllText(root)
-        recycleNode(root)
+        val now = currentScreenText()
         return now.isNotBlank() && now != before
     }
 
@@ -2506,11 +2514,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return t.isNotEmpty() && t.none { it.isLetterOrDigit() || it.isWhitespace() }
     }
 
-    /** Есть ли хоть один из текстов где-нибудь на текущем экране. */
+    /** Есть ли хоть один из текстов где-нибудь на текущем экране (включая popup-окна). */
     private fun screenHasAny(texts: List<String>): Boolean {
-        val root = service.rootInActiveWindow ?: return false
-        val screenText = collectAllText(root)
-        recycleNode(root)
+        val screenText = currentScreenText()
+        if (screenText.isBlank()) return false
         return texts.any { text ->
             text.isNotBlank() && TextMatcher.normalizedContains(screenText, text)
         }
@@ -5046,9 +5053,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
             AppLog.i(TAG, "overflow by position: alert dialog on screen — positional tap skipped")
             return null
         }
-        val dm = service.resources.displayMetrics
-        val xMin = (dm.widthPixels * 0.85f).toInt()
-        val yMax = (dm.heightPixels * 0.15f).toInt()
+        val screen = displayBounds()
+        val xMin = (screen.width() * 0.85f).toInt()
+        val yMax = (screen.height() * 0.15f).toInt()
         val candidates = mutableListOf<AccessibilityNodeInfo>()
 
         fun walk(node: AccessibilityNodeInfo?, depth: Int) {
@@ -5093,10 +5100,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
             AppLog.i(TAG, "overflow gesture skipped (alert dialog or exit control in corner)")
             return false
         }
-        val dm = service.resources.displayMetrics
+        val screen = displayBounds()
         for ((fx, fy) in OVERFLOW_GESTURE_POINTS) {
             if (cancelled) return false
-            if (tapAt((dm.widthPixels * fx).toInt(), (dm.heightPixels * fy).toInt())) {
+            if (tapAt((screen.width() * fx).toInt(), (screen.height() * fy).toInt())) {
                 delay(UI_SETTLE_DELAY_MS)
                 if (stayInPackage != null) {
                     val now = activePackage()
@@ -5436,10 +5443,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
     /** Горизонтальный свайп страницы рабочего стола (лаунчер остаётся в фокусе). */
     private suspend fun swipeHomePage(forward: Boolean): Boolean {
-        val dm = service.resources.displayMetrics
-        val y = dm.heightPixels * 0.55f
-        val from = if (forward) dm.widthPixels * 0.85f else dm.widthPixels * 0.15f
-        val to = if (forward) dm.widthPixels * 0.15f else dm.widthPixels * 0.85f
+        val screen = displayBounds()
+        val y = screen.height() * 0.55f
+        val from = if (forward) screen.width() * 0.85f else screen.width() * 0.15f
+        val to = if (forward) screen.width() * 0.15f else screen.width() * 0.85f
         val ok = performGesture(from, y, to, y, HOME_PAGE_SWIPE_MS)
         delay(HOME_PAGE_SWIPE_SETTLE_MS)
         return ok
@@ -6083,9 +6090,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         /** Свайп вверх по центру экрана: закрытие полноэкранного гайда-жеста. */
         override suspend fun swipeUp(): Boolean {
-            val dm = service.resources.displayMetrics
-            val cx = dm.widthPixels / 2f
-            return performGesture(cx, dm.heightPixels * 0.72f, cx, dm.heightPixels * 0.28f, 320)
+            val screen = displayBounds()
+            val cx = screen.width() / 2f
+            return performGesture(cx, screen.height() * 0.72f, cx, screen.height() * 0.28f, 320)
         }
 
         /**
@@ -6536,10 +6543,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
             ) { isLauncherDesktop() }
         }
         if (isAppVaultVisible()) {
-            val dm = service.resources.displayMetrics
+            val screen = displayBounds()
             performGesture(
-                dm.widthPixels * 0.9f, dm.heightPixels * 0.6f,
-                dm.widthPixels * 0.1f, dm.heightPixels * 0.6f,
+                screen.width() * 0.9f, screen.height() * 0.6f,
+                screen.width() * 0.1f, screen.height() * 0.6f,
                 250
             )
             waitFor(
@@ -7215,12 +7222,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     private suspend fun swipeUp() {
-        val dm = service.resources.displayMetrics
+        val screen = displayBounds()
         performGesture(
-            dm.widthPixels / 2f,
-            dm.heightPixels * 0.8f,
-            dm.widthPixels / 2f,
-            dm.heightPixels * 0.2f,
+            screen.width() / 2f,
+            screen.height() * 0.8f,
+            screen.width() / 2f,
+            screen.height() * 0.2f,
             300
         )
     }
@@ -7336,11 +7343,27 @@ class SimpleRunner(private val service: AdbEnablerService) {
         (if (controlClass) 2 else 0) + (if (labelled) 1 else 0) + (if (node.isClickable) 1 else 0)
     }
 
-    private fun findClickableByText(
+    internal fun findClickableByText(
         root: AccessibilityNodeInfo? = service.rootInActiveWindow,
         texts: List<String>
     ): AccessibilityNodeInfo? {
         root ?: return null
+        findClickableInTree(root, texts)?.let { return it }
+        // Меню/поповер MIUI — отдельное окно: пункт «О приложении» в активном корне
+        // отсутствует (прогон 23–24.10, shareme drill_failed, recon shareme_more.xml).
+        for (popup in popupRoots(root.packageName?.toString())) {
+            val hit = findClickableInTree(popup, texts)
+            recycleNode(popup)
+            if (hit != null) return hit
+        }
+        return null
+    }
+
+    /** Кликабельная подпись в дереве одного окна. */
+    private fun findClickableInTree(
+        root: AccessibilityNodeInfo,
+        texts: List<String>
+    ): AccessibilityNodeInfo? {
         val matches = mutableListOf<AccessibilityNodeInfo>()
         fun walk(node: AccessibilityNodeInfo?, depth: Int) {
             if (node == null || depth > 20) return
@@ -7515,12 +7538,51 @@ class SimpleRunner(private val service: AdbEnablerService) {
     /** Сбор текста экрана вынесен в [NodeTree]. */
     private fun collectAllText(node: AccessibilityNodeInfo?): String = NodeTree.collectText(node)
 
-    /** Актуальный текст активного экрана (проверка смены экрана после тапа). */
-    private fun currentScreenText(): String {
-        val root = service.rootInActiveWindow ?: return ""
-        val text = collectAllText(root)
-        recycleNode(root)
-        return text
+    /**
+     * Актуальный текст экрана вместе с popup-окнами того же пакета (проверка смены
+     * экрана после тапа). Меню MIUI живёт отдельным окном: ShareMe «Ещё» → «О приложении»
+     * в `rootInActiveWindow` не видно, уровень-меню подтверждался пустым экраном, а пункт
+     * меню не находился (прогон 23–24.10: shareme drill_failed, recon shareme_more.xml).
+     */
+    internal fun currentScreenText(): String {
+        val sb = StringBuilder()
+        val root = runCatching { service.rootInActiveWindow }.getOrNull()
+        if (root != null) {
+            sb.append(collectAllText(root))
+            recycleNode(root)
+        }
+        for (popup in popupRoots(root?.packageName?.toString())) {
+            val part = collectAllText(popup)
+            if (part.isNotBlank()) {
+                if (sb.isNotEmpty()) sb.append(" ")
+                sb.append(part)
+            }
+            recycleNode(popup)
+        }
+        return sb.toString()
+    }
+
+    /** Переопределяемо в тестах: корни popup-окон (Robolectric не отдаёт service.windows). */
+    internal var popupRootsOverride: List<AccessibilityNodeInfo>? = null
+
+    /**
+     * Корни всплывающих окон того же пакета (меню, поповеры). Активное окно и системные
+     * окна не берём: их текст не относится к экрану шага. Узлы освобождает вызывающий.
+     */
+    internal fun popupRoots(pkg: String?): List<AccessibilityNodeInfo> {
+        popupRootsOverride?.let { return it }
+        if (pkg == null) return emptyList()
+        val windows = runCatching { service.windows }.getOrNull() ?: return emptyList()
+        val out = ArrayList<AccessibilityNodeInfo>(2)
+        for (window in windows) {
+            if (runCatching { window.isActive }.getOrDefault(false)) continue
+            if (runCatching { window.type }.getOrDefault(-1) != AccessibilityWindowInfo.TYPE_APPLICATION) {
+                continue
+            }
+            val root = runCatching { window.root }.getOrNull() ?: continue
+            if (root.packageName?.toString() == pkg) out.add(root) else recycleNode(root)
+        }
+        return out
     }
 
     /**
@@ -7624,9 +7686,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * `touch/ACTION_CLICK` по «Выход» закрывал приложение).
      */
     private fun cornerHasForbiddenTarget(root: AccessibilityNodeInfo): Boolean {
-        val dm = service.resources.displayMetrics
-        val xMin = (dm.widthPixels * 0.85f).toInt()
-        val yMax = (dm.heightPixels * 0.15f).toInt()
+        val screen = displayBounds()
+        val xMin = (screen.width() * 0.85f).toInt()
+        val yMax = (screen.height() * 0.15f).toInt()
         var found = false
         fun walk(node: AccessibilityNodeInfo?, depth: Int) {
             if (found || node == null || depth > 20) return
@@ -7645,12 +7707,36 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return found
     }
 
-    /** Bounds пригодны для координатного тапа: непустые и центр в пределах дисплея. */
+    /** Переопределяемо в тестах: реальные границы дисплея (Robolectric их не отдаёт). */
+    internal var displayBoundsOverride: Rect? = null
+
+    /**
+     * Полный размер дисплея с системными панелями — эталон для абсолютных координат узлов
+     * и для жестов (как эталон геометрии оверлея). `resources.displayMetrics` контекста
+     * сервиса системные вставки вычитает: узел у нижней кромки (mivideo `tab_mine`, центр
+     * (687,2193) при дисплее 1080x2400) объявлялся вырожденным (прогон 23–24.10).
+     */
+    private fun displayBounds(): Rect {
+        displayBoundsOverride?.let { return Rect(it) }
+        val bounds = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val wm = service.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+                wm?.currentWindowMetrics?.bounds
+            } else {
+                null
+            }
+        }.getOrNull()
+        if (bounds != null && !bounds.isEmpty) return Rect(bounds)
+        val dm = service.resources.displayMetrics
+        return Rect(0, 0, dm.widthPixels, dm.heightPixels)
+    }
+
+    /** Bounds пригодны для координатного тапа: непустые и центр в пределах реального дисплея. */
     internal fun hasTappableBounds(rect: Rect): Boolean {
         if (rect.width() <= 0 || rect.height() <= 0) return false
-        val dm = service.resources.displayMetrics
-        return rect.centerX() in 0 until dm.widthPixels &&
-            rect.centerY() in 0 until dm.heightPixels
+        val screen = displayBounds()
+        return rect.centerX() in screen.left until screen.right &&
+            rect.centerY() in screen.top until screen.bottom
     }
 
     /** Жест с временно снятым поглощением тапов оверлеем (см. [withOverlayPassthrough]). */
