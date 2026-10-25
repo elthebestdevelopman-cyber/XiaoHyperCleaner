@@ -2384,14 +2384,32 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * Нужен ли повтор последнего уровня drill: переход засчитан, но цель шага на экране
      * отсутствует, а подпись уровня всё ещё видна — значит, экран не сменился и тап пришёлся
      * по переехавшей строке. Для не-последних уровней повтора нет: там переход проверяет
-     * [levelLanded] по следующему уровню. internal — для тестов.
+     * [levelLanded] по следующему уровню. Право на повтор одноразовое на исполнение шага
+     * ([claimLastLevelRetry]): второго повтора нет — провал остаётся честным
+     * `screen_not_reached`. internal — для тестов.
      */
     internal fun shouldRetryLastLevel(
         levelOk: Boolean,
         isLastLevel: Boolean,
         targetPresent: Boolean,
         levelStillVisible: Boolean
-    ): Boolean = levelOk && isLastLevel && !targetPresent && levelStillVisible
+    ): Boolean =
+        levelOk && isLastLevel && !targetPresent && levelStillVisible && claimLastLevelRetry()
+
+    /**
+     * Право на повтор последнего уровня drill: одно на ИСПОЛНЕНИЕ шага.
+     *
+     * Сброс — в [onStepExecutionStart] (новое исполнение шага, форвард или откат). Второй
+     * вызов всегда `false`: повтор после провала цели обязан быть единственным, иначе
+     * `screen_not_reached` превращается в вечное бурение. internal — для тестов.
+     */
+    private var lastLevelRetryClaimed = false
+
+    internal fun claimLastLevelRetry(): Boolean {
+        if (lastLevelRetryClaimed) return false
+        lastLevelRetryClaimed = true
+        return true
+    }
 
     /**
      * Уровень пройден: виден следующий уровень ЛИБО экран фактически сменился.
@@ -6268,6 +6286,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
     internal fun onStepExecutionStart() {
         wallMissesForStep = 0
         wallSkipNotedForStep = false
+        lastLevelRetryClaimed = false
     }
 
     /** Разрешён ли опрос стен: лимит пустых чтений на исполнение шага. internal — для тестов. */

@@ -10,7 +10,8 @@ import java.util.Locale
  * Семантическая таблица шагов (`assets/catalog/semantic_steps.json`).
  *
  * Единственный источник семантики: keywords, screenMarkers, actionType,
- * sequenceKind, consentTexts, overflowMenuLabels, fallbackDrillPath, 7 локалей.
+ * sequenceKind, consentTexts, reverseConsentTexts, overflowMenuLabels,
+ * fallbackDrillPath, 7 локалей.
  * Захардкоженные маршруты остаются подсказками (fallbackDrillPath),
  * `SimpleSteps.searchTexts` — deprecated-fallback на один релиз.
  */
@@ -112,6 +113,9 @@ object SemanticCatalog {
          * данных (msa: MIUI показывает «Предоставление разрешения» с кнопками
          * «Выход»/«Согласен», прогон 25.10). Вперёд не читается — forward-политика
          * согласие на обработку данных не нажимает.
+         *
+         * Поле дополняет `confirmTexts` для канала отката, не заменяет его. Форвардное
+         * подтверждение это поле не читает.
          */
         val reverseConsentTexts: Map<String, List<String>> = emptyMap()
     )

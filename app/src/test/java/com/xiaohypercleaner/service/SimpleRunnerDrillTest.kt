@@ -161,29 +161,61 @@ class SimpleRunnerDrillTest {
         // Откат carousel (25.10): уровень «Карусель обоев» засчитан по смене экрана, но
         // целевого экрана не было (тап по переехавшей строке): строка уровня осталась на
         // месте, extras ушли в чужой пакет → screen_not_reached. Повтор — только для
-        // последнего уровня и только при «строку видно, цели нет».
+        // последнего уровня и только при «строку видно, цели нет». Право на повтор
+        // одноразовое, поэтому каждое утверждение начинается с нового исполнения шага.
+        runner.onStepExecutionStart()
         assertTrue(
             "последний уровень, цель не открылась, строка на месте — повтор",
             runner.shouldRetryLastLevel(
                 levelOk = true, isLastLevel = true, targetPresent = false, levelStillVisible = true
             )
         )
+        runner.onStepExecutionStart()
         assertFalse(
             "цель на экране — повтор не нужен",
             runner.shouldRetryLastLevel(
                 levelOk = true, isLastLevel = true, targetPresent = true, levelStillVisible = true
             )
         )
+        runner.onStepExecutionStart()
         assertFalse(
             "экран сменился (строки нет) — это переход, а не промах",
             runner.shouldRetryLastLevel(
                 levelOk = true, isLastLevel = true, targetPresent = false, levelStillVisible = false
             )
         )
+        runner.onStepExecutionStart()
         assertFalse(
             "промежуточный уровень повторяется через levelLanded, не здесь",
             runner.shouldRetryLastLevel(
                 levelOk = true, isLastLevel = false, targetPresent = false, levelStillVisible = true
+            )
+        )
+    }
+
+    @Test
+    fun `last level retry is claimed once per step execution`() {
+        // Право на повтор одноразовое (см. [SimpleRunner.claimLastLevelRetry]): структурная
+        // гарантия «единственный вызов внутри for» хрупкая — рефакторинг цикла мог бы снять
+        // её без падения теста. Второй повтор после провала цели не делаем: честный
+        // screen_not_reached, а не вечное бурение. Новое исполнение шага выдаёт право заново.
+        assertTrue(
+            "первый повтор в исполнении шага разрешён",
+            runner.shouldRetryLastLevel(
+                levelOk = true, isLastLevel = true, targetPresent = false, levelStillVisible = true
+            )
+        )
+        assertFalse(
+            "второго повтора в том же исполнении нет",
+            runner.shouldRetryLastLevel(
+                levelOk = true, isLastLevel = true, targetPresent = false, levelStillVisible = true
+            )
+        )
+        runner.onStepExecutionStart()
+        assertTrue(
+            "новое исполнение шага выдаёт право заново",
+            runner.shouldRetryLastLevel(
+                levelOk = true, isLastLevel = true, targetPresent = false, levelStillVisible = true
             )
         )
     }
