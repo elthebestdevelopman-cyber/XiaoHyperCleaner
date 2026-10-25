@@ -45,6 +45,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
@@ -341,6 +342,22 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         /** Токен дампа: диалог отзыва ещё на экране в момент провала (снимается ДО BACK). */
         private const val REASON_REVOKE_DIALOG_OPEN = "revoke_dialog_open"
+
+        /**
+         * Токены одноразовых дампов A3 (один снимок на случай за прогон): ожидаемый диалог
+         * не появился ни в своём окне, ни после координатного повтора ([REASON_DIALOG_MISSING]),
+         * либо тап по тумблеру не дал наблюдаемого эффекта ([REASON_TAP_NO_EFFECT]).
+         */
+        private const val REASON_DIALOG_MISSING = "dialog_missing"
+        private const val REASON_TAP_NO_EFFECT = "tap_no_effect"
+
+        /**
+         * Гейт тапа: сколько чтений bounds ПОДРЯД считается стабильностью, потолок ожидания
+         * стабильности и шаг опроса. Бюджет шага эти окна не увеличивают.
+         */
+        internal const val TAP_STABLE_READS = 2
+        private const val TAP_STABLE_MAX_MS = 600L
+        private const val TAP_STABLE_POLL_MS = 100L
 
         /** Отсчётный хвост кнопки MIUI: «(9 с)», «(9s)», «(9)» — кнопка ещё неактивна. */
         private val COUNTDOWN_LABEL_REGEX = Regex("\\(\\s*\\d+\\s*(с|s)?\\s*\\)")
@@ -1155,6 +1172,8 @@ class SimpleRunner(private val service: AdbEnablerService) {
         lastFailureReason = null
         lastReadSwitchState = null
         lastRevokeReason = REASON_REVOKE_NOT_CONFIRMED
+        // A3: одноразовые снимки считаются на прогон, а не на жизнь раннера.
+        snapshotCasesClaimed.clear()
         entryPackages.clear()
         // Кандидаты входа резолвятся заново на каждый шаг: состав пакетов мог измениться.
         entryCandidatesStepId = null
@@ -3063,7 +3082,9 @@ class SimpleRunner(private val service: AdbEnablerService) {
     internal suspend fun confirmDelayedRevoke(
         step: SimpleSteps.Step,
         confirmTexts: List<String>,
-        switchTexts: List<String>
+        switchTexts: List<String>,
+        /** Диалог отзыва уже наблюдался окном эффекта (A2): фаза 1 не повторяется. */
+        dialogObserved: Boolean = false
     ): Boolean {
         if (confirmTexts.isEmpty()) return false
         // Верхняя граница окон — остаток бюджета НАД резервом на тумблер и verify; сам
@@ -3074,13 +3095,18 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // Пост-таповое состояние строки не наследуется: сбрасывается на входе в отзыв.
         revokeStateReadAfterTap = null
 
-        // Фаза 1: появление диалога отзыва (короткое окно с ранним выходом).
-        val dialogAppeared = waitFor(
-            stepId = step.id,
-            reason = WAIT_DIALOG_APPEAR,
-            timeoutMs = MSA_DIALOG_APPEAR_WAIT_MS,
-            pollMs = WAIT_POLL_MS
-        ) { readRevokeDialog(confirmTexts).let { d -> d.present.also { d.recycle() } } }
+        // Фаза 1: появление диалога отзыва (короткое окно с ранним выходом). Если диалог уже
+        // наблюдал гейт эффекта (A2), то же ожидание не повторяется.
+        val dialogAppeared = if (dialogObserved) {
+            true
+        } else {
+            waitFor(
+                stepId = step.id,
+                reason = WAIT_DIALOG_APPEAR,
+                timeoutMs = MSA_DIALOG_APPEAR_WAIT_MS,
+                pollMs = WAIT_POLL_MS
+            ) { readRevokeDialog(confirmTexts).let { d -> d.present.also { d.recycle() } } }
+        }
         if (!dialogAppeared) {
             // Признаков диалога нет: единственное честное доказательство — фактическое
             // состояние тумблера (отзыв мог примениться прямо по чекбоксу).
@@ -3088,6 +3114,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 AppLog.i(TAG, "msa: нет диалога подтверждения, тумблер в целевом состоянии")
                 return true
             }
+            // A3: снимок момента «диалога нет». Общий дамп провала снимается уже после закрытия
+            // остатков и на вопрос «появлялся ли диалог» ответить не может (прогон rldmy9x8y:
+            // дамп с failureReason=revoke_not_confirmed показал список без диалога).
+            captureMissingDialogSnapshot(step, REASON_DIALOG_MISSING)
             AppLog.w(
                 TAG,
                 "msa: no revoke dialog within ${MSA_DIALOG_APPEAR_WAIT_MS}ms (step=${step.id})"
@@ -3473,6 +3503,35 @@ class SimpleRunner(private val service: AdbEnablerService) {
             romProfile,
             activePackage()
         )
+    }
+
+    /** Случаи, для которых дамп в этом прогоне уже снят: один снимок на случай, не на прогон. */
+    private val snapshotCasesClaimed = HashSet<String>()
+
+    /**
+     * A3: одноразовый дамп дерева в момент, когда ожидаемый диалог так и не появился
+     * (`dialog_missing` — истекло окно ожидания; `tap_no_effect` — тап не дал эффекта даже
+     * после координатного повтора). Снимается ДО любого закрытия диалога и BACK: уведённый
+     * экран ничего не объясняет. Повтор того же случая в прогоне файл не дублирует — пишется
+     * нота `snapshot already taken`. Файловый ввод-вывод идёт на IO: шаг не задерживается.
+     */
+    private suspend fun captureMissingDialogSnapshot(step: SimpleSteps.Step, reason: String) {
+        val key = "${step.id}#$reason"
+        if (!snapshotCasesClaimed.add(key)) {
+            AppLog.i(TAG, "diag: snapshot already taken for $key")
+            return
+        }
+        if (!::romProfile.isInitialized) return
+        withContext(Dispatchers.IO) {
+            DiagnosticSnapshotManager.captureAndSaveSnapshot(
+                service,
+                step.id,
+                reason,
+                service.rootInActiveWindow,
+                romProfile,
+                activePackage()
+            )
+        }
     }
 
     /**
@@ -4294,19 +4353,30 @@ class SimpleRunner(private val service: AdbEnablerService) {
 
         // Диалог MIUI после тапа появляется за ~0.7 с, но если состояние уже целевое и
         // диалога нет — ждать нечего: опрос с ранним выходом вместо фиксированной паузы.
-        waitFor(
-            stepId = step.id,
-            reason = WAIT_DIALOG_APPEAR,
-            timeoutMs = CONFIRM_RETRY_MS,
-            pollMs = WAIT_POLL_FAST_MS
-        ) { toggleDialogOrStateSettled(step, mergedSearchTexts) }
+        // A2: результат ожидания больше НЕ игнорируется. Эффекта нет — один координатный
+        // повтор по центру узла (непрошедший клик при валидных bounds, прогон rldmy9x8y:
+        // `via=parent depth=2`, диалог не появился, тумблер остался включённым).
+        val effect = awaitToggleEffect(step, mergedSearchTexts)
+        if (effect == ToggleEffect.NONE && !cancelled) {
+            AppLog.w(TAG, "toggle tap no effect: step=${step.id} — one coordinate retry")
+            StepDiagnostics.note(step.id, "TOGGLE", "tap_no_effect retry")
+            if (retryToggleTapOnce(step, mergedSearchTexts) == ToggleEffect.NONE) {
+                StepDiagnostics.note(step.id, "TOGGLE", "tap_no_effect after retry")
+                // A3: снимок момента, когда ожидаемый диалог так и не появился.
+                captureMissingDialogSnapshot(step, REASON_TAP_NO_EFFECT)
+            }
+        }
         // Диалог-заглушка MIUI сразу после тапа (Карусель обоев: «Нет, спасибо» / «Хорошо»):
         // отказ — часть шага, иначе тумблер остаётся включённым и шаг падает verify_failed.
         tapToggleDeclineIfNeeded(step)
         // Второй вариант того же диалога: экран-опрос «Ваше мнение важно для нас» — кнопки
         // отказа в нём нет, закрывается BACK'ом или отправкой нейтрального ответа (rmuu7xcch).
         handleFeedbackSurveyIfNeeded(step, mergedSearchTexts)
-        postToggleConfirm(step, mergedSearchTexts)?.let { return it }
+        postToggleConfirm(
+            step,
+            mergedSearchTexts,
+            dialogObserved = effect == ToggleEffect.DIALOG_PRESENT
+        )?.let { return it }
 
         // П.3: Дополнительные переключатели. В списке лежат переводы одной и той же строки
         // на все локали: поиск тумблера по отсутствующей на экране подписи — это полный
@@ -4457,7 +4527,12 @@ class SimpleRunner(private val service: AdbEnablerService) {
          * Направление прогона. В откате msa идёт к включению: там стена согласия, а не диалог
          * отзыва. Параметр открыт для теста обеих ветвей; продакшн-вызовы используют умолчание.
          */
-        reverse: Boolean = reverseCtx != null
+        reverse: Boolean = reverseCtx != null,
+        /**
+         * Окно эффекта тапа уже наблюдало диалог шага (A2): фаза появления в подтверждении
+         * не повторяет то же ожидание, иначе шаг платит 2+2 с за один и тот же диалог.
+         */
+        dialogObserved: Boolean = false
     ): Result? {
         if (SemanticCatalog.sequenceKind(step.id) == SemanticCatalog.SequenceKind.DELAYED_CONFIRM) {
             // msa: кнопка отзыва активна только после отсчёта; verify внутри самого
@@ -4473,7 +4548,7 @@ class SimpleRunner(private val service: AdbEnablerService) {
                     Result(false, REASON_CONSENT_NOT_CONFIRMED)
                 }
             }
-            if (!confirmDelayedRevoke(step, confirmTextsFor(step), texts)) {
+            if (!confirmDelayedRevoke(step, confirmTextsFor(step), texts, dialogObserved)) {
                 return Result(false, lastRevokeReason)
             }
             return null
@@ -5085,20 +5160,109 @@ class SimpleRunner(private val service: AdbEnablerService) {
     }
 
     /**
-     * После тапа по тумблеру: состояние уже целевое на ЧИСТОМ экране ЛИБО появился
-     * диалог шага (подтверждение/отказ). Позволяет не ждать диалог там, где его нет
-     * вовсе, — раньше здесь стояла фиксированная пауза 600 мс.
+     * Наблюдение эффекта тапа по тумблеру (A2): диалог шага ЛИБО целевое состояние строки.
+     * Окно — [toggleEffectWindowMs] с ранним выходом по первому эффекту; опрос идёт общим
+     * [waitFor], отдельного механизма ожидания не появляется.
+     *
+     * @return наблюдённый эффект; [ToggleEffect.NONE] — ни диалога, ни целевого состояния
      */
-    private fun toggleDialogOrStateSettled(step: SimpleSteps.Step, texts: List<String>): Boolean {
-        val root = service.rootInActiveWindow ?: return false
+    private suspend fun awaitToggleEffect(
+        step: SimpleSteps.Step,
+        texts: List<String>
+    ): ToggleEffect {
+        var observed = ToggleEffect.NONE
+        waitFor(
+            stepId = step.id,
+            reason = WAIT_DIALOG_APPEAR,
+            timeoutMs = toggleEffectWindowMs(),
+            pollMs = WAIT_POLL_FAST_MS
+        ) {
+            observed = readToggleEffect(step, texts)
+            observed != ToggleEffect.NONE
+        }
+        return observed
+    }
+
+    /**
+     * Окно эффекта: потолок [MSA_DIALOG_APPEAR_WAIT_MS] (число не новое), урезанный остатком
+     * бюджета НАД резервом на тумблер и verify. Ранний выход держит фактическую цену окна
+     * в районе 150–300 мс — 2 с ожидаются только когда эффекта нет вовсе.
+     */
+    internal fun toggleEffectWindowMs(): Long =
+        minOf(MSA_DIALOG_APPEAR_WAIT_MS, budgetAboveReserveMs().coerceAtLeast(0L))
+
+    /** Одно чтение эффекта: текст экрана (диалог шага) + состояние строки на чистом экране. */
+    private fun readToggleEffect(step: SimpleSteps.Step, texts: List<String>): ToggleEffect {
+        val root = service.rootInActiveWindow ?: return ToggleEffect.NONE
         val screenText = collectAllText(root)
         val dialogTexts = confirmTextsFor(step) + SemanticCatalog.toggleDeclineTexts(step.id)
         val dialogVisible = dialogTexts.any { TextMatcher.normalizedContains(screenText, it) }
         val node = if (dialogVisible) null else findSwitchByText(root, texts)
-        val stateOk = node != null && SwitchFinder.isChecked(node) == step.targetChecked
+        val checked = node?.let { SwitchFinder.isChecked(it) }
         recycleNode(node)
         recycleNode(root)
-        return dialogVisible || stateOk
+        return toggleEffectOf(checked, step.targetChecked, dialogVisible)
+    }
+
+    /**
+     * Один координатный повтор тапа по тумблеру (A2). Каждое условие — гейт, и все они
+     * проверяются ДО тапа:
+     * 1) на экране диалог шага — повтора нет: тап сквозь диалог запрещён (диалог затем
+     *    обрабатывает штатный обработчик стен/подтверждения);
+     * 2) строки нет — повтора нет: исчезнувшая строка не «почти получилось»;
+     * 3) bounds непригодны — повтора нет: центр вне реального дисплея;
+     * 4) повтор ровно один: второго вызова в шаге нет.
+     *
+     * Заблокированный ROM тумблер сюда не доходит: гейт [SWITCH_DISABLED_BY_ROM] стоит выше
+     * по потоку, в откате он тот же (цель берётся из снапшота).
+     */
+    internal suspend fun retryToggleTapOnce(
+        step: SimpleSteps.Step,
+        texts: List<String>
+    ): ToggleEffect {
+        val root = service.rootInActiveWindow ?: return ToggleEffect.NONE
+        val screenText = collectAllText(root)
+        val dialogTexts = confirmTextsFor(step) + SemanticCatalog.toggleDeclineTexts(step.id)
+        if (dialogTexts.any { TextMatcher.normalizedContains(screenText, it) }) {
+            recycleNode(root)
+            AppLog.i(TAG, "toggle retry skipped: dialog on screen step=${step.id}")
+            return ToggleEffect.NONE
+        }
+        val node = findSwitchByText(root, texts)
+        if (node == null) {
+            recycleNode(root)
+            AppLog.i(TAG, "toggle retry skipped: row gone step=${step.id}")
+            return ToggleEffect.NONE
+        }
+        val rect = Rect().also { node.getBoundsInScreen(it) }
+        if (!hasTappableBounds(rect)) {
+            recycleNode(node)
+            recycleNode(root)
+            AppLog.w(TAG, "toggle retry skipped: bounds degenerate step=${step.id}")
+            return ToggleEffect.NONE
+        }
+        // Заблокированный ROM тумблер: штатный гейт [SWITCH_DISABLED_BY_ROM] стоит выше по
+        // потоку, здесь — вторая линия. Повтор по неактивной строке не делается ни в форварде,
+        // ни в откате: один повтор и честный провал, никакого цикла.
+        val tapRow = clickableAncestorOrSelf(node)
+        val enabled = node.isEnabled || (tapRow?.isEnabled ?: false)
+        if (tapRow != null && tapRow !== node) recycleNode(tapRow)
+        if (!enabled) {
+            recycleNode(node)
+            recycleNode(root)
+            AppLog.w(TAG, "toggle retry skipped: switch disabled by rom step=${step.id}")
+            return ToggleEffect.NONE
+        }
+        recycleNode(node)
+        recycleNode(root)
+        val tapped = withOverlayPassthrough { tapAtRaw(rect.centerX(), rect.centerY()) }
+        AppLog.i(
+            TAG,
+            "toggle retry: coordinate tap step=${step.id} " +
+                "center=(${rect.centerX()},${rect.centerY()}) ok=$tapped"
+        )
+        if (!tapped) return ToggleEffect.NONE
+        return awaitToggleEffect(step, texts)
     }
 
     // ═════════════════════════════════════════════════════════════════════
@@ -7832,23 +7996,70 @@ class SimpleRunner(private val service: AdbEnablerService) {
         return sb.toString()
     }
 
-    private suspend fun tapNode(node: AccessibilityNodeInfo): Boolean {
-        val rect = Rect().also { node.getBoundsInScreen(it) }
-        val cls = node.className?.toString()?.substringAfterLast('.') ?: "?"
-        val id = node.viewIdResourceName ?: ""
-        val bounds = "[${rect.left},${rect.top},${rect.right},${rect.bottom}]"
-        if (node.isClickable && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-            AppLog.i(TAG, "tap: $cls id=$id clickable=true bounds=$bounds via=node")
-            stepMetrics.recordTap()
-            return true
+    /**
+     * Последний тап ушёл по узлу с непригодными для координат bounds: `ACTION_CLICK` всё равно
+     * пробуется (он не зависит от координат), поэтому эффект обязан подтвердить вызывающий
+     * (в тумблере это [awaitToggleEffect] и один координатный повтор), иначе исход честно
+     * отрицательный.
+     */
+    internal var lastTapUnverified: Boolean = false
+        private set
+
+    internal suspend fun tapNode(
+        node: AccessibilityNodeInfo,
+        /**
+         * Перечитывание ТОГО ЖЕ узла из свежего дерева для ожидания стабильных bounds.
+         * `AccessibilityNodeInfo.refresh()` не используется: он deprecated, а bounds
+         * закэшированного узла не обновляются.
+         */
+        reacquire: (() -> AccessibilityNodeInfo?)? = null
+    ): Boolean {
+        lastTapUnverified = false
+        var target = node
+        var fresh: AccessibilityNodeInfo? = null
+        var rect = Rect().also { target.getBoundsInScreen(it) }
+        // Гейт (A1): вырожденные/заэкранные bounds — сначала ждём стабильности, а не тапаем
+        // вслепую. ACTION_CLICK при этом не запрещается: он не зависит от координат.
+        if (tapGateDecision(rect, displayBounds(), TAP_STABLE_READS) == TapGate.DEGENERATE) {
+            fresh = reacquire?.let { awaitTappableReacquire(it) }
+            if (fresh != null) {
+                target = fresh
+                rect = Rect().also { target.getBoundsInScreen(it) }
+                AppLog.i(
+                    TAG,
+                    "tap: bounds stabilised after reacquire " +
+                        "bounds=[${rect.left},${rect.top},${rect.right},${rect.bottom}]"
+                )
+            } else {
+                // Ждать больше нечего: пробуем ACTION_CLICK и помечаем тап неверифицированным —
+                // эффект обязан подтвердить вызывающий, иначе исход честно отрицательный.
+                lastTapUnverified = true
+            }
         }
-        var parent = node.parent
+        fun releaseAnd(result: Boolean): Boolean {
+            recycleNode(fresh)
+            return result
+        }
+        val cls = target.className?.toString()?.substringAfterLast('.') ?: "?"
+        val id = target.viewIdResourceName ?: ""
+        val bounds = "[${rect.left},${rect.top},${rect.right},${rect.bottom}]"
+        val mark = if (lastTapUnverified) " tap_unverified" else ""
+        if (target.isClickable && target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+            AppLog.i(TAG, "tap: $cls id=$id clickable=true bounds=$bounds via=node$mark")
+            stepMetrics.recordTap()
+            return releaseAnd(true)
+        }
+        var parent = target.parent
         var depth = 0
         while (parent != null && depth < 5) {
             if (parent.isClickable && parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                AppLog.i(TAG, "tap: $cls id=$id clickable=false bounds=$bounds via=parent depth=${depth + 1}")
+                AppLog.i(
+                    TAG,
+                    "tap: $cls id=$id clickable=false bounds=$bounds via=parent " +
+                        "depth=${depth + 1}$mark"
+                )
                 stepMetrics.recordTap()
-                return true
+                return releaseAnd(true)
             }
             parent = parent.parent
             depth++
@@ -7861,21 +8072,21 @@ class SimpleRunner(private val service: AdbEnablerService) {
         // диалог отзыва согласия остался, шаг добирал wait_miss_ms).
         if (!hasTappableBounds(rect)) {
             AppLog.w(TAG, "tap: $cls id=$id bounds=$bounds degenerate — coordinate tap skipped")
-            return false
+            return releaseAnd(false)
         }
         val retried = withOverlayPassthrough { tapAtRaw(rect.centerX(), rect.centerY()) }
         if (retried) {
             AppLog.i(
                 TAG,
                 "tap: coordinate retry inside passthrough bounds=$bounds " +
-                    "id=$id center=(${rect.centerX()},${rect.centerY()})"
+                    "id=$id center=(${rect.centerX()},${rect.centerY()})$mark"
             )
-            return true
+            return releaseAnd(true)
         }
         AppLog.i(
             TAG,
-            "tap: $cls id=$id clickable=${node.isClickable} bounds=$bounds " +
-                "via=gesture center=(${rect.centerX()},${rect.centerY()})"
+            "tap: $cls id=$id clickable=${target.isClickable} bounds=$bounds " +
+                "via=gesture center=(${rect.centerX()},${rect.centerY()})$mark"
         )
         // Жестовая ветка — тоже тап по узлу (короткий жест 100 мс в его центре).
         val byGesture = performGesture(
@@ -7886,7 +8097,40 @@ class SimpleRunner(private val service: AdbEnablerService) {
             100
         )
         if (byGesture) stepMetrics.recordTap()
-        return byGesture
+        return releaseAnd(byGesture)
+    }
+
+    /**
+     * Ожидание пригодных bounds (A1): узел перечитывается из свежего дерева, пока его центр не
+     * окажется внутри дисплея, но не дольше [TAP_STABLE_MAX_MS]. Два одинаковых вырожденных
+     * чтения подряд означают «стабильно непригоден» — выходим сразу, бесконечного ожидания нет.
+     *
+     * @return свежий пригодный узел (освобождает вызывающий) либо null
+     */
+    private suspend fun awaitTappableReacquire(
+        reacquire: () -> AccessibilityNodeInfo?
+    ): AccessibilityNodeInfo? {
+        val startedAt = System.currentTimeMillis()
+        var previous: Rect? = null
+        var stableReads = 0
+        while (!cancelled && System.currentTimeMillis() - startedAt <= TAP_STABLE_MAX_MS) {
+            val node = reacquire() ?: return null
+            val rect = Rect().also { node.getBoundsInScreen(it) }
+            stableReads = if (previous == rect) stableReads + 1 else 1
+            previous = rect
+            when (tapGateDecision(rect, displayBounds(), stableReads)) {
+                TapGate.TAP_OK -> return node
+                TapGate.DEGENERATE -> {
+                    recycleNode(node)
+                    return null
+                }
+                TapGate.WAIT_STABILITY -> {
+                    recycleNode(node)
+                    delay(TAP_STABLE_POLL_MS)
+                }
+            }
+        }
+        return null
     }
 
     /**
@@ -7956,7 +8200,10 @@ class SimpleRunner(private val service: AdbEnablerService) {
             }
         }.getOrNull()
         if (bounds != null && !bounds.isEmpty) return Rect(bounds)
-        val dm = service.resources.displayMetrics
+        // Мок/недоступный сервис (unit-тесты, сервис без ресурсов): пустой прямоугольник
+        // означает «дисплей неизвестен» — гейт тапа честно откажет координатному пути,
+        // а не упадёт NPE на каждом тапе.
+        val dm = runCatching { service.resources?.displayMetrics }.getOrNull() ?: return Rect()
         return Rect(0, 0, dm.widthPixels, dm.heightPixels)
     }
 
@@ -8099,3 +8346,64 @@ class SimpleRunner(private val service: AdbEnablerService) {
  */
 internal fun entryCandidateOrder(cached: List<Intent>, launchIntent: Intent?): List<Intent> =
     (cached + listOfNotNull(launchIntent)).distinctBy { it.toUri(0) }
+
+/**
+ * Решение гейта тапа по bounds узла (A1). Тап по вырожденным/заэкранным bounds не запрещается
+ * целиком: `ACTION_CLICK` диспатчится фреймворком и от координат не зависит (прогон rldmy9x8y:
+ * тап по «Нет, спасибо» с центром вне дисплея закрыл диалог), поэтому сначала ждём стабильности,
+ * а «узел непригоден» решает только координатный путь.
+ */
+internal enum class TapGate {
+    /** Bounds пригодны: тап любым путём. */
+    TAP_OK,
+
+    /** Bounds непригодны, стабильность ещё не подтверждена — ждать и перечитывать дерево. */
+    WAIT_STABILITY,
+
+    /** Bounds непригодны и стабильны: ждать нечего, координатный тап запрещён. */
+    DEGENERATE
+}
+
+/**
+ * Гейт тапа без Android-зависимостей: bounds годны, когда они непустые и их центр внутри
+ * РЕАЛЬНОГО дисплея (`displayBounds()`, а не метрики контекста сервиса — те вычитают системные
+ * вставки, регрессия D12/E2 на `mivideo tab_mine`). Пустой дисплей считается непригодным.
+ *
+ * @param stableReads сколько чтений bounds ПОДРЯД уже совпало
+ */
+internal fun tapGateDecision(bounds: Rect, display: Rect, stableReads: Int): TapGate {
+    if (display.isEmpty) return TapGate.DEGENERATE
+    val centerInside = bounds.width() > 0 && bounds.height() > 0 &&
+        bounds.centerX() in display.left until display.right &&
+        bounds.centerY() in display.top until display.bottom
+    if (centerInside) return TapGate.TAP_OK
+    return if (stableReads >= SimpleRunner.TAP_STABLE_READS) TapGate.DEGENERATE
+    else TapGate.WAIT_STABILITY
+}
+
+/**
+ * Наблюдаемый эффект тапа по тумблеру (A2). Правило ОДНО для форварда и отката: эффект есть,
+ * если появился диалог шага ЛИБО состояние узла стало целевым. Диалог приоритетнее: пока он на
+ * экране, строка часто нечитаема, и «состояние не изменилось» ничего не доказывает.
+ */
+internal enum class ToggleEffect {
+    /** Ни диалога, ни целевого состояния: тап не дал эффекта. */
+    NONE,
+
+    /** Узел читается и уже в целевом состоянии. */
+    STATE_SETTLED,
+
+    /** На экране диалог шага (подтверждение/отказ) — читать состояние рано. */
+    DIALOG_PRESENT
+}
+
+/** Чистое правило эффекта: диалог важнее состояния, нечитаемый узел эффектом не считается. */
+internal fun toggleEffectOf(
+    checkedNow: Boolean?,
+    target: Boolean,
+    dialogVisible: Boolean
+): ToggleEffect = when {
+    dialogVisible -> ToggleEffect.DIALOG_PRESENT
+    checkedNow != null && checkedNow == target -> ToggleEffect.STATE_SETTLED
+    else -> ToggleEffect.NONE
+}
