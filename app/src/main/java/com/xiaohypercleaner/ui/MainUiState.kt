@@ -237,6 +237,12 @@ data class MainUiState(
     /** Восстановление не удалось */
     val restoreFailed: Boolean = false,
 
+    /**
+     * Шаги, которые не удалось вернуть (список из отката): показываются в диалоге
+     * неполного отката, чтобы «закрыть» не было единственным выходом.
+     */
+    val restoreFailedSteps: List<String> = emptyList(),
+
     /** Диалог уведомления о европейском регионе (EEA / GDPR) */
     val showEeaNoticeDialog: Boolean = false,
     val eeaRegionName: String = ""

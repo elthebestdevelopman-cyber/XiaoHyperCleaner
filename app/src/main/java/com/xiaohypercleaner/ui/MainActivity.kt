@@ -751,9 +751,29 @@ private fun MainDialogsHost(
         )
     }
     if (state.restoreFailed) {
+        val failedSteps = state.restoreFailedSteps
         InfoDialog(
-            title = stringResource(R.string.restore_dialog_title),
-            text = stringResource(R.string.restore_failed_text),
+            title = stringResource(R.string.restore_result_title),
+            text = buildString {
+                append(stringResource(R.string.restore_failed_text))
+                if (failedSteps.isNotEmpty()) {
+                    append("\n\n")
+                    append(
+                        stringResource(
+                            R.string.restore_result_failed_list,
+                            failedSteps.joinToString(", ")
+                        )
+                    )
+                    append("\n\n")
+                    append(stringResource(R.string.restore_result_failed_hint))
+                }
+            },
+            confirmText = stringResource(R.string.btn_restore),
+            onConfirm = {
+                AppLog.i(MainActivity.TAG, "restore failed dialog: retry requested")
+                vm.dismissRestoreFailed()
+                vm.restoreOptimization()
+            },
             onDismiss = {
                 AppLog.i(MainActivity.TAG, "restore failed dialog: dismissed")
                 vm.dismissRestoreFailed()

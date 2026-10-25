@@ -583,7 +583,10 @@ class ProFlowController(
                         // пользователем тоже не «успех».
                         restoreFailed = restoreCanceled ||
                             (simpleSteps.isNotEmpty() && !simpleOk) ||
-                            (proPending && !adbOk)
+                            (proPending && !adbOk),
+                        // Список невосстановленных шагов идёт в диалог: раньше экран
+                        // неполного отката был тупиком с одной кнопкой «закрыть».
+                        restoreFailedSteps = restoreFailedSteps
                     )
                 }
             } catch (e: CancellationException) {
