@@ -98,6 +98,13 @@ internal object InstallerWatcherLogic {
     const val REASON_SWITCH_NOT_FOUND = "switch_not_found"
     const val REASON_ALREADY_OFF = "already_off"
 
+    /**
+     * Лексикон шага пуст: каталог не загружен к моменту окна установщика. Искать тумблер
+     * нечем, а тапать шестерёнку вслепую нельзя — в прогоне rmvo4c03j это дало
+     * `switch not found for 'null' (texts=0)` ×60 и две сессии подряд.
+     */
+    const val REASON_EMPTY_LEXICON = "empty_lexicon"
+
     /** На реконнекте окна может не быть вовсе — это тоже причина, а не тишина. */
     const val REASON_NO_WINDOW = "no_window"
 
@@ -117,6 +124,14 @@ internal object InstallerWatcherLogic {
     private val CONFIRM_IDS = setOf(
         "install_confirm_question_update", "alertTitle", "button1", "button2"
     )
+
+    /**
+     * Лексикон шага пуст: искать тумблер нечем, и тапать шестерёнку вслепую нельзя.
+     * Пустой набор подписей давал `switch not found for 'null' (texts=0)` ×60 и две сессии
+     * подряд (прогон rmvo4c03j). Чистая функция — тестируется без сервиса.
+     */
+    fun lexiconEmpty(toggleTexts: List<String>, screenMarkers: List<String>): Boolean =
+        toggleTexts.isEmpty() && screenMarkers.isEmpty()
 
     /**
      * Дешёвый гейт (до обхода дерева и до решений по окну): выключенный ловец и
@@ -275,10 +290,21 @@ internal class InstallerWatcher(
             return
         }
 
+        // Лексикон шага не загружен: искать тумблер нечем, и тапать шестерёнку нельзя —
+        // пустой набор подписей давал `switch not found for 'null' (texts=0)` ×60 и две
+        // сессии подряд (прогон rmvo4c03j). Каталог обязан быть загружен до ловца.
         val observation = observe()
         if (observation == null) {
             // Путь события молчит по-прежнему (шум в логе), реконнект говорит всегда.
             if (alwaysLog) report(InstallerWatcherLogic.REASON_NO_WINDOW)
+            return
+        }
+        if (InstallerWatcherLogic.lexiconEmpty(
+                toggleTexts(),
+                SemanticCatalog.screenMarkers(InstallerWatcherLogic.STEP_ID)
+            )
+        ) {
+            report(InstallerWatcherLogic.REASON_EMPTY_LEXICON, observation.packageName)
             return
         }
         val decision = InstallerWatcherLogic.decide(observation, cycleClosed())

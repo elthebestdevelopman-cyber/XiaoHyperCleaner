@@ -310,4 +310,18 @@ class InstallerWatcherTest {
             cycleClosedFor(now, buildCycleFingerprint("V130.0.1.0", "V140"))
         )
     }
+
+    @Test
+    fun `empty lexicon is recognised before any tap`() {
+        // Прогон rmvo4c03j: каталог не был загружен к окну установщика, ловец тапал
+        // шестерёнку с пустым набором подписей (`switch not found for 'null' (texts=0)` ×60)
+        // и уходил в `settings_screen_timeout`. Пустой лексикон — стоп до тапа.
+        assertTrue(InstallerWatcherLogic.lexiconEmpty(emptyList(), emptyList()))
+        assertTrue(
+            !InstallerWatcherLogic.lexiconEmpty(listOf("Получать рекомендации"), emptyList())
+        )
+        assertTrue(
+            !InstallerWatcherLogic.lexiconEmpty(emptyList(), listOf("Получать рекомендации"))
+        )
+    }
 }

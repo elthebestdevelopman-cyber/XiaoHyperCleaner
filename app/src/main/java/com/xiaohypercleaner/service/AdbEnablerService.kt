@@ -14,6 +14,7 @@ import android.view.accessibility.AccessibilityWindowInfo
 import com.xiaohypercleaner.R
 import com.xiaohypercleaner.data.PreferencesManager
 import com.xiaohypercleaner.data.RomProfile
+import com.xiaohypercleaner.data.SemanticCatalog
 import com.xiaohypercleaner.data.SimplePlan
 import com.xiaohypercleaner.data.SimpleSteps
 import com.xiaohypercleaner.util.AppLog
@@ -277,6 +278,13 @@ class AdbEnablerService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        // Каталог семантики грузится ДО обработчиков: ловец установщика читает лексикон шага
+        // по оконным событиям, которые приходят раньше первого экрана приложения. Без этого
+        // `SemanticCatalog.itemTexts("installer_recommendations")` пуст, `settingsScreen`
+        // всегда false, и предшаг заканчивался `settings_screen_timeout` (прогон rmvo4c03j:
+        // `switch not found for 'null' (texts=0)` ×60).
+        runCatching { SemanticCatalog.ensureLoaded(this) }
+            .onFailure { AppLog.w(TAG, "semantic preload failed: ${it.message}") }
         AppLog.i(TAG, "Service connected")
         // Диагностика восприятия: флаги сервиса и доступность окон (P0-слепота).
         val info = serviceInfo
