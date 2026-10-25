@@ -310,4 +310,17 @@ class SimpleRunnerTapGateTest {
         Mockito.verify(service, Mockito.never())
             .dispatchGesture(Mockito.any(), Mockito.any(), Mockito.any())
     }
+
+    @Test
+    fun `security start button is never tapped by the consent handler`() {
+        // Прогон rmvo4c03j: тап по «Начать» (btn_action) запустил оптимизацию MIUI,
+        // которая убила процесс приложения. Запрет — машинный, по id из каталога.
+        assertTrue(
+            runner.isBlockedConsentTarget("com.miui.securitycenter:id/btn_action")
+        )
+        assertFalse(
+            "кнопка закрытия диалога Музыки не входит в запрет",
+            runner.isBlockedConsentTarget("com.miui.player:id/tv_ok")
+        )
+    }
 }

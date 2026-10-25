@@ -35,6 +35,9 @@ object ConsentWallHandler {
     /** Длиннее этого текста экран считается настройками, а не диалогом. */
     private const val DIALOG_TEXT_MAX = 500
 
+    /** Короткие токены закрытия («OK», «Нет», «No») сверяются целым словом — [matchesDismissToken]. */
+    private const val SHORT_DISMISS_TOKEN_MAX = 3
+
     /** Пауза перед проверкой «диалог закрылся» (тап уже отправлен) — верхний лимит опроса. */
     private const val VERIFY_DELAY_MS = 250L
 
@@ -227,7 +230,15 @@ object ConsentWallHandler {
          * Кнопки стены — только из набора шага: живую кнопку ищем в них, а не в
          * общем `welcomeActions` (иначе route-шаг «принимает» рабочую страницу).
          */
-        val strictTexts: Boolean = false
+        val strictTexts: Boolean = false,
+        /**
+         * Разрешён ли fallback «действие стены» (тап `welcomeActions`) для dismiss-действия.
+         * Ставится ТОЛЬКО когда экран подтверждён маркерами стены (`welcomeHit`): иначе
+         * fallback тапал «Начать» на домашнем экране «Безопасности», и оптимизация MIUI
+         * убивала процесс приложения (прогон rmvo4c03j). Инвариант: лучше незакрытая
+         * стена, чем убитый прогон.
+         */
+        val allowWelcomeFallback: Boolean = false
     )
 
     /**
@@ -408,8 +419,9 @@ object ConsentWallHandler {
                 // Стена-промо без отрицательной кнопки (Mi Браузер: «Совершенно новые
                 // AI-функции», «Приватные файлы»): у неё есть только кнопка продолжения,
                 // поэтому после отказа по dismiss-текстам пробуем действия стены.
-                // Только для kind=dismiss: permission-диалоги этот путь не трогает.
-                val byWall = byIdOrText || (action.kind == "dismiss" &&
+                // Только для kind=dismiss И только когда экран подтверждён маркерами стены:
+                // иначе fallback тапал «Начать» на рабочем экране «Безопасности» (rmvo4c03j).
+                val byWall = byIdOrText || (action.kind == "dismiss" && action.allowWelcomeFallback &&
                     bridge.tapEnabledDialogButtonByTexts(
                         (SemanticCatalog.welcomeActions() + action.texts).distinct(),
                         action.markers
@@ -571,7 +583,11 @@ object ConsentWallHandler {
                 markers = alertMarkers,
                 // Кнопка диалога закрывается и по resource-id (`tv_ok` Mi Music):
                 // подпись «OK» может отсутствовать в локали/меняться, а id стабилен.
-                ids = SemanticCatalog.dismissCloseIds()
+                ids = SemanticCatalog.dismissCloseIds(),
+                // Fallback «действие стены» разрешён ТОЛЬКО стене, подтверждённой маркерами:
+                // на домашнем экране «Безопасности» маркеров стены нет, а «Начать» есть —
+                // тап по нему запускал оптимизацию MIUI и убивал процесс (прогон rmvo4c03j).
+                allowWelcomeFallback = welcomeHit
             )
         }
 
@@ -843,7 +859,22 @@ object ConsentWallHandler {
     ): Boolean {
         if (markerHit(screenText, dismissMarkers)) return true
         // «Нет, спасибо»/«Понятно» сами по себе — маркер диалога-заглушки.
-        return dismissTexts.any { TextMatcher.normalizedContains(screenText, it) }
+        return dismissTexts.any { token -> matchesDismissToken(screenText, token) }
+    }
+
+    /**
+     * Короткие токены («OK», «Нет», «No») сверяются ЦЕЛЫМ словом: подстрочный поиск ловил
+     * «ok» внутри «Facebook», и домашний экран «Безопасности» классифицировался как сетевой
+     * диалог (прогон rmvo4c03j: тап по «Начать» запустил оптимизацию MIUI и убил процесс).
+     * Длинные фразы остаются на прежней подстрочной семантике.
+     */
+    private fun matchesDismissToken(screenText: String, token: String): Boolean {
+        val normalized = TextMatcher.normalize(token)
+        return if (normalized.length <= SHORT_DISMISS_TOKEN_MAX) {
+            TextMatcher.normalizedContainsWord(screenText, token)
+        } else {
+            TextMatcher.normalizedContains(screenText, token)
+        }
     }
 
     private fun log(

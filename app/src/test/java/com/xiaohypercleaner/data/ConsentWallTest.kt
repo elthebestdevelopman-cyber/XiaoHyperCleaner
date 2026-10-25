@@ -1252,4 +1252,64 @@ class ConsentWallTest {
             )
         }
     }
+
+    @Test
+    fun `security home screen is not a consent dialog`() = runTest {
+        withLocale("ru") {
+            // Дамп after/diagnostic_snapshot_security_sys_*.json: карточка «Очистка Facebook»
+            // давала `"facebook".contains("ok")`, экран уходил в cause=network, и fallback
+            // тапнул «Начать» — оптимизация MIUI убила процесс (прогон rmvo4c03j, шаг 11/26).
+            val action = ConsentWallHandler.classify(
+                screenText = "93 Оптимизируйте несколько объектов Начать Обеспечьте скорость " +
+                    "работы и безопасность своего устройства Приложения Доступно 21 обновление " +
+                    "Глубокая очистка Защита приложений Обезопасьте личные данные Блокировать " +
+                    "Клонирование Независимые копии любых приложений Создать Очистка Facebook",
+                ownerPackage = "com.miui.securitycenter",
+                stepPackages = listOf("com.miui.securitycenter"),
+                stepId = "cleaner",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = emptyList(),
+                alertDialog = false
+            )
+            assertNull("домашний экран «Безопасности» — не диалог согласия", action)
+        }
+    }
+
+    @Test
+    fun `wall fallback requires wall markers`() = runTest {
+        withLocale("ru") {
+            // Без маркеров стены fallback «действие стены» запрещён: иначе он тапает
+            // welcomeActions («Начать») на рабочем экране приложения.
+            val withoutMarkers = ConsentWallHandler.classify(
+                screenText = "Понятно",
+                ownerPackage = "com.miui.securitycenter",
+                stepPackages = listOf("com.miui.securitycenter"),
+                stepId = "cleaner",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = emptyList(),
+                alertDialog = false
+            )
+            assertEquals("dismiss", withoutMarkers?.kind)
+            assertFalse(
+                "fallback действия стены без маркеров стены запрещён",
+                withoutMarkers?.allowWelcomeFallback ?: true
+            )
+
+            // Промо-стена Mi Браузера подтверждена маркерами стены — fallback сохраняется.
+            val withMarkers = ConsentWallHandler.classify(
+                screenText = "Добро пожаловать в Mi Браузер Понятно",
+                ownerPackage = "com.mi.globalbrowser",
+                stepPackages = listOf("com.mi.globalbrowser"),
+                stepId = "browser_sys",
+                stepConfirmTexts = emptyList(),
+                stepConsentTexts = emptyList(),
+                alertDialog = false
+            )
+            assertEquals("dismiss", withMarkers?.kind)
+            assertTrue(
+                "промо-стена с маркерами стены сохраняет fallback",
+                withMarkers?.allowWelcomeFallback == true
+            )
+        }
+    }
 }

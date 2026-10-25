@@ -54,6 +54,32 @@ object TextMatcher {
     }
 
     /**
+     * Совпадение ЦЕЛЫМ словом: для коротких токенов («OK», «Нет», «No») подстрочный поиск
+     * ловит чужие слова. Прогон rmvo4c03j: карточка «Очистка Facebook» на экране
+     * «Безопасности» дала `"facebook".contains("ok") == true`, экран классифицировался как
+     * сетевой диалог, и fallback тапнул «Начать» — оптимизация MIUI убила процесс приложения.
+     *
+     * Границы — не буквы и не цифры; регистр и «ё» уже приведены [normalize].
+     */
+    fun normalizedContainsWord(haystack: String?, needle: String?): Boolean {
+        val n = normalize(needle)
+        if (n.isEmpty()) return false
+        val h = normalize(haystack)
+        if (h.isEmpty()) return false
+        var from = 0
+        while (from <= h.length - n.length) {
+            val i = h.indexOf(n, from)
+            if (i < 0) return false
+            val before = if (i == 0) ' ' else h[i - 1]
+            val afterIndex = i + n.length
+            val after = if (afterIndex >= h.length) ' ' else h[afterIndex]
+            if (!before.isLetterOrDigit() && !after.isLetterOrDigit()) return true
+            from = i + 1
+        }
+        return false
+    }
+
+    /**
      * Нечёткое сравнение по коэффициенту похожести (расстояние Левенштейна).
      * Используется как последний рубеж, когда точное совпадение не найдено.
      */

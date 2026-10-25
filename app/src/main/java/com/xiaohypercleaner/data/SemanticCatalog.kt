@@ -336,6 +336,14 @@ object SemanticCatalog {
          */
         val dismissCloseIds: List<String> = emptyList(),
         /**
+         * Resource-id кнопок, которые обработчик диалогов не нажимает НИКОГДА, даже если они
+         * попали в наборы согласия (машинные, без локалей). `com.miui.securitycenter:id/btn_action`
+         * — «Начать» на домашнем экране «Безопасности»: тап запускает оптимизацию MIUI,
+         * которая убивает процесс приложения (прогон rmvo4c03j, шаг 11/26 умер).
+         * Инвариант: лучше незакрытая стена, чем убитый прогон.
+         */
+        val blockedActionIds: List<String> = emptyList(),
+        /**
          * Маркеры полноэкранных гайдов-жестов: у них нет кнопки, закрываются СВАЙПОМ
          * вверх (Mi Video: «Проведите вверх для просмотра других видео»; экран
          * `com.miui.videoplayer:id/anim_small_video_guide` перекрывает вкладки, и
@@ -781,6 +789,12 @@ object SemanticCatalog {
     /** Resource-id кнопок закрытия диалогов-заглушек и промо (Mi Music `tv_ok`). */
     fun dismissCloseIds(): List<String> = consentPolicy?.dismissCloseIds.orEmpty()
 
+    /**
+     * Кнопки, которые обработчик диалогов не нажимает никогда (машинные id, без локалей).
+     * Проверяется в воронке тапа ([com.xiaohypercleaner.service.SimpleRunner.tapSystemDialogButton]).
+     */
+    fun blockedActionIds(): List<String> = consentPolicy?.blockedActionIds.orEmpty()
+
     /** Маркеры полноэкранных гайдов-жестов (закрываются свайпом вверх). */
     fun guideMarkers(): List<String> = localizedTexts(consentPolicy?.guideMarkers)
 
@@ -1053,6 +1067,7 @@ object SemanticCatalog {
             decoyMarkers = parseListMap(o.optJSONObject("decoyMarkers")),
             decoyCloseIds = parseStringArray(o.optJSONArray("decoyCloseIds")),
             dismissCloseIds = parseStringArray(o.optJSONArray("dismissCloseIds")),
+            blockedActionIds = parseStringArray(o.optJSONArray("blockedActionIds")),
             guideMarkers = parseListMap(o.optJSONObject("guideMarkers")),
             masterMarkers = parseListMap(o.optJSONObject("masterMarkers")),
             masterSkipTexts = parseListMap(o.optJSONObject("masterSkipTexts")),

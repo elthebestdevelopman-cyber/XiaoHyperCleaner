@@ -109,6 +109,7 @@
     },
     "decoyCloseIds": ["upgrade_x_out", "iv_close", "close_button", "btn_close"],
     "dismissCloseIds": ["tv_ok"],
+    "blockedActionIds": ["com.miui.securitycenter:id/btn_action"],
     "masterMarkers": {
       "ru": ["Mi фаны рекомендуют"],
       "en": ["Mi fans recommend"],

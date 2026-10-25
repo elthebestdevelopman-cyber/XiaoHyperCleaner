@@ -6678,6 +6678,14 @@ class SimpleRunner(private val service: AdbEnablerService) {
                 recycleNode(node); recycleNode(root)
                 return false
             }
+            // Машинный запрет по id: «Начать» в «Безопасности» запускает оптимизацию MIUI,
+            // которая убивает процесс приложения (прогон rmvo4c03j). Лучше незакрытая стена,
+            // чем убитый прогон.
+            if (isBlockedConsentTarget(node.viewIdResourceName)) {
+                AppLog.w(TAG, "consent: blocked action id '${node.viewIdResourceName}'")
+                recycleNode(node); recycleNode(root)
+                return false
+            }
             // Подпись нажатой кнопки идёт в лог стены (`tapped='Согласен'`).
             lastDialogTapText = TextMatcher.normalize(label.orEmpty())
             val tapped = tapNode(node)
@@ -6694,12 +6702,24 @@ class SimpleRunner(private val service: AdbEnablerService) {
      * («upgrade_x_out» у апдейт-промпта GetApps) своей подписи не имеет, текстом его
      * не найти — закрываем по id. Кнопка «Обновить» не нажимается: её id в списке нет.
      */
+    /**
+     * Кнопка диалога, которую обработчик согласия не нажимает НИКОГДА (машинный список
+     * `consentPolicy.blockedActionIds`). `com.miui.securitycenter:id/btn_action` («Начать»)
+     * запускает оптимизацию MIUI, которая убивает процесс приложения (прогон rmvo4c03j).
+     */
+    internal fun isBlockedConsentTarget(viewId: String?): Boolean {
+        val id = viewId ?: return false
+        if (id.isEmpty()) return false
+        return SemanticCatalog.blockedActionIds().any { id.endsWith(it, ignoreCase = true) }
+    }
+
     private suspend fun tapSystemNodeByIds(ids: List<String>): Boolean {
         if (ids.isEmpty()) return false
         val root = service.rootInActiveWindow ?: return false
         val node = NodeTree.findAllInTree(root, predicate = { n ->
             val id = n.viewIdResourceName ?: ""
-            id.isNotEmpty() && ids.any { id.endsWith(it, ignoreCase = true) }
+            id.isNotEmpty() && !isBlockedConsentTarget(id) &&
+                ids.any { id.endsWith(it, ignoreCase = true) }
         }).firstOrNull { clickableAncestorOrSelf(it) != null }
         if (node == null) {
             recycleNode(root)

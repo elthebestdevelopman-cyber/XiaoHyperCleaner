@@ -75,4 +75,17 @@ class TextMatcherTest {
         assertTrue(TextMatcher.isFuzzyMatch("Очистить все данные", "данные", threshold = 0.88))
         assertTrue(TextMatcher.isFuzzyMatch("Clear all data", "clear", threshold = 0.88))
     }
+
+    @Test
+    fun `short token matches only as a whole word`() {
+        // Прогон rmvo4c03j: «Очистка Facebook» содержит «ok» ПОДСТРОКОЙ, домашний экран
+        // «Безопасности» ушёл в cause=network, и fallback тапнул «Начать» — оптимизация
+        // MIUI убила процесс приложения.
+        assertFalse(TextMatcher.normalizedContainsWord("Очистка Facebook", "OK"))
+        assertTrue(TextMatcher.normalizedContainsWord("Произошла ошибка сети OK", "OK"))
+        assertTrue(TextMatcher.normalizedContainsWord("Нет, спасибо", "Нет"))
+        assertFalse(TextMatcher.normalizedContainsWord("Нетфликс", "Нет"))
+        // Длинные фразы остаются подстрочными: прежняя семантика не меняется.
+        assertTrue(TextMatcher.normalizedContains("Нажмите «Нет, спасибо» для выхода", "Нет, спасибо"))
+    }
 }
